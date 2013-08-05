@@ -1,0 +1,188 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<link rel="STYLESHEET" href="modpython.css" type='text/css' />
+<link rel="first" href="modpython.html" title='Mod_python Manual' />
+<link rel='contents' href='contents.html' title="Contents" />
+<link rel='index' href='genindex.html' title='Index' />
+<link rel='last' href='about.html' title='About this document...' />
+<link rel='help' href='about.html' title='About this document...' />
+<link rel="next" href="pyapi-util-fstor-fld.html" />
+<link rel="prev" href="pyapi-util-fstor.html" />
+<link rel="parent" href="pyapi-util.html" />
+<link rel="next" href="pyapi-util-fstor-fld.html" />
+<meta name='aesop' content='information' />
+<title>4.6.2 FieldStorage Examples</title>
+</head>
+<body>
+<DIV CLASS="navigation">
+<div id='top-navigation-panel' xml:id='top-navigation-panel'>
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td class='online-navigation'><a rel="prev" title="4.6.1 FieldStorage class"
+  href="pyapi-util-fstor.html"><img src='previous.png'
+  border='0' height='32'  alt='Previous Page' width='32' /></A></td>
+<td class='online-navigation'><a rel="parent" title="4.6 util - Miscellaneous"
+  href="pyapi-util.html"><img src='up.png'
+  border='0' height='32'  alt='Up One Level' width='32' /></A></td>
+<td class='online-navigation'><a rel="next" title="4.6.3 Field class"
+  href="pyapi-util-fstor-fld.html"><img src='next.png'
+  border='0' height='32'  alt='Next Page' width='32' /></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td class='online-navigation'><a rel="contents" title="Table of Contents"
+  href="contents.html"><img src='contents.png'
+  border='0' height='32'  alt='Contents' width='32' /></A></td>
+<td class='online-navigation'><img src='blank.png'
+  border='0' height='32'  alt='' width='32' /></td>
+<td class='online-navigation'><a rel="index" title="Index"
+  href="genindex.html"><img src='index.png'
+  border='0' height='32'  alt='Index' width='32' /></A></td>
+</tr></table>
+<div class='online-navigation'>
+<b class="navlabel">Previous:</b>
+<a class="sectref" rel="prev" href="pyapi-util-fstor.html">4.6.1 FieldStorage class</A>
+<b class="navlabel">Up:</b>
+<a class="sectref" rel="parent" href="pyapi-util.html">4.6 util - Miscellaneous</A>
+<b class="navlabel">Next:</b>
+<a class="sectref" rel="next" href="pyapi-util-fstor-fld.html">4.6.3 Field class</A>
+</div>
+<hr /></div>
+</DIV>
+<!--End of Navigation Panel-->
+
+<H2><A NAME="SECTION006620000000000000000"></A><A NAME="pyapi-util-fstor-examples"></A>
+<BR>
+4.6.2 FieldStorage Examples
+</H2>
+
+<P>
+The following examples demonstrate how to use the <var>file_callback</var> 
+  parameter of the <tt class="class">FieldStorage</tt> constructor to control file
+  object creation. The <tt class="class">Storage</tt> classes created in both 
+  examples derive from FileType, thereby providing extended file
+  functionality.
+
+<P>
+These examples are provided for demonstration purposes only. The 
+  issue of temporary file location and security must be considered
+  when providing such overrides with mod_python in production use.
+
+<P>
+<DL>
+<DT><STRONG>Simple file control using class constructor</STRONG></DT>
+<DD><P>
+This example uses the <tt class="class">FieldStorage</tt> class constructor to
+    create the file object, allowing simple control. It is not 
+    advisable to add class variables to this if serving multiple sites
+    from apache. In that case use the factory method instead.
+
+<P>
+<div class="verbatim"><pre>
+class Storage(file):
+
+    def __init__(self, advisory_filename):
+        self.advisory_filename = advisory_filename
+        self.delete_on_close = True
+        self.already_deleted = False
+        self.real_filename = '/someTempDir/thingy-unique-thingy'
+        super(Storage, self).__init__(self.real_filename, 'w+b')
+
+    def close(self):
+        if self.already_deleted:
+            return
+        super(Storage, self).close()
+        if self.delete_on_close:
+            self.already_deleted = True
+            os.remove(self.real_filename)
+
+request_data = util.FieldStorage(request, keep_blank_values=True, file_callback=Storage)
+</pre></div>
+
+<P>
+</DD>
+<DT><STRONG>Advanced file control using object factory</STRONG></DT>
+<DD><P>
+Using a object factory can provide greater control over the
+    constructor parameters.
+
+<P>
+<div class="verbatim"><pre>
+import os
+
+class Storage(file):
+
+    def __init__(self, directory, advisory_filename):
+        self.advisory_filename = advisory_filename
+        self.delete_on_close = True
+        self.already_deleted = False
+        self.real_filename = directory + '/thingy-unique-thingy'
+        super(Storage, self).__init__(self.real_filename, 'w+b')
+
+    def close(self):
+        if self.already_deleted:
+            return
+        super(Storage, self).close()
+        if self.delete_on_close:
+            self.already_deleted = True
+            os.remove(self.real_filename)
+
+class StorageFactory:
+
+    def __init__(self, directory):
+        self.dir = directory
+
+    def create(self, advisory_filename):
+        return Storage(self.dir, advisory_filename)
+
+file_factory = StorageFactory(someDirectory)
+[...sometime later...]
+request_data = util.FieldStorage(request, keep_blank_values=True,
+                                file_callback=file_factory.create)
+</pre></div>
+
+<P>
+</DD>
+</DL>
+
+<P>
+
+<DIV CLASS="navigation">
+<div class='online-navigation'>
+<p></p><hr />
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td class='online-navigation'><a rel="prev" title="4.6.1 FieldStorage class"
+  href="pyapi-util-fstor.html"><img src='previous.png'
+  border='0' height='32'  alt='Previous Page' width='32' /></A></td>
+<td class='online-navigation'><a rel="parent" title="4.6 util - Miscellaneous"
+  href="pyapi-util.html"><img src='up.png'
+  border='0' height='32'  alt='Up One Level' width='32' /></A></td>
+<td class='online-navigation'><a rel="next" title="4.6.3 Field class"
+  href="pyapi-util-fstor-fld.html"><img src='next.png'
+  border='0' height='32'  alt='Next Page' width='32' /></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td class='online-navigation'><a rel="contents" title="Table of Contents"
+  href="contents.html"><img src='contents.png'
+  border='0' height='32'  alt='Contents' width='32' /></A></td>
+<td class='online-navigation'><img src='blank.png'
+  border='0' height='32'  alt='' width='32' /></td>
+<td class='online-navigation'><a rel="index" title="Index"
+  href="genindex.html"><img src='index.png'
+  border='0' height='32'  alt='Index' width='32' /></A></td>
+</tr></table>
+<div class='online-navigation'>
+<b class="navlabel">Previous:</b>
+<a class="sectref" rel="prev" href="pyapi-util-fstor.html">4.6.1 FieldStorage class</A>
+<b class="navlabel">Up:</b>
+<a class="sectref" rel="parent" href="pyapi-util.html">4.6 util - Miscellaneous</A>
+<b class="navlabel">Next:</b>
+<a class="sectref" rel="next" href="pyapi-util-fstor-fld.html">4.6.3 Field class</A>
+</div>
+</div>
+<hr />
+<span class="release-info">Release 3.3.1, documentation updated on January 29, 2007.</span>
+</DIV>
+<!--End of Navigation Panel-->
+
+</BODY>
+</HTML>

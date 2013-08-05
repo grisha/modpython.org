@@ -1,0 +1,449 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<link rel="STYLESHEET" href="modpython.css" type='text/css'>
+<link rel="first" href="modpython.html" title='Mod_python Manual'>
+<link rel='contents' href='contents.html' title="Contents">
+<link rel='index' href='genindex.html' title='Index'>
+<link rel='last' href='about.html' title='About this document...'>
+<link rel='help' href='about.html' title='About this document...'>
+<LINK REL="prev" href="pyapi-sess.html">
+<LINK REL="parent" href="pythonapi.html">
+<LINK REL="next" href="directives.html">
+<meta name='aesop' content='information'>
+<META NAME="description" CONTENT="psp - Python Server Pages">
+<META NAME="keywords" CONTENT="modpython">
+<META NAME="resource-type" CONTENT="document">
+<META NAME="distribution" CONTENT="global">
+<title>4.9 psp - Python Server Pages</title>
+</head>
+<body>
+<DIV CLASS="navigation">
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><a rel="prev" title="4.8.2 Examples" 
+  href="pyapi-sess-example.html"><img src='previous.gif'
+  border='0' height='32'  alt='Previous Page' width='32'></A></td>
+<td><a rel="parent" title="4. Python API" 
+  href="pythonapi.html"><img src='up.gif'
+  border='0' height='32'  alt='Up One Level' width='32'></A></td>
+<td><a rel="next" title="5. Apache Configuration Directives" 
+  href="directives.html"><img src='next.gif'
+  border='0' height='32'  alt='Next Page' width='32'></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><a rel="contents" title="Table of Contents" 
+  href="contents.html"><img src='contents.gif'
+  border='0' height='32'  alt='Contents' width='32'></A></td>
+<td><img src='blank.gif'
+  border='0' height='32'  alt='' width='32'></td>
+<td><a rel="index" title="Index" 
+  href="genindex.html"><img src='index.gif'
+  border='0' height='32'  alt='Index' width='32'></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b>
+<a class="sectref" rel="prev" href="pyapi-sess-example.html">4.8.2 Examples</A>
+<b class="navlabel">Up:</b>
+<a class="sectref" rel="parent" href="pythonapi.html">4. Python API</A>
+<b class="navlabel">Next:</b>
+<a class="sectref" rel="next" href="directives.html">5. Apache Configuration Directives</A>
+<br><hr>
+</DIV>
+<!--End of Navigation Panel-->
+
+<H1><A NAME="SECTION006900000000000000000">&nbsp;</A>
+<BR>
+4.9 <tt class="module">psp</tt> - Python Server Pages
+</H1>
+
+
+<P>
+The <tt class="module">psp</tt> module provides a way to convert text documents
+(including, but not limited to HTML documents) containing Python code
+embedded in special brackets into pure Python code suitable for
+execution within a mod_python handler, thereby providing a versatile
+mechanism for delivering dynamic content in a style similar to ASP,
+JSP and others.
+
+<P>
+The parser used by <tt class="module">psp</tt> is written in C (generated using flex)
+and is therefore very fast.
+
+<P>
+<i>See <A href="hand-psp.html#hand-psp">6.2</A> ``PSP Handler'' for additional PSP
+information.</i>
+
+<P>
+Inside the document, Python <i class="dfn">code</i> needs to be surrounded by
+"<tt class="samp">&lt;%</tt>" and "<tt class="samp">%&gt;</tt>". Python <i class="dfn">expressions</i> are enclosed in
+"<tt class="samp">&lt;%=</tt>" and "<tt class="samp">%&gt;</tt>". A <i class="dfn">directive</i> can be enclosed in
+"<tt class="samp">&lt;%@</tt>" and "<tt class="samp">%&gt;</tt>". A comment (which will never be part of
+the resulting code) can be enclosed in "<tt class="samp">&lt;%-&#45;</tt>" and "<tt class="samp">-&#45;%&gt;</tt>"
+<P>
+Here is a primitive PSP page that demonstrated use of both code and
+expression embedded in an HTML document:
+
+<P>
+<div class="verbatim"><pre>
+  &lt;html&gt;
+  &lt;%
+  import time
+  %&gt;
+  Hello world, the time is: &lt;%=time.strftime("%Y-%m-%d, %H:%M:%S")%&gt;
+  &lt;/html&gt;
+</pre></div>
+
+<P>
+Internally, the PSP parser would translate the above page into the
+following Python code:
+
+<P>
+<div class="verbatim"><pre>
+  req.write("""&lt;html&gt;
+  """)
+  import time
+  req.write("""
+  Hello world, the time is: """); req.write(str(time.strftime("%Y-%m-%d, %H:%M:%S"))); req.write("""
+  &lt;/html&gt;
+  """)
+</pre></div>
+
+<P>
+This code, when executed inside a handler would result in a page
+displaying words "<tt class="samp">Hello world, the time is: </tt>" followed by current time.
+
+<P>
+Python code can be used to output parts of the page conditionally or
+in loops. Blocks are denoted from within Python code by
+indentation. The last indentation in Python code (even if it is a
+comment) will persist through the document until either end of
+document or more Python code.
+
+<P>
+Here is an example:
+<div class="verbatim"><pre>
+  &lt;html&gt;
+  &lt;%
+  for n in range(3):
+      # This indent will persist
+  %&gt;
+  &lt;p&gt;This paragraph will be 
+  repeated 3 times.&lt;/p&gt;
+  &lt;%
+  # This line will cause the block to end
+  %&gt;
+  This line will only be shown once.&lt;br&gt;
+  &lt;/html&gt;
+</pre></div>
+
+<P>
+The above will be internally translated to the following Python code:
+
+<P>
+<div class="verbatim"><pre>
+  req.write("""&lt;html&gt;
+  """)
+  for n in range(3):
+      # This indent will persist
+      req.write("""
+  &lt;p&gt;This paragraph will be
+  repeated 3 times.&lt;/p&gt;
+  """)
+  # This line will cause the block to end
+  req.write("""
+  This line will only be shown once.&lt;br&gt;
+  &lt;/html&gt;
+  """)
+</pre></div>
+
+<P>
+The parser is also smart enough to figure out the indent if the last
+line of Python ends with "<tt class="samp">:</tt>" (colon). Considering this, and that the
+indent is reset when a newline is encountered inside "<tt class="samp">&lt;% %&gt;</tt>", the
+above page can be written as:
+
+<P>
+<div class="verbatim"><pre>
+  &lt;html&gt;
+  &lt;%
+  for n in range(3):
+  %&gt;
+  &lt;p&gt;This paragraph will be 
+  repeated 3 times.&lt;/p&gt;
+  &lt;%
+  %&gt;
+  This line will only be shown once.&lt;br&gt;
+  &lt;/html&gt;
+</pre></div>
+
+<P>
+However, the above code can be confusing, thus having descriptive
+comments denoting blocks is highly recommended as a good practice.
+
+<P>
+The only directive supported at this time is <code>include</code>, here is
+how it can be used:
+
+<P>
+<div class="verbatim"><pre>
+&lt;%@ include file="/file/to/include"%&gt;
+</pre></div>
+
+<P>
+If the <tt class="function">parse()</tt> function was called with the <var>dir</var>
+argument, then the file can be specified as a relative path, otherwise
+it has to be absolute.
+
+<P>
+<dl><dt><table cellpadding="0" cellspacing="0"><tr valign="baseline">
+  <td><nobr><b><span class="typelabel">class</span>&nbsp;<a name="l2h-228"><tt class="class">PSP</tt></a></b>(</nobr></td>
+  <td><var>req, </var><big>[</big><var>, filename, string, vars</var><big>]</big>)</td></tr></table>
+<dd>
+  This class represents a PSP object.
+
+<P>
+<var>req</var> is a request object; <var>filename</var> and <var>string</var> are
+  optional keyword arguments which indicate the source of the PSP
+  code. Only one of these can be specified. If neither is specified,
+  <code>req.filename</code> is used as <var>filename</var>.
+
+<P>
+<var>vars</var> is a dictionary of global variables. Vars passed in the
+  <tt class="method">run()</tt> method will override vars passed in here.
+
+<P>
+This class is used internally by the PSP handler, but can also be
+  used as a general purpose templating tool.
+
+<P>
+When a file is used as the source, the code object resulting from
+  the specified file is stored in a memory cache keyed on file name
+  and file modification time. The cache is global to the Python
+  interpreter. Therefore, unless the file modification time changes,
+  the file is parsed and resulting code is compiled only once per
+  interpreter.
+
+<P>
+The cache is limited to 512 pages, which depending on the size of
+  the pages could potentially occupy a significant amount of
+  memory. If memory is of concern, then you can switch to dbm file
+  caching. Our simple tests showed only 20% slower performance using
+  bsd db. You will need to check which implementation <tt class="module">anydbm</tt>
+  defaults to on your system as some dbm libraries impose a limit on
+  the size of the entry making them unsuitable. Dbm caching can be
+  enabled via <code>PSPDbmCache</code> Python option, e.g.:
+
+<P>
+<div class="verbatim"><pre>
+PythonOption PSPDbmCache ``/tmp/pspcache.dbm''
+</pre></div>
+  Note that the dbm cache file is not deleted when the server
+  restarts.
+
+<P>
+Unlike with files, the code objects resulting from a string are
+  cached in memory only. There is no option to cache in a dbm file at
+  this time.
+
+<P>
+<dl><dt><table cellpadding="0" cellspacing="0"><tr valign="baseline">
+  <td><nobr><b><a name="l2h-229"><tt class="method">run</tt></a></b>(</nobr></td>
+  <td><big>[</big><var>vars</var><big>]</big>)</td></tr></table>
+<dd>
+    This method will execute the code (produced at object
+    initialization time by parsing and compiling the PSP
+    source). Optional argument <var>vars</var> is a dictionary keyed by
+    strings that will be passed in as global variables.
+
+<P>
+Additionally, the PSP code will be given global variables
+    <code>req</code>, <code>psp</code>, <code>session</code> and <code>form</code>. A session
+    will be created and assigned to <code>session</code> variable only if
+    <code>session</code> is referenced in the code (the PSP handler examines
+    <code>co_names</code> of the code object to make that
+    determination). Remember that a mere mention of <code>session</code>
+    will generate cookies and turn on session locking, which may or
+    may not be what you want. Similarly, a mod_python
+    <tt class="class">FieldStorage</tt> object will be instantiated if <code>form</code> is
+    referenced in the code.
+
+<P>
+The object passed in <code>psp</code> is an instance of
+    <tt class="class">PSPInstance</tt>.
+
+<P>
+</dl>
+
+<P>
+<dl><dt><table cellpadding="0" cellspacing="0"><tr valign="baseline">
+  <td><nobr><b><a name="l2h-230"><tt class="method">display_code</tt></a></b>(</nobr></td>
+  <td>)</td></tr></table>
+<dd>
+    Returns an HTML-formatted string representing a side-by-side
+    listing of the original PSP code and resulting Python code
+    produced by the PSP parser. 
+  </dl>
+
+<P>
+Here is an example of how <tt class="class">PSP</tt> can be used as a templating
+  mechanism:
+
+<P>
+The template file:
+  <div class="verbatim"><pre>
+&lt;html&gt;
+  &lt;!-- This is a simple psp template called template.html --&gt;
+  &lt;h1&gt;Hello, &lt;%=what%&gt;!&lt;/h1&gt;
+&lt;/html&gt;
+</pre></div>
+  The handler code:
+  <div class="verbatim"><pre>
+from mod_python import apache, psp
+
+def handler(req):
+    template = psp.PSP(req, filename='template.html')
+    template.run({'what':'world'})
+    return apache.OK
+</pre></div>
+
+<P>
+</dl>
+
+<P>
+<dl><dt><table cellpadding="0" cellspacing="0"><tr valign="baseline">
+  <td><nobr><b><span class="typelabel">class</span>&nbsp;<a name="l2h-231"><tt class="class">PSPInstance</tt></a></b>(</nobr></td>
+  <td>)</td></tr></table>
+<dd>
+  An object of this class is passed as a global variable <code>psp</code> to
+  the PSP code. Objects of this class are instantiated internally and
+  the interface to <tt class="method">__init__</tt> is purposely undocumented.
+
+<P>
+<dl><dt><table cellpadding="0" cellspacing="0"><tr valign="baseline">
+  <td><nobr><b><a name="l2h-232"><tt class="method">set_error_page</tt></a></b>(</nobr></td>
+  <td><var>filename</var>)</td></tr></table>
+<dd>
+    Used to set a psp page to be processed when an exception
+    occurs. If the path is absolute, it will be appended to document
+    root, otherwise the file is assumed to exist in the same directory
+    as the current page. The error page will receive one additional
+    variable, <code>exception</code>, which is a 3-tuple returned by
+    <code>sys.exc_info()</code>.
+  </dl>
+
+<P>
+<dl><dt><table cellpadding="0" cellspacing="0"><tr valign="baseline">
+  <td><nobr><b><a name="l2h-233"><tt class="method">apply_data</tt></a></b>(</nobr></td>
+  <td><var>object</var><big>[</big><var>, **kw</var><big>]</big>)</td></tr></table>
+<dd>
+    This method will call the callable object <var>object</var>, passing form
+    data as keyword arguments, and return the result.
+  </dl>
+
+<P>
+<dl><dt><table cellpadding="0" cellspacing="0"><tr valign="baseline">
+  <td><nobr><b><a name="l2h-234"><tt class="method">redirect</tt></a></b>(</nobr></td>
+  <td><var>location</var><big>[</big><var>, permanent=0</var><big>]</big>)</td></tr></table>
+<dd>
+    This method will redirect the browser to location
+    <var>location</var>. If <var>permanent</var> is true, then
+    <tt class="constant">MOVED_PERMANENTLY</tt> will be sent (as opposed to
+    <tt class="constant">MOVED_TEMPORARILY</tt>).
+
+<P>
+<div class="note"><b class="label">Note:</b>
+Redirection can only happen before any data is sent to the
+      client, therefore the Python code block calling this method must
+      be at the very beginning of the page. Otherwise an
+      <tt class="exception">IOError</tt> exception will be raised.
+    </div>
+
+<P>
+Example:
+    <div class="verbatim"><pre>
+&lt;%
+
+# note that the '&lt;' above is the first byte of the page!
+psp.redirect('http://www.modpython.org')
+%&gt;
+    </pre></div>
+  </dl>
+
+<P>
+</dl>
+
+<P>
+Additionally, the <tt class="module">psp</tt> module provides the following low level
+functions:
+
+<P>
+<dl><dt><table cellpadding="0" cellspacing="0"><tr valign="baseline">
+  <td><nobr><b><a name="l2h-235"><tt class="function">parse</tt></a></b>(</nobr></td>
+  <td><var>filename</var><big>[</big><var>, dir</var><big>]</big>)</td></tr></table>
+<dd>
+
+<P>
+This function will open file named <var>filename</var>, read and parse its
+  content and return a string of resulting Python code.
+
+<P>
+If <var>dir</var> is specified, then the ultimate filename to be parsed
+  is constructed by concatenating <var>dir</var> and <var>filename</var>, and
+  the argument to <code>include</code> directive can be specified as a
+  relative path. (Note that this is a simple concatenation, no path
+  separator will be inserted if <var>dir</var> does not end with one).
+</dl>
+
+<P>
+<dl><dt><table cellpadding="0" cellspacing="0"><tr valign="baseline">
+  <td><nobr><b><a name="l2h-236"><tt class="function">parsestring</tt></a></b>(</nobr></td>
+  <td><var>string</var>)</td></tr></table>
+<dd>
+
+<P>
+This function will parse contents of <var>string</var> and return a string
+  of resulting Python code.
+
+<P>
+</dl>
+
+<DIV CLASS="navigation">
+<p><hr>
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><a rel="prev" title="4.8.2 Examples" 
+  rel="prev" title="4.8.2 Examples" 
+  href="pyapi-sess-example.html"><img src='previous.gif'
+  border='0' height='32'  alt='Previous Page' width='32'></A></td>
+<td><a rel="parent" title="4. Python API" 
+  rel="parent" title="4. Python API" 
+  href="pythonapi.html"><img src='up.gif'
+  border='0' height='32'  alt='Up One Level' width='32'></A></td>
+<td><a rel="next" title="5. Apache Configuration Directives" 
+  rel="next" title="5. Apache Configuration Directives" 
+  href="directives.html"><img src='next.gif'
+  border='0' height='32'  alt='Next Page' width='32'></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><a rel="contents" title="Table of Contents" 
+  rel="contents" title="Table of Contents" 
+  href="contents.html"><img src='contents.gif'
+  border='0' height='32'  alt='Contents' width='32'></A></td>
+<td><img src='blank.gif'
+  border='0' height='32'  alt='' width='32'></td>
+<td><a rel="index" title="Index" 
+  rel="index" title="Index" 
+  href="genindex.html"><img src='index.gif'
+  border='0' height='32'  alt='Index' width='32'></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b>
+<a class="sectref" rel="prev" href="pyapi-sess-example.html">4.8.2 Examples</A>
+<b class="navlabel">Up:</b>
+<a class="sectref" rel="parent" href="pythonapi.html">4. Python API</A>
+<b class="navlabel">Next:</b>
+<a class="sectref" rel="next" href="directives.html">5. Apache Configuration Directives</A>
+<hr>
+<span class="release-info">Release 3.2.8, documentation updated on February 19, 2006.</span>
+</DIV>
+<!--End of Navigation Panel-->
+
+</BODY>
+</HTML>

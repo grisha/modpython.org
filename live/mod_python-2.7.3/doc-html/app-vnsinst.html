@@ -1,0 +1,205 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<title>B. VMS installation</title>
+<META NAME="description" CONTENT="B. VMS installation">
+<META NAME="keywords" CONTENT="modpython">
+<META NAME="resource-type" CONTENT="document">
+<META NAME="distribution" CONTENT="global">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<link rel="STYLESHEET" href="modpython.css">
+<LINK REL="next" href="genindex.html">
+<LINK REL="previous" href="app-wininst.html">
+<LINK REL="up" HREF="modpython.html">
+<LINK REL="next" href="genindex.html">
+</head>
+<body>
+<DIV CLASS="navigation"><table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><A href="app-wininst.html"><img src="icons/previous.gif" border="0" height="32"
+  alt="Previous Page" width="32"></A></td>
+<td><A HREF="modpython.html"><img src="icons/up.gif" border="0" height="32"
+  alt="Up One Level" width="32"></A></td>
+<td><A href="genindex.html"><img src="icons/next.gif" border="0" height="32"
+  alt="Next Page" width="32"></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><A href="contents.html"><img src="icons/contents.gif" border="0" height="32"
+  alt="Contents" width="32"></A></td>
+<td><img src="icons/blank.gif" border="0" height="32"
+  alt="" width="32"></td>
+<td><A href="genindex.html"><img src="icons/index.gif" border="0" height="32"
+  alt="Index" width="32"></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b> <a class="sectref" href="app-wininst.html">A. Windows Installation</A>
+<b class="navlabel">Up:</b> <a class="sectref" HREF="modpython.html">Mod_python Manual</A>
+<b class="navlabel">Next:</b> <a class="sectref" href="genindex.html">Index</A>
+<br><hr></DIV>
+<!--End of Navigation Panel-->
+
+<H1>
+<BR>
+B. VMS installation
+</H1>
+
+<P>
+
+
+<P>
+<dl><dd><pre class="verbatim">
+How to build and install mod_python on a VMS system
+
+James Gessling &lt;jgessling@yahoo.com&gt; Fri, 3 Nov 2000 
+
+This assumes apache and python already installed successfully.  I tested
+Compaq's CSWS version and 1.3.12 version's of Apache.  Python was 1.5.2 from
+http://decus.decus.de/~zessin/python.
+
+0) download current release (wrote this for 2.6.3) from www.modpython.org.
+
+1) create directories on a VMS system something like:
+
+dka0:[mod_python.src.include]
+
+2) put the .c files in src, the .h in include
+
+3) Cut the script off the end of this file, save it in the src directory.  
+Edit as necessary and use it to compile and link mod_python.exe.  Sorry,
+I didn't make much effort to make it very sophisticated.
+
+4) Under your python lib directory, add a subdirectory [.mod_python].
+
+For example: dka100:[python.python-1_5_2.lib]
+
+5) Populate this subdirectory with mod_python .py files.
+This allows for module importing like:
+
+    import mod_python.apache
+
+which will find apache.py
+</pre></dl>
+<dl><dd><pre class="verbatim">
+6) Edit apache$root:[conf]httpd.conf to add line:
+
+   Include /apache$root/conf/mod_python.conf
+
+(typically at the end of the file)
+
+7) create apache$root:[conf]mod_python.conf containing:
+
+############################################################################
+##
+# Mod_Python config
+############################################################################
+##
+#
+# Load the dynamic MOD_PYTHON module
+# note pythonpath must be in python list literal format
+#
+LoadModule PYTHON_MODULE modules/mod_python.exe
+
+&lt;Directory /&gt;
+    AddHandler python-program .py
+    PythonHandler mptest
+    PythonDebug On
+    PythonPath
+"['/dka100/python/python-1_5_2/lib','/dka100/python/python-1_5_2/
+vms/tools','/apache$root/htdocs/python']"
+&lt;/Directory&gt;
+#
+
+8) put mod_python.exe into apache$common:[modules] so it can be found and
+loaded.  (create the directory if required).  
+
+9) fire up the web server with @sys$startup:apache$startup
+
+10) Create a file mptest.py in a python subdirectory of your document root,  
+Typically apache$common:[htdocs.python].  Like this:
+
+      from mod_python import apache
+
+      def handler(req):
+          req.send_http_header()
+          req.write("Hello World!")
+          return apache.OK 
+
+( watch your indenting, as usual )
+
+11) point browser to:  http://node.place.com/python/mptest.py
+
+12) enjoy "hello world"
+</pre></dl>
+<dl><dd><pre class="verbatim">
+$! build script, edit as needed to match the directories where your
+$!               files are located.  Note /nowarning on cc, this is
+$!               required because of a #define clash between apache
+$!               and python.  If not used, the .exe is marked as
+$!               having compilation warnings and won't load. Apache
+$!               should already have been started to create apache$httpd_shr
+$!               logical name,  Running the apache server with the -X flag
+$!               as an interactive process can be used for debugging if
+$!               necessary.
+$ set noon
+$ library/create mod_python_lib
+$ cc :== cc  /nowarning/prefix=all/include=(dka100:[python.python-1_5_2],-
+                         dka100:[python.python-1_5_2.include],-
+                         dka0:[],-
+                         dka200:[apache.apache.src.include],-
+                         dka200:[apache.apache.src.os.openvms]) 
+$ cc  _apachemodule
+$ library/insert mod_python_lib  _apachemodule
+$ cc  connobject
+$ library/insert mod_python_lib  connobject
+$ cc  mod_python
+$ cc  requestobject
+$ library/insert mod_python_lib  requestobject
+$ cc  serverobject
+$ library/insert mod_python_lib  serverobject
+$ cc  tableobject
+$ library/insert mod_python_lib  tableobject
+$ cc  util
+$ library/insert mod_python_lib  util
+$!   mod_python
+$ link/share/sysexe mod_python,sys$input/opt
+SYMBOL_VECTOR=(PYTHON_MODULE=DATA)
+mod_python_lib/lib
+apache$httpd_shr/share
+dka100:[python.python-1_5_2.vms.o_alpha]python_d00/lib
+dka100:[python.python-1_5_2.vms.o_alpha]modules_d00/lib
+dka100:[python.python-1_5_2.vms.o_alpha]vms_macro_d00/lib
+dka100:[python.python-1_5_2.vms.o_alpha]objects_d00/lib
+dka100:[python.python-1_5_2.vms.o_alpha]parser_d00/lib
+dka100:[python.python-1_5_2.vms.o_alpha]vms_d00/lib
+dka100:[python.python-1_5_2.vms.o_alpha]modules_d00/lib
+dka100:[python.python-1_5_2.vms.o_alpha]vms_macro_d00/lib
+dka100:[python.python-1_5_2.vms.o_alpha]vms_d00/lib
+case_sensitive=no
+$!
+$ exit
+</pre></dl>
+
+<P>
+ 
+<DIV CLASS="navigation"><p><hr><table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><A href="app-wininst.html"><img src="icons/previous.gif" border="0" height="32"
+  alt="Previous Page" width="32"></A></td>
+<td><A HREF="modpython.html"><img src="icons/up.gif" border="0" height="32"
+  alt="Up One Level" width="32"></A></td>
+<td><A href="genindex.html"><img src="icons/next.gif" border="0" height="32"
+  alt="Next Page" width="32"></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><A href="contents.html"><img src="icons/contents.gif" border="0" height="32"
+  alt="Contents" width="32"></A></td>
+<td><img src="icons/blank.gif" border="0" height="32"
+  alt="" width="32"></td>
+<td><A href="genindex.html"><img src="icons/index.gif" border="0" height="32"
+  alt="Index" width="32"></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b> <a class="sectref" href="app-wininst.html">A. Windows Installation</A>
+<b class="navlabel">Up:</b> <a class="sectref" HREF="modpython.html">Mod_python Manual</A>
+<b class="navlabel">Next:</b> <a class="sectref" href="genindex.html">Index</A>
+</DIV>
+<!--End of Navigation Panel-->
+
+</BODY>
+</HTML>

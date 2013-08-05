@@ -1,0 +1,237 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<link rel="STYLESHEET" href="modpython.css" type='text/css'>
+<link rel="first" href="modpython.html" title='Mod_python Manual'>
+<link rel='contents' href='contents.html' title="Contents">
+<link rel='index' href='genindex.html' title='Index'>
+<link rel='last' href='about.html' title='About this document...'>
+<link rel='help' href='about.html' title='About this document...'>
+<LINK REL="prev" href="hand-pub-alg-args.html">
+<LINK REL="parent" href="hand-pub-alg.html">
+<LINK REL="next" HREF="node94.html">
+<meta name='aesop' content='information'>
+<META NAME="description" CONTENT="Authentication">
+<META NAME="keywords" CONTENT="modpython">
+<META NAME="resource-type" CONTENT="document">
+<META NAME="distribution" CONTENT="global">
+<title>6.1.2.3 Authentication</title>
+</head>
+<body>
+<DIV CLASS="navigation">
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><a rel="prev" title="6.1.2.2 Argument Matching and" 
+  href="hand-pub-alg-args.html"><img src='previous.gif'
+  border='0' height='32'  alt='Previous Page' width='32'></A></td>
+<td><a rel="parent" title="6.1.2 The Publishing Algorithm" 
+  href="hand-pub-alg.html"><img src='up.gif'
+  border='0' height='32'  alt='Up One Level' width='32'></A></td>
+<td><a rel="next" title="6.1.3 Form Data" 
+  HREF="node94.html"><img src='next.gif'
+  border='0' height='32'  alt='Next Page' width='32'></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><a rel="contents" title="Table of Contents" 
+  href="contents.html"><img src='contents.gif'
+  border='0' height='32'  alt='Contents' width='32'></A></td>
+<td><img src='blank.gif'
+  border='0' height='32'  alt='' width='32'></td>
+<td><a rel="index" title="Index" 
+  href="genindex.html"><img src='index.gif'
+  border='0' height='32'  alt='Index' width='32'></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b>
+<a class="sectref" rel="prev" href="hand-pub-alg-args.html">6.1.2.2 Argument Matching and</A>
+<b class="navlabel">Up:</b>
+<a class="sectref" rel="parent" href="hand-pub-alg.html">6.1.2 The Publishing Algorithm</A>
+<b class="navlabel">Next:</b>
+<a class="sectref" rel="next" HREF="node94.html">6.1.3 Form Data</A>
+<br><hr>
+</DIV>
+<!--End of Navigation Panel-->
+
+<H3><A NAME="SECTION008123000000000000000">&nbsp;</A>
+<BR>
+6.1.2.3 Authentication
+</H3>
+
+<P>
+The publisher handler provides simple ways to control access to
+modules and functions.
+
+<P>
+At every traversal step, the Publisher handler checks for presence of
+<tt class="method">__auth__</tt> and <tt class="method">__access__</tt> attributes (in this order), as 
+well as <tt class="method">__auth_realm__</tt> attribute. 
+
+<P>
+If <tt class="method">__auth__</tt> is found and it is callable, it will be called
+with three arguments: the <tt class="class">Request</tt> object, a string containing
+the user name and a string containing the password. If the return
+value of
+<code>__auth__</code> is false, then <tt class="constant">HTTP_UNAUTHORIZED</tt> is
+returned to the client (which will usually cause a password dialog box
+to appear).
+
+<P>
+If <tt class="method">__auth__</tt> is a dictionary, then the user name will be
+matched against the key and the password against the value associated
+with this key. If the key and password do not match, 
+<tt class="constant">HTTP_UNAUTHORIZED</tt> is returned. Note that this requires
+storing passwords as clear text in source code, which is not very secure.
+
+<P>
+<tt class="method">__auth__</tt> can also be a constant. In this case, if it is false
+(i.e. <tt class="constant">None</tt>, <code>0</code>, <code>""</code>, etc.), then 
+<tt class="constant">HTTP_UNAUTHORIZED</tt> is returned.
+
+<P>
+If there exists an <code>__auth_realm__</code> string, it will be sent
+to the client as Authorization Realm (this is the text that usually
+appears at the top of the password dialog box).
+
+<P>
+If <tt class="method">__access__</tt> is found and it is callable, it will be called
+with two arguments: the <tt class="class">Request</tt> object and a string containing
+the user name. If the return value of <code>__access__</code> is false, then
+<tt class="constant">HTTP_FORBIDDEN</tt> is returned to the client.
+
+<P>
+If <tt class="method">__access__</tt> is a list, then the user name will be matched
+against the list elements. If the user name is not in the list, 
+<tt class="constant">HTTP_FORBIDDEN</tt> is returned.
+
+<P>
+Similarly to <tt class="method">__auth__</tt>, <tt class="method">__access__</tt> can be a constant.
+
+<P>
+In the example below, only user "<tt class="samp">eggs</tt>" with password "<tt class="samp">spam</tt>"can access the <code>hello</code> function:
+
+<P>
+<div class="verbatim"><pre>
+  __auth_realm__ = "Members only"
+
+  def __auth__(req, user, passwd):
+
+  if user == "eggs" and passwd == "spam" or \
+  user == "joe" and passwd == "eoj":
+  return 1
+  else:
+  return 0
+
+  def __access__(req, user):
+  if user == "eggs":
+  return 1
+  else:
+  return 0
+
+  def hello(req):
+  return "hello"
+</pre></div>
+
+<P>
+Here is the same functionality, but using an alternative technique:
+
+<P>
+<div class="verbatim"><pre>
+  __auth_realm__ = "Members only"
+  __auth__ = {"eggs":"spam", "joe":"eoj"}
+  __access__ = ["eggs"]
+
+  def hello(req):
+  return "hello"
+</pre></div>
+
+<P>
+Since functions cannot be assigned attributes, to protect a function,
+an <code>__auth__</code> or <code>__access__</code> function can be defined within
+the function, e.g.:
+
+<P>
+<div class="verbatim"><pre>
+  def sensitive(req):
+
+  def __auth__(req, user, password):
+  if user == 'spam' and password == 'eggs':
+  # let them in
+  return 1
+  else:
+  # no access
+  return 0
+
+  # something involving sensitive information
+  return 'sensitive information`
+</pre></div>
+
+<P>
+Note that this technique will also work if <code>__auth__</code> or
+<code>__access__</code> is a constant, but will not work is they are
+a dictionary or a list. 
+
+<P>
+The <code>__auth__</code> and <code>__access__</code> mechanisms exist
+independently of the standard 
+<em class="citetitle"><a
+ href="dir-handlers-auh.html"
+ title="PythonAuthenHandler"
+ >PythonAuthenHandler</a></em>. It
+is possible to use, for example, the handler to authenticate, then the
+<code>__access__</code> list to verify that the authenticated user is
+allowed to a particular function. 
+
+<P>
+<div class="note"><b class="label">Note:</b>
+In order for mod_python to access <tt class="function">__auth__</tt>,
+the module containing it must first be imported. Therefore, any
+module-level code will get executed during the import even if
+<tt class="function">__auth__</tt> is false.  To truly protect a module from
+being accessed, use other authentication mechanisms, e.g. the Apache
+<code>mod_auth</code> or with a mod_python <em class="citetitle"><a
+ href="dir-handlers-auh.html"
+ title="PythonAuthenHandler"
+ >PythonAuthenHandler</a></em> handler.
+</div>
+
+<P>
+
+<DIV CLASS="navigation">
+<p><hr>
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><a rel="prev" title="6.1.2.2 Argument Matching and" 
+  rel="prev" title="6.1.2.2 Argument Matching and" 
+  href="hand-pub-alg-args.html"><img src='previous.gif'
+  border='0' height='32'  alt='Previous Page' width='32'></A></td>
+<td><a rel="parent" title="6.1.2 The Publishing Algorithm" 
+  rel="parent" title="6.1.2 The Publishing Algorithm" 
+  href="hand-pub-alg.html"><img src='up.gif'
+  border='0' height='32'  alt='Up One Level' width='32'></A></td>
+<td><a rel="next" title="6.1.3 Form Data" 
+  rel="next" title="6.1.3 Form Data" 
+  HREF="node94.html"><img src='next.gif'
+  border='0' height='32'  alt='Next Page' width='32'></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><a rel="contents" title="Table of Contents" 
+  rel="contents" title="Table of Contents" 
+  href="contents.html"><img src='contents.gif'
+  border='0' height='32'  alt='Contents' width='32'></A></td>
+<td><img src='blank.gif'
+  border='0' height='32'  alt='' width='32'></td>
+<td><a rel="index" title="Index" 
+  rel="index" title="Index" 
+  href="genindex.html"><img src='index.gif'
+  border='0' height='32'  alt='Index' width='32'></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b>
+<a class="sectref" rel="prev" href="hand-pub-alg-args.html">6.1.2.2 Argument Matching and</A>
+<b class="navlabel">Up:</b>
+<a class="sectref" rel="parent" href="hand-pub-alg.html">6.1.2 The Publishing Algorithm</A>
+<b class="navlabel">Next:</b>
+<a class="sectref" rel="next" HREF="node94.html">6.1.3 Form Data</A>
+<hr>
+<span class="release-info">Release 3.2.8, documentation updated on February 19, 2006.</span>
+</DIV>
+<!--End of Navigation Panel-->
+
+</BODY>
+</HTML>

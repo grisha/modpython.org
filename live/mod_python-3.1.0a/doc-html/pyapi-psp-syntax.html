@@ -1,0 +1,210 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<title>4.9.1 PSP Syntax</title>
+<META NAME="description" CONTENT="4.9.1 PSP Syntax">
+<META NAME="keywords" CONTENT="modpython">
+<META NAME="resource-type" CONTENT="document">
+<META NAME="distribution" CONTENT="global">
+<link rel="STYLESHEET" href="modpython.css">
+<link rel="first" href="modpython.html">
+<link rel="contents" href="contents.html" title="Contents">
+<link rel="index" href="genindex.html" title="Index">
+<LINK REL="next" href="pyapi-psp-funcs.html">
+<LINK REL="previous" href="pyapi-psp.html">
+<LINK REL="up" href="pyapi-psp.html">
+<LINK REL="next" href="pyapi-psp-funcs.html">
+</head>
+<body>
+<DIV CLASS="navigation">
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><A href="pyapi-psp.html"><img src="icons/previous.gif"
+  border="0" height="32"
+  alt="Previous Page" width="32"></A></td>
+<td><A href="pyapi-psp.html"><img src="icons/up.gif"
+  border="0" height="32"
+  alt="Up One Level" width="32"></A></td>
+<td><A href="pyapi-psp-funcs.html"><img src="icons/next.gif"
+  border="0" height="32"
+  alt="Next Page" width="32"></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><A href="contents.html"><img src="icons/contents.gif"
+  border="0" height="32"
+  alt="Contents" width="32"></A></td>
+<td><img src="icons/blank.gif"
+  border="0" height="32"
+  alt="" width="32"></td>
+<td><A href="genindex.html"><img src="icons/index.gif"
+  border="0" height="32"
+  alt="Index" width="32"></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b> <a class="sectref" href="pyapi-psp.html">4.9 _psp - Python</A>
+<b class="navlabel">Up:</b> <a class="sectref" href="pyapi-psp.html">4.9 _psp - Python</A>
+<b class="navlabel">Next:</b> <a class="sectref" href="pyapi-psp-funcs.html">4.9.2 Functions</A>
+<br><hr>
+</DIV>
+<!--End of Navigation Panel-->
+
+<H2><A NAME="SECTION006910000000000000000">&nbsp;</A>
+<BR>
+4.9.1 PSP Syntax
+</H2>
+
+<P>
+Inside the document, Python <i class="dfn">code</i> needs to be surrounded by
+"<tt class="samp">&lt;%</tt>" and "<tt class="samp">%&gt;</tt>". Python <i class="dfn">expressions</i> are enclosed in
+"<tt class="samp">&lt;%=</tt>" and "<tt class="samp">%&gt;</tt>". A <i class="dfn">directive</i> can be enclosed in
+"<tt class="samp">&lt;%@</tt>" and "<tt class="samp">%&gt;</tt>". A comment (which will never be part of
+the resulting code) can be enclosed in "<tt class="samp">&lt;%-</tt>" and "<tt class="samp">-%&gt;</tt>"
+<P>
+Here is a primitive PSP page that demonstrated use of both code and
+expression embedded in an HTML document:
+
+<P>
+<dl><dd><pre class="verbatim">
+  &lt;html&gt;
+  &lt;%
+  import time
+  %&gt;
+  Hello world, the time is: &lt;%=time.strftime("%Y-%m-%d, %H:%M:%S")%&gt;
+  &lt;/html&gt;
+</pre></dl>
+
+<P>
+Internally, the PSP parser would translate the above page into the
+following Python code:
+
+<P>
+<dl><dd><pre class="verbatim">
+  req.write("""&lt;html&gt;
+  """)
+  import time
+  req.write("""
+  Hello world, the time is: """); req.write(str(time.strftime("%Y-%m-%d, %H:%M:%S"))); req.write("""
+  &lt;/html&gt;
+  """)
+</pre></dl>
+
+<P>
+This code, when executed inside a handler would result in a page
+displaying words "<tt class="samp">Hello world, the time is: </tt>" followed by current time.
+
+<P>
+Python code can be used to output parts of the page conditionally or
+in loops. Blocks are denoted from within Python code by
+indentation. The last indentation in Python code (even if it is a
+comment) will persist through the document until either end of
+document or more Python code.
+
+<P>
+Here is an example:
+<dl><dd><pre class="verbatim">
+  &lt;html&gt;
+  &lt;%
+  for n in range(3):
+      # This indent will persist
+  %&gt;
+  &lt;p&gt;This paragraph will be 
+  repeated 3 times.&lt;/p&gt;
+  &lt;%
+  # This line will cause the block to end
+  %&gt;
+  This line will only be shown once.&lt;br&gt;
+  &lt;/html&gt;
+</pre></dl>
+
+<P>
+The above will be internally translated to the following Python code:
+
+<P>
+<dl><dd><pre class="verbatim">
+  req.write("""&lt;html&gt;
+  """)
+  for n in range(3):
+      # This indent will persist
+      req.write("""
+  &lt;p&gt;This paragraph will be
+  repeated 3 times.&lt;/p&gt;
+  """)
+  # This line will cause the block to end
+  req.write("""
+  This line will only be shown once.&lt;br&gt;
+  &lt;/html&gt;
+  """)
+</pre></dl>
+
+<P>
+The parser is also smart enough to figure out the indent if the last
+line of Python ends with "<tt class="samp">:</tt>" (colon). Considering this, and that the
+indent is reset when a newline is encountered inside "<tt class="samp">&lt;% %&gt;</tt>", the
+above page can be written as:
+
+<P>
+<dl><dd><pre class="verbatim">
+  &lt;html&gt;
+  &lt;%
+  for n in range(3):
+  %&gt;
+  &lt;p&gt;This paragraph will be 
+  repeated 3 times.&lt;/p&gt;
+  &lt;%
+  %&gt;
+  This line will only be shown once.&lt;br&gt;
+  &lt;/html&gt;
+</pre></dl>
+
+<P>
+However, the above code can be confusing, thus having descriptive
+comments denoting blocks is highly recommended as a good practice.
+
+<P>
+The only directive supported at this time is <code>include</code>, here is
+how it can be used:
+
+<P>
+<dl><dd><pre class="verbatim">
+&lt;%@ include file="/file/to/include"%&gt;
+</pre></dl>
+
+<P>
+If the <tt class="function">parse()</tt> function was called with the <var>dir</var>
+argument, then the file can be specified as a relative path, otherwise
+it has to be absolute.
+
+<P>
+
+<DIV CLASS="navigation">
+<p><hr>
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><A href="pyapi-psp.html"><img src="icons/previous.gif"
+  border="0" height="32"
+  alt="Previous Page" width="32"></A></td>
+<td><A href="pyapi-psp.html"><img src="icons/up.gif"
+  border="0" height="32"
+  alt="Up One Level" width="32"></A></td>
+<td><A href="pyapi-psp-funcs.html"><img src="icons/next.gif"
+  border="0" height="32"
+  alt="Next Page" width="32"></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><A href="contents.html"><img src="icons/contents.gif"
+  border="0" height="32"
+  alt="Contents" width="32"></A></td>
+<td><img src="icons/blank.gif"
+  border="0" height="32"
+  alt="" width="32"></td>
+<td><A href="genindex.html"><img src="icons/index.gif"
+  border="0" height="32"
+  alt="Index" width="32"></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b> <a class="sectref" href="pyapi-psp.html">4.9 _psp - Python</A>
+<b class="navlabel">Up:</b> <a class="sectref" href="pyapi-psp.html">4.9 _psp - Python</A>
+<b class="navlabel">Next:</b> <a class="sectref" href="pyapi-psp-funcs.html">4.9.2 Functions</A>
+<hr>
+<span class="release-info">Release 3.1.0a, documentation updated on August 26, 2003.</span>
+</DIV>
+<!--End of Navigation Panel-->
+
+</BODY>
+</HTML>

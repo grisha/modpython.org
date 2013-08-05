@@ -1,0 +1,198 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<title>6.2 PSP Handler</title>
+<META NAME="description" CONTENT="6.2 PSP Handler">
+<META NAME="keywords" CONTENT="modpython">
+<META NAME="resource-type" CONTENT="document">
+<META NAME="distribution" CONTENT="global">
+<link rel="STYLESHEET" href="modpython.css">
+<link rel="first" href="modpython.html">
+<link rel="contents" href="contents.html" title="Contents">
+<link rel="index" href="genindex.html" title="Index">
+<LINK REL="next" href="hand-cgi.html">
+<LINK REL="previous" href="hand-pub.html">
+<LINK REL="up" href="handlers.html">
+<LINK REL="next" href="hand-cgi.html">
+</head>
+<body>
+<DIV CLASS="navigation">
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><A HREF="node94.html"><img src="icons/previous.gif"
+  border="0" height="32"
+  alt="Previous Page" width="32"></A></td>
+<td><A href="handlers.html"><img src="icons/up.gif"
+  border="0" height="32"
+  alt="Up One Level" width="32"></A></td>
+<td><A href="hand-cgi.html"><img src="icons/next.gif"
+  border="0" height="32"
+  alt="Next Page" width="32"></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><A href="contents.html"><img src="icons/contents.gif"
+  border="0" height="32"
+  alt="Contents" width="32"></A></td>
+<td><img src="icons/blank.gif"
+  border="0" height="32"
+  alt="" width="32"></td>
+<td><A href="genindex.html"><img src="icons/index.gif"
+  border="0" height="32"
+  alt="Index" width="32"></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b> <a class="sectref" HREF="node94.html">6.1.3 Form Data</A>
+<b class="navlabel">Up:</b> <a class="sectref" href="handlers.html">6. Standard Handlers</A>
+<b class="navlabel">Next:</b> <a class="sectref" href="hand-cgi.html">6.3 CGI Handler</A>
+<br><hr>
+</DIV>
+<!--End of Navigation Panel-->
+
+<H1><A NAME="SECTION008200000000000000000">&nbsp;</A>
+<a name="l2h-239">&nbsp;</a>
+<BR>
+6.2 PSP Handler
+</H1>
+
+<P>
+PSP handler is a handler that processes documents using the
+<code>mod_python._psp</code> module. For more details on the PSP syntax, see
+Section <A href="pyapi-psp.html#pyapi-psp">4.9</A>.
+
+<P>
+To use it, simply add this to your httpd configuration: 
+
+<P>
+<dl><dd><pre class="verbatim">
+  AddHandler mod_python .psp
+  PythonHandler mod_python.psp
+</pre></dl>
+
+<P>
+The PSP code will be given local variables <code>req</code>, <code>psp</code>,
+<code>session</code> and <code>form</code>. A session will be created and assigned
+to <code>session</code> variable only if <code>session</code> is referenced in the
+code (the PSP handler examines <code>co_names</code> of the code object to
+make that determination). Remember that a mere mention of
+<code>session</code> will generate cookies and turn on session locking,
+which may or may not be what you want. Similarly, a mod_python
+<tt class="class">FieldStorage</tt> object will be instantiated if <code>form</code> is
+referenced in the code.
+
+<P>
+The object passed in <code>psp</code> is an instance of <tt class="class">PSPInstance</tt>.
+
+<P>
+<dl><dt><b><span class="typelabel">class</span> <a name="l2h-240"><tt class="class">PSPInstance</tt></a></b>()
+<dd>
+  <dl><dt><b><a name="l2h-241"><tt class="method">set_error_page</tt></a></b>(<var>filename</var>)
+<dd>
+    Used to set a psp page to be processed when an exception
+    occurs. If the path is absolute, it will be appended to document
+    root, otherwise the file is assumed to exist in the same directory
+    as the current page. The error page will receive one additional
+    variable, <code>exception</code>, which is a 3-tuple returned by
+    <code>sys.exc_info()</code>.
+  </dl>
+
+<P>
+<dl><dt><b><a name="l2h-242"><tt class="method">apply_data</tt></a></b>(<var>object</var><big>[</big><var>, **kw</var><big>]</big>)
+<dd>
+    This method will call the callable object <var>object</var>, passing form
+    data as keyword arguments, and return the result.
+  </dl>
+
+<P>
+<dl><dt><b><a name="l2h-243"><tt class="method">redirect</tt></a></b>(<var>location</var><big>[</big><var>, permanent=0</var><big>]</big>)
+<dd>
+    This method will redirect the browser to location
+    <var>location</var>. If <var>permanent</var> is true, then
+    <tt class="constant">MOVED_PERMANENTLY</tt> will be sent (as opposed to
+    <tt class="constant">MOVED_TEMPORARILY</tt>).
+
+<P>
+<div class="note"><b class="label">Note:</b>
+Redirection can only happen before any data is sent to the
+      client, therefore the Python code block calling this method must
+      be at the very beginning of the page. Otherwise an
+      <tt class="exception">IOError</tt> exception will be raised.
+    </div>
+
+<P>
+Example:
+    <dl><dd><pre class="verbatim">
+&lt;\%
+
+# note that the '&lt;' above is the first byte of the page!
+psp.redirect('http://www.modpython.org')
+\%&gt;
+</pre></dl>
+  </dl>
+
+<P>
+</dl>
+
+<P>
+If <code>PythonDebug</code> server configuration is <code>On</code>, then by
+appending an underscore ("<tt class="samp">_</tt>") to the end of the url you can get a
+nice side-by-side listing of original PSP code and resulting Python
+code generated by the <code>psp</code> module. This is very useful for
+debugging.
+
+<P>
+<div class="note"><b class="label">Note:</b>
+Leaving debug on in a production environment will allow remote users
+to display source code of your PSP pages!
+</div>
+
+<P>
+By default, compiled PSP pages are cached in memory. The cache is
+limited to 512 pages, which depending on the size of the pages could
+potentially occupy a lot of memory. If memory is of concern, then you
+can switch to dbm file caching. Our simple tests showed only 20%
+slower performance using bsd db. You will need to check which
+implementation <tt class="module">anydbm</tt> defaults to on your system as some dbm
+libraries impose a limit on the size of the entry making them
+unsuitable. Dbm caching can be enabled via <code>PSPDbmCache</code> Python
+option, e.g.:
+
+<P>
+<dl><dd><pre class="verbatim">
+PythonOption PSPDbmCache "/tmp/pspcache.dbm"
+</pre></dl>
+Note that the dbm cache file is not deleted when the server restarts.
+
+<P>
+
+<DIV CLASS="navigation">
+<p><hr>
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><A HREF="node94.html"><img src="icons/previous.gif"
+  border="0" height="32"
+  alt="Previous Page" width="32"></A></td>
+<td><A href="handlers.html"><img src="icons/up.gif"
+  border="0" height="32"
+  alt="Up One Level" width="32"></A></td>
+<td><A href="hand-cgi.html"><img src="icons/next.gif"
+  border="0" height="32"
+  alt="Next Page" width="32"></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><A href="contents.html"><img src="icons/contents.gif"
+  border="0" height="32"
+  alt="Contents" width="32"></A></td>
+<td><img src="icons/blank.gif"
+  border="0" height="32"
+  alt="" width="32"></td>
+<td><A href="genindex.html"><img src="icons/index.gif"
+  border="0" height="32"
+  alt="Index" width="32"></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b> <a class="sectref" HREF="node94.html">6.1.3 Form Data</A>
+<b class="navlabel">Up:</b> <a class="sectref" href="handlers.html">6. Standard Handlers</A>
+<b class="navlabel">Next:</b> <a class="sectref" href="hand-cgi.html">6.3 CGI Handler</A>
+<hr>
+<span class="release-info">Release 3.1.0a, documentation updated on August 26, 2003.</span>
+</DIV>
+<!--End of Navigation Panel-->
+
+</BODY>
+</HTML>

@@ -1,0 +1,68 @@
+ # Copyright 2004 Apache Software Foundation
+ #
+ #  Licensed under the Apache License, Version 2.0 (the "License");
+ #  you may not use this file except in compliance with the License.
+ #  You may obtain a copy of the License at
+ #
+ #      http://www.apache.org/licenses/LICENSE-2.0
+ #
+ #  Unless required by applicable law or agreed to in writing, software
+ #  distributed under the License is distributed on an "AS IS" BASIS,
+ #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ #  See the License for the specific language governing permissions and
+ #  limitations under the License.
+ #
+ # Originally developed by Gregory Trubetskoy.
+ #
+
+CC=@CC@
+AR=@AR@
+APXS=@APXS@
+MKDEP=@MKDEP@
+
+# requires flex 2.5.31 for reentrant support
+LEX=@LEX@
+INCLUDES=@INCLUDES@
+LIBS=@LIBS@
+LDFLAGS=@LDFLAGS@
+OPT=
+CFLAGS=$(OPT) $(INCLUDES) 
+srcdir=.
+
+SRCS=	mod_python.c _apachemodule.c requestobject.c tableobject.c util.c \
+		serverobject.c connobject.c filterobject.c hlist.c \
+		hlistobject.c finfoobject.c
+
+all:	@ALL@
+
+psp_parser.c: psp_parser.l
+	@rm -f psp_parser.c
+	$(LEX) -R -opsp_parser.c --header-file=include/psp_flex.h psp_parser.l
+
+dso:	mod_python.so
+	@echo dso > .install
+
+mod_python.so: $(SRCS) @SOLARIS_HACKS@ 
+	@echo
+	@echo 'Compiling for DSO.'
+	@echo
+	$(APXS) $(INCLUDES) -c $(SRCS) $(LDFLAGS) $(LIBS) @SOLARIS_HACKS@
+	@rm -f mod_python.so
+	@ln -s .libs/mod_python.so mod_python.so
+clean:
+	rm -rf $(OBJS) core libpython.a mod_python.so *~ .libs *.o *.slo *.lo *.la 
+
+distclean: clean
+	rm -f Makefile .depend .install
+
+# this is a hack to help avoid a gcc/solaris problem
+# python uses assert() which needs _eprintf(). See 
+# SOLARIS_HACKS above
+_eprintf.o:
+	ar -x `gcc -print-libgcc-file-name` _eprintf.o
+_floatdidf.o:
+	ar -x `gcc -print-libgcc-file-name` _floatdidf.o
+_muldi3.o:
+	ar -x `gcc -print-libgcc-file-name` _muldi3.o
+
+# DO NOT DELETE THIS LINE

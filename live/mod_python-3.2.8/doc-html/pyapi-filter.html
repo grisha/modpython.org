@@ -1,0 +1,186 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<link rel="STYLESHEET" href="modpython.css" type='text/css'>
+<link rel="first" href="modpython.html" title='Mod_python Manual'>
+<link rel='contents' href='contents.html' title="Contents">
+<link rel='index' href='genindex.html' title='Index'>
+<link rel='last' href='about.html' title='About this document...'>
+<link rel='help' href='about.html' title='About this document...'>
+<LINK REL="next" href="pyapi-conn.html">
+<LINK REL="prev" href="pyapi-handler.html">
+<LINK REL="parent" href="pythonapi.html">
+<LINK REL="next" href="pyapi-conn.html">
+<meta name='aesop' content='information'>
+<META NAME="description" CONTENT="Overview of a Filter Handler">
+<META NAME="keywords" CONTENT="modpython">
+<META NAME="resource-type" CONTENT="document">
+<META NAME="distribution" CONTENT="global">
+<title>4.3 Overview of a Filter Handler</title>
+</head>
+<body>
+<DIV CLASS="navigation">
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><a rel="prev" title="4.2 Overview of a" 
+  href="pyapi-handler.html"><img src='previous.gif'
+  border='0' height='32'  alt='Previous Page' width='32'></A></td>
+<td><a rel="parent" title="4. Python API" 
+  href="pythonapi.html"><img src='up.gif'
+  border='0' height='32'  alt='Up One Level' width='32'></A></td>
+<td><a rel="next" title="4.4 Overview of a" 
+  href="pyapi-conn.html"><img src='next.gif'
+  border='0' height='32'  alt='Next Page' width='32'></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><a rel="contents" title="Table of Contents" 
+  href="contents.html"><img src='contents.gif'
+  border='0' height='32'  alt='Contents' width='32'></A></td>
+<td><img src='blank.gif'
+  border='0' height='32'  alt='' width='32'></td>
+<td><a rel="index" title="Index" 
+  href="genindex.html"><img src='index.gif'
+  border='0' height='32'  alt='Index' width='32'></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b>
+<a class="sectref" rel="prev" href="pyapi-handler.html">4.2 Overview of a</A>
+<b class="navlabel">Up:</b>
+<a class="sectref" rel="parent" href="pythonapi.html">4. Python API</A>
+<b class="navlabel">Next:</b>
+<a class="sectref" rel="next" href="pyapi-conn.html">4.4 Overview of a</A>
+<br><hr>
+</DIV>
+<!--End of Navigation Panel-->
+
+<H1><A NAME="SECTION006300000000000000000">&nbsp;</A>
+<BR>
+4.3 Overview of a Filter Handler
+</H1>
+<a name="l2h-23">&nbsp;</a>
+<P>
+A <i class="dfn">filter handler</i> is a function that can alter the input or the
+output of the server. There are two kinds of filters - <i class="dfn">input</i> and
+<i class="dfn">output</i> that apply to input from the client and output to the
+client respectively.
+
+<P>
+At this time mod_python supports only request-level filters, meaning
+that only the body of HTTP request or response can be filtered. Apache
+provides support for connection-level filters, which will be supported
+in the future.
+
+<P>
+A filter handler receives a <i>filter</i> object as its argument. The
+request object is available as well via <code>filter.req</code>, but all
+writing and reading should be done via the filter's object read and
+write methods.
+
+<P>
+Filters need to be closed when a read operation returns None 
+(indicating End-Of-Stream).
+
+<P>
+The return value of a filter is ignored. Filters cannot decline
+processing like handlers, but the same effect can be achieved
+by using the <tt class="method">filter.pass_on()</tt> method.
+
+<P>
+Filters must first be registered using <code>PythonInputFilter</code> or
+<code>PythonOutputFilter</code>, then added using the Apache
+<code>Add/SetInputFilter</code> or <code>Add/SetOutputFilter</code> directives. 
+
+<P>
+Here is an example of how to specify an output filter, it tells the
+server that all .py files should processed by CAPITALIZE filter:
+
+<P>
+<div class="verbatim"><pre>
+  PythonOutputFilter capitalize CAPITALIZE
+  AddOutputFilter CAPITALIZE .py
+</pre></div>
+
+<P>
+And here is what the code for the <span class="file">capitalize.py</span> might look
+like:
+
+<P>
+<div class="verbatim"><pre>
+from mod_python import apache
+  
+def outputfilter(filter):
+
+    s = filter.read()
+    while s:
+        filter.write(s.upper())
+        s = filter.read()
+
+    if s is None:
+        filter.close()
+</pre></div>
+
+<P>
+When writing filters, keep in mind that a filter will be called any
+time anything upstream requests an IO operation, and the filter has no
+control over the amount of data passed through it and no notion of
+where in the request processing it is called. For example, within a
+single request, a filter may be called once or five times, and there
+is no way for the filter to know beforehand that the request is over
+and which of calls is last or first for this request, thought
+encounter of an EOS (None returned from a read operation) is a fairly
+strong indication of an end of a request.
+
+<P>
+Also note that filters may end up being called recursively in
+subrequests. To avoid the data being altered more than once, always
+make sure you are not in a subrequest by examining the <code>req.main</code>
+value.
+
+<P>
+For more information on filters, see
+<em class="citetitle"><a
+ href="http://httpd.apache.org/docs-2.0/developer/filters.html"
+ title="http://httpd.apache.org/docs-2.0/developer/filters.html"
+ >http://httpd.apache.org/docs-2.0/developer/filters.html</a></em>.
+
+<P>
+
+<DIV CLASS="navigation">
+<p><hr>
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td><a rel="prev" title="4.2 Overview of a" 
+  rel="prev" title="4.2 Overview of a" 
+  href="pyapi-handler.html"><img src='previous.gif'
+  border='0' height='32'  alt='Previous Page' width='32'></A></td>
+<td><a rel="parent" title="4. Python API" 
+  rel="parent" title="4. Python API" 
+  href="pythonapi.html"><img src='up.gif'
+  border='0' height='32'  alt='Up One Level' width='32'></A></td>
+<td><a rel="next" title="4.4 Overview of a" 
+  rel="next" title="4.4 Overview of a" 
+  href="pyapi-conn.html"><img src='next.gif'
+  border='0' height='32'  alt='Next Page' width='32'></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td><a rel="contents" title="Table of Contents" 
+  rel="contents" title="Table of Contents" 
+  href="contents.html"><img src='contents.gif'
+  border='0' height='32'  alt='Contents' width='32'></A></td>
+<td><img src='blank.gif'
+  border='0' height='32'  alt='' width='32'></td>
+<td><a rel="index" title="Index" 
+  rel="index" title="Index" 
+  href="genindex.html"><img src='index.gif'
+  border='0' height='32'  alt='Index' width='32'></A></td>
+</tr></table>
+<b class="navlabel">Previous:</b>
+<a class="sectref" rel="prev" href="pyapi-handler.html">4.2 Overview of a</A>
+<b class="navlabel">Up:</b>
+<a class="sectref" rel="parent" href="pythonapi.html">4. Python API</A>
+<b class="navlabel">Next:</b>
+<a class="sectref" rel="next" href="pyapi-conn.html">4.4 Overview of a</A>
+<hr>
+<span class="release-info">Release 3.2.8, documentation updated on February 19, 2006.</span>
+</DIV>
+<!--End of Navigation Panel-->
+
+</BODY>
+</HTML>
