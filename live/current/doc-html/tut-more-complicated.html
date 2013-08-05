@@ -1,0 +1,241 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<link rel="STYLESHEET" href="modpython.css" type='text/css' />
+<link rel="first" href="modpython.html" title='Mod_python Manual' />
+<link rel='contents' href='contents.html' title="Contents" />
+<link rel='index' href='genindex.html' title='Index' />
+<link rel='last' href='about.html' title='About this document...' />
+<link rel='help' href='about.html' title='About this document...' />
+<link rel="next" href="tut-404-handler.html" />
+<link rel="prev" href="tut-what-it-do.html" />
+<link rel="parent" href="tutorial.html" />
+<link rel="next" href="tut-404-handler.html" />
+<meta name='aesop' content='information' />
+<title>3.4 Now something More Complicated - Authentication</title>
+</head>
+<body>
+<DIV CLASS="navigation">
+<div id='top-navigation-panel' xml:id='top-navigation-panel'>
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td class='online-navigation'><a rel="prev" title="3.3 So what Exactly"
+  href="tut-what-it-do.html"><img src='previous.png'
+  border='0' height='32'  alt='Previous Page' width='32' /></A></td>
+<td class='online-navigation'><a rel="parent" title="3. Tutorial"
+  href="tutorial.html"><img src='up.png'
+  border='0' height='32'  alt='Up One Level' width='32' /></A></td>
+<td class='online-navigation'><a rel="next" title="3.5 Your Own 404"
+  href="tut-404-handler.html"><img src='next.png'
+  border='0' height='32'  alt='Next Page' width='32' /></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td class='online-navigation'><a rel="contents" title="Table of Contents"
+  href="contents.html"><img src='contents.png'
+  border='0' height='32'  alt='Contents' width='32' /></A></td>
+<td class='online-navigation'><img src='blank.png'
+  border='0' height='32'  alt='' width='32' /></td>
+<td class='online-navigation'><a rel="index" title="Index"
+  href="genindex.html"><img src='index.png'
+  border='0' height='32'  alt='Index' width='32' /></A></td>
+</tr></table>
+<div class='online-navigation'>
+<b class="navlabel">Previous:</b>
+<a class="sectref" rel="prev" href="tut-what-it-do.html">3.3 So what Exactly</A>
+<b class="navlabel">Up:</b>
+<a class="sectref" rel="parent" href="tutorial.html">3. Tutorial</A>
+<b class="navlabel">Next:</b>
+<a class="sectref" rel="next" href="tut-404-handler.html">3.5 Your Own 404</A>
+</div>
+<hr /></div>
+</DIV>
+<!--End of Navigation Panel-->
+
+<H1><A NAME="SECTION005400000000000000000"></A><A NAME="tut-more-complicated"></A>
+<BR>
+3.4 Now something More Complicated - Authentication
+</H1>
+
+<P>
+Now that you know how to write a primitive handler, let's try
+something more complicated.
+
+<P>
+Let's say we want to password-protect this directory. We want the
+login to be "<tt class="samp">spam</tt>", and the password to be "<tt class="samp">eggs</tt>".
+
+<P>
+First, we need to tell Apache to call our <em>authentication</em>
+handler when authentication is needed. We do this by adding the
+<code>PythonAuthenHandler</code>. So now our config looks like this:
+
+<P>
+<div class="verbatim"><pre>
+  &lt;Directory /mywebdir&gt;
+      AddHandler mod_python .py
+      PythonHandler myscript
+      PythonAuthenHandler myscript
+      PythonDebug On
+  &lt;/Directory&gt;
+</pre></div>
+
+<P>
+Notice that the same script is specified for two different
+handlers. This is fine, because if you remember, mod_python will look
+for different functions within that script for the different handlers.
+
+<P>
+Next, we need to tell Apache that we are using Basic HTTP
+authentication, and only valid users are allowed (this is fairly basic
+Apache stuff, so we're not going to go into details here). Our config
+looks like this now:
+
+<P>
+<div class="verbatim"><pre>
+  &lt;Directory /mywebdir&gt;
+     AddHandler mod_python .py
+     PythonHandler myscript
+     PythonAuthenHandler myscript
+     PythonDebug On
+     AuthType Basic
+     AuthName "Restricted Area"
+     require valid-user
+  &lt;/Directory&gt;
+</pre></div>          
+
+<P>
+Note that depending on which version of Apache is being used, you may need
+to set either the <code>AuthAuthoritative</code> or <code>AuthBasicAuthoritative</code>
+directive to <code>Off</code> to tell Apache that you want allow the task of
+performing basic authentication to fall through to your handler.
+
+<P>
+Now we need to write an authentication handler function in
+<span class="file">myscript.py</span>. A basic authentication handler would look like
+this:
+
+<P>
+<div class="verbatim"><pre>
+from mod_python import apache
+
+def authenhandler(req):
+
+    pw = req.get_basic_auth_pw()
+    user = req.user
+
+    if user == "spam" and pw == "eggs":
+       return apache.OK
+    else:
+       return apache.HTTP_UNAUTHORIZED
+</pre></div>  
+
+<P>
+Let's look at this line by line: 
+
+<P>
+
+<UL>
+<LI><div class="verbatim"><pre>
+def authenhandler(req):
+</pre></div>
+
+<P>
+This is the handler function declaration. This one is called
+  <code>authenhandler</code> because, as we already described above,
+  mod_python takes the name of the directive
+  (<code>PythonAuthenHandler</code>), drops the word "<tt class="samp">Python</tt>" and converts
+  it lower case.
+
+<P>
+</LI>
+<LI><div class="verbatim"><pre>
+    pw = req.get_basic_auth_pw()
+</pre></div>
+
+<P>
+This is how we obtain the password. The basic HTTP authentication
+  transmits the password in base64 encoded form to make it a little
+  bit less obvious. This function decodes the password and returns it
+  as a string. Note that we have to call this function before obtaining
+  the user name.
+
+<P>
+</LI>
+<LI><div class="verbatim"><pre>
+    user = req.user
+</pre></div>
+
+<P>
+This is how you obtain the username that the user entered. 
+
+<P>
+</LI>
+<LI><div class="verbatim"><pre>
+    if user == "spam" and pw == "eggs":
+        return apache.OK
+</pre></div>
+
+<P>
+We compare the values provided by the user, and if they are what we
+  were expecting, we tell Apache to go ahead and proceed by returning
+  <tt class="constant">apache.OK</tt>. Apache will then consider this phase of the
+  request complete, and proceed to the next phase. (Which in this case
+  would be <tt class="function">handler()</tt> if it's a <code>.py</code> file).
+
+<P>
+</LI>
+<LI><div class="verbatim"><pre>
+    else:
+        return apache.HTTP_UNAUTHORIZED
+</pre></div>
+
+<P>
+Else, we tell Apache to return <tt class="constant">HTTP_UNAUTHORIZED</tt> to the
+  client, which usually causes the browser to pop a dialog box asking
+  for username and password.
+
+<P>
+</LI>
+</UL>
+
+<P>
+
+<DIV CLASS="navigation">
+<div class='online-navigation'>
+<p></p><hr />
+<table align="center" width="100%" cellpadding="0" cellspacing="2">
+<tr>
+<td class='online-navigation'><a rel="prev" title="3.3 So what Exactly"
+  href="tut-what-it-do.html"><img src='previous.png'
+  border='0' height='32'  alt='Previous Page' width='32' /></A></td>
+<td class='online-navigation'><a rel="parent" title="3. Tutorial"
+  href="tutorial.html"><img src='up.png'
+  border='0' height='32'  alt='Up One Level' width='32' /></A></td>
+<td class='online-navigation'><a rel="next" title="3.5 Your Own 404"
+  href="tut-404-handler.html"><img src='next.png'
+  border='0' height='32'  alt='Next Page' width='32' /></A></td>
+<td align="center" width="100%">Mod_python Manual</td>
+<td class='online-navigation'><a rel="contents" title="Table of Contents"
+  href="contents.html"><img src='contents.png'
+  border='0' height='32'  alt='Contents' width='32' /></A></td>
+<td class='online-navigation'><img src='blank.png'
+  border='0' height='32'  alt='' width='32' /></td>
+<td class='online-navigation'><a rel="index" title="Index"
+  href="genindex.html"><img src='index.png'
+  border='0' height='32'  alt='Index' width='32' /></A></td>
+</tr></table>
+<div class='online-navigation'>
+<b class="navlabel">Previous:</b>
+<a class="sectref" rel="prev" href="tut-what-it-do.html">3.3 So what Exactly</A>
+<b class="navlabel">Up:</b>
+<a class="sectref" rel="parent" href="tutorial.html">3. Tutorial</A>
+<b class="navlabel">Next:</b>
+<a class="sectref" rel="next" href="tut-404-handler.html">3.5 Your Own 404</A>
+</div>
+</div>
+<hr />
+<span class="release-info">Release 3.3.1, documentation updated on January 29, 2007.</span>
+</DIV>
+<!--End of Navigation Panel-->
+
+</BODY>
+</HTML>
