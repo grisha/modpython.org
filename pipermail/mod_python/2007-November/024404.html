@@ -1,0 +1,387 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python or apache scalability?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20or%20apache%20scalability%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024403.html">
+   <LINK REL="Next"  HREF="024406.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python or apache scalability?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martijn Moeling</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20or%20apache%20scalability%3F&In-Reply-To="
+       TITLE="[mod_python] mod_python or apache scalability?">martijn at xs4us.nu
+       </A><BR>
+    <I>Mon Nov  5 06:02:29 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024403.html">[mod_python] mod_python or apache scalability?
+</A></li>
+        <LI>Next message: <A HREF="024406.html">[mod_python] mod_python or apache scalability?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24404">[ date ]</a>
+              <a href="thread.html#24404">[ thread ]</a>
+              <a href="subject.html#24404">[ subject ]</a>
+              <a href="author.html#24404">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hmm it looks to me that you have an upload limit in your apache config.
+ 
+It might be the LimitRequestBody directive.
+ 
+Another thing might be that your processing is faster than the data comes in, but I doubt that
+Take a close look at you apache conf, and your apache error log (right after an upload or with tail -f /var/log/httpd/error_log (or where ever your logdir is)).
+ 
+Martijn
+ 
+
+________________________________
+
+Van: Alec Matusis [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at matusis.com</A>]
+Verzonden: zo 04.11.2007 21:46
+Aan: Martijn Moeling
+CC: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Onderwerp: RE: [mod_python] mod_python or apache scalability?
+
+
+
+&gt;<i> I had similair problems however, they turned out to be MySQLdb
+</I>&gt;<i> related and not in a way you suspect
+</I>
+Thanks! I will try separating MySQLdb connections. We do pass the connection
+around currently.
+
+However, how would you explain this PIL error:
+
+    File &quot;/path/publisher/publisher.py&quot;, line 78, in handler
+ flow_instance.dispatch()
+ File &quot;/path/scripts/updateprofile.py&quot;, line 92, in dispatch
+ im.save(full, self.im_format)
+    File
+&quot;/usr/local/encap/Python-2.4.1/lib/python2.4/site-packages/PIL/Image.py&quot;,
+line 1272, in save
+
+ File
+&quot;/usr/local/encap/Python-2.4.1/lib/python2.4/site-packages/PIL/ImageFile.py&quot;
+, line 192, in load
+ IOError: image file is truncated (14432 bytes not processed)
+
+This only happened for large images, small ones uploaded fine.
+The code is
+
+def dispatch(self):
+    pix = self.form['Filedata']
+    try:
+        im = Image.open(pix.file)
+    except IOError:
+        self.req.status = apache.HTTP_NOT_ACCEPTABLE
+    im.save(full, self.im_format)
+
+The error is in the last line. It did not occur with prefork.
+   
+
+
+
+
+&gt;<i> -----Original Message-----
+</I>&gt;<i> From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A> [mailto:mod_python-
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bounces at modpython.org</A>] On Behalf Of Martijn Moeling
+</I>&gt;<i> Sent: Sunday, November 04, 2007 5:16 AM
+</I>&gt;<i> To: Graham Dumpleton
+</I>&gt;<i> Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>; Alec Matusis
+</I>&gt;<i> Subject: Re: [mod_python] mod_python or apache scalability?
+</I>&gt;<i>
+</I>&gt;<i> hi,
+</I>&gt;<i>
+</I>&gt;<i> I use Pil without any problems, a I do with MySQLdb.
+</I>&gt;<i>
+</I>&gt;<i> I had similair problems however, they turned out to be MySQLdb
+</I>&gt;<i> related and not in a way you suspect
+</I>&gt;<i>
+</I>&gt;<i> Never ever use a global database connection variable. Create the
+</I>&gt;<i> database connection within your handler,
+</I>&gt;<i> end register a cleanup for closing it. I fixed a lot of trouble by
+</I>&gt;<i> altering my system by making all &quot;global&quot; stuff a method or property
+</I>&gt;<i> of the req object.
+</I>&gt;<i>
+</I>&gt;<i> The cleanup procedure cleans all objects which do anything to 3rd
+</I>&gt;<i> party external (net connected) stuff (like imap, MySQL)
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> think of something like this:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> def handler_cleanup(req):
+</I>&gt;<i>       req.db.cursor.close()
+</I>&gt;<i>       req.db.close()
+</I>&gt;<i>
+</I>&gt;<i> Def handler (req):
+</I>&gt;<i>       req.db=MySQLdb.connection(...........)
+</I>&gt;<i>       req.cursor=req.db.cursor(...)
+</I>&gt;<i>
+</I>&gt;<i>       ....
+</I>&gt;<i>       ....
+</I>&gt;<i>       ....
+</I>&gt;<i>       req.register_cleanup(handler_cleanup,req)
+</I>&gt;<i>       return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> All my application specific code are classes, and instantated as a
+</I>&gt;<i> req.something and req is passed to all functions, which is neat since
+</I>&gt;<i> it is passed by reference meaning stacks stay small to
+</I>&gt;<i>
+</I>&gt;<i> If you use MySQLdb with mod_python use the above method, my
+</I>&gt;<i> production server is rock stable and handled over 1mln requests since
+</I>&gt;<i> last december without any reboots or problems.
+</I>&gt;<i>
+</I>&gt;<i> Martijn
+</I>&gt;<i>
+</I>&gt;<i> On Nov 4, 2007, at 11:48 AM, Graham Dumpleton wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; Hmmm, I do remember vaguely hearing questions about PIL thread safety
+</I>&gt;<i> &gt; before, so it might be an issue. :-(
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On 04/11/2007, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at matusis.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt;&gt; BTW, are you still using mod_python 3.1.4?
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; No, we went to apache 2.2.6/ mod_python 3.3.1 combination.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; I will get MySQLdb to work thread-safely, but with PIL I am not so
+</I>&gt;<i> &gt;&gt; optimistic...
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt; -----Original Message-----
+</I>&gt;<i> &gt;&gt;&gt; From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;<i> &gt;&gt;&gt; Sent: Sunday, November 04, 2007 2:33 AM
+</I>&gt;<i> &gt;&gt;&gt; To: Alec Matusis
+</I>&gt;<i> &gt;&gt;&gt; Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> &gt;&gt;&gt; Subject: Re: [mod_python] mod_python or apache scalability?
+</I>&gt;<i> &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt; BTW, are you still using mod_python 3.1.4? Older mod_python
+</I>&gt;<i> versions
+</I>&gt;<i> &gt;&gt;&gt; have various bugs and you would be much better upgrading to 3.3.1
+</I>&gt;<i> if
+</I>&gt;<i> &gt;&gt;&gt; you haven't already.
+</I>&gt;<i> &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt; Graham
+</I>&gt;<i> &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt; On 04/11/2007, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at matusis.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; Which indicates that some third party package you are using is
+</I>&gt;<i> not
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; thread safe. This can occur if you are also using PHP as
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; various of
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; its third party packages are not thread safe.
+</I>&gt;<i> &gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt; We are not using PHP, only python with mod_python.
+</I>&gt;<i> &gt;&gt;&gt;&gt; The only third party packages we use are MySQLdb adapter and PIL
+</I>&gt;<i> &gt;&gt;&gt; image
+</I>&gt;<i> &gt;&gt;&gt;&gt; library.
+</I>&gt;<i> &gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt; So I guess both PIL and MySQLdb have these problems.
+</I>&gt;<i> &gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; -----Original Message-----
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; Sent: Sunday, November 04, 2007 2:15 AM
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; To: Alec Matusis
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; Subject: Re: [mod_python] mod_python or apache scalability?
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; On 04/11/2007, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at matusis.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; FWIW, I personally would try and move from prefork to worker
+</I>&gt;<i> &gt;&gt;&gt; MPM as
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; the number of Apache child processes you are running with is to
+</I>&gt;<i> &gt;&gt;&gt; my
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; mind excessive. Using worker would certainly drop memory usage
+</I>&gt;<i> &gt;&gt;&gt; for
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; a
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; start as you wouldn't need as many child processes to be
+</I>&gt;<i> &gt;&gt;&gt; started.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; I am just following up on this, since we tried worker MPM this
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; weekend.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; On our dev/stage it worked perfectly.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; On live, worker MPM freed up about 2GB of memory compared to
+</I>&gt;<i> &gt;&gt;&gt; prefork.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; However, on live, it turned out to be unstable.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; This is what we say in the main error log:
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; [Sun Nov 04 01:37:45 2007] [notice] child pid 20347 exit signal
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; Segmentation
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; fault (11)
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; [Sun Nov 04 01:37:45 2007] [notice] child pid 20460 exit signal
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; Aborted (6)
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; [Sun Nov 04 01:37:45 2007] [notice] child pid 20515 exit signal
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; Segmentation
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; fault (11)
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; *** glibc detected *** double free or corruption (!prev):
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; 0x0000000000762c50
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; ***
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; *** glibc detected *** double free or corruption (!prev):
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; 0x000000000075d100
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; ***
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; [Sun Nov 04 01:37:46 2007] [notice] child pid 20152 exit signal
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; Segmentation
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; fault (11)
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; In the application log, we saw two types of errors:
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; MySQLError: Connection to database failed
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; OperationalError: (2006, 'MySQL server has gone away')
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; and
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; IOError: image file is truncated (44 bytes not processed)
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; The first type has to do with MySQLdb module, but the second one
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; occurred
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; when large images were uploaded.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; Which indicates that some third party package you are using is
+</I>&gt;<i> not
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; thread safe. This can occur if you are also using PHP as
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; various of
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; its third party packages are not thread safe. Also ensure that
+</I>&gt;<i> you
+</I>&gt;<i> &gt;&gt;&gt; are
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; using the latest available Python database adapters and that they
+</I>&gt;<i> &gt;&gt;&gt; are
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; compiled against thread safe reentrant libraries.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; Graham
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; We had to revert to prefork as a result of this.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; On another note, I managed to empirically find the maximum
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; ServerLimit for
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; prefork, before the machine dies from swapping.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt; It is 380 with 4GB RAM.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; -----Original Message-----
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; Sent: Monday, October 01, 2007 6:47 PM
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; To: Alec Matusis
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; Subject: Re: [mod_python] mod_python or apache scalability?
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; On 01/10/2007, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at matusis.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt; in the apache error log. We also got
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt; kernel: possible SYN flooding on port 80. Sending cookies.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt; in /var/log/messages system log.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; Have you determined for certain that you aren't the target of
+</I>&gt;<i> &gt;&gt;&gt; an
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; external SYN Flood DOS attack?
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; Do a Google search for 'kernel: possible SYN flooding on port
+</I>&gt;<i> &gt;&gt;&gt; 80.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; Sending cookies' and you will find lots of stuff to read. Your
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; running
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; out of or having a large number of socket connections may be
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; symptomatic of a large number of half open connections being
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; created
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; and then being left in TIME_WAIT. Thus perhaps do some better
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; analysis
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; of socket connection states using netstat. If not a SYN Flood,
+</I>&gt;<i> &gt;&gt;&gt; then
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; possibly follow some of the other suggestions in the pages you
+</I>&gt;<i> &gt;&gt;&gt; will
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; find when you do the search.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; FWIW, I personally would try and move from prefork to worker
+</I>&gt;<i> &gt;&gt;&gt; MPM as
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; the number of Apache child processes you are running with is to
+</I>&gt;<i> &gt;&gt;&gt; my
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; mind excessive. Using worker would certainly drop memory usage
+</I>&gt;<i> &gt;&gt;&gt; for
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; a
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; start as you wouldn't need as many child processes to be
+</I>&gt;<i> &gt;&gt;&gt; started. I
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; wouldn't be concerned about running out of threads as when
+</I>&gt;<i> &gt;&gt;&gt; running
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; worker I wouldn't suggest more than 25 threads per process as a
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; starting point anyway. If your mod_python application was
+</I>&gt;<i> &gt;&gt;&gt; creating
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; lots of threads, you are likely to hit the thread limit with
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; prefork
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; and not just worker so which MPM is used shouldn't be an issue
+</I>&gt;<i> &gt;&gt;&gt; in
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt; that
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; case.
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; BTW, what operating system are you using?
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;&gt; Graham
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20071105/2ccc7158/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20071105/2ccc7158/attachment.html</A>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024403.html">[mod_python] mod_python or apache scalability?
+</A></li>
+	<LI>Next message: <A HREF="024406.html">[mod_python] mod_python or apache scalability?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24404">[ date ]</a>
+              <a href="thread.html#24404">[ thread ]</a>
+              <a href="subject.html#24404">[ subject ]</a>
+              <a href="author.html#24404">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

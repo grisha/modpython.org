@@ -1,0 +1,107 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] popen/popen2 usage?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20popen/popen2%20usage%3F&In-Reply-To=F68hGtK25DgRbwri5Dp00003dcd%40hotmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001393.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] popen/popen2 usage?</H1>
+    <B>Conrad Steenberg</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20popen/popen2%20usage%3F&In-Reply-To=F68hGtK25DgRbwri5Dp00003dcd%40hotmail.com"
+       TITLE="[mod_python] popen/popen2 usage?">conrad at hep.caltech.edu
+       </A><BR>
+    <I>Sun Mar 31 20:40:27 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001393.html">[mod_python] popen/popen2 usage?
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1394">[ date ]</a>
+              <a href="thread.html#1394">[ thread ]</a>
+              <a href="subject.html#1394">[ subject ]</a>
+              <a href="author.html#1394">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Sun, 2002-03-31 at 20:18, Tony Burger wrote:
+I am calling a C executable from within mod_python using the popen2
+function imported from os.  I need to get standard output from the C
+function and assign it to a mod_python variable which isn't working. The
+C function does a basic (void)fprinf(stdout,&quot;%s\n&quot;,myVar). I tested the
+C function by writing to stderr instead and that works (logged fprintf
+output to the Apache error_log). I just can't get any output. Might
+anyone know how mod_python handles this function or what it might be
+doing? Thanks.
+
+Check whether the stdout of the forked process doesn't get written to
+the browser in this case. You need to write to a different file
+descriptor. From man popen:
+&quot;      Writing to such  a  stream
+       writes to the standard input of the command; the command's
+       standard output is the same as that of  the  process  that
+       called  popen(),  unless  this  is  altered by the command
+       itself.&quot;
+
+Unless you wanted the child process' output written to the client
+browser??
+
+Otherwise doing a pipe() and then a fork() separately should work, e.g.:
+
+  int my_pipe[2]
+
+  pipe(my_pipe);
+  child_pid=fork()
+
+  switch (child_pid)
+  {  case -1:
+              perror (&quot;Error: unable to fork&quot;);
+              return 0;
+              
+     case 0: /* the child */
+              close(my_pipe[0]); /* close the read end*/
+
+             /* do an exec/execv etc. here */
+
+     default: /* the parent */
+              close(my_pipe[1]); /* close the write end */
+  }
+
+You may of course have more than one pipe if you want bi-directional
+communication: just close the write end in the child and the read end in
+the parent of the seconf pipe.
+
+Cheers!
+
+Conrad
+_______________________________________________ Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001393.html">[mod_python] popen/popen2 usage?
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1394">[ date ]</a>
+              <a href="thread.html#1394">[ thread ]</a>
+              <a href="subject.html#1394">[ subject ]</a>
+              <a href="author.html#1394">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

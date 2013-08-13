@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] post request and the minimalistic handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20post%20request%20and%20the%20minimalistic%20handler&In-Reply-To=5f56302b0602190913i212947e1j3562db6cda26837f%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020359.html">
+   <LINK REL="Next"  HREF="020371.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] post request and the minimalistic handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20post%20request%20and%20the%20minimalistic%20handler&In-Reply-To=5f56302b0602190913i212947e1j3562db6cda26837f%40mail.gmail.com"
+       TITLE="[mod_python] post request and the minimalistic handler">nlv11281 at natlab.research.philips.com
+       </A><BR>
+    <I>Mon Feb 20 10:11:26 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020359.html">[mod_python] Re: post request and the minimalistic handler
+</A></li>
+        <LI>Next message: <A HREF="020371.html">[mod_python] Re: post request and the minimalistic handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20368">[ date ]</a>
+              <a href="thread.html#20368">[ thread ]</a>
+              <a href="subject.html#20368">[ subject ]</a>
+              <a href="author.html#20368">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>There are still some problems with the FieldStorage class and large files. If you want to upload a 
+large file, you MUST use a make_file callback to the FieldStorage constructor and NEVER call 
+form[&quot;file&quot;] for that field or your apache process will load the whole file into RAM.
+
+In other words:
+- Does it work with small (e.g. 10k) files?
+- Look at apache's memory usage.
+
+--
+Mike Looijmans
+Philips Natlab / Topic Automation
+
+
+Daniel Nogradi wrote:
+&gt;<i> I try to figure out exactly how an actual request gets converted into
+</I>&gt;<i> an mp_request object, especially if its content-type is
+</I>&gt;<i> multpart/form-data containing an uploaded file.
+</I>&gt;<i> 
+</I>&gt;<i> As a first step (with the zeroth step being reading the source of
+</I>&gt;<i> publisher.py and util.py) I wanted to see what happens if the
+</I>&gt;<i> minimalistic handler mentioned in the docs receives a POST requests
+</I>&gt;<i> sent from a file upload form such as
+</I>&gt;<i> 
+</I>&gt;<i> &lt;html&gt;&lt;body&gt;
+</I>&gt;<i> &lt;form enctype=&quot;multipart/form-data&quot; method=&quot;post&quot;
+</I>&gt;<i> action=&quot;<A HREF="http://server/testhandler/x&quot;">http://server/testhandler/x&quot;</A>&gt;
+</I>&gt;<i> &lt;input type=&quot;file&quot; name=&quot;upload_this&quot;&gt;
+</I>&gt;<i> &lt;input type=&quot;submit&quot; name=&quot;go&quot; value=&quot;Click this&quot;&gt;
+</I>&gt;<i> &lt;/form&gt;
+</I>&gt;<i> &lt;/body&gt;&lt;/html&gt;
+</I>&gt;<i> 
+</I>&gt;<i> and apache is given the following:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Directory /var/www/html/testhandler&gt;
+</I>&gt;<i>     SetHandler python-program
+</I>&gt;<i>     PythonHandler mod_python.myhandler
+</I>&gt;<i>     LimitRequestBody 0
+</I>&gt;<i> &lt;/Directory&gt;
+</I>&gt;<i> 
+</I>&gt;<i> and the request handler myhandler.py is:
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> 
+</I>&gt;<i> def handler( req ):
+</I>&gt;<i>      req.content_type = &quot;text/html&quot;
+</I>&gt;<i>      req.write( &quot;hello&quot; )
+</I>&gt;<i>      return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> I would assume that no matter what kind of request comes in to the
+</I>&gt;<i> hierarchy under /testhandler the response from the server should be
+</I>&gt;<i> 'hello' under all circumstances. With GET requests everything is okay,
+</I>&gt;<i> the response is
+</I>&gt;<i> 
+</I>&gt;<i> HTTP/1.1 200 OK
+</I>&gt;<i> Date: Sun, 19 Feb 2006 17:11:54 GMT
+</I>&gt;<i> Server: Apache/2.0.53 (Fedora)
+</I>&gt;<i> Connection: close
+</I>&gt;<i> Transfer-Encoding: chunked
+</I>&gt;<i> Content-Type: text/html; charset=UTF-8
+</I>&gt;<i> 
+</I>&gt;<i> 5
+</I>&gt;<i> hello
+</I>&gt;<i> 0
+</I>&gt;<i> 
+</I>&gt;<i> which gets displayed nicely by Firefox as 'hello'.
+</I>&gt;<i> 
+</I>&gt;<i> The trouble starts when POST request are coming in for example through
+</I>&gt;<i> the html form above. After sending the form Firefox says 'The document
+</I>&gt;<i> contains no data' in a warning window (actually it displays 'hello'
+</I>&gt;<i> once or twice, but 99% of the time it just shows the warning). However
+</I>&gt;<i> after checking the log files of apache it turns out that everything
+</I>&gt;<i> went okay with the request, a 200 code was sent and the length of the
+</I>&gt;<i> response is also correctly shown to be 5. So it seems that from the
+</I>&gt;<i> point of view of the server everything went fine, but somehow Firefox
+</I>&gt;<i> never gets (or it thinks it doesn't get) the 200 code and the response
+</I>&gt;<i> containing 'hello'.
+</I>&gt;<i> 
+</I>&gt;<i> In order to see if it was really a Firefox issue I put together the
+</I>&gt;<i> POST request by hand and sent it to the server with netcat and
+</I>&gt;<i> everything went as expected, the output was the same as above.
+</I>&gt;<i> 
+</I>&gt;<i> So it seems it is a Firefox issue, but I'm a bit surprised that such a
+</I>&gt;<i> simple example would not work with Firefox. Am I expecting something
+</I>&gt;<i> that I shouldn't?
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020359.html">[mod_python] Re: post request and the minimalistic handler
+</A></li>
+	<LI>Next message: <A HREF="020371.html">[mod_python] Re: post request and the minimalistic handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20368">[ date ]</a>
+              <a href="thread.html#20368">[ thread ]</a>
+              <a href="subject.html#20368">[ subject ]</a>
+              <a href="author.html#20368">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

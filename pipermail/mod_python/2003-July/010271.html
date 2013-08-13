@@ -1,0 +1,254 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python]  apache API and mod_python &lt;-&gt; protocol module
+ integration
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20apache%20API%20and%20mod_python%20%3C-%3E%20protocol%20module%0A%20integration&In-Reply-To=20030716182515.GR18379%40eleanor.internal.ywlcs.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010266.html">
+   <LINK REL="Next"  HREF="010272.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+ integration</H1>
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20apache%20API%20and%20mod_python%20%3C-%3E%20protocol%20module%0A%20integration&In-Reply-To=20030716182515.GR18379%40eleanor.internal.ywlcs.org"
+       TITLE="[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+ integration">grisha at modpython.org
+       </A><BR>
+    <I>Wed Jul 16 20:47:22 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010266.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration
+</A></li>
+        <LI>Next message: <A HREF="010272.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10271">[ date ]</a>
+              <a href="thread.html#10271">[ thread ]</a>
+              <a href="subject.html#10271">[ subject ]</a>
+              <a href="author.html#10271">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Well, after some looking, apparently the APR does work this way, it's just
+that the way the connection handler was coded probably because I didn't
+understand APR well enough at the time I made it loop until specified
+length of bytes was read (I started out with replicating req.read(), which
+knows how much data there is to read).
+
+I attached a patch to the connobject.c that changes its behaviour so that
+read(len) will read at most len bytes, and will only block if no data is
+available. And len is an optional argument.
+
+Here is a connection handler code that does the exact same thing you had
+below. (note that print writes to stdout, which is visible if you run
+httpd with -X (stay in foreground) option:
+
+from mod_python import apache
+
+def connectionhandler(conn):
+
+    print &quot;Connect from '%s'&quot; % `conn.remote_addr`
+
+    while 1:
+        data = conn.read()
+        if not data: break
+        print &quot; Received: %s&quot; % `data`
+
+    print &quot;Connection closed from '%s'&quot; % `conn.remote_addr`
+
+    return apache.OK
+
+And here's the result:
+
+$ ./bin/httpd -X
+Connect from '('0.0.0.0', 3513)'
+ Received: 'Hello\r\n'
+ Received: 'World\r\n'
+Connection closed from '('0.0.0.0', 3513)'
+
+If I do 'for i in &quot;Hello World&quot;' thing, I get this:
+
+Connect from '('0.0.0.0', 3524)'
+ Received: 'Hello World'
+Connection closed from '('0.0.0.0', 3524)'
+
+Grisha
+
+On Wed, 16 Jul 2003, Dustin Mitchell wrote:
+
+&gt;<i> On Wed, Jul 16, 2003 at 01:59:58PM -0400, Gregory (Grisha) Trubetskoy wrote:
+</I>&gt;<i> &gt; This is not a problem of mod_python or Apache, this is the way sockets
+</I>&gt;<i> &gt; work. If your protocol is such that you know ahead of time how much to
+</I>&gt;<i> &gt; read (e.g. HTTP), then you can request this much data in one read.
+</I>&gt;<i> &gt; Otherwise, you must read in smallest unit sizes of your protocol, which
+</I>&gt;<i> &gt; (I'm guessing) is 1 byte in case of Z39.50.
+</I>&gt;<i>
+</I>&gt;<i> This is not strictly true, as long as you're OK with possibly getting a
+</I>&gt;<i> bit of *extra* data beyond a particular PDU (a little bit of buffering
+</I>&gt;<i> can take care of that).  Apache has to do this to read the HTTP header,
+</I>&gt;<i> which is not of a fixed length.
+</I>&gt;<i>
+</I>&gt;<i> The socket blocking read interface is structured such that it will block
+</I>&gt;<i> when *no* data is available, and will return *up to* the quantity
+</I>&gt;<i> specified in the recv() call if it is available.  However, if some
+</I>&gt;<i> smaller amount of data is available, that data will be returned
+</I>&gt;<i> immediately.
+</I>&gt;<i>
+</I>&gt;<i> To demonstrate, I hacked this together:
+</I>&gt;<i>
+</I>&gt;<i> from socket import *
+</I>&gt;<i> s = socket(AF_INET, SOCK_STREAM)
+</I>&gt;<i> s.bind((&quot;&quot;, 9900))
+</I>&gt;<i> s.listen(5)
+</I>&gt;<i> while 1:
+</I>&gt;<i>   ss, sa = s.accept()
+</I>&gt;<i>   print &quot;Connect from '%s'&quot; % (sa,)
+</I>&gt;<i>   while 1:
+</I>&gt;<i>     data = ss.recv(100)
+</I>&gt;<i>     if not data: break
+</I>&gt;<i>     print &quot; Received: %s&quot; % `data`
+</I>&gt;<i>   print &quot;Connection closed from '%s'&quot; % (sa,)
+</I>&gt;<i>
+</I>&gt;<i> Then connected with telnet and typed &quot;Hello&quot; and &quot;World&quot; on separate
+</I>&gt;<i> lines.  Telnet, by default, buffers lines of input until a newline, but
+</I>&gt;<i> you will note that in the two returns from ss.recv(), neither contained
+</I>&gt;<i> 100 bytes of data:
+</I>&gt;<i>
+</I>&gt;<i> Connect from '('127.0.0.1', 56260)'
+</I>&gt;<i>  Received: 'Hello\r\n'
+</I>&gt;<i>  Received: 'World\r\n'
+</I>&gt;<i> Connection closed from '('127.0.0.1', 56260)'
+</I>&gt;<i>
+</I>&gt;<i> Further, a loop such as:
+</I>&gt;<i>   for i in 'hello world': s.send(i)
+</I>&gt;<i> will produce output like this:
+</I>&gt;<i>
+</I>&gt;<i> Connect from '('127.0.0.1', 56277)'
+</I>&gt;<i>  Received: 'h'
+</I>&gt;<i>  Received: 'ello world'
+</I>&gt;<i> Connection closed from '('127.0.0.1', 56277)'
+</I>&gt;<i>
+</I>&gt;<i> Either the client or the server's socket implementation is buffering the
+</I>&gt;<i> characters because they're appearing so quickly, which cuts down on the
+</I>&gt;<i> number of recv() calls which must be made.
+</I>&gt;<i>
+</I>&gt;<i> I can't speak for the Apache sockets API, or the Python interface
+</I>&gt;<i> thereto, but sockets themselves *do* support this interface (they'd be
+</I>&gt;<i> pretty useless if they didn't!).  I highly recommend W. Richard
+</I>&gt;<i> Stevens' TCP/IP Illustrated for an in-depth and very readable
+</I>&gt;<i> discussion of this and many other crucial implementation details of
+</I>&gt;<i> TCP/IP.
+</I>&gt;<i>
+</I>&gt;<i> Dustin
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i>
+</I>&gt;<i>   Dustin Mitchell
+</I>&gt;<i>   <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">dustin at ywlcs.org</A>/<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">djmitche at alumni.uchicago.edu</A>
+</I>&gt;<i>   <A HREF="http://people.cs.uchicago.edu/~dustin/">http://people.cs.uchicago.edu/~dustin/</A>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>-------------- next part --------------
+Index: connobject.c
+===================================================================
+RCS file: /home/cvs/httpd-python/src/connobject.c,v
+retrieving revision 1.14
+diff -u -r1.14 connobject.c
+--- connobject.c	23 Jan 2003 22:34:18 -0000	1.14
++++ connobject.c	17 Jul 2003 00:35:28 -0000
+@@ -113,8 +113,10 @@
+ 
+     bb = apr_brigade_create(c-&gt;pool, c-&gt;bucket_alloc);
+ 
++    bufsize = len == 0 ? HUGE_STRING_LEN : len;
++
+     Py_BEGIN_ALLOW_THREADS;
+-    rc = ap_get_brigade(c-&gt;input_filters, bb, mode, APR_BLOCK_READ, len);
++    rc = ap_get_brigade(c-&gt;input_filters, bb, mode, APR_BLOCK_READ, bufsize);
+     Py_END_ALLOW_THREADS;
+ 
+     if (! APR_STATUS_IS_SUCCESS(rc)) {
+@@ -135,7 +137,6 @@
+         return Py_None;
+     }
+ 
+-    bufsize = len == 0 ? HUGE_STRING_LEN : len;
+     result = PyString_FromStringAndSize(NULL, bufsize);
+ 
+     /* possibly no more memory */
+@@ -180,7 +181,7 @@
+ 	}
+ 
+ 
+-        if (mode == AP_MODE_GETLINE) {
++        if (mode == AP_MODE_GETLINE || len == 0) {
+             apr_bucket_delete(b);
+             break;
+         }
+@@ -208,11 +209,8 @@
+ 
+     long len = 0;
+ 
+-    if (! PyArg_ParseTuple(args, &quot;l|i&quot;, &amp;len)) 
++    if (! PyArg_ParseTuple(args, &quot;|l&quot;, &amp;len)) 
+         return NULL;
+-
+-    if (len == 0)
+-        return PyString_FromString(&quot;&quot;);
+ 
+     if (len == -1)
+         return _conn_read(self-&gt;conn, AP_MODE_EXHAUSTIVE, 0);
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010266.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration
+</A></li>
+	<LI>Next message: <A HREF="010272.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10271">[ date ]</a>
+              <a href="thread.html#10271">[ thread ]</a>
+              <a href="subject.html#10271">[ subject ]</a>
+              <a href="author.html#10271">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

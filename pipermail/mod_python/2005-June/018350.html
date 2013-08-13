@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Is it possible to not reuse interpreters?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Is%20it%20possible%20to%20not%20reuse%20interpreters%3F&In-Reply-To=b71082d8050612191031b3333e%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018349.html">
+   <LINK REL="Next"  HREF="018353.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Is it possible to not reuse interpreters?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Is%20it%20possible%20to%20not%20reuse%20interpreters%3F&In-Reply-To=b71082d8050612191031b3333e%40mail.gmail.com"
+       TITLE="[mod_python] Is it possible to not reuse interpreters?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Jun 13 00:49:08 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018349.html">[mod_python] Error running pyc scripts
+</A></li>
+        <LI>Next message: <A HREF="018353.html">[mod_python] Getting Advx to run with mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18350">[ date ]</a>
+              <a href="thread.html#18350">[ thread ]</a>
+              <a href="subject.html#18350">[ subject ]</a>
+              <a href="author.html#18350">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 13/06/2005, at 12:10 PM, Bart wrote:
+
+&gt;<i> On 6/12/05, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+</I>&gt;&gt;<i> On 13/06/2005, at 11:14 AM, Bart wrote:
+</I>&gt;&gt;&gt;<i> Hey there,
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Apologies if this has been asked and answered before,
+</I>&gt;&gt;&gt;<i> but is there any way to make apache/mod_python
+</I>&gt;&gt;&gt;<i> temporarily *not* reuse the same interpreter?
+</I>&gt;&gt;<i> No.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Google wasn't too helpful on the matter other
+</I>&gt;&gt;&gt;<i> than providing the reasons.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> While I'm clear on why this is generally good, while
+</I>&gt;&gt;&gt;<i> coding it's quite annoying that I have to restart
+</I>&gt;&gt;&gt;<i> apache just to not get it to randomly fail on code
+</I>&gt;&gt;&gt;<i> that's in reality any your-guess-is-as-good-as-mine
+</I>&gt;&gt;&gt;<i> old version, but practically guaranteed not to be
+</I>&gt;&gt;&gt;<i> the current one.
+</I>&gt;&gt;<i> What you want is automatic module reloading.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Have a look at the automatic module reloading mechanism implicit
+</I>&gt;&gt;<i> within the apache.import_module() function. See documentation at:
+</I>&gt;&gt;<i>    <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html">http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This same method is used by mod_python to load a handler. In that
+</I>&gt;&gt;<i> case auto reloading is controlled by the PythonAutoReload directive.
+</I>&gt;&gt;<i>    <A HREF="http://www.modpython.org/live/current/doc-html/dir-other-par.html">http://www.modpython.org/live/current/doc-html/dir-other-par.html</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The current auto reloading mechanism has a number of shortcomings
+</I>&gt;&gt;<i> and will not always work, but depending on the complexity of your
+</I>&gt;&gt;<i> code it may be sufficient.
+</I>&gt;<i>
+</I>&gt;<i> 'Implicit' meaning I can use import normally rather than calling
+</I>&gt;<i> apache.import_module, ie. that it should just be working?
+</I>&gt;<i> And if the two are the same mechanism, doesn't that the
+</I>&gt;<i> 'is there newer code' check is what's failing?
+</I>
+No, the &quot;import&quot; statement is distinct and still is the normal Python
+module importing system. The words &quot;implicit within&quot; were a
+bad choice, read it as &quot;implemented by&quot;. Because they aren't the
+same anything imported using &quot;import&quot; isn't in anyway automatically
+reloaded.
+
+Even if you replaced imports at global scope within a handler module
+with apache.import_module(), it still may not do what you want as the
+code which checks for changes will only detect a change in the handler
+module and not any module which is imported by it using
+apache.import_module().
+
+This is because the check for the sub import is only done at the time
+of the call which is when the top level module is imported. Thus, only
+way to get it all imported correctly is to touch the top level handler
+to update the modification time. That way it will import the top level
+and because the sub import has changed it will then reimport it as well.
+
+One way of getting it to work a bit better is to sub import the module 
+using
+apache.import_module() within the handler function itself each time
+it is called. That way the check of whether the sub import code has
+changed is on each request and any changes will be updated 
+automatically.
+
+&gt;<i> I haven't disabled the PythonAutoReload thing (I'll enable it
+</I>&gt;<i> explicitly in my config to be sure), so it should be working, right?
+</I>&gt;<i> Are you telling me that (given it's not that) when it fails
+</I>&gt;<i> this problem can't be solved through apache or mod_python at all?
+</I>
+As I said, there are shortcomings in the apache.import_module() as it
+is currently implemented.
+
+&gt;<i> Is there any predictability to the method that I could affect?
+</I>&gt;<i> Removing pyc's, touching everything, sending a signal to kill
+</I>&gt;<i> running python interpreters in apache, something like that?
+</I>
+Some people use the method of touching everything, but you will need
+to use apache.import_module() instead of the &quot;import&quot; statement for
+those parts of your web application you want to be capable of being
+reloaded. You should avoid using apache.import_module() on modules
+installed in site-packages though.
+
+&gt;<i> Actually, restarting apache is acceptable for me, but it
+</I>&gt;<i> appears to me there just has to be a better way, because
+</I>&gt;<i> presumably people develop this way...
+</I>
+It is certainly possible to get it to work properly, just not with
+mod_python at the moment. Maybe in the future sometime it will be fixed.
+
+If restarts are an acceptable way of managing this at the moment, I
+would suggest you go with that.
+
+Graham
+
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018349.html">[mod_python] Error running pyc scripts
+</A></li>
+	<LI>Next message: <A HREF="018353.html">[mod_python] Getting Advx to run with mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18350">[ date ]</a>
+              <a href="thread.html#18350">[ thread ]</a>
+              <a href="subject.html#18350">[ subject ]</a>
+              <a href="author.html#18350">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

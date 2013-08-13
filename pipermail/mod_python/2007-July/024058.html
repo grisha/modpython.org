@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonAuthenHandler issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthenHandler%20issues&In-Reply-To=46A40D28.9000604%40sankatygroup.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024056.html">
+   <LINK REL="Next"  HREF="024057.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonAuthenHandler issues</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthenHandler%20issues&In-Reply-To=46A40D28.9000604%40sankatygroup.com"
+       TITLE="[mod_python] PythonAuthenHandler issues">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sun Jul 22 22:37:18 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024056.html">[mod_python] PythonAuthenHandler issues
+</A></li>
+        <LI>Next message: <A HREF="024057.html">[mod_python] send file back to apache?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24058">[ date ]</a>
+              <a href="thread.html#24058">[ thread ]</a>
+              <a href="subject.html#24058">[ subject ]</a>
+              <a href="author.html#24058">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 23/07/07, Brad Anderson &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">brad at sankatygroup.com</A>&gt; wrote:
+&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i> &gt; The reason it doesn't work is technically because the
+</I>&gt;<i> &gt; authentication/authorisation phases have been pushed into a single
+</I>&gt;<i> &gt; authentication handler when it should be split between a separate
+</I>&gt;<i> &gt; authentication and authorisation handlers.
+</I>&gt;<i>
+</I>&gt;<i> Okay... and that's the way I had it before reading somewhere (maybe that
+</I>&gt;<i> April '06 thread) to stay away from PythonAuthzHandler or a separate
+</I>&gt;<i> authzhandler.
+</I>&gt;<i>
+</I>&gt;<i> In any case, going back to separate handlers with PythonHandlerModule is
+</I>&gt;<i> now working :-D
+</I>&gt;<i>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; To be more specific, the authentication handler should only do
+</I>&gt;<i> &gt; something if req.auth_type() returns the type of authentication type
+</I>&gt;<i> &gt; it is meant to handle, it should then only be checking that the
+</I>&gt;<i> &gt; login/password is correct and if it is setting req.user to be the
+</I>&gt;<i> &gt; username and setting req.ap_auth_type to the authentication type
+</I>&gt;<i> &gt; scheme. The latter can usually just be set to the value returned from
+</I>&gt;<i> &gt; calling req.auth_type(). Setting req.user and req.ap_auth_type is
+</I>&gt;<i> &gt; technically required to indicate to latter phases that authentication
+</I>&gt;<i> &gt; was successful.
+</I>&gt;<i>
+</I>&gt;<i> I didn't (re)set either of these, but things seem to be working fine.
+</I>
+Checking req.auth_type() result and setting req.ap_auth_type()
+technically only really matter when using authenhandler as intended
+for Apache modules, although no one ever does it properly with
+mod_python. :-)
+
+All it means is that at the start of the handler you have:
+
+  if req.auth_type() != 'Session':
+    return apache.DECLINED
+
+This would be the case for an authentication handler which processes
+an AuthType of &quot;Session&quot;. It simply means that one could register a
+whole bunch of different authentication handlers with all being called
+and those which didn't apply for the configured AuthType declining to
+do anything.
+
+Technically you shouldn't really be using AuthType of 'Basic' as it
+conflicts with builting authentication handler, but perhaps instead
+use something like:
+
+  AuthType Django::Basic
+
+and then using:
+
+  if req.auth_type() != 'Django::Basic':
+    return apache.DECLINED
+
+Finally, if the authentication handler is returning apache.OK to allow
+the user through, it would set:
+
+  req.ap_auth_type = 'Django::Basic'
+
+This is just so that a content handler could make some judgment later
+based on the authentication mechanism used. Ie., more for completeness
+than anything else.
+
+Doing it like this probably has less value in Apache 2.0 than in
+Apache 2.2 where the authentication handlers have been improved with
+ability to disable authoritativeness for each handler type
+individually.
+
+Actually interesting that someone started to add concept of
+authoritativeness to mod_python at one point and never finished it.
+But then, mod_python possibly incorrectly calls
+ap_note_basic_auth_failure(req) in the C code when this should be
+accessible from Python and only appropriate authentication handlers
+call it. So, a but broken in some ways.
+
+For more stuff on doing things the Apache way see:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-124">http://issues.apache.org/jira/browse/MODPYTHON-124</A>
+
+&gt;<i> &gt; A separate authorisation handler should then process req.requires()
+</I>&gt;<i> &gt; but if it doesn't find any requires values pertinent to it, it should
+</I>&gt;<i> &gt; return apache.DECLINED. By returning apache.DECLINED it allows the
+</I>&gt;<i> &gt; builting authorisation handler to still run and honour vaue such as
+</I>&gt;<i> &gt; 'valid-user'.
+</I>&gt;<i>
+</I>&gt;<i> This does *not* work.  I found the 'configuration error:  couldn't check
+</I>&gt;<i> access.  No groups file?' came back using DECLINED, so I went back to
+</I>&gt;<i> HTTP_UNAUTHORIZED
+</I>
+You should only be returning HTTP_UNAUTHORIZED when you find your
+specific Requires token but it fails the test. Other times you should
+return DECLINED By always returning HTTP_UNAUTHORIZED it goes against
+the Apache way of registering multiple handlers and it only rejecting
+things if the appropriate configuration was there to activate it.
+Again, in mod_python users tend not to do things the Apache way. :-)
+
+Anyway, by always returning HTTP_UNAUTHORIZED, can't now say:
+
+  Require valid-user
+
+and have it work. For this to work, would need to actually stop your
+authorisation handler running altogether.
+
+Graham
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024056.html">[mod_python] PythonAuthenHandler issues
+</A></li>
+	<LI>Next message: <A HREF="024057.html">[mod_python] send file back to apache?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24058">[ date ]</a>
+              <a href="thread.html#24058">[ thread ]</a>
+              <a href="subject.html#24058">[ subject ]</a>
+              <a href="author.html#24058">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

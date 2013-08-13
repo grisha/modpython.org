@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> R: [mod_python] Session instances can't be stored in req?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=R%3A%20%5Bmod_python%5D%20Session%20instances%20can%27t%20be%20stored%20in%20req%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014450.html">
+   <LINK REL="Next"  HREF="014443.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>R: [mod_python] Session instances can't be stored in req?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Manera, Villiam</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=R%3A%20%5Bmod_python%5D%20Session%20instances%20can%27t%20be%20stored%20in%20req%3F&In-Reply-To="
+       TITLE="R: [mod_python] Session instances can't be stored in req?">vmanera at manord.com
+       </A><BR>
+    <I>Fri Nov  7 12:23:34 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014450.html">[mod_python]  Documentation suggestions for section 4.7.1 inthe
+ beta mod_python manual
+</A></li>
+        <LI>Next message: <A HREF="014443.html">[mod_python] Re: R: Session instances can't be stored in req?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14442">[ date ]</a>
+              <a href="thread.html#14442">[ thread ]</a>
+              <a href="subject.html#14442">[ subject ]</a>
+              <a href="author.html#14442">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I had a similar problem, not exactly I now show it but for explain:
+
+def xxx(req):
+	sess = Session(req)
+	...
+	req.sess = sess
+	return yyy(req)
+
+def yyy(req):
+	sess = check_sess()
+
+def check_sess(req):
+	if hasattr(req,'sess'):
+		sess = req.sess
+	else:
+		sess = Session(req)
+	return sess
+
+this hang apache
+
+if I delete the attribut from req all work fine:
+
+def check(req):
+	if hasattr(req,'sess'):
+		sess = req.sess
+		delattr(req,'sess')
+	else:
+		sess = Session(req)
+	return
+
+I think in this way:
+
+class BaseSession(dict):
+	...
+	def __del__(self):
+        self.unlock()
+
+the del unlock apache
+
+where have you put the  fixuphandler(req) and who call it? I'm interisting
+in it too
+
+Villiam
+
+
+
+-----Messaggio originale-----
+Da: Stian S&#248;iland [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">stian at soiland.no</A>]
+Inviato: venerd&#236; 7 novembre 2003 11.37
+A: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Oggetto: [mod_python] Session instances can't be stored in req?
+
+
+Again with 3.1.2b..
+
+I've gone a bit tired of creating the session objects on every page, so
+I made a fixuphandler to do the trick. The problem is, Apache hangs for
+infinity:
+
+def fixuphandler(req):
+    # req.session = Session(req)
+    sezz = Session(req)
+    req.blapp = str(id(sezz))
+    req.blupp = sezz
+    open(&quot;/tmp/faentosk&quot;, &quot;w&quot;)
+    return apache.OK
+
+
+Within index.py:  (result is a html document)
+
+try:
+    result.add(req.blapp)
+    result.add(str(id(req.blupp)))
+    result.add(str(req.sezz))
+except Exception, e:
+    result.add(str(e))
+
+Now, if I don't save the session instance (the sezz) - everything works. If
+I
+try to store sezz in req.blupp - everything fails - the apache process
+hangs,
+the file /tmp/faentosk is never created, ie. everything stops at the
+previous line.
+
+I've tried making a Dummy class and instanciating it instead, sezz =
+Dummy() - and writing out the id in same way, works like a charm, and
+the id confirms that it's the same object instanciated within
+fixuphandler.
+
+Any tip?
+
+-- 
+Stian S&#248;iland               Work toward win-win situation. Win-lose
+Trondheim, Norway           is where you win and the other lose.
+<A HREF="http://www.soiland.no/">http://www.soiland.no/</A>      Lose-lose and lose-win are left as an
+                            exercise to the reader.  [Limoncelli/Hogan]
+
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014450.html">[mod_python]  Documentation suggestions for section 4.7.1 inthe
+ beta mod_python manual
+</A></li>
+	<LI>Next message: <A HREF="014443.html">[mod_python] Re: R: Session instances can't be stored in req?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14442">[ date ]</a>
+              <a href="thread.html#14442">[ thread ]</a>
+              <a href="subject.html#14442">[ subject ]</a>
+              <a href="author.html#14442">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

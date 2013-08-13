@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Some observations after writing my own modpython
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Some%20observations%20after%20writing%20my%20own%20modpython&In-Reply-To=88e286470705282123n6f2caf3ey3c4231ce8b244f06%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023725.html">
+   <LINK REL="Next"  HREF="023750.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Some observations after writing my own modpython</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Roger Binns</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Some%20observations%20after%20writing%20my%20own%20modpython&In-Reply-To=88e286470705282123n6f2caf3ey3c4231ce8b244f06%40mail.gmail.com"
+       TITLE="[mod_python] Some observations after writing my own modpython">rogerb at rogerbinns.com
+       </A><BR>
+    <I>Wed May 30 03:40:29 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023725.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+        <LI>Next message: <A HREF="023750.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23745">[ date ]</a>
+              <a href="thread.html#23745">[ thread ]</a>
+              <a href="subject.html#23745">[ subject ]</a>
+              <a href="author.html#23745">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+Graham Dumpleton wrote:
+&gt;<i> Maybe you would like to review my code for me. :-)
+</I>&gt;<i> 
+</I>&gt;<i>  <A HREF="http://www.modwsgi.org">http://www.modwsgi.org</A>
+</I>
+I've taken a quick look but am not too familiar with what it is doing.
+(Pretty much all the Python wrapping of other libraries I do is to
+deliberately ignore Python &quot;standards&quot; and follow what the libraries do
+instead :-)
+
+I am somewhat baffled as to why you have the &quot;daemon&quot; mode.  Surely
+ProxyPass would be sufficient.  And if it wasn't then fastcgi/scgi
+should be.
+
+I'm astounded at how much effort you have put into being compatible
+across so many Apache versions and packaging tweaks on the various
+distributions.
+
+You've also got a lot of options and complexity for those options, such
+as optionally disabling protection against stdio usage and signals.  My
+own tastes are towards insisting on standards compliance and not have
+more code (and hence more complexity and possibility for bugs).
+
+At line 729 after the PyErr_Fetch, I believe you should use
+PyErr_Normalize to set unset value/tracebacks.
+
+The Log_output function has lots of scary string arithmetic and memory
+allocations.  Wouldn't the various apr_str functions do the trick?
+
+The if(*msg) in Log_write is redundant since format &quot;s&quot; to
+PyArg_ParseTuple will always fill in the char*.
+
+You may find it worthwhile using PyObject_CallFunction instead of
+BuildValue and CallObject.  You have one less thing to track refcounts
+for and one less line of code.
+
+Input_read also has the string arithmetic and memory allocations.  Why
+not use the Python PyString or apr routines for all of those?
+
+For the various objects that have a request_rec*, I don't see how they
+deal with outliving the request_req.
+
+A lot of the config values will accept nonsensical values for booleans
+because the config routines effectively do a caseless compare for &quot;off&quot;
+and treat everything else as on, including &quot;0&quot;, &quot;1&quot; etc.  I'd suggest
+tightening that up to only accept the values you want rather than
+anything.  (You know someday someone will make a configuration mistake
+and get unexpected behaviour and take ages to track down that &quot;0&quot; didn't
+actually turn something off or &quot;1&quot; didn't turn it on).
+
+On the whole the code is clear and readable.
+
+&gt;<i> All my work on SWIGing the Apache APIs could probably have saved you a
+</I>&gt;<i> lot of effort. :-)
+</I>
+Not really since I only wrapped the data and methods I needed which
+amounts to about 20 items.  However it was very obvious that an
+automated approach to making a wrapper is by far the best way of doing
+it.  There are so many very similar things, but with the odd exception
+or tweak here and there.
+
+&gt;<i> Is what you have done patches to mod_python, or have you gone and
+</I>&gt;<i> written your own Apache module from scratch which is independent of
+</I>&gt;<i> mod_python, or uses the exported mod_python optional functions for
+</I>&gt;<i> getting access to interpreters? 
+</I>
+It is completely independent started from scratch code.  I didn't bother
+with multiple interpreters since all the Python code that runs is mine
+and it isn't &quot;hostile&quot;.
+
+&gt;<i> Are you intending to post your code anywhere so we can have a look?
+</I>
+Sadly I can't since I don't own it :-(  However it isn't that
+interesting because it is subset of Apache apis, only request_rec is
+wrapped, only the main interpreter etc.  I also am not constrained by
+backwards compatibility for Python (using 2.5) or Apache (using 2.2) or
+by an installed base as modpython is.
+
+&gt;<i> And there are a lot more problems than that. Personally, in terms of
+</I>&gt;<i> adding more and more access to the Apache API I am far from convinced
+</I>&gt;<i> that mod_python is a good starting point. :-)
+</I>
+I certainly chose not to start from mod_python and technically only
+needed one more api :-)  It would be useful to look at the modperl code
+generator since they must have the meta-information about apis and types
+somewhere.
+
+&gt;<i> Trying to cache values,
+</I>&gt;<i> especially when they aren't all read only and can be updated by other
+</I>&gt;<i> Apache functions, just makes the job of writing a hand coded wrapper
+</I>&gt;<i> even more work so I don't begrudge the original author for not doing
+</I>&gt;<i> it.
+</I>
+For OOR you just have to stash the Python object pointer somewhere in
+the Apache object and so the pool note functions would work.  I don't
+see anywhere that values are cached, unless you mean something like
+getting the same PyString objects out when setting a setting field.
+That certainly is going too far.
+
+This has all been a valuable learning experience and I am very glad to
+be able to use Apache for all authentication and authorization.
+
+Roger
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.6 (GNU/Linux)
+
+iD8DBQFGXSptmOOfHg372QQRAiUiAKCjPbAu0jwCkmhE3lvFrjCwXR8+fACgw1nC
+bB6CkpocNG/aSA23JbRQ1S0=
+=dqja
+-----END PGP SIGNATURE-----
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023725.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+	<LI>Next message: <A HREF="023750.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23745">[ date ]</a>
+              <a href="thread.html#23745">[ thread ]</a>
+              <a href="subject.html#23745">[ subject ]</a>
+              <a href="author.html#23745">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

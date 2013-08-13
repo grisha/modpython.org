@@ -1,0 +1,227 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mp_server.register_cleanup
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mp_server.register_cleanup&In-Reply-To=000001c29a26%2478d78460%2456241eac%40acsesbi">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005836.html">
+   <LINK REL="Next"  HREF="005841.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mp_server.register_cleanup</H1>
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mp_server.register_cleanup&In-Reply-To=000001c29a26%2478d78460%2456241eac%40acsesbi"
+       TITLE="[mod_python] mp_server.register_cleanup">grisha at modpython.org
+       </A><BR>
+    <I>Mon Dec  2 16:52:26 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005836.html">[mod_python] mp_server.register_cleanup
+</A></li>
+        <LI>Next message: <A HREF="005841.html">[mod_python] Problems with mp tutorial
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5839">[ date ]</a>
+              <a href="thread.html#5839">[ thread ]</a>
+              <a href="subject.html#5839">[ subject ]</a>
+              <a href="author.html#5839">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>Stephane -
+
+Yes, it looks like server.register_cleanup was left forgotten....
+
+Try applying this set of patches (this includes patches to the test
+suite), I'll add this to HEAD.
+
+RCS file: /home/cvs/httpd-python/src/serverobject.c,v
+retrieving revision 1.13
+diff -u -r1.13 serverobject.c
+--- src/serverobject.c  8 Nov 2002 00:15:11 -0000       1.13
++++ src/serverobject.c  2 Dec 2002 21:47:52 -0000
+@@ -117,30 +117,20 @@
+     cleanup_info *ci;
+     PyObject *handler = NULL;
+     PyObject *data = NULL;
+-    PyObject *Req = NULL;
+     requestobject *req = NULL;
+
+-    if (! PyArg_ParseTuple(args, &quot;OO|O&quot;, &amp;Req, &amp;handler, &amp;data))
++    if (! PyArg_ParseTuple(args, &quot;OO|O&quot;, &amp;req, &amp;handler, &amp;data))
+        return NULL;
+
+-    if (! PyObject_HasAttrString(Req, &quot;_req&quot;)) {
+-       PyErr_SetString(PyExc_ValueError, &quot;first argument must be a Request object&quot;);
+-       return NULL;
++    if (! MpRequest_Check(req)) {
++        PyErr_SetString(PyExc_ValueError,
++                        &quot;first argument must be a request object&quot;);
++        return NULL;
+     }
+-    else {
+-
+-       req = (requestobject *) PyObject_GetAttrString(Req, &quot;_req&quot;);
+-
+-       if (! MpRequest_Check(req)) {
+-           PyErr_SetString(PyExc_ValueError,
+-                           &quot;first argument must be a request object&quot;);
+-           return NULL;
+-       }
+-       else if(!PyCallable_Check(handler)) {
+-           PyErr_SetString(PyExc_ValueError,
+-                           &quot;second argument must be a callable object&quot;);
+-           return NULL;
+-       }
++    else if(!PyCallable_Check(handler)) {
++        PyErr_SetString(PyExc_ValueError,
++                        &quot;second argument must be a callable object&quot;);
++        return NULL;
+     }
+
+     ci = (cleanup_info *)malloc(sizeof(cleanup_info));
+Index: test/test.py
+===================================================================
+RCS file: /home/cvs/httpd-python/test/test.py,v
+retrieving revision 1.20
+diff -u -r1.20 test.py
+--- test/test.py        29 Oct 2002 21:52:18 -0000      1.20
++++ test/test.py        2 Dec 2002 21:47:52 -0000
+@@ -776,12 +776,39 @@
+
+         self.failUnless(result.wasSuccessful())
+
++    def test_srv_register_cleanup(self):
++
++        print &quot;\n* Testing server.register_cleanup()...&quot;
++
++        c = Directory(DOCUMENT_ROOT,
++                      SetHandler(&quot;python-program&quot;),
++                      PythonHandler(&quot;tests::srv_register_cleanup&quot;),
++                      PythonDebug(&quot;On&quot;))
++
++        self.makeConfig(str(c))
++
++        self.startHttpd()
++
++        f = urllib.urlopen(&quot;<A HREF="http://127.0.0.1:%s/tests.py&quot;">http://127.0.0.1:%s/tests.py&quot;</A> % PORT)
++        f.read()
++        f.close()
++
++        self.stopHttpd()
++
++        # see what's in the log now
++        time.sleep(1)
++        f = open(os.path.join(SERVER_ROOT, &quot;logs/error_log&quot;))
++        log = f.read()
++        f.close()
++        if log.find(&quot;test ok&quot;) == -1:
++            self.fail(&quot;Could not find test message in error_log&quot;)
+
+ def suite():
+
+     mpTestSuite = unittest.TestSuite()
+     mpTestSuite.addTest(PerInstanceTestCase(&quot;testLoadModule&quot;))
+     mpTestSuite.addTest(PerInstanceTestCase(&quot;testPerRequestTests&quot;))
++    mpTestSuite.addTest(PerInstanceTestCase(&quot;test_srv_register_cleanup&quot;))
+     return mpTestSuite
+
+ tr = unittest.TextTestRunner()
+Index: test/htdocs/tests.py
+===================================================================
+RCS file: /home/cvs/httpd-python/test/htdocs/tests.py,v
+retrieving revision 1.19
+diff -u -r1.19 tests.py
+--- test/htdocs/tests.py        29 Oct 2002 21:52:18 -0000      1.19
++++ test/htdocs/tests.py        2 Dec 2002 21:47:52 -0000
+@@ -505,6 +505,14 @@
+
+     data.log_error(data.cleanup_data)
+
++def srv_register_cleanup(req):
++
++    req.cleanup_data = &quot;test ok&quot;
++    req.server.register_cleanup(req, cleanup, req)
++    req.write(&quot;registered server cleanup that will write to log&quot;)
++
++    return apache.OK
++
+ def util_fieldstorage(req):
+
+     from mod_python import util
+
+
+Grisha
+
+On Mon, 2 Dec 2002, St&#1048;phane Bidoul wrote:
+
+&gt;<i> Hi Grisha,
+</I>&gt;<i>
+</I>&gt;<i> I'm back using mod_python, on a real project this time.
+</I>&gt;<i> We've been using 3.0 beta for a few weeks and it works great!
+</I>&gt;<i>
+</I>&gt;<i> Now I'm trying to use mp_server.register_cleanup, and that fails
+</I>&gt;<i> with a &quot;ValueError: first argument must be a Request object&quot;.
+</I>&gt;<i>
+</I>&gt;<i> My first diagnostic (unless I'm doing something silly)
+</I>&gt;<i> is that it's a remnant of mod_python 2.x,
+</I>&gt;<i> since the Request class seems to have disappeared
+</I>&gt;<i> from apache.py.
+</I>&gt;<i>
+</I>&gt;<i> Is that an easy fix for you?
+</I>&gt;<i> Or should I dig it a little bit more?
+</I>&gt;<i>
+</I>&gt;<i> -sbi
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005836.html">[mod_python] mp_server.register_cleanup
+</A></li>
+	<LI>Next message: <A HREF="005841.html">[mod_python] Problems with mp tutorial
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5839">[ date ]</a>
+              <a href="thread.html#5839">[ thread ]</a>
+              <a href="subject.html#5839">[ subject ]</a>
+              <a href="author.html#5839">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

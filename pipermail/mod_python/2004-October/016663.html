@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Approaches to handling input forms.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Approaches%20to%20handling%20input%20forms.&In-Reply-To=1098229902.36767%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016661.html">
+   <LINK REL="Next"  HREF="016664.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Approaches to handling input forms.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Johannes Erdfelt</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Approaches%20to%20handling%20input%20forms.&In-Reply-To=1098229902.36767%40dscpl.com.au"
+       TITLE="[mod_python] Approaches to handling input forms.">johannes at erdfelt.com
+       </A><BR>
+    <I>Tue Oct 19 20:49:59 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016661.html">[mod_python] Approaches to handling input forms.
+</A></li>
+        <LI>Next message: <A HREF="016664.html">[mod_python] Approaches to handling input forms.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16663">[ date ]</a>
+              <a href="thread.html#16663">[ thread ]</a>
+              <a href="subject.html#16663">[ subject ]</a>
+              <a href="author.html#16663">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Tue, Oct 19, 2004, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+&gt;<i> A question on what people perceive as being best practice as far as dealing
+</I>&gt;<i> with forms when using mod_python.
+</I>&gt;<i> 
+</I>&gt;<i> Imagine there is a form for logging into a site and its url is at &quot;login&quot;. I've
+</I>&gt;<i> ignored extensions in this discussion as different mechanisms may or may
+</I>&gt;<i> not make it easy to use them.
+</I>&gt;<i> 
+</I>&gt;<i> Is there a tendency to have the form when submitted, post back using
+</I>&gt;<i> the same url, ie., ACTION field in form is not set, or to a different url.
+</I>&gt;<i> 
+</I>&gt;<i> If the first approach is used, any type of content handler for the resource
+</I>&gt;<i> must be able to deal with with both no form data or required form data.
+</I>&gt;<i> If no form data, put up the form, else if form data process the posted form
+</I>&gt;<i> appropriately.
+</I>&gt;<i> 
+</I>&gt;<i> Upon processing the form, if login was successful, it might redirect to
+</I>&gt;<i> another resource, or if the login form was actually part of a larger page, it
+</I>&gt;<i> may then enable display of what other information was on the page.
+</I>&gt;<i> 
+</I>&gt;<i> In this approach you tend to end up with a lot of things jumbled up into
+</I>&gt;<i> one content handler and it could perceivably get a bit messy.
+</I>&gt;<i> 
+</I>&gt;<i> If the form and the processor of the form are at different urls, there is a
+</I>&gt;<i> better separation of functionality of presenting the form and its processing.
+</I>&gt;<i> Being different urls though, you might have to be a bit trickier as far as
+</I>&gt;<i> using redirects to get back to where you want when login is sucessful
+</I>&gt;<i> especially if it is a generic login processor.
+</I>&gt;<i> 
+</I>&gt;<i> How do people handle this in the different mechanisms that are available?
+</I>&gt;<i> Is there a general concensus that one approach is much superior to the other?
+</I>&gt;<i> Are there any specific things that could be put into a content handler system
+</I>&gt;<i> that can make this aspect of processing forms easier?
+</I>
+To speak for myself, when I've implemented this, I've done it posting
+back to the same script. This is because I almost always need to handle
+errors and present the same form back to the user, possibly with an error
+message describing the problem.
+
+It's actually quite easy given the form validation code I've described
+previously. The code looked something similar to this:
+
+__form_vars__ = [
+  form.string(&quot;email&quot;),
+  form.string(&quot;password&quot;),
+]
+
+def handler_html(req):
+  if not os.path.exists(req.filename):
+    return apache.DECLINED
+                                                                                
+  template = vampire.loadTemplate(req.filename)
+
+  if req.form.email is None and req.form.password is not None:
+    if validate_password(req.form.email, req.form.password):
+      req.status = apache.HTTP_MOVED_TEMPORARILY
+      req.headers_out[&quot;Location&quot;] = &quot;/location/to/redirect/to&quot;
+      req.send_http_header()
+                                                                                
+      return apache.OK
+    else:
+      # Error validating user
+      pass
+  else:
+    # Don't show error message
+    template.error.omit()
+
+  if req.form.email:
+    template.email.atts['value'] = req.form.email
+
+  req.content_type = &quot;text/html&quot;
+  req.headers_out['Cache-Control'] = 'no-cache'
+  req.headers_out['Expires'] = '-1'
+  req.send_http_header()
+  req.write(template.render())
+
+  return apache.OK
+
+The form validation code will stuff None into the value if the variable
+wasn't passed at all.
+
+You could also do something like this:
+
+__form_vars__ = [
+  form.submit(&quot;submit&quot;, [
+    form.string(&quot;email&quot;, required = 1),
+    form.string(&quot;password&quot;, required = 1),
+  ],
+]
+
+and then:
+
+  if req.form.submit is not None:
+
+However, the submit value may not always be sent if the user just hits
+return instead of clicking on a button.
+
+JE
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016661.html">[mod_python] Approaches to handling input forms.
+</A></li>
+	<LI>Next message: <A HREF="016664.html">[mod_python] Approaches to handling input forms.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16663">[ date ]</a>
+              <a href="thread.html#16663">[ thread ]</a>
+              <a href="subject.html#16663">[ subject ]</a>
+              <a href="author.html#16663">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

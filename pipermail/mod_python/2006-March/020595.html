@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Specifying GET/POST method for FieldStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Specifying%20GET/POST%20method%20for%20FieldStorage&In-Reply-To=86mzfvj2le.fsf%40mau.intra.tuxee.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020586.html">
+   <LINK REL="Next"  HREF="020599.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Specifying GET/POST method for FieldStorage</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Specifying%20GET/POST%20method%20for%20FieldStorage&In-Reply-To=86mzfvj2le.fsf%40mau.intra.tuxee.net"
+       TITLE="[mod_python] Specifying GET/POST method for FieldStorage">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Mar 12 14:36:21 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020586.html">[mod_python] Specifying GET/POST method for FieldStorage
+</A></li>
+        <LI>Next message: <A HREF="020599.html">[mod_python] Re: Specifying GET/POST method for FieldStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20595">[ date ]</a>
+              <a href="thread.html#20595">[ thread ]</a>
+              <a href="subject.html#20595">[ subject ]</a>
+              <a href="author.html#20595">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Can you explain why you would want to distinguish between the two?
+
+If you want simply not to allow form args in the URL for a POST,
+you could check whether req.args is non empty and return a BAD
+request if it is. This would be preferable to silently ignoring
+the values if any were provided.
+
+If trying to use the URL args and POST content args as different
+distinct input methods within the same request, it sounds a bit dodgy.
+
+Graham
+
+On 12/03/2006, at 10:59 PM, Fr&#233;d&#233;ric Jolliton wrote:
+
+&gt;<i> Hi,
+</I>&gt;<i>
+</I>&gt;<i> [I'm not sure if python-dev was more appropriate.]
+</I>&gt;<i>
+</I>&gt;<i> Say I've the following case: I've a form with POST method, where
+</I>&gt;<i> action is an URL with a query string.
+</I>&gt;<i>
+</I>&gt;<i> Currently, with util.FieldStorage it's not possible to know which
+</I>&gt;<i> values come from the query string and which values come from the POST
+</I>&gt;<i> request.
+</I>&gt;<i>
+</I>&gt;<i> So, here is a suggestion: What about adding a keyword 'from_method' to
+</I>&gt;<i> util.FieldStorage.__init__, then use it as follow:
+</I>&gt;<i>
+</I>&gt;<i> getFieldStorage = util.FieldStorage( from_method = 'GET' )
+</I>&gt;<i> postFieldStorage = util.FieldStorage( from_method = 'POST' )
+</I>&gt;<i>
+</I>&gt;<i> ?
+</I>&gt;<i>
+</I>&gt;<i> And, of course, let unchanged the current behavior if from_method is
+</I>&gt;<i> not specified or set to None.
+</I>&gt;<i>
+</I>&gt;<i> Here is a trivial patch to support this keyword, against 3.2.8:
+</I>&gt;<i>
+</I>&gt;<i> --- mod_python-3.2.8.orig/lib/python/mod_python/util.py	2006-02-02 
+</I>&gt;<i> 06:31:45.000000000 +0100
+</I>&gt;<i> +++ mod_python-3.2.8/lib/python/mod_python/util.py	2006-03-12 
+</I>&gt;<i> 12:35:10.000000000 +0100
+</I>&gt;<i> @@ -91,7 +91,7 @@
+</I>&gt;<i>
+</I>&gt;<i>  class FieldStorage:
+</I>&gt;<i>
+</I>&gt;<i> -   def __init__(self, req, keep_blank_values=0, strict_parsing=0, 
+</I>&gt;<i> file_callback=None, field_callback=None):
+</I>&gt;<i> +   def __init__(self, req, keep_blank_values=0, strict_parsing=0, 
+</I>&gt;<i> file_callback=None, field_callback=None, from_method=None):
+</I>&gt;<i>         #
+</I>&gt;<i>         # Whenever readline is called ALWAYS use the max size EVEN 
+</I>&gt;<i> when not expecting a long line.
+</I>&gt;<i>         # - this helps protect against malformed content from 
+</I>&gt;<i> exhausting memory.
+</I>&gt;<i> @@ -100,7 +100,7 @@
+</I>&gt;<i>         self.list = []
+</I>&gt;<i>
+</I>&gt;<i>         # always process GET-style parameters
+</I>&gt;<i> -       if req.args:
+</I>&gt;<i> +       if req.args and (from_method is None or from_method.upper() == 
+</I>&gt;<i> &quot;GET&quot;):
+</I>&gt;<i>             pairs = parse_qsl(req.args, keep_blank_values)
+</I>&gt;<i>             for pair in pairs:
+</I>&gt;<i>                 file = cStringIO.StringIO(pair[1])
+</I>&gt;<i> @@ -109,6 +109,9 @@
+</I>&gt;<i>         if req.method != &quot;POST&quot;:
+</I>&gt;<i>             return
+</I>&gt;<i>
+</I>&gt;<i> +       if from_method is not None and from_method.upper() != &quot;POST&quot;:
+</I>&gt;<i> +           return
+</I>&gt;<i> +
+</I>&gt;<i>         try:
+</I>&gt;<i>             clen = int(req.headers_in[&quot;content-length&quot;])
+</I>&gt;<i>         except (KeyError, ValueError):
+</I>
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020586.html">[mod_python] Specifying GET/POST method for FieldStorage
+</A></li>
+	<LI>Next message: <A HREF="020599.html">[mod_python] Re: Specifying GET/POST method for FieldStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20595">[ date ]</a>
+              <a href="thread.html#20595">[ thread ]</a>
+              <a href="subject.html#20595">[ subject ]</a>
+              <a href="author.html#20595">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

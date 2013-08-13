@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] python module loaded, but not parsed (huh?)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20python%20module%20loaded%2C%20but%20not%20parsed%20%28huh%3F%29&In-Reply-To=1137107762.30101%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019957.html">
+   <LINK REL="Next"  HREF="019960.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] python module loaded, but not parsed (huh?)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Fabiano Sidler</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20python%20module%20loaded%2C%20but%20not%20parsed%20%28huh%3F%29&In-Reply-To=1137107762.30101%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] python module loaded, but not parsed (huh?)">fabianosidler at gmail.com
+       </A><BR>
+    <I>Fri Jan 13 19:54:43 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019957.html">[mod_python] python module loaded, but not parsed (huh?)
+</A></li>
+        <LI>Next message: <A HREF="019960.html">[mod_python] python module loaded, but not parsed (huh?)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19959">[ date ]</a>
+              <a href="thread.html#19959">[ thread ]</a>
+              <a href="subject.html#19959">[ subject ]</a>
+              <a href="author.html#19959">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2006/1/13, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+&gt;<i> Unfortunately your email doesn't really provide that much to go on.
+</I>
+Sorry for that! But meanwhile I located the problem:
+--- testwebapp.py ---
+from container import WebApp, Request
+
+class MyWebApp(WebApp):
+	title='My WebApplication'
+	def run():
+		Request.setContentType('text/html')
+		Request.write('Foobar!')
+
+--- container.py ---
+class WebAppMeta(type):
+	def __new__(cls, name, bases, d):
+		from types import FunctionType as Function
+		for i in d:
+			if type(d[i]) is Function:
+				d[i] = staticmethod(d[i])
+		loadmodule(cls.__module__, cls)
+		return super(WebAppMeta, cls).__new__(cls, name, bases, d)
+
+class WebApp:
+	__metaclass__=WebAppMeta
+	def someBasicFooBarMethods(): pass
+
+def loadmodule(mod, cls):
+	from mod_python import apache
+	class Request: pass
+	def handler(req):
+		Request.write = staticmethod(req.write)
+		cls.run()
+		return apache.OK
+	mod.Request = Request
+	mod.handler = handler
+
+The interesting[tm] thing now is that on creation of the
+testwebapp.MyWebApp class, loadmodule()'s mod argument is container
+instead of my assumption, in which it was testwebapp. As the
+consequence, the name testwebapp.handler is not set and mod_python
+delivers the script code to the client, annoyingly without any message
+to the logs!
+Is there a way to achieve what I wanted to do, or will I have to
+change my whole app design? As I posted earlier, I'm doing a
+server-independent interface for writing webapps and its specification
+is already made. I would dislike beginning from 0.
+
+Thank you lots for your help!
+Greetings,
+Fips
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019957.html">[mod_python] python module loaded, but not parsed (huh?)
+</A></li>
+	<LI>Next message: <A HREF="019960.html">[mod_python] python module loaded, but not parsed (huh?)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19959">[ date ]</a>
+              <a href="thread.html#19959">[ thread ]</a>
+              <a href="subject.html#19959">[ subject ]</a>
+              <a href="author.html#19959">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,277 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Articles on module importing.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Articles%20on%20module%20importing.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018632.html">
+   <LINK REL="Next"  HREF="018636.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Articles on module importing.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Articles%20on%20module%20importing.&In-Reply-To="
+       TITLE="[mod_python] Articles on module importing.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Jul  8 00:59:06 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018632.html">[mod_python] Apache2 + mod_python + DragonFly?
+</A></li>
+        <LI>Next message: <A HREF="018636.html">[mod_python] Articles on module importing.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18634">[ date ]</a>
+              <a href="thread.html#18634">[ thread ]</a>
+              <a href="subject.html#18634">[ subject ]</a>
+              <a href="author.html#18634">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Jorey Bump wrote ..
+&gt;<i> &gt; The current mod_python.publisher handler uses the import_module()
+</I>&gt;<i> &gt; function internally to load modules and so it is just as much afflicted
+</I>&gt;<i> by many
+</I>&gt;<i> &gt; of these problems, more so when within a published module the code uses
+</I>&gt;<i> &gt; the import_module() explicitly and even if only the &quot;import&quot; statement
+</I>&gt;<i> is
+</I>&gt;<i> &gt; used within that module.
+</I>&gt;<i> 
+</I>&gt;<i> Understood. My point is that alternate import mechanisms such as 
+</I>&gt;<i> import_module() shouldn't be encouraged in *published* modules or 
+</I>&gt;<i> modules that are based on other handlers. I think we both agree that we
+</I>&gt;<i> want the average Python programmer to be able to start using mod_python
+</I>&gt;<i>   as seamlessly as possible. 
+</I>
+What would you think of a scheme whereby you could use the &quot;import&quot;
+statement and underneath it would magically and seamlessly translate
+that into a call to import_module() for you?
+
+The call to import_module() under the covers would only happen though where
+the module was in the same directory, or in one of a set of special directories
+designated by a path distinct from sys.path. If a module wasn't found in
+those places, it will fall back to use of the standard Python import
+mechanism and search in only sys.path.
+
+Thus, for those modules local to the document tree or in specially
+designated directories, even though the &quot;import&quot; statement was used,
+automatic module reloading would work. Because the &quot;import&quot;
+statement is used, you don't need to have two sets of code, one for
+command line use and one for use under mod_python. Under mod_python,
+if necessary, all you would need to do is designate those special directories
+where modules are stored which you want managed by &quot;import_module()&quot;
+under the covers instead of the standard Python module import mechanism.
+
+&gt;<i> After editing modules 
+</I>&gt;<i> imported by a published module, apache must be restarted.
+</I>
+Or all the modules that inherit it need to be touched so there modification
+time changes. :-)
+
+&gt;<i> &gt;&gt;1. We want the PythonPath extended automatically based on the location
+</I>&gt;<i> &gt;&gt;of a file.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; This is not a goal or requirement, it is indicative of a solution. To
+</I>&gt;<i> provide
+</I>&gt;<i> &gt; the desired behaviour doesn't require PythonPath be extended as there
+</I>&gt;<i> are
+</I>&gt;<i> &gt; actually better ways of achieving the same thing and still maintain the
+</I>&gt;<i> &gt; required transparency that you require.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; The real goal you are probably alluding to is that within a Python code
+</I>&gt;<i> &gt; file serving as a handler you want the &quot;import&quot; statement to be able
+</I>&gt;<i> to
+</I>&gt;<i> &gt; pick up a module that resides in the same directory. Yes?
+</I>&gt;<i> 
+</I>&gt;<i> No. I think it's poor practice to put any kind of library files in a 
+</I>&gt;<i> directory that is accessible to browsers, even with other languages. The
+</I>&gt;<i> risk is too high that someone with knowledge of your directory structure
+</I>&gt;<i> can call your support modules directly, causing unintended side effects.
+</I>
+It could be viewed as being not recommended for beginners who don't
+understand all the security implications, but it is possible now and when
+someone who knows how to secure the system properly does it, it can
+be quick means to and end and can save a lot of pain in other ways.
+
+Thus, whether one does this or not is going to be a convention only.
+Depending on what type of handler system you are using, putting such
+common code in modules starting with an underscore and using some
+thing like the following in a .htaccess file:
+
+  &lt;Files &quot;_*&quot;&gt;
+  deny from all
+  &lt;/Files&gt;
+
+can be enough to stop the code being exposed.
+
+&gt;<i> &gt; At the moment, if using mod_python.publisher this only works where the
+</I>&gt;<i> &gt; published module is in the same directory as where the PythonHandler
+</I>&gt;<i> &gt; directive was specified, it does not work where the published module is
+</I>&gt;<i> &gt; in a subdirectory. Thus, should the ability to use the &quot;import&quot; statement
+</I>&gt;<i> &gt; in this way also work for a published module in a subdirectory of where
+</I>&gt;<i> &gt; the handler directive was originally defined?
+</I>&gt;<i> 
+</I>&gt;<i> No. For backwards compatibility, I'd leave this behaviour as-is. We use
+</I>&gt;<i> the phrase &quot;published module&quot; to refer to a module that we intend a 
+</I>&gt;<i> browser to access, but mod_python.publisher makes no such distinction.
+</I>&gt;<i> I  don't want to see mod_python automagically package subdirectories or add
+</I>&gt;<i> them to the path because it gives newbies more rope to hang themselves.
+</I>
+What if the scheme didn't actually involve the addition of either the top level
+handler directory or the subdirectories into sys.path in the first place for this
+to work?
+
+The problem we get at the moment is that we get questions of why this sort
+of importing doesn't work for subdirectories in the first place. How only the
+top level handler directory is added into sys.path is explained. End result is
+that they go and fiddle with PythonPath explicitly anyway and still hang
+themselves.
+
+Wouldn't it be preferable if a scheme could be offered where &quot;import&quot; just
+works for modules in the same directory regardless of whether the importer is
+in the top level handler directory or a subdirectory, especially where the
+manner it was implemented didn't require extension of sys.path and where
+automatic module reloading worked?
+
+I feel it comes down to looking at how all users want and expect this stuff
+to work, rather than drawing conclusions as to whether one way is better
+than another, and make it work, but make it work transparently in what
+would be regarded as correct way for the mod_python case.
+
+&gt;<i> Therefore, it has to be in the same directory as the 
+</I>&gt;<i> published module. For example, <A HREF="http://host/app/">http://host/app/</A> might contain this:
+</I>&gt;<i> 
+</I>&gt;<i>   .htPython/module1.py
+</I>&gt;<i>   .htPython/module2.py
+</I>&gt;<i>   app1.py
+</I>&gt;<i>   app2.py
+</I>&gt;<i> 
+</I>&gt;<i> #app1.py
+</I>&gt;<i> 
+</I>&gt;<i> import module1
+</I>&gt;<i> import module2
+</I>&gt;<i> 
+</I>&gt;<i> def index
+</I>&gt;<i>      a = module1.do(something)
+</I>&gt;<i>      return module2.show(a)
+</I>&gt;<i> 
+</I>&gt;<i> app1 imports modules from the special directory, but app2 doesn't. No 
+</I>&gt;<i> big deal. What's nice is that app.tgz could be untarred anywhere that 
+</I>&gt;<i> the appropriate PythonHandler is defined, and it wouldn't be necessary
+</I>&gt;<i> to manually extend the PythonPath with an explicit file specification.
+</I>
+Unless you take extra precautions by adding &quot;deny from all&quot; into the
+&quot;.htPython/.htaccess&quot; file, these modules are still going to be accessible.
+That you have to take explicit steps to protect them is not much
+different to using a convention of using a leading underscore.
+
+&gt;<i> The only precaution left for the developer is to name imported 
+</I>&gt;<i> modules/packages appropriately to prevent collisions, but this must be
+</I>&gt;<i> done for all Python apps, anyway. Ideally, the path would be modified 
+</I>&gt;<i> per &quot;published&quot; module, but I don't know if that's even possible.
+</I>
+If the &quot;import&quot; statement overlays &quot;import_module()&quot; and the later supports
+the same named module in different directories, you wouldn't have to
+worry about collisions. If it knows to grab them from this directory using
+this mechanism before looking elsewhere through some special path
+designation, then you could have everything you want and more.
+
+Am getting into implementation, which I did't want to, but what if for
+this to work one way was to add the following to the start of your
+appl1.py file:
+
+  import os
+
+  directory = os.path.dirname(__file__)
+  modules = os.path.join(directory,&quot;.htPython&quot;)
+  __path__.insert(0,modules)
+
+  import module1
+  import module2
+
+You need to add a few lines, but it gives you control on where &quot;import&quot;
+looks, but through a bit of magic when it finds &quot;module1&quot; existant in
+that directory it will also use &quot;import_module()&quot; to actually load it and
+when it handles same named modules the collision problems go away.
+
+&gt;<i> Depth is certainly an issue, but one could assume (or at least establish
+</I>&gt;<i> the convention) that the custom modules in .htPython mostly import 
+</I>&gt;<i> stable modules that are unlikely to change, such as those in the 
+</I>&gt;<i> standard library. The mere possibility of specifying a conventional and
+</I>&gt;<i> portable location for custom modules goes a long way towards solving the
+</I>&gt;<i> import problem.
+</I>
+It isn't that a specifying a special location is important, but that there is
+a separation between sys.path modules where standard Python import
+infrastructure is used, and web application directories where under the
+covers of &quot;import&quot; the &quot;import_module()&quot; function is used. Thus with the
+example above, a mechanism is provided to specify where you directory
+is, but you set your own convention as to what it is named and where
+it is located.
+
+&gt;<i> Sorry, by packaging I meant simply creating a tarball or zipfile for 
+</I>&gt;<i> distribution, not a Python package.
+</I>
+Which means in your case, you wouldn't be affected if &quot;import_module()&quot;
+didn't support Python packages within the web application area.
+
+&gt;<i> I currently develop most of my Publisher applications as packages that
+</I>&gt;<i> are stored in a directory prefixed to PythonPath. It works fine and I 
+</I>&gt;<i> couldn't bear to lose that functionality (although I obviously still 
+</I>&gt;<i> need to restart apache after editing package code). Unfortunately, I 
+</I>&gt;<i> don't know enough about the import mechanism to understand the 
+</I>&gt;<i> difference between reloading modules vs. packages, so I don't know if my
+</I>&gt;<i> scheme offers any solution here (or even if it's feasible).
+</I>
+It is all feasible, except for Python packages which may just not be worth
+the effort. I know it is feasible, because for how you are using things, it
+is already possible and working in &quot;vampire::publisher&quot;. ;-)
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018632.html">[mod_python] Apache2 + mod_python + DragonFly?
+</A></li>
+	<LI>Next message: <A HREF="018636.html">[mod_python] Articles on module importing.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18634">[ date ]</a>
+              <a href="thread.html#18634">[ thread ]</a>
+              <a href="subject.html#18634">[ subject ]</a>
+              <a href="author.html#18634">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

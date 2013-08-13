@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonAuthenHandler Question
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthenHandler%20Question&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018269.html">
+   <LINK REL="Next"  HREF="018272.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonAuthenHandler Question</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Al Pacifico</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthenHandler%20Question&In-Reply-To="
+       TITLE="[mod_python] PythonAuthenHandler Question">pacifico at drizzle.com
+       </A><BR>
+    <I>Fri Jun  3 16:09:10 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018269.html">Fw: [mod_python] problem with mod_python configuration
+</A></li>
+        <LI>Next message: <A HREF="018272.html">[mod_python] PythonAuthenHandler Question
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18270">[ date ]</a>
+              <a href="thread.html#18270">[ thread ]</a>
+              <a href="subject.html#18270">[ subject ]</a>
+              <a href="author.html#18270">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Apologies in advance because I come from an Apache 1.3 / mod_perl background
+and am rusty at that to boot.
+
+I'm wondering how to use PythonAuthenHandler to set my client's directory
+viewing permissions. I'm authenticating against an openLDAP server and the
+basic authentication works.
+
+Depending on the identity of the client, some directories should be
+accessible and some should not. With a little additional code, I can assign
+the client a category. I figure that I should be using a require &lt;usertype&gt;
+directive within my httpd.conf and setting a variable in the request object
+to describe the category. Alternatively, I might need to write a
+PythonAuthzHandler, but the documentation on this is sparse and I'd rather
+not bind to the LDAP server twice if I can avoid it.
+
+I thought about using mod_auth_ldap instead, but review of documentation
+suggest that it doesn't know how to bind to openLDAP using SASL
+authentication, and I cannot change to another authentication scheme.
+
+Could someone provide an example or suggest changes to my handler and
+corresponding changes to http.conf ?
+
+On a side note, will a 'finally:' clause be executed even if the 'except:'
+clause contains 'return' ? Or should I have result = apache.&lt;whatever&gt; and
+place return result in the finally clause ?
+
+Here is my authentication handler:
+
+from mod_python import apache
+import ldap,ldap.sasl
+import MyConfig
+
+def authenhandler(req):
+
+	# import our configuration file to find our LDAP server
+	config = MyConfig.Config()
+
+	# show the password dialog, retrieve password and user
+	pw = req.get_basic_auth_pw()
+	email = req.user
+
+	# get a sasl authentication object
+	
+sasl_auth=ldap.sasl.sasl({ldap.sasl.CB_AUTHNAME:email,ldap.sasl.CB_PASS:pw},
+'DIGEST-MD5')
+	
+	# open a connection to our LDAP server
+	try:
+		l = ldap.open(config[&quot;LDAP:server&quot;])
+
+		# attempt to bind to the LDAP server
+		try:
+			l.sasl_interactive_bind_s(&quot;&quot;,sasl_auth)
+			dn = l.whoami_s()
+			l.unbind()
+			return apache.OK
+		except ldap.LDAPError,e:
+			l.unbind()
+			return apache.HTTP_UNAUTHORIZED
+	except ldap.LDAPError,e:
+		l.unbind()
+		return apache.HTTP_UNAUTHORIZED
+
+and my httpd.conf contains:
+
+	&lt;snip&gt;
+User apache
+Group apache
+ServerAdmin <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">root at localhost</A>
+ServerName powell:80
+UseCanonicalName Off
+DocumentRoot &quot;/usr/var/www/htdocs&quot;
+PythonPath &quot;sys.path+['/usr/var/www/lib']&quot;
+# Following did not work as expected
+# PythonImport PMHx_Config powell
+&lt;Directory /&gt;
+    Options FollowSymLinks
+    AllowOverride None
+&lt;/Directory&gt;
+&lt;Directory &quot;/usr/var/www/htdocs&quot;&gt;
+    AddHandler mod_python .psp
+    PythonHandler mod_python.psp
+    PythonDebug On
+    Options Indexes FollowSymLinks
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+&lt;/Directory&gt;
+&lt;Directory &quot;/usr/var/www/htdocs/administration&quot;&gt;
+    AddHandler mod_python .psp
+    PythonHandler mod_python.psp
+	PythonAuthenHandler authenticate
+	PythonDebug On
+	AuthType Basic
+	AuthName &quot;Restricted Area&quot;
+	require valid-user
+&lt;/Directory&gt;
+	&lt;snip&gt;
+
+Thanks
+-al
+
+
+
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018269.html">Fw: [mod_python] problem with mod_python configuration
+</A></li>
+	<LI>Next message: <A HREF="018272.html">[mod_python] PythonAuthenHandler Question
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18270">[ date ]</a>
+              <a href="thread.html#18270">[ thread ]</a>
+              <a href="subject.html#18270">[ subject ]</a>
+              <a href="author.html#18270">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

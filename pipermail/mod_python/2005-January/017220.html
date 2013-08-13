@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Catalog of mod_python.publisher problems.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Catalog%20of%20mod_python.publisher%20problems.&In-Reply-To=1106606370.4554%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017215.html">
+   <LINK REL="Next"  HREF="017216.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Catalog of mod_python.publisher problems.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Catalog%20of%20mod_python.publisher%20problems.&In-Reply-To=1106606370.4554%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Catalog of mod_python.publisher problems.">list at joreybump.com
+       </A><BR>
+    <I>Mon Jan 24 23:29:39 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017215.html">[mod_python] Catalog of mod_python.publisher problems.
+</A></li>
+        <LI>Next message: <A HREF="017216.html">[mod_python] module import
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17220">[ date ]</a>
+              <a href="thread.html#17220">[ thread ]</a>
+              <a href="subject.html#17220">[ subject ]</a>
+              <a href="author.html#17220">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> Graham Dumpleton wrote ..
+</I>&gt;<i> 
+</I>&gt;&gt;<i>Do we need to document properly first the perceived problems and some
+</I>&gt;&gt;<i>examples of errornous behaviour? This will help to ensure we fix
+</I>&gt;&gt;<i>everything and provide a basis for some tests of any new implementation.
+</I>
+Good idea. A battery of tests helps to demonstrate what is really 
+happening. Thanks for the examples.
+
+&gt;<i> Continual reloading of modules
+</I>&gt;<i> ------------------------------
+</I>&gt;<i>   [Tue Jan 25 09:04:40 2005] [notice] mod_python: (Re)importing module 'index'
+</I>&gt;<i>   with path set to '['/Users/grahamd/Sites/publisher/subdir-2']'
+</I>&gt;<i> 
+</I>&gt;<i> You will see how as one cycles between the two URLs corresponding to the
+</I>&gt;<i> modules, that the modules are reimported everytime.
+</I>&gt;<i> 
+</I>&gt;<i> Overall what is returned is correct, but it isn't efficient because each
+</I>&gt;<i> request is triggering a module import.
+</I>
+Isn't this consistent with published modules requiring unique names? The 
+important thing is that the os module is not being reimported. As you 
+say, it's correct, and should be emphasized in the documentation, but 
+not necessarily &quot;fixed&quot;.
+
+&gt;<i> Cross contamination of modules
+</I>&gt;<i> ------------------------------
+</I>&gt;<i> Because modules of the same name are reimported on top of the existing
+</I>&gt;<i> module you can end up with cross contamination of modules in respect of
+</I>&gt;<i> global variables, functions, class definitions, module imports etc.
+</I>&gt;<i> 
+</I>&gt;<i> The most obvious problem this causes with publisher, is that one can
+</I>&gt;<i> suddenly have appear in a module a function from a different module. This
+</I>&gt;<i> function then becomes accessible using an appropriate URL via the module
+</I>&gt;<i> in which it doesn't belong.
+</I>&gt;<i> 
+</I>&gt;<i> Overall this is annoying and could be problematic for those unaware.
+</I>
+Once again, stress this limitation in the docs: Don't reuse published 
+module names.
+
+&gt;<i> Sticky modules obscuring real module
+</I>&gt;<i> ------------------------------------
+</I>&gt;<i> 
+</I>&gt;<i> Create and &quot;index.py&quot;, &quot;subdir-1/index.py&quot; and &quot;subdir-2/index.py&quot; all
+</I>&gt;<i> containing:
+</I>&gt;<i> 
+</I>&gt;<i>   import os
+</I>&gt;<i>   def index():
+</I>&gt;<i>     return os.getpid(),__file__
+</I>&gt;<i> 
+</I>&gt;<i> Now cycle through accessing these in the order:
+</I>&gt;<i> 
+</I>&gt;<i>   index.py
+</I>&gt;<i>   subdir-1/index.py
+</I>&gt;<i>   index.py
+</I>&gt;<i>   subdir-2/index.py
+</I>&gt;<i>   index.py
+</I>&gt;<i>   subdir-1/index.py
+</I>&gt;<i>   index.py
+</I>&gt;<i>   subdir-2/index.py
+</I>&gt;<i>   ...
+</I>&gt;<i> 
+</I>&gt;<i> In my case this is:
+</I>&gt;<i> 
+</I>&gt;<i>   /~grahamd/publisher
+</I>&gt;<i>   /~grahamd/publisher/subdir-1
+</I>&gt;<i>   /~grahamd/publisher
+</I>&gt;<i>   /~grahamd/publisher/subdir-2
+</I>&gt;<i>   /~grahamd/publisher
+</I>&gt;<i>   /~grahamd/publisher/subdir-1
+</I>&gt;<i>   /~grahamd/publisher
+</I>&gt;<i>   /~grahamd/publisher/subdir-2
+</I>&gt;<i>   /~grahamd/publisher
+</I>&gt;<i>   ...
+</I>&gt;<i> 
+</I>&gt;<i> The result for this is:
+</I>&gt;<i> 
+</I>&gt;<i>   (521, '/Users/grahamd/Sites/publisher/index.py')
+</I>&gt;<i>   (521, '/Users/grahamd/Sites/publisher/subdir-1/index.py')
+</I>&gt;<i>   (521, '/Users/grahamd/Sites/publisher/subdir-1/index.py')
+</I>&gt;<i>   (521, '/Users/grahamd/Sites/publisher/subdir-2/index.py')
+</I>&gt;<i>   (521, '/Users/grahamd/Sites/publisher/subdir-2/index.py')
+</I>&gt;<i>   (521, '/Users/grahamd/Sites/publisher/subdir-1/index.pyc')
+</I>&gt;<i>   (521, '/Users/grahamd/Sites/publisher/subdir-1/index.pyc')
+</I>&gt;<i>   (521, '/Users/grahamd/Sites/publisher/subdir-2/index.pyc')
+</I>&gt;<i>   (521, '/Users/grahamd/Sites/publisher/subdir-2/index.pyc')
+</I>&gt;<i> 
+</I>&gt;<i> One can see that once one of the &quot;index.py&quot; files in the subdirectories is
+</I>&gt;<i> accessed, they become sticky and the latest one accessed from a subdirectory
+</I>&gt;<i> is returned instead of the top level one when it is accessed.
+</I>&gt;<i> 
+</I>&gt;<i> This one has got to be a bug.
+</I>
+Hmmm, yet there is a pattern. I wonder if there is some method to this 
+madness.
+
+In any case, all of your examples reuse published module names, which 
+shouldn't be done in Publisher. When you abandon that practice, what 
+bugs are actually left?
+
+Here's something that misled me a few months ago (with apologies to 
+Nicolas):
+
+Create 2 modules, in the same directory, named master.py and slave.py:
+
+master.py:
+
+  import slave
+
+  def hello(req):
+      return slave.hello
+
+slave.py:
+
+  hello = &quot;Hello, world!&quot;
+
+Access <A HREF="http://host/master/hello">http://host/master/hello</A> and &quot;Hello, world!&quot; appears in the 
+browser. Now move the files into a subdirectory and access 
+<A HREF="http://host/subdir/master/hello.">http://host/subdir/master/hello.</A> It throws up an error:
+
+  ImportError: No module named slave
+
+What happened? It originally appeared as though a module could import 
+adjacent modules, but this failed in a subdirectory. The reason is that 
+the original directory was where the interpreter was defined (with no 
+PythonPath), and so was prepended to the module search path. It doesn't 
+matter where master.py is (as long as it accessible by the defined 
+interpreter), but slave.py  must be in sys.path if it is to be imported 
+by a published module.
+
+This falls under the &quot;perceived problem&quot; category, in that it's not a 
+bug, but sure looks like one at first. My own practice for coping with 
+this is to set a PythonPath directive, appending a directory outside the 
+DocumentRoot from which I can reliably import modules and packages 
+specific to that interpreter or VirtualHost.
+
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017215.html">[mod_python] Catalog of mod_python.publisher problems.
+</A></li>
+	<LI>Next message: <A HREF="017216.html">[mod_python] module import
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17220">[ date ]</a>
+              <a href="thread.html#17220">[ thread ]</a>
+              <a href="subject.html#17220">[ subject ]</a>
+              <a href="author.html#17220">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

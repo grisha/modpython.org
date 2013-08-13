@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonAuthzHandler not working
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthzHandler%20not%20working&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020929.html">
+   <LINK REL="Next"  HREF="020928.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonAuthzHandler not working</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthzHandler%20not%20working&In-Reply-To="
+       TITLE="[mod_python] PythonAuthzHandler not working">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Apr 20 21:50:35 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020929.html">[mod_python] The new module loader
+</A></li>
+        <LI>Next message: <A HREF="020928.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20927">[ date ]</a>
+              <a href="thread.html#20927">[ thread ]</a>
+              <a href="subject.html#20927">[ subject ]</a>
+              <a href="author.html#20927">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Jim Gallacher wrote ..
+&gt;<i> I've been pulling my hair out all day trying to get PythonAuthzHandler
+</I>&gt;<i> to work and I'm either missing something obvious or there is a problem
+</I>&gt;<i> with mod_python. What the heck is the magic required to make Apache call
+</I>&gt;<i> my authzhander? Using Apache 2.0.55 with the latest 3.3.0-dev, all my 
+</I>&gt;<i> handlers including authenhandler get called, *except* for authzhandler.
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Directory /srv/projects/aos/html/aos-admin/&gt;
+</I>&gt;<i>    DirectoryIndex index.py
+</I>&gt;<i>    AllowOverride None
+</I>&gt;<i>    AddHandler mod_python .py
+</I>&gt;<i> 
+</I>&gt;<i>    AuthType PyCookie
+</I>&gt;<i>    AuthName &quot;Restricted&quot;
+</I>&gt;<i>    Require valid-user
+</I>&gt;<i>    Require admin
+</I>&gt;<i> 
+</I>&gt;<i>    PythonAccessHandler mprest.authtest
+</I>&gt;<i>    PythonAuthenHandler mprest.authtest
+</I>&gt;<i>    PythonAuthzHandler mprest.authtest
+</I>&gt;<i>    PythonHandler mprest.authtest
+</I>&gt;<i> 
+</I>&gt;<i> &lt;/Directory&gt;
+</I>&gt;<i> 
+</I>&gt;<i> authtest.py contains the appropriate handlers that do nothing more than
+</I>&gt;<i> call req.log_error().
+</I>&gt;<i> 
+</I>&gt;<i> To aid in my efforts I modified python_handler in mod_python.c to log 
+</I>&gt;<i> the status of each phase.
+</I>&gt;<i> 
+</I>&gt;<i> Simplified error_log output:
+</I>&gt;<i> 
+</I>&gt;<i> $ cut -f 4 -d &quot;]&quot;  error.log
+</I>&gt;<i> mod_python.c python_handler: DECLINED PythonInitHandler phase
+</I>&gt;<i> mod_python.c python_handler: DECLINED PythonPostReadRequestHandler phase
+</I>&gt;<i> mod_python.c python_handler: DECLINED PythonTransHandler phase
+</I>&gt;<i> mod_python.c python_handler: DECLINED PythonHeaderParserHandler phase
+</I>&gt;<i> mod_python.c python_handler: PROCESS  PythonAccessHandler phase
+</I>&gt;<i> authtest.py  accesshandler called
+</I>&gt;<i> mod_python.c python_handler: PROCESS  PythonAuthenHandler phase
+</I>&gt;<i> authtest.py  authenhandler called
+</I>&gt;<i> mod_python.c python_handler: DECLINED PythonFixupHandler phase
+</I>&gt;<i> mod_python.c python_handler: PROCESS  PythonHandler phase
+</I>&gt;<i> authtest.py  handler called
+</I>&gt;<i> mod_python.c python_handler: DECLINED PythonLogHandler phase
+</I>&gt;<i> mod_python.c python_handler: DECLINED PythonCleanupHandler phase
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Please save me before I've gone completely bald. Otherwise at that point
+</I>&gt;<i> I'll have to start poking myself with a pointed stick. Madness can't be
+</I>&gt;<i> too far off in my future. :)
+</I>
+Behaviour confirmed.
+
+I don't have much hair left already.
+
+What is stranger is that if you use:
+
+#PythonAccessHandler handlers
+#PythonAuthenHandler handlers
+#PythonAuthzHandler handlers
+#PythonHandler handlers
+PythonHandlerModule handlers
+
+you get a 500 error and the Apache log file says:
+
+[Fri Apr 21 11:45:13 2006] [crit] [client ::1] configuration error:  couldn't check user.  No user file?: /~grahamd/authz/index.py
+
+Using the new module importer with its slightly different treatment of
+handler responses makes no difference.
+
+Note that I have the following in my authenhandler().
+
+  req.user = &quot;dummy&quot;
+  req.ap_auth_type = &quot;dummy&quot;
+
+If I don't, I get a 500 error and:
+
+[Fri Apr 21 11:48:25 2006] [error] [client ::1] python_handler: After PythonAuthenHandler req-&gt;user is NULL. Assign something to req.user if returning OK to avoid this error.
+
+This error is actually from mod_python and was originally a fudge from
+some problem with Apache from back in time. Maybe it should be
+removed as comments suggest it should have been at some point.
+
+Time to start augmenting Apache itself with some debug logging
+as it all does make a great deal of sense. :-(
+
+More later.
+
+Graham
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020929.html">[mod_python] The new module loader
+</A></li>
+	<LI>Next message: <A HREF="020928.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20927">[ date ]</a>
+              <a href="thread.html#20927">[ thread ]</a>
+              <a href="subject.html#20927">[ subject ]</a>
+              <a href="author.html#20927">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,219 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] ReportLab integration
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ReportLab%20integration&In-Reply-To=000701c6f1a5%242241e700%24800101df%40qlf.local">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022348.html">
+   <LINK REL="Next"  HREF="022350.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] ReportLab integration</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Colin Bean</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ReportLab%20integration&In-Reply-To=000701c6f1a5%242241e700%24800101df%40qlf.local"
+       TITLE="[mod_python] ReportLab integration">ccbean at gmail.com
+       </A><BR>
+    <I>Tue Oct 17 12:16:16 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022348.html">[mod_python] ReportLab integration
+</A></li>
+        <LI>Next message: <A HREF="022350.html">[mod_python] use publisher without .py file extension
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22349">[ date ]</a>
+              <a href="thread.html#22349">[ thread ]</a>
+              <a href="subject.html#22349">[ subject ]</a>
+              <a href="author.html#22349">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Great!  Glad to hear it finally worked out.  Another illogical IE
+behavior has been (further) documented.
+After some thought, it seems like clobbering the cache control header
+would allow pages to be cached with the authentication headers intact,
+so in a few situations (proxy-cache?) a user could possibly get ahold
+of someone else's session if it's still valid (I haven't actually
+tested this).  Hopefully this won't affect what you're doing, if your
+main goal is to serve up pdfs and have it work.
+
+-Colin
+
+On 10/16/06, Jim Steil &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jim at qlf.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Hey, that did it!
+</I>&gt;<i>
+</I>&gt;<i> I changed the Cache-Control header to '' and now it works.  I will run it
+</I>&gt;<i> through more tests tomorrow, but for now it appears to be working.  Also, if
+</I>&gt;<i> I set the Content-Disposition to attachment, I get the filename that I
+</I>&gt;<i> specify in the filename parameter.  The filename doesn't seem to come
+</I>&gt;<i> through if I specify inline.
+</I>&gt;<i>
+</I>&gt;<i> Colin, I can't thank you enough for the help.  This will make it really easy
+</I>&gt;<i> to build dynamic pdf's and get them out to our users, and now I don't have
+</I>&gt;<i> to have them all pre-generated and stored on our servers.
+</I>&gt;<i>
+</I>&gt;<i>         -Jim
+</I>&gt;<i>
+</I>&gt;<i> -----Original Message-----
+</I>&gt;<i> From: Colin Bean [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ccbean at gmail.com</A>]
+</I>&gt;<i> Sent: Monday, October 16, 2006 6:52 PM
+</I>&gt;<i> To: Jim Steil
+</I>&gt;<i> Subject: Re: [mod_python] ReportLab integration
+</I>&gt;<i>
+</I>&gt;<i> Hi Jim,
+</I>&gt;<i>
+</I>&gt;<i> Well, I uncovered some weird behavior within IE, and I think I found
+</I>&gt;<i> part of the problem.  I wrote a standalone module (without publisher)
+</I>&gt;<i> that read a pdf off disk and sent the string value to the request, to
+</I>&gt;<i> try to simulate your module's behavior.  This is on Apache 2.2.0,
+</I>&gt;<i> mod_python 3.2.10 on Fedora Core 5, tested with IE 6 and firefox.
+</I>&gt;<i>
+</I>&gt;<i> It basically goes back to that comment in Graham's code about how
+</I>&gt;<i> setting the cache-control header caused IE to not display the PDF.
+</I>&gt;<i> While you never set these by hand, you do use a session cookie, which
+</I>&gt;<i> sets the Cache-Control header to 'no-cache=&quot;set-cookie&quot;', and
+</I>&gt;<i> apparently this is enough to break IE.  In my test handler, the pdf
+</I>&gt;<i> displayed fine in the browser when I didn't use a session, but would
+</I>&gt;<i> only give me a &quot;save to disk&quot; dialog when I did.
+</I>&gt;<i>
+</I>&gt;<i> So you might try removing any session code from your example to see if
+</I>&gt;<i> it would work (I'm guessing you'll need some kind of authentication in
+</I>&gt;<i> the future so this is probably not going to be a long-term solution,
+</I>&gt;<i> but it should at least confirm that this is the problem).  Forgive my
+</I>&gt;<i> ignorance of publisher; I forget if it automatically creates a
+</I>&gt;<i> session.  If it does, the only way to get this to work would be as a
+</I>&gt;<i> standalone handler.
+</I>&gt;<i>
+</I>&gt;<i> Another option I found, which worked but seems sketchy was to set the
+</I>&gt;<i> Cache-Control header to an empty string right before sending the
+</I>&gt;<i> headers.  When I did this, the PDF displayed fine, and the pysid
+</I>&gt;<i> headers where still there, but I'd image that the cache-control header
+</I>&gt;<i> was there for a reason and I'm sure this could break in unexpected
+</I>&gt;<i> ways.
+</I>&gt;<i>
+</I>&gt;<i> Finally, the content-dispositon thing doesn't really matter -- it does
+</I>&gt;<i> give you a nice filename when you choose &quot;save as&quot;, but it didn't
+</I>&gt;<i> affect whether or not IE would display the pdf right.  So sorry to put
+</I>&gt;<i> you through all that other stuff ;)
+</I>&gt;<i>
+</I>&gt;<i> Hopefully some of that made sense, let me know if you get this working.
+</I>&gt;<i>
+</I>&gt;<i> -Colin
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On 10/16/06, Jim Steil &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jim at qlf.com</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Here is the latest:  But, same result on IE 7 and IE 6.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;             -Jim
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; HTTP/1.1 200 OK
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Date: Mon, 16 Oct 2006 21:49:27 GMT
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Server: Apache/2.0.55 (Win32) mod_python/3.2.2b Python/2.4.3 PHP/5.1.6
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Cache-Control: no-cache=&quot;set-cookie&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Set-Cookie: pysid=37d5aa6545f4c7595fcdd2c315b4a70f; path=/
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Set-Cookie: pysid=00ce18b00a3f3ea621ed5ac955c7aed7; path=/
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Content-length: 81355
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Content-Disposition: inline;filename=&quot;optimizer.pdf&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Connection: close
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Content-Type: application/pdf
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Jim Steil
+</I>&gt;<i> &gt;  IT Manager
+</I>&gt;<i> &gt;  Quality Liquid Feeds
+</I>&gt;<i> &gt;  (608) 935-2345
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; (608) 341-9896 cell
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;  ________________________________
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; From: Colin Bean [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ccbean at gmail.com</A>]
+</I>&gt;<i> &gt;  Sent: Monday, October 16, 2006 4:47 PM
+</I>&gt;<i> &gt;  To: Jim Steil
+</I>&gt;<i> &gt;  Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> &gt;  Subject: Re: [mod_python] ReportLab integration
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Also, try putting the file name in quotes.  I think this is needed per the
+</I>&gt;<i> &gt; RFC.
+</I>&gt;<i> &gt;  I just checked an example where the Content-Disposition header was set
+</I>&gt;<i> to:
+</I>&gt;<i> &gt;  attachment; filename=&quot;foo.dwf&quot;
+</I>&gt;<i> &gt;  which worked.  That wasn't done in mod_python, however; I'm still looking
+</I>&gt;<i> &gt; at a mod_python example.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;  -Colin
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022348.html">[mod_python] ReportLab integration
+</A></li>
+	<LI>Next message: <A HREF="022350.html">[mod_python] use publisher without .py file extension
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22349">[ date ]</a>
+              <a href="thread.html#22349">[ thread ]</a>
+              <a href="subject.html#22349">[ subject ]</a>
+              <a href="author.html#22349">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

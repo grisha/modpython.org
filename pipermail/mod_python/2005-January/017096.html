@@ -1,0 +1,213 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Cookie patch
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookie%20patch&In-Reply-To=41E6A067.5070307%40encorp.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017094.html">
+   <LINK REL="Next"  HREF="017097.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Cookie patch</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookie%20patch&In-Reply-To=41E6A067.5070307%40encorp.com"
+       TITLE="[mod_python] Cookie patch">nicolas.lehuen at gmail.com
+       </A><BR>
+    <I>Thu Jan 13 12:48:08 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017094.html">[mod_python] Cookie patch
+</A></li>
+        <LI>Next message: <A HREF="017097.html">[mod_python] Cookie patch
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17096">[ date ]</a>
+              <a href="thread.html#17096">[ thread ]</a>
+              <a href="subject.html#17096">[ subject ]</a>
+              <a href="author.html#17096">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Thu, 13 Jan 2005 09:23:03 -0700, Craig Warren
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">craig.warren at encorp.com</A>&gt; wrote:
+&gt;<i>  I found an error while with Cookie module.  When the cookie module parses a
+</I>&gt;<i> cookie, if that cooke has $Version or $Path in it you get an error. My
+</I>&gt;<i> cookie is coming from a java libaray, that puts $Version and $Path in it.
+</I>&gt;<i>  example =&quot;Cookie: $Version=0; pysid=34a9b38c34;$Path=/&quot;
+</I>&gt;<i>     
+</I>&gt;<i>  
+</I>&gt;<i>  RFC 2109 mentions $Version and $Path in Section 4.4
+</I>&gt;<i>  <A HREF="http://www.faqs.org/rfcs/rfc2109.html">http://www.faqs.org/rfcs/rfc2109.html</A> 4.4 How an Origin Server Interprets
+</I>&gt;<i> the Cookie Header A user agent returns much of the information in the
+</I>&gt;<i> Set-Cookie header to the origin server when the Path attribute matches that
+</I>&gt;<i> of a new request. When it receives a Cookie header, the origin server should
+</I>&gt;<i> treat cookies with NAMEs whose prefix is $ specially, as an attribute for
+</I>&gt;<i> the adjacent cookie. The value for such a NAME is to be interpreted as
+</I>&gt;<i> applying to the lexically (left-to-right) most recent cookie whose name does
+</I>&gt;<i> not have the $ prefix. If there is no previous cookie, the value applies to
+</I>&gt;<i> the cookie mechanism as a whole. For example, consider the cookie Cookie:
+</I>&gt;<i> $Version=&quot;1&quot;; Customer=&quot;WILE_E_COYOTE&quot;; $Path=&quot;/acme&quot; $Version applies to
+</I>&gt;<i> the cookie mechanism as a whole (and gives the version number for the cookie
+</I>&gt;<i> mechanism). $Path is an attribute whose value (/acme) defines the Path
+</I>&gt;<i> attribute that was used when the Customer cookie was defined in a Set-Cookie
+</I>&gt;<i> response header. In Cookie.py it looks like the code was in place to deal
+</I>&gt;<i> with $Version and $Path, but not finished
+</I>&gt;<i>  
+</I>&gt;<i>  from  _parse_cookie()
+</I>&gt;<i>  line ~321
+</I>&gt;<i>   l_key = key.lower()
+</I>&gt;<i>          
+</I>&gt;<i>          if (l_key in valid or key[0] == '$'):
+</I>&gt;<i>              
+</I>&gt;<i>              # &quot;internal&quot; attribute, add to cookie
+</I>&gt;<i>  
+</I>&gt;<i>              if l_key == &quot;max-age&quot;:
+</I>&gt;<i>                  l_key = &quot;max_age&quot;
+</I>&gt;<i>              setattr(c, l_key, val)
+</I>&gt;<i>  
+</I>&gt;<i>   The above code checks for the $, but doesn't do anything with it and in
+</I>&gt;<i> fact when it tries to do a setattr with $Version or $Path, you get an error.
+</I>&gt;<i>  
+</I>&gt;<i>  I modified the function to be
+</I>&gt;<i>  
+</I>&gt;<i>  l_key = key.lower()
+</I>&gt;<i>          
+</I>&gt;<i>          if (l_key in valid or key[0] == '$'):
+</I>&gt;<i>              
+</I>&gt;<i>              # &quot;internal&quot; attribute, add to cookie
+</I>&gt;<i>  
+</I>&gt;<i>              if l_key == &quot;max-age&quot;:
+</I>&gt;<i>                  l_key = &quot;max_age&quot;
+</I>&gt;<i>              if key[0] == '$':
+</I>&gt;<i>                  l_key = l_key[1:]
+</I>&gt;<i>              setattr(c, l_key, val)
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>  Don't know if this is exactly the correct fix, but it works for me and I
+</I>&gt;<i> thought that I would email the list.  I tried to subscribe to
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">python-dev at httpd.apache.org</A>, but haven't gotten a response back yet, I CC
+</I>&gt;<i> this message to <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">python-dev at httpd.apache.org</A> also.
+</I>&gt;<i>  
+</I>&gt;<i>  Craig Warren
+</I>
+Hi,
+
+Yeah, your fix seems correct.
+
+The Cookie class has a metaclass which defines slots, so you cannot
+have arbitrary attribute names. The only valid attributes names are
+defined on line 58 ( _valid_attr =...) of Cookie.py, and the version
+and path attributes do not begin with a $. So the attribute names
+which are parsed in _parse_cookie() must have their initial $ removed.
+
+The problem of the current code is that the _valid_attr check is
+useless, but it's not totally spec compliant since the valid attribute
+coming first (as the $Version attribute) should be applied to all
+cookies. So I rewrote the whole function like this :
+
+def _parse_cookie(str, Class):
+    # XXX problem is we should allow duplicate
+    # strings
+    result = {}
+
+    all_cookies_attribute = {}
+
+    valid = Cookie._valid_attr
+
+    c = None
+    matchIter = _cookiePattern.finditer(str)
+
+    for match in matchIter:
+
+        key, val = match.group(&quot;key&quot;), match.group(&quot;val&quot;)
+
+        # we will check whether the cookie name is a valid attribute name
+        # for the previous cookie.
+        l_key = key.lower()
+        # fix from Craig Warren
+        if l_key[0]=='$':
+            l_key=l_key[1:]
+        if l_key == &quot;max-age&quot;:
+            l_key = &quot;max_age&quot;
+        
+        if l_key in valid:
+            if not c:
+                # 'global' attribute, will be added to all cookies
+                all_cookies_attribute[l_key]=val
+            else:
+                # &quot;internal&quot; attribute, add to cookie
+                setattr(c, l_key, val)
+        else:
+            # start a new cookie
+            # we don't use l_key so that we keep the initial name
+            # this way we are consistent with the creation of the first cookie
+            # as done in the previous version of the function
+            c = Class(key, val)
+
+            # XXX this is a bit heavyweight since usually we'll have only 0 or 1
+            # global attribute...
+            for key, val in all_cookies_attribute.items():
+                setattr(c,key,val)
+
+            result[key] = c
+
+    return result
+
+Since you've already set up a testing environment, can you test this
+new version of the parsing function ? If it works, I'll check it in.
+
+Regards,
+Nicolas
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017094.html">[mod_python] Cookie patch
+</A></li>
+	<LI>Next message: <A HREF="017097.html">[mod_python] Cookie patch
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17096">[ date ]</a>
+              <a href="thread.html#17096">[ thread ]</a>
+              <a href="subject.html#17096">[ subject ]</a>
+              <a href="author.html#17096">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

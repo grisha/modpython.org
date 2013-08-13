@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Using _global_lock in scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20_global_lock%20in%20scripts&In-Reply-To=4436CAF4.5060604%40jgassociates.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020809.html">
+   <LINK REL="Next"  HREF="020833.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Using _global_lock in scripts</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20_global_lock%20in%20scripts&In-Reply-To=4436CAF4.5060604%40jgassociates.ca"
+       TITLE="[mod_python] Using _global_lock in scripts">jpg at jgassociates.ca
+       </A><BR>
+    <I>Fri Apr  7 17:43:37 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020809.html">[mod_python] Using _global_lock in scripts
+</A></li>
+        <LI>Next message: <A HREF="020833.html">[mod_python] Using _global_lock in scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20811">[ date ]</a>
+              <a href="thread.html#20811">[ thread ]</a>
+              <a href="subject.html#20811">[ subject ]</a>
+              <a href="author.html#20811">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Oops, I missed the use of  _apache._global_lock(server, None, 0) in the 
+psp dbm cache. You could run into problems if you are using psp at the 
+same time as your resource. If you want to use the lock and and psp in 
+the same request you'll need to be careful how you arrange your code.
+
+Jim
+
+
+Jim Gallacher wrote:
+&gt;<i> Phil Groce wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> I have a resource which my module will need to access, potentially
+</I>&gt;&gt;<i> from multiple child processes, since I can't directly control the MPM
+</I>&gt;&gt;<i> being used. The logical implementation is to persist the resource to
+</I>&gt;&gt;<i> disk and lock access with a mutex, similarly to what the Session
+</I>&gt;&gt;<i> module does.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Session, of course, does this with _apache._global_lock and
+</I>&gt;&gt;<i> _apache._global_unlock do. However, their names and the names of the
+</I>&gt;&gt;<i> module seem to indicate that the implementors intend for them to be
+</I>&gt;&gt;<i> private.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> They are there to support session locking. You will have a possible 
+</I>&gt;<i> conflict if you are using sessions and want to &quot;borrow&quot; a lock for other 
+</I>&gt;<i> purposes.
+</I>&gt;<i> 
+</I>&gt;&gt;<i> So I have a few questions:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 1. Despite my misgivings at using private interfaces, it would
+</I>&gt;&gt;<i> simplify my life greatly if I could use these functions. Is it
+</I>&gt;&gt;<i> reasonable to assume that, even if they are private, they will exist
+</I>&gt;&gt;<i> and have pretty much the same contract for a while yet? (The seem to
+</I>&gt;&gt;<i> have existed, largely unchanged, for quite a while now.)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> The locks are actually used for 2 separate purposes: Session locking and 
+</I>&gt;<i> serializing access to the dbm file for DbmSession. Lock index 0 is 
+</I>&gt;<i> reserved for accessing the dbm file. Locks 1 to MAX_LOCKS are used for 
+</I>&gt;<i> locking the actual sessions, where the lock index is derived from a hash 
+</I>&gt;<i> of the session id.
+</I>&gt;<i> 
+</I>&gt;<i> As long as  you don't use DbmSession you can safely use lock index 0. eg.
+</I>&gt;<i> 
+</I>&gt;<i> _apache._global_lock(server, None, 0)
+</I>&gt;<i> 
+</I>&gt;<i> Note that you'll still be able to use FileSession, since it does use 
+</I>&gt;<i> index 0.
+</I>&gt;<i> 
+</I>&gt;<i> I think you can assume that this interface will not change in the near 
+</I>&gt;<i> future. When I was working on FileSession there was quite a bit of 
+</I>&gt;<i> discussion on alternative locking mechanisms, but even if the 
+</I>&gt;<i> implementation is changed in the future to improve performance I can't 
+</I>&gt;<i> imagine why the interface would change.
+</I>&gt;<i> 
+</I>&gt;&gt;<i> 2. If it is not reasonable, what suggestions do you have for
+</I>&gt;&gt;<i> implementing concurrent access to a resource from (potentially)
+</I>&gt;&gt;<i> multiple interpreters and/or child processes?
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> You could always use a filelock. Not the most efficient way to do it, 
+</I>&gt;<i> but it would work. See portalocker.py for ideas.
+</I>&gt;<i> <A HREF="http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/65203">http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/65203</A>
+</I>&gt;<i> 
+</I>&gt;&gt;<i> 3. If it _is_ reasonable....any chance that this can become a
+</I>&gt;&gt;<i> documented mod_python feature? :)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Hmmm... I think it's a little too much of a hack to go in the offical 
+</I>&gt;<i> documentation - bit too much like handing someone a loaded gun.
+</I>&gt;<i> 
+</I>&gt;<i> Jim
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020809.html">[mod_python] Using _global_lock in scripts
+</A></li>
+	<LI>Next message: <A HREF="020833.html">[mod_python] Using _global_lock in scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20811">[ date ]</a>
+              <a href="thread.html#20811">[ thread ]</a>
+              <a href="subject.html#20811">[ subject ]</a>
+              <a href="author.html#20811">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,243 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] &quot;TypeError: argument 2 must be a mapping&quot;	and	other
+	things
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%22TypeError%3A%20argument%202%20must%20be%20a%20mapping%22%09and%09other%0A%09things&In-Reply-To=1127296052.3477.20.camel%40alpha.castle.home">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019127.html">
+   <LINK REL="Next"  HREF="019130.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] &quot;TypeError: argument 2 must be a mapping&quot;	and	other
+	things</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%22TypeError%3A%20argument%202%20must%20be%20a%20mapping%22%09and%09other%0A%09things&In-Reply-To=1127296052.3477.20.camel%40alpha.castle.home"
+       TITLE="[mod_python] &quot;TypeError: argument 2 must be a mapping&quot;	and	other
+	things">list at joreybump.com
+       </A><BR>
+    <I>Wed Sep 21 09:47:20 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019127.html">[mod_python] &quot;TypeError: argument 2 must be a mapping&quot; and
+	other things
+</A></li>
+        <LI>Next message: <A HREF="019130.html">[mod_python] &quot;TypeError: argument 2 must be a mapping&quot; and
+	other things
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19128">[ date ]</a>
+              <a href="thread.html#19128">[ thread ]</a>
+              <a href="subject.html#19128">[ subject ]</a>
+              <a href="author.html#19128">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Daniel Winkler wrote:
+
+&gt;<i> index.py: ***********************************
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import psp
+</I>&gt;<i> import dirigent
+</I>
+What's in dirigent?
+
+&gt;<i> import chor
+</I>&gt;<i> [...]
+</I>&gt;<i> 
+</I>&gt;<i> def startseite(req, chorid=0): #called startseite?chorid=1 or so
+</I>
+I prefer to get form variables and query string arguments from req.form. 
+  Pass req around to your functions and test for the presence of the 
+variable:
+
+def check(req):
+     if req.form.has_key('chorid'):
+         ...do stuff
+
+Note that if a variable appears multiple times in the form and/or the 
+querystring, it will be returned as a list. If this is a possibility, 
+your code needs to check for it and process it accordingly.
+
+&gt;<i>     dirigent.id = dirigent.ermittle_dirigent(req)
+</I>&gt;<i>     chor.id = chor.ermittle_chor(chorid, dirigent.id)
+</I>&gt;<i> [...]
+</I>
+Things like this will work consistently in the interpreter, but not in 
+all apache MPMs. Do you really need to alter this module attribute in 
+place? I'd look for an alternative, as it's not reliable across 
+environments. Can you simply store it in a normal variable within the 
+function, and return it or process it further?
+
+     d = dirigent.ermittle_dirigent(req)
+     c = chor.ermittle_chor(chorid, d)
+     ...do stuff with c and d
+     return stuff
+
+&gt;<i> datenbank.py: ********************************
+</I>&gt;<i> 
+</I>&gt;<i> import MySQLdb
+</I>&gt;<i> db = MySQLdb.connect(host=&quot;localhost&quot;,
+</I>&gt;<i>                      user=&quot;chordb&quot;,
+</I>&gt;<i>                      passwd=&quot;somethingsecret&quot;,
+</I>&gt;<i>                      db=&quot;chordatenbank&quot;)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> chor.py: *************************************
+</I>&gt;<i> 
+</I>&gt;<i> from datenbank import db
+</I>
+This looks good, so far. You'll get some reuse from the db handle.
+
+&gt;<i> [...]
+</I>&gt;<i> 
+</I>&gt;<i> id = 0
+</I>
+If your code depends on this being updated externally and accessed 
+globally by other modules, it might be where the problem is.
+
+&gt;<i> def _acltest_ok(chorID, dirigentID):
+</I>
+Try setting defaults here, just in case:
+
+def _acltest_ok(chorID = 0, dirigentID = 0):
+
+But I'm getting the sense that dirigentID may be the suspect. It's 
+interesting that you're trying to set dirigent.id globally, but don't 
+attempt to take advantage of it here. While I'm not advocating it, why 
+aren't you importing dirigent.id directly, instead of passing it as an 
+argument?
+
+&gt;<i>     acl = db.cursor()
+</I>&gt;<i> (*) acl.execute(&quot;SELECT chor FROM acl WHERE chor = %s AND dirigent = %s&quot;, (chorID, dirigentID))
+</I>&gt;<i>     return (int(acl.rowcount) &gt; 0)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> def ermittle_chor(chorID, dirigentID):
+</I>&gt;<i>     if ( (chorID &gt; 0)
+</I>&gt;<i>          and _acltest_ok(chorID, dirigentID) ):
+</I>&gt;<i>         return chorID
+</I>&gt;<i>     else:
+</I>&gt;<i>         choere = db.cursor()
+</I>&gt;<i> (*)     choere.execute(&quot;SELECT chor FROM acl WHERE dirigent = %s;&quot;, (dirigentID))
+</I>&gt;<i> 
+</I>&gt;<i>         if int(choere.rowcount) == 1:
+</I>&gt;<i>             chor = choere.fetchone()
+</I>&gt;<i>             return chor[0]
+</I>&gt;<i>         else:
+</I>&gt;<i>             return 0
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> The (*) marked lines are those where the error occurs most at the
+</I>&gt;<i> moment. E.g.:
+</I>&gt;<i> 
+</I>&gt;<i> ******************************************
+</I>&gt;<i> od_python error: &quot;PythonHandler mod_python.publisher&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 299, in HandlerDispatch
+</I>&gt;<i>     result = object(req)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/mod_python/publisher.py&quot;, line 136, in handler
+</I>&gt;<i>     result = util.apply_fs_data(object, req.form, req=req)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/mod_python/util.py&quot;, line 361, in apply_fs_data
+</I>&gt;<i>     return object(**args)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;&lt;somewhere&gt;/index.py&quot;, line 49, in lied
+</I>&gt;<i>     chor.id = chor.ermittle_chor(chorid, dirigent.id)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;&lt;somewhere&gt;/chor.py&quot;, line 18, in ermittle_chor
+</I>&gt;<i>     if ( (chorID &gt; 0)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;&lt;somewhere&gt;/chor.py&quot;, line 11, in _acltest_ok
+</I>&gt;<i>     acl.execute(&quot;SELECT chor FROM acl WHERE chor = %s AND dirigent = %s&quot;, (chorID, dirigentID))
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/MySQLdb/cursors.py&quot;, line 132, in execute
+</I>&gt;<i>     self.errorhandler(self, TypeError, m)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/MySQLdb/connections.py&quot;, line 33, in defaulterrorhandler
+</I>&gt;<i>     raise errorclass, errorvalue
+</I>&gt;<i> 
+</I>&gt;<i> TypeError: argument 2 must be a mapping
+</I>&gt;<i> *********************************
+</I>&gt;<i> 
+</I>&gt;<i> The first time I load the page, everything is fine. This error occurs
+</I>&gt;<i> after the first or second page reload (same code, same parameters).
+</I>&gt;<i> Don't ask me why ...
+</I>&gt;<i> 
+</I>&gt;<i> I had even more strange errors like &quot;syntax errors&quot; in a line called
+</I>&gt;<i> &quot;c = 1&quot; in a PSP file, but I cannot reproduce them at the moment. (maybe
+</I>&gt;<i> after the problem above is fixed :-)
+</I>&gt;<i> BTW, I am new to Python so if you have additional hints what can be done
+</I>&gt;<i> better: everything is welcome.
+</I>&gt;<i> Okay, yes, I know that global variables aren't very nice, but I thought
+</I>&gt;<i> it is not necessary to build a class just for one object ... ;-)
+</I>
+You may not get the same results from your attempts to set globals in 
+mod_python as you would in the interpreter. You definitely can't rely on 
+this method across platforms for truly global values, so I'd abandon it 
+and use a persistent storage mechanism.
+
+Also, your logic is a little circuitous, and you've mixed ways of 
+dealing with what you expect to be the same variables. Try to be more 
+consistent with how you pass variables (use only req.form for variables 
+coming from the browser, for example) and with your naming of them 
+(permutations on chorid, chorID, etc. aren't necessary when the scoping 
+rules handle this automatically for you), which will make your code a 
+little more readable and easier to debug.
+
+Just some suggestions, I hope they are helpful.
+
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019127.html">[mod_python] &quot;TypeError: argument 2 must be a mapping&quot; and
+	other things
+</A></li>
+	<LI>Next message: <A HREF="019130.html">[mod_python] &quot;TypeError: argument 2 must be a mapping&quot; and
+	other things
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19128">[ date ]</a>
+              <a href="thread.html#19128">[ thread ]</a>
+              <a href="subject.html#19128">[ subject ]</a>
+              <a href="author.html#19128">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python]  Newbie question: Fieldstorage is empty in 
+  the second handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20Newbie%20question%3A%20Fieldstorage%20is%20empty%20in%20%0A%20%20the%20second%20handler&In-Reply-To=3FFED6FE.8000702%40quirxi.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003685.html">
+   <LINK REL="Next"  HREF="003688.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python]  Newbie question: Fieldstorage is empty in 
+  the second handler</H1>
+    <B>Daniel West</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20Newbie%20question%3A%20Fieldstorage%20is%20empty%20in%20%0A%20%20the%20second%20handler&In-Reply-To=3FFED6FE.8000702%40quirxi.com"
+       TITLE="[mod_python]  Newbie question: Fieldstorage is empty in 
+  the second handler">dwmp at opti.cgi.net
+       </A><BR>
+    <I>Fri Jan  9 10:41:18 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003685.html">[mod_python] How to set connection parameters?
+</A></li>
+        <LI>Next message: <A HREF="003688.html">[mod_python] Cannot load templates using PSP class
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3686">[ date ]</a>
+              <a href="thread.html#3686">[ thread ]</a>
+              <a href="subject.html#3686">[ subject ]</a>
+              <a href="author.html#3686">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+The req object is just a python object.  You can assign any new members you 
+want to it and they will remain throughout Apache's request handling 
+process.   So in your authenhandler() do this:
+
+req.form = FieldStorage(req)
+
+Then when you need to get your variables in handler() just do this:
+
+path = req.form['PATH'].value
+
+
+-Dan
+
+
+
+At 05:29 PM 1/9/2004 +0100, you wrote:
+&gt;<i>Hello Daniel,
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i>You're probably creating a FieldStorage in authenhandler() and then 
+</I>&gt;&gt;<i>recreating the FieldStorage in your handler().  You're using a POST 
+</I>&gt;&gt;<i>request so the when FieldStorage is created it reads the fields from the 
+</I>&gt;&gt;<i>body of the request (GET requests put the variables in the header) via 
+</I>&gt;&gt;<i>the req.read() method. Once you've read the body of the of a request, it 
+</I>&gt;&gt;<i>cannot be read again.  So when your second FieldStorage is created, there 
+</I>&gt;&gt;<i>is no body request data left to be read.
+</I>&gt;&gt;<i>As it turns out, the req object you get in authenhandler() and handler() 
+</I>&gt;&gt;<i>is the same object.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>It is just as you said: I used a POST request and called FieldStorage in 
+</I>&gt;<i>authenhandler() and handler().
+</I>&gt;<i>
+</I>&gt;&gt;<i>So when you create your first FieldStorage in authenhandler(), assign it 
+</I>&gt;&gt;<i>to the req object and it will be available in your handler() function 
+</I>&gt;&gt;<i>without having to recreate it again.
+</I>&gt;<i>
+</I>&gt;<i>How can you assign the FieldStorage to a req object ? I could not find any 
+</I>&gt;<i>variable it could be assigned to in the docu.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>Arno
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i>-Dan
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>At 02:12 PM 1/9/2004 +0100, you wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Hello,
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>I have just started using mod_pyhon and have come to a problem I cannot 
+</I>&gt;&gt;&gt;<i>find an solution for:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>In my html file there is a hidden input named PATH:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>&lt;FORM method=&quot;post&quot; action=&quot;/qwer/eval.py&quot;&gt;
+</I>&gt;&gt;&gt;<i>&lt;INPUT type=&quot;hidden&quot; name=&quot;PATH&quot; value=&quot;/mhanel/physik/1b/2002-11-24&quot;/&gt;
+</I>&gt;&gt;&gt;<i>...
+</I>&gt;&gt;&gt;<i>&lt;/FORM&gt;
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>When the form is submitted the PATH variable reaches the 
+</I>&gt;&gt;&gt;<i>authenhandler(req) which I can give out to a file:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>PATH=/schools/HTL-Imst/innenausbau/teachers/mhanel/physik/1b/2002-11-24
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>but after that it does not reach the following handler(req) function. It 
+</I>&gt;&gt;&gt;<i>always raises an KeyError since the PATH variable does not exist in this 
+</I>&gt;&gt;&gt;<i>function anymore !
+</I>&gt;&gt;&gt;<i>Can anyone point me to the right direction ?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>cheers,
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Arno
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>_______________________________________________
+</I>&gt;&gt;<i>Mod_python mailing list
+</I>&gt;&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003685.html">[mod_python] How to set connection parameters?
+</A></li>
+	<LI>Next message: <A HREF="003688.html">[mod_python] Cannot load templates using PSP class
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3686">[ date ]</a>
+              <a href="thread.html#3686">[ thread ]</a>
+              <a href="subject.html#3686">[ subject ]</a>
+              <a href="author.html#3686">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

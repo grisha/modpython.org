@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod_python as replacement for mod_rewrite
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20as%20replacement%20for%20mod_rewrite&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022826.html">
+   <LINK REL="Next"  HREF="022828.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mod_python as replacement for mod_rewrite</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20as%20replacement%20for%20mod_rewrite&In-Reply-To="
+       TITLE="[mod_python] Mod_python as replacement for mod_rewrite">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Dec 20 16:21:43 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022826.html">[mod_python] PYTHONPATH and mod_python
+</A></li>
+        <LI>Next message: <A HREF="022828.html">[mod_python] PYTHONPATH and mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22827">[ date ]</a>
+              <a href="thread.html#22827">[ thread ]</a>
+              <a href="subject.html#22827">[ subject ]</a>
+              <a href="author.html#22827">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>=?ISO-8859-2?Q?Klokan_Petr_P=F8idal?= wrote ..
+&gt;<i> Hello,
+</I>&gt;<i> 
+</I>&gt;<i> I need to make an intelligent replacement for mod_rewrite, so it will
+</I>&gt;<i> count url using quite complicated math a then forward request to
+</I>&gt;<i> fast-cgi server...
+</I>&gt;<i> In fact I'm going to use it for WMS (Web Map Service) emulation over
+</I>&gt;<i> IIPImage (imageserver),
+</I>&gt;<i> so url like:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://domain/script/?WMTVER=1.0.0&amp;REQUEST=map&amp;LAYERS=RELIEF&amp;STYLES=default&amp;SRS=EPSG:4326&amp;BBOX=-2.197265625,39.55078125,20.302734375,50.80078125&amp;WIDTH=256&amp;HEIGHT=128&amp;FORMAT=JPG">http://domain/script/?WMTVER=1.0.0&amp;REQUEST=map&amp;LAYERS=RELIEF&amp;STYLES=default&amp;SRS=EPSG:4326&amp;BBOX=-2.197265625,39.55078125,20.302734375,50.80078125&amp;WIDTH=256&amp;HEIGHT=128&amp;FORMAT=JPG</A>
+</I>&gt;<i> 
+</I>&gt;<i> will be redirected (as fast as possible and internally inside apache)
+</I>&gt;<i> to fast cgi request
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://domain/fastcgi-bin/iipsrv.fcgi?FIF=/tmp/test.tif&amp;WID=256&amp;HEI=128&amp;RGN=0.25,0.25,0.5,0.5&amp;CVT=JPEG">http://domain/fastcgi-bin/iipsrv.fcgi?FIF=/tmp/test.tif&amp;WID=256&amp;HEI=128&amp;RGN=0.25,0.25,0.5,0.5&amp;CVT=JPEG</A>
+</I>&gt;<i> 
+</I>&gt;<i> where I have to transform lat/lon numbers in first url to region on
+</I>&gt;<i> the image in the second url... but this wouldn't be so big problem in
+</I>&gt;<i> python...
+</I>&gt;<i> 
+</I>&gt;<i> Question is which apache handlers use to make this internal forward,
+</I>&gt;<i> and how to make that as fast as possible...
+</I>&gt;<i> 
+</I>&gt;<i> Is mod_python the right tool for this task?
+</I>&gt;<i> 
+</I>&gt;<i> Or do you think it would be better to hack directly mod_rewrite and
+</I>&gt;<i> programm the transition of coordinates in C?
+</I>
+You can do it as a PythonTransHandler. This will be before any mapping of
+URL to filesystem.
+
+As an example, here is a transhandler() which implements the equivalent of
+the Alias directive. I am using this to specify a special document root on the
+fly which is then used by the MapToStorage phase of Apache. In your case
+you wouldn't necessarily need to be setting DocumentRoot dynamically by
+assigning to req.filename, but just rewriting req.uri with a new value. Only
+problem with reassigning req.uri is that you are going to need mod_python
+version 3.3 as 3.2.X doesn't support reassignment of req.uri. Version 3.3
+hasn't been released yet, but you can get first beta snapshot from:
+
+  <A HREF="http://people.apache.org/~jgallacher/mod_python/dist/">http://people.apache.org/~jgallacher/mod_python/dist/</A>
+
+Doing it in the transhandler() means you can avoid having to do an internal
+Apache subrequest. If you can't use newer version of mod_python, you will
+have to do it as a normal handler and use req.internal_redirect() instead which
+will be slower as it is causing a subrequest so effectively handling two full
+requests rather than one, albeit the second is internally generated.
+
+As to the example, in httpd.conf file I have:
+
+  #AliasMatch '/sample-(.*)/(.*)' /Users/grahamd/Projects/mod_python-sample/sample-$1/htdocs/$2
+
+  # Implements same as AliasMatch directive above.
+  PythonTransHandler /Users/grahamd/Projects/mod_python-sample/location.py
+
+The transhandler() code file is then:
+
+graham-dumpletons-powerbook-g4-15:
+
+
+from mod_python import apache
+import re, os
+
+# Same as AliasMatch definition mapping:
+#
+#   '/sample-(.*)/(.*)'
+#
+# to:
+#
+#   /Users/grahamd/Projects/mod_python-sample/sample-$1/htdocs/$2
+
+_here = os.path.dirname(__file__)
+_location_re = re.compile(r'^/(?P&lt;app&gt;sample-[^/]*)/(?P&lt;path&gt;.*)')
+
+def transhandler(req):
+    result = _location_re.match(req.uri)
+    if result:
+        matches = result.groupdict()
+        application = matches['app']
+        path = matches['path']
+        req.filename = os.path.join(_here, application, 'htdocs', path)
+        return apache.OK
+    return apache.DECLINED
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022826.html">[mod_python] PYTHONPATH and mod_python
+</A></li>
+	<LI>Next message: <A HREF="022828.html">[mod_python] PYTHONPATH and mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22827">[ date ]</a>
+              <a href="thread.html#22827">[ thread ]</a>
+              <a href="subject.html#22827">[ subject ]</a>
+              <a href="author.html#22827">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

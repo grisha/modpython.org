@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Persist database conn,
+	or pers. variables - whereI put them ?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Persist%20database%20conn%2C%0A%09or%20pers.%20variables%20-%20whereI%20put%20them%20%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022146.html">
+   <LINK REL="Next"  HREF="022149.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Persist database conn,
+	or pers. variables - whereI put them ?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Persist%20database%20conn%2C%0A%09or%20pers.%20variables%20-%20whereI%20put%20them%20%3F&In-Reply-To="
+       TITLE="[mod_python] Persist database conn,
+	or pers. variables - whereI put them ?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Sep 27 20:24:10 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022146.html">[mod_python] Persist database conn,
+	or pers. variables - where I put them ?
+</A></li>
+        <LI>Next message: <A HREF="022149.html">[mod_python] Persist database conn,or pers. variables - whereI
+	put them ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22148">[ date ]</a>
+              <a href="thread.html#22148">[ thread ]</a>
+              <a href="subject.html#22148">[ subject ]</a>
+              <a href="author.html#22148">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Sean Davis wrote ..
+&gt;<i> Richard Lewis wrote:
+</I>&gt;<i> &gt; On Wednesday 27 September 2006 14:55, Sean Davis wrote:
+</I>&gt;<i> &gt;   
+</I>&gt;<i> &gt;&gt; On Wednesday 27 September 2006 09:16, Fredrik Sandin wrote:
+</I>&gt;<i> &gt;&gt;     
+</I>&gt;<i> &gt;&gt;&gt; I asked the same question some time ago:
+</I>&gt;<i> &gt;&gt;&gt; <A HREF="http://modpython.org/pipermail/mod_python/2006-August/021924.html">http://modpython.org/pipermail/mod_python/2006-August/021924.html</A>
+</I>&gt;<i> &gt;&gt;&gt; Graham Dumpleton suggested to use XML-RPC.
+</I>&gt;<i> &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt; As far as I have understood mod_python, or actually Apache, was
+</I>&gt;<i> &gt;&gt;&gt; not designed to allow for object persistency.
+</I>&gt;<i> &gt;&gt;&gt;       
+</I>&gt;<i> &gt;&gt; Is this actually true (at least the Apache part)?  Under mod_perl (I'm
+</I>&gt;<i> a
+</I>&gt;<i> &gt;&gt; mod_python total newbie), object persistence can be accomplished in
+</I>&gt;<i> several
+</I>&gt;<i> &gt;&gt; ways including global variables that remain in shared memory (but this
+</I>&gt;<i> is
+</I>&gt;<i> &gt;&gt; only within a single child), a database, in an in-memory or on-disk
+</I>&gt;<i> cache,
+</I>&gt;<i> &gt;&gt; or in a session (just an interface to a cache or database).  Depends
+</I>&gt;<i> on
+</I>&gt;<i> &gt;&gt; your definition, but Apache, it seems to me, is absolutely suited to
+</I>&gt;<i> allow
+</I>&gt;<i> &gt;&gt; object persistence.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;     
+</I>&gt;<i> &gt; Persistance is all right: you can use global variables as you suggested.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The problem comes at tidying up time. Apache provides no method of performing
+</I>&gt;<i> &gt; operations when the server shuts down. This is especially relevant with
+</I>&gt;<i> &gt; things like open database connections 
+</I>&gt;<i> Richard,
+</I>&gt;<i> 
+</I>&gt;<i> Thanks for the clarification. 
+</I>&gt;<i> 
+</I>&gt;<i> Under mod_perl, there is Apache::DBI that overrides the connect() method
+</I>&gt;<i> of the DBI module to allow reuse of connections (maintaining a 
+</I>&gt;<i> persistent connection).  When the server process dies, the DESTROY() 
+</I>&gt;<i> method is called and the connections are cleaned up.  Would this be 
+</I>&gt;<i> treated differently under mod_python for some reason, if a database 
+</I>&gt;<i> connection object had a destroy() method that included a disconnect?  I
+</I>&gt;<i> have to admit that I don't understand many of the intricacies, but it 
+</I>&gt;<i> seems that if it can be done in perl under mod_perl, there is likely a
+</I>&gt;<i> way to do it under python and mod_python.
+</I>
+Whether one can reliably cause actions to be run on server shutdown in
+mod_python is a contentious issue as the moment. I have been a bit lax in going
+back and doing some further testing on the issue to settle it one way or the
+other and no one else has stepped up to the plate to do the required analysis.
+
+What I can say is the following.
+
+1. Even where a mechanism is available for triggering actions to be called on
+shutdown, there is no guarantee that the actions will be called purely because
+the Apache parent process can make a decision that a child process isn't
+shutting down properly by itself and it will send it a KILL signal to cause it
+to immediately quit. Processes can always crash for no good reason as well.
+
+Thus, one shouldn't write code that absolutely requires such clean shutdowns to
+occur. Any startup code should always be written to deal with a prior unclean
+shutdown and do any special cleanup first if required.
+
+Also, sometimes a persons belief that cleanup code is required has been
+based on a mistaken belief that if not done then resources would be leaked.
+Certainly in the case of database connections, this shouldn't be the case as
+the server side will detect that client connections have gone away and will
+automatically cleanup on the server side even if a clean close of the connection
+hadn't been done.
+
+2. In mod_python 3.3, any Python interpreter instances will not be destroyed on
+child process shutdown. The interpreter instances are being destroyed in
+mod_python prior to 3.3, but doing so can cause the Apache child process to
+hang, as this can get triggered from within a signal handler in certain
+circumstances and if there is an active request handler for mod_python running
+at the time. the signal handler will block due to not being able to acquire the
+Python GIL. Thus, calling Py_Finalize() for interpreters is no longer being
+done at this point.
+
+The implications of this are that Python objects are not being destroyed on
+child process shutdown, thus you cannot rely on the destructor of Python
+objects doing anything to cleanup resources.
+
+3. In mod_python, there are the functions apache.register_cleanup() and
+req.server.register_cleanup() for registering actions to be done on server
+cleanup. However, the trigger for these being called is the destruction of
+the childs Apache memory pool. As with 2, this seems in some cases to be
+triggered from a signal handler and thus can similarly result in the Apache
+child process hanging on shutdown.
+
+See:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-109">http://issues.apache.org/jira/browse/MODPYTHON-109</A>
+
+for more details.
+
+Thus, the question has been whether if no guarantees can be given as to
+whether cleanup actions will even be called and if an attempt is made to
+call them, it still may result in them not being run because of the Apache
+child process hanging due to locking problems, should the feature even
+be provided.
+
+Now it is possible that prior analysis of the Apache source code and how
+these cleanup actions are triggered could be wrong, or based on old Apache
+code where it worked a bit differently. As I said though, no one else has
+stepped up to do a proper analysis of the Apache code and do testing in
+respect of the issue and I haven't had a chance lately to look at it again.
+The other core developers have also been quite busy of late. Without this
+further analysis, we will not know if 2 and 3 are really problems or not.
+
+Graham
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022146.html">[mod_python] Persist database conn,
+	or pers. variables - where I put them ?
+</A></li>
+	<LI>Next message: <A HREF="022149.html">[mod_python] Persist database conn,or pers. variables - whereI
+	put them ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22148">[ date ]</a>
+              <a href="thread.html#22148">[ thread ]</a>
+              <a href="subject.html#22148">[ subject ]</a>
+              <a href="author.html#22148">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

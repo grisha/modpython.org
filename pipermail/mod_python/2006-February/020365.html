@@ -1,0 +1,247 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] req.user and SSL?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20req.user%20and%20SSL%3F&In-Reply-To=531A44FA-474B-4815-B8E7-4092DB323DF2%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020352.html">
+   <LINK REL="Next"  HREF="020366.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] req.user and SSL?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Bud P. Bruegger</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20req.user%20and%20SSL%3F&In-Reply-To=531A44FA-474B-4815-B8E7-4092DB323DF2%40dscpl.com.au"
+       TITLE="[mod_python] req.user and SSL?">bud at comune.grosseto.it
+       </A><BR>
+    <I>Mon Feb 20 04:46:21 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020352.html">[mod_python] req.user and SSL?
+</A></li>
+        <LI>Next message: <A HREF="020366.html">[mod_python] req.user and SSL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20365">[ date ]</a>
+              <a href="thread.html#20365">[ thread ]</a>
+              <a href="subject.html#20365">[ subject ]</a>
+              <a href="author.html#20365">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>At 13.54 19/02/2006 +1100, Graham Dumpleton wrote:
+
+&gt;<i>On 18/02/2006, at 1:05 AM, Bud P. Bruegger wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i>Hello everyone,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>I have a problem reading req.user when using mod-SSL with the
+</I>&gt;&gt;<i>+FakeBasicAuth option and setting SSLUser:  req.user always seems
+</I>&gt;&gt;<i>to be undefined.  Also, neither Authen nor Authz handers run.   Any
+</I>&gt;&gt;<i>help would be highly appreciated
+</I>&gt;<i>
+</I>&gt;<i>First off, I presume the client certificate does have a user name
+</I>&gt;<i>specified in it?
+</I>
+I understood that the mod-ssl directive
+&gt;<i>SSLUserName SSL_CLIENT_S_DN_X509
+</I>tells it to set the subject DN as req.user.  Did I understand this 
+incorrectly?  This DN is a string; would there be any requirements for 
+accepting a string as user name (e.g., illegal chars)?
+
+&gt;<i>Second is that mod_ssl only populates req.user from a MIDDLE hook of the
+</I>&gt;<i>access handler.
+</I>
+Ok, so possibly I don't see it in the access hander, but then I should see 
+it in the Fixup stage, shouldn't I?
+
+&gt;<i>This is the same as when mod_python access handlers are
+</I>&gt;<i>run. If the ordering of initialisation of mod_python/mod_ssl is such
+</I>&gt;<i>that a
+</I>&gt;<i>mod_python access handler is run before the internal access handler for
+</I>&gt;<i>mod_ssl, then req.user will not have been set yet and thus will not
+</I>&gt;<i>be available
+</I>&gt;<i>in the mod_python access handler.
+</I>&gt;<i>
+</I>&gt;<i>Finally, the authen handler and authz handler are only run if the
+</I>&gt;<i>Require
+</I>&gt;<i>directive has been used, which your configuration doesn't include.
+</I>&gt;<i>Thus you
+</I>&gt;<i>need something like:
+</I>&gt;<i>
+</I>&gt;<i>   Require valid-user
+</I>
+OK!  thanks for this!!!
+
+&gt;<i>BTW, your attempt to get SSL variables form req.subprocess_env isn't
+</I>&gt;<i>going
+</I>&gt;<i>to work as they are only put there by mod_ssl by a REALLY_LAST hook
+</I>&gt;<i>of the
+</I>&gt;<i>fixup handler, which is after access handler, authen handler and
+</I>&gt;<i>authz handler.
+</I>&gt;<i>Will also be after mod_python fixup handler as it runs as MIDDLE hook.
+</I>
+Ok, I understand this.
+
+&gt;<i>To get information about mod_ssl in earlier phases, you will need
+</I>&gt;<i>mod_ssl
+</I>&gt;<i>patches as described in:
+</I>&gt;<i>
+</I>&gt;<i>    <A HREF="https://issues.apache.org/jira/browse/MODPYTHON-94">https://issues.apache.org/jira/browse/MODPYTHON-94</A>
+</I>&gt;<i>
+</I>&gt;<i>These changes have now been pushed into mod_python subversion main
+</I>&gt;<i>trunk if you are prepared to give developmental code a go.
+</I>
+This is actually the clean solution to my problem that I'm very happy has 
+been integrated!
+
+I was thinking of trying your external module with similar functionality 
+later today--thinking that maybe the trunk version of mod-python may not be 
+stable.  Would you recommend to take the trunk instead?
+
+many thanks for your help!
+
+-b
+
+
+&gt;<i>Graham
+</I>&gt;<i>
+</I>&gt;&gt;<i>Here some details of what I try:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>#-- Apache 2 conf ------------------------------
+</I>&gt;&gt;<i>NameVirtualHost *:443
+</I>&gt;&gt;<i>&lt;VirtualHost *:443&gt;
+</I>&gt;&gt;<i>         LogLevel debug
+</I>&gt;&gt;<i>         SSLEngine on
+</I>&gt;&gt;<i>         SSLCertificateFile /etc/apache2/ssl/apache.pem
+</I>&gt;&gt;<i>         SSLCACertificateFile /etc/apache2/ssl/caCerts.pem
+</I>&gt;&gt;<i>         SSLVerifyDepth 3
+</I>&gt;&gt;<i>         SSLVerifyClient require
+</I>&gt;&gt;<i>         #SSLUserName SSL_CLIENT_S_DN_X509
+</I>&gt;&gt;<i>         DocumentRoot /var/www/
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>         &lt;Directory /var/www/sc&gt;
+</I>&gt;&gt;<i>             SSLRequireSSL
+</I>&gt;&gt;<i>             SSLOptions +StdEnvVars +FakeBasicAuth
+</I>&gt;&gt;<i>             AuthType Basic
+</I>&gt;&gt;<i>             SetHandler mod_python
+</I>&gt;&gt;<i>             PythonHandler test
+</I>&gt;&gt;<i>             PythonAccessHandler test
+</I>&gt;&gt;<i>             PythonAuthenHandler test
+</I>&gt;&gt;<i>             PythonAuthzHandler test
+</I>&gt;&gt;<i>             PythonFixupHandler test
+</I>&gt;&gt;<i>             PythonDebug On
+</I>&gt;&gt;<i>         &lt;/Directory&gt;
+</I>&gt;&gt;<i>&lt;/VirtualHost&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>#--- test.py ----------------------------------------------------
+</I>&gt;&gt;<i>from mod_python import apache
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>def genHandler(req, handlerName):
+</I>&gt;&gt;<i>     req.add_common_vars()
+</I>&gt;&gt;<i>     req.get_basic_auth_pw()
+</I>&gt;&gt;<i>     user = req.user
+</I>&gt;&gt;<i>     dn = req.subprocess_env.get('SSL_CLIENT_S_DN',
+</I>&gt;&gt;<i>req.subprocess_env.keys())
+</I>&gt;&gt;<i>     userLabel = 'XXX-%s-user' % handlerName
+</I>&gt;&gt;<i>     dnLabel = 'XXX-%s-dn' % handlerName
+</I>&gt;&gt;<i>     req.subprocess_env[userLabel]=str(user)
+</I>&gt;&gt;<i>     req.subprocess_env[dnLabel]=str(dn)
+</I>&gt;&gt;<i>     return apache.OK
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>def accesshandler(req):
+</I>&gt;&gt;<i>     return genHandler(req, 'access')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>def authenhandler(req):
+</I>&gt;&gt;<i>     return genHandler(req, 'authen')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>def authzhandler(req):
+</I>&gt;&gt;<i>     return genHandler(req, 'authz')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>def fixuphandler(req):
+</I>&gt;&gt;<i>     return genHandler(req, 'fixup')
+</I>&gt;&gt;<i>#------------------------------------------------------
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>many thanks in advance
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>-b
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>---------------------------------------------------------------------- 
+</I>&gt;&gt;<i>---------------------------
+</I>&gt;&gt;<i>Ing. Bud P. Bruegger, Ph.D.                 +39-0564-488577
+</I>&gt;&gt;<i>(voice),  -21139 (fax)
+</I>&gt;&gt;<i>Servizio Elaborazione Dati                    e-mail:
+</I>&gt;&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at comune.grosseto.it</A>
+</I>&gt;&gt;<i>Comune di Grosseto                            jabber:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at jabber.no</A>
+</I>&gt;&gt;<i>Via Ginori, 43                                      http:// 
+</I>&gt;&gt;<i>www.comune.grosseto.it/cie/
+</I>&gt;&gt;<i>58100 Grosseto (Tuscany, Italy)           http:// 
+</I>&gt;&gt;<i>www.comune.grosseto.it/interopEID/
+</I>&gt;&gt;<i>_______________________________________________
+</I>&gt;&gt;<i>Mod_python mailing list
+</I>&gt;&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>-------------------------------------------------------------------------------------------------
+</I>&gt;<i>Ing. Bud P. Bruegger, Ph.D.                 +39-0564-488577 
+</I>&gt;<i>(voice),  -21139 (fax)
+</I>&gt;<i>Servizio Elaborazione Dati                    e-mail:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at comune.grosseto.it</A>
+</I>&gt;<i>Comune di Grosseto                            jabber:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at jabber.no</A>
+</I>&gt;<i>Via Ginori, 
+</I>&gt;<i>43                                      <A HREF="http://www.comune.grosseto.it/cie/">http://www.comune.grosseto.it/cie/</A>
+</I>&gt;<i>58100 Grosseto (Tuscany, 
+</I>&gt;<i>Italy)           <A HREF="http://www.comune.grosseto.it/interopEID/">http://www.comune.grosseto.it/interopEID/</A> 
+</I>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020352.html">[mod_python] req.user and SSL?
+</A></li>
+	<LI>Next message: <A HREF="020366.html">[mod_python] req.user and SSL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20365">[ date ]</a>
+              <a href="thread.html#20365">[ thread ]</a>
+              <a href="subject.html#20365">[ subject ]</a>
+              <a href="author.html#20365">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,187 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Shared global variables among apache children?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Shared%20global%20variables%20among%20apache%20children%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021797.html">
+   <LINK REL="Next"  HREF="021799.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Shared global variables among apache children?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Shared%20global%20variables%20among%20apache%20children%3F&In-Reply-To="
+       TITLE="[mod_python] Shared global variables among apache children?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Aug 10 18:34:08 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021797.html">[mod_python] XMLHttpRequest + CGI + mod_python
+</A></li>
+        <LI>Next message: <A HREF="021799.html">[mod_python] sys.path
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21798">[ date ]</a>
+              <a href="thread.html#21798">[ thread ]</a>
+              <a href="subject.html#21798">[ subject ]</a>
+              <a href="author.html#21798">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Read:
+
+  <A HREF="http://www.dscpl.com.au/articles/modpython-004.html">http://www.dscpl.com.au/articles/modpython-004.html</A>
+
+It gives a bit of background about different MPM models and mod_python.
+
+Also, be aware that the global variable you are using as counter will be
+reset back to 1 in a process if that module gets automatically reloaded.
+This is because new module gets reloaded on top of the old. You might
+also therefore read about some of the issues with module reloading.
+
+  <A HREF="http://www.dscpl.com.au/articles/modpython-003.html">http://www.dscpl.com.au/articles/modpython-003.html</A>
+
+Graham
+
+Joshua Ginsberg wrote ..
+&gt;<i> Geez, there are a lot of questions about IPC this week... :-/
+</I>&gt;<i> 
+</I>&gt;<i> Justin --
+</I>&gt;<i> 
+</I>&gt;<i> Let's say you open two terminals, and in each you run a python
+</I>&gt;<i> interpreter. In the first, you tell it:
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; x = 3
+</I>&gt;<i> 
+</I>&gt;<i> And in the second you tell it:
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; x = 3
+</I>&gt;<i> 
+</I>&gt;<i> And then back in the first you tell it:
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; x += 1
+</I>&gt;<i> 
+</I>&gt;<i> And then in the second you tell it:
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; print x
+</I>&gt;<i> 
+</I>&gt;<i> What are you going to get? 3 of course -- not 4. Duh! That's because
+</I>&gt;<i> they're separate processes. Separate memory spaces. Totally independent.
+</I>&gt;<i> It's the same thing with Apache. Each Apache process runs with its own
+</I>&gt;<i> unique memory space and its own unique Python instance.
+</I>&gt;<i> 
+</I>&gt;<i> So solve this problem the same way you'd solve it with two separate
+</I>&gt;<i> Python interpreter processes. Examples:
+</I>&gt;<i> 
+</I>&gt;<i> 1) Use files and locks.
+</I>&gt;<i> 2) Use something like SQL that has locking built in.
+</I>&gt;<i> 3) Use some IPC protocol -- XMLRPC or (hehe) D-BUS
+</I>&gt;<i> 
+</I>&gt;<i> But if you want a purely multithreaded web server that has one big
+</I>&gt;<i> shared memory space, use AOLServer or something like that. Apache was
+</I>&gt;<i> originally designed to do forking and lots of it. It's only recently
+</I>&gt;<i> that it has been developing MPM models that have multiple connections
+</I>&gt;<i> handled by a process with multiple threads, and this doesn't happen the
+</I>&gt;<i> same way in all MPMs or on all platforms.
+</I>&gt;<i> 
+</I>&gt;<i> -jag
+</I>&gt;<i> 
+</I>&gt;<i> On Thu, 2006-08-10 at 14:08 -0500, justind wrote:
+</I>&gt;<i> &gt; It feels like I'm missing either one configuration option or this may
+</I>&gt;<i> &gt; not even be possible.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I have this little bit of code. I expected, that every 4 seconds that
+</I>&gt;<i> x 
+</I>&gt;<i> &gt; would increment by 1 on the returned page. It does. However I think that
+</I>&gt;<i> &gt; this same code is loaded into each child process (correct me if I'm 
+</I>&gt;<i> &gt; wrong) of apache.
+</I>&gt;<i> &gt; Depending on which child I get, and when they were launched (hitting
+</I>&gt;<i> &gt; refresh rapidly on Firefox seems to demonstrate this too me) I get a
+</I>&gt;<i> &gt; different page back. One will show 4 then a refresh will show 3, another
+</I>&gt;<i> &gt; will show 3, another will show 4 and so on and so forth.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I guess my question is, how can I share the global variable of x among
+</I>&gt;<i> &gt; all the apache child processes, or is this really my problem)?
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Any help would be very appreciated.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Code follows below:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; from mod_python import apache
+</I>&gt;<i> &gt; import time
+</I>&gt;<i> &gt; import thread
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; x = 1
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; def handler(req):
+</I>&gt;<i> &gt;     global x
+</I>&gt;<i> &gt;     req.content_type = 'text/plain'
+</I>&gt;<i> &gt;     req.write(&quot;Hello World! &quot; + str(x))
+</I>&gt;<i> &gt;     return apache.OK
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; def do_me():
+</I>&gt;<i> &gt;     global x
+</I>&gt;<i> &gt;     while True:
+</I>&gt;<i> &gt;         time.sleep(4)
+</I>&gt;<i> &gt;         x += 1               
+</I>&gt;<i> &gt;                
+</I>&gt;<i> &gt; thread.start_new(do_me,())   
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021797.html">[mod_python] XMLHttpRequest + CGI + mod_python
+</A></li>
+	<LI>Next message: <A HREF="021799.html">[mod_python] sys.path
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21798">[ date ]</a>
+              <a href="thread.html#21798">[ thread ]</a>
+              <a href="subject.html#21798">[ subject ]</a>
+              <a href="author.html#21798">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

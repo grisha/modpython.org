@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mac OS X Leopard upset my mod_python test bed.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mac%20OS%20X%20Leopard%20upset%20my%20mod_python%20test%20bed.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024501.html">
+   <LINK REL="Next"  HREF="024504.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mac OS X Leopard upset my mod_python test bed.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Simon Kesenci</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mac%20OS%20X%20Leopard%20upset%20my%20mod_python%20test%20bed.&In-Reply-To="
+       TITLE="[mod_python] Mac OS X Leopard upset my mod_python test bed.">god at skri.org
+       </A><BR>
+    <I>Sun Nov 25 15:32:33 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024501.html">[mod_python] Trouble with python versions.
+</A></li>
+        <LI>Next message: <A HREF="024504.html">[mod_python] Mac OS X Leopard upset my mod_python test bed.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24503">[ date ]</a>
+              <a href="thread.html#24503">[ thread ]</a>
+              <a href="subject.html#24503">[ subject ]</a>
+              <a href="author.html#24503">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I recently upgraded my PowerBook (PPC) to Leopard.  Piece by piece I  
+started reassembling my web server test bed (httpd 2.2.6, Python  
+2.5.1, mod_python 3.3.1), which worked perfectly on Tiger.  I built  
+everything from their sources.
+
+This time around I got everything to work except for mod_python.  My  
+procedure had the following non-standard edits:
+
+httpd 2.2.6:
+     Changed APR_HAS_SENDFILE to 0 in srclib/apr/include/apr.h
+     After installation I backed up /usr/sbin/httpd and entered
+       ln -s /usr/local/apache2/bin/httpd /usr/sbin/httpd.
+     (This allows you to activate the compiled httpd from the Sharing  
+Preferences, which will also have the built-in firewall open and close  
+port 80 in sync with the server.)
+
+Python 2.5.1:
+     After ./configure --enable-framework I added -DSETPGRP_HAVE_ARG  
+to the top-level Makefile (make exits with an error otherwise due to a  
+lack of arguments to setpgrp()).
+
+Both of the above work as expected, but when I threw mod_python into  
+the mix I kept getting the following error:
+
+[Sun Nov 25 09:43:22 2007] [error] make_obcallback: could not import  
+mod_python.apache.\n
+ImportError: No module named mod_python.apache
+[Sun Nov 25 09:43:22 2007] [error] make_obcallback: Python path being  
+used &quot;['/usr/lib/python25.zip', '/usr/lib/python2.5', '/usr/lib/ 
+python2.5/plat-darwin', '/usr/lib/python2.5/plat-mac', '/usr/lib/ 
+python2.5/plat-mac/lib-scriptpackages', '/usr/lib/python2.5/lib-tk', '/ 
+usr/lib/python2.5/lib-dynload', '/Library/Python/2.5/site-packages']&quot;.
+[Sun Nov 25 09:43:22 2007] [error] get_interpreter: no interpreter  
+callback found.
+[Sun Nov 25 09:43:22 2007] [error] [client 10.0.1.2] python_handler:  
+Can't get/create interpreter., referer: <A HREF="http://10.0.1.2/~simon/test/">http://10.0.1.2/~simon/test/</A>
+
+I used a number of scripts to test the installation, including  
+mptest.py from the mod_python doc.  The last script I used to test did  
+not import mod_python.apache explicitly:
+
+from mod_python import util
+
+def index(req):
+   util.redirect(req, 'www.example.com')
+
+While installing mod_python the output made clear that it took up the  
+interpreter in /usr/local/bin rather than the one provided by Apple  
+in /usr/bin and installed under /Library/Frameworks/Python.framework/ 
+Versions/2.5/lib/python2.5/site-packages/ rather than /Library/Python/ 
+2.5/site-packages.
+
+I don't know from where it pulled that path.  The interpreter I  
+compiled uses the path:
+
+['', '/Library/Frameworks/Python.framework/Versions/2.5/lib/ 
+python25.zip', '/Library/Frameworks/Python.framework/Versions/2.5/lib/ 
+python2.5', '/Library/Frameworks/Python.framework/Versions/2.5/lib/ 
+python2.5/plat-darwin', '/Library/Frameworks/Python.framework/Versions/ 
+2.5/lib/python2.5/plat-mac', '/Library/Frameworks/Python.framework/ 
+Versions/2.5/lib/python2.5/plat-mac/lib-scriptpackages', '/Library/ 
+Frameworks/Python.framework/Versions/2.5/lib/python2.5/lib-tk', '/ 
+Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/lib- 
+dynload', '/Library/Frameworks/Python.framework/Versions/2.5/lib/ 
+python2.5/site-packages']
+
+The interpreter provided by Apple uses:
+
+['', '/System/Library/Frameworks/Python.framework/Versions/2.5/lib/ 
+python25.zip', '/System/Library/Frameworks/Python.framework/Versions/ 
+2.5/lib/python2.5', '/System/Library/Frameworks/Python.framework/ 
+Versions/2.5/lib/python2.5/plat-darwin', '/System/Library/Frameworks/ 
+Python.framework/Versions/2.5/lib/python2.5/plat-mac', '/System/ 
+Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/plat- 
+mac/lib-scriptpackages', '/System/Library/Frameworks/Python.framework/ 
+Versions/2.5/Extras/lib/python', '/System/Library/Frameworks/ 
+Python.framework/Versions/2.5/lib/python2.5/lib-tk', '/System/Library/ 
+Frameworks/Python.framework/Versions/2.5/lib/python2.5/lib-dynload', '/ 
+Library/Python/2.5/site-packages', '/System/Library/Frameworks/ 
+Python.framework/Versions/2.5/Extras/lib/python/PyObjC']
+
+This morning I logged on to my Linux web server and installed all  
+these packages from source without any problems.
+
+--S.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024501.html">[mod_python] Trouble with python versions.
+</A></li>
+	<LI>Next message: <A HREF="024504.html">[mod_python] Mac OS X Leopard upset my mod_python test bed.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24503">[ date ]</a>
+              <a href="thread.html#24503">[ thread ]</a>
+              <a href="subject.html#24503">[ subject ]</a>
+              <a href="author.html#24503">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

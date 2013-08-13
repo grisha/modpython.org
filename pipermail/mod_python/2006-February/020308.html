@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] High traffic recommendations
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20High%20traffic%20recommendations&In-Reply-To=1140101097.8693.25.camel%40localhost.localdomain">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020301.html">
+   <LINK REL="Next"  HREF="020317.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] High traffic recommendations</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20High%20traffic%20recommendations&In-Reply-To=1140101097.8693.25.camel%40localhost.localdomain"
+       TITLE="[mod_python] High traffic recommendations">jpg at jgassociates.ca
+       </A><BR>
+    <I>Thu Feb 16 12:31:08 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020301.html">[mod_python] High traffic recommendations
+</A></li>
+        <LI>Next message: <A HREF="020317.html">[mod_python] High traffic recommendations
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20308">[ date ]</a>
+              <a href="thread.html#20308">[ thread ]</a>
+              <a href="subject.html#20308">[ subject ]</a>
+              <a href="author.html#20308">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Marc D. Murray wrote:
+&gt;&gt;<i>What did your custom Session code do ? Can you post it, so that we try
+</I>&gt;&gt;<i>and see what could cause the problem ?
+</I>&gt;<i> 
+</I>&gt;<i> The intention was to prevent multiple users from sharing username and
+</I>&gt;<i> password. And to lock an account if it was used from too many
+</I>&gt;<i> locations. 
+</I>&gt;<i> 
+</I>&gt;<i> I'll post it, but before we go there, I should tell you that, I'm still
+</I>&gt;<i> getting that dreaded &quot;MaxClients reached&quot; error again. Taking somewhere
+</I>&gt;<i> of of the order of 6hrs now though.
+</I>
+But you are still using sessions, right? There are 2 types of locks used 
+in DbmSession, a global lock for serializing access to the underlying 
+dbm file, and then an additional number of locks that are used for 
+locking individual sessions. (The exact number in 3.1.4 is determined at 
+run time, and for your config is likely 32. You'll see the actual number 
+on startup in the error log. There is configuration option for compiling 
+3.2.7 which allows you to set the total number of locks. We are 
+investigating implementing a new apache directive which would allow the 
+number of locks to be specified at runtime). Since access to the dbm 
+file is serialized, you could be experiencing a bottleneck when your 
+server is under load.
+
+How many sessions objects are you saving? Performance drops when 
+inserting a record into an already large dbm database. I did some 
+benchmarks when I was writing the FileSession class. I think you might 
+find some of the data interesting:
+<A HREF="http://www.mail-archive.com/python-dev@httpd.apache.org/msg00136.html">http://www.mail-archive.com/python-dev@httpd.apache.org/msg00136.html</A>
+
+Another performance killer with DbmSessions is the expired session 
+cleanup. Each record in the database must be unpickled and examined to 
+see if it is expired and should be deleted. For a large number of 
+session objects this can be really time consuming. The cleanup is kicked 
+off after a random number of requests (approx 1 in 1000), but for a 
+heavily loaded site this could mean that a cleanup is almost always 
+running. During this time the dbm file is locked, so all other requests 
+which are using sessions will be blocked. This means that Apache will be 
+queue requests and could conceivably hit the MaxClients.
+
+These are the sort of issues that motivated the creation of FileSession, 
+which gives a much finer control over the cleanup process, and avoids 
+the global lock problem completely.
+
+&gt;<i> Let's hope that a mod_python upgrade will help. Should I also upgrade to
+</I>&gt;<i> Python 2.4 as well? I develop with python 2.4 on my Ubuntu desktop, but
+</I>&gt;<i> deploy to Python 2.3.5 on the Debian server. 
+</I>
+I suspect changing to FileSession may solve some of your problems.
+
+&gt;<i> Do you guys think I should use the newer version of python when building
+</I>&gt;<i> mod_python?
+</I>
+There are no python 2.4 specific features in mod_python 3.2.7, so from 
+that perspective it's not necessary. We generally test with both python 
+2.3.5 and 2.4.
+
+
+BTW, how do you define high traffic? If you mentioned this before I 
+missed it.
+
+Jim
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020301.html">[mod_python] High traffic recommendations
+</A></li>
+	<LI>Next message: <A HREF="020317.html">[mod_python] High traffic recommendations
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20308">[ date ]</a>
+              <a href="thread.html#20308">[ thread ]</a>
+              <a href="subject.html#20308">[ subject ]</a>
+              <a href="author.html#20308">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

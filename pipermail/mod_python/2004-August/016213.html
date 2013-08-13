@@ -1,0 +1,118 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Multiple simultaneous requests during server startup
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20simultaneous%20requests%20during%20server%20startup&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016229.html">
+   <LINK REL="Next"  HREF="016220.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Multiple simultaneous requests during server startup</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>St&#233;phane Bidoul</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20simultaneous%20requests%20during%20server%20startup&In-Reply-To="
+       TITLE="[mod_python] Multiple simultaneous requests during server startup">stephane.bidoul at softwareag.com
+       </A><BR>
+    <I>Wed Aug 25 20:07:15 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016229.html">[mod_python] mod_python in a shared environment
+</A></li>
+        <LI>Next message: <A HREF="016220.html">[mod_python] Rendering a page as a 404?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16213">[ date ]</a>
+              <a href="thread.html#16213">[ thread ]</a>
+              <a href="subject.html#16213">[ subject ]</a>
+              <a href="author.html#16213">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Grisha,
+
+On Windows, when you start (or restart) an Apache instance while
+multiple clients are attempting to connect, it seems that
+serveral threads import the PythonHandler module simultaneously,
+which leads to many kinds of weird behaviours and general
+unstability.
+
+You can reproduce with the following PythonHandler:
+
+import time, os, thread
+from mod_python import apache
+
+f = open(&quot;c:/test.log&quot;,&quot;a&quot;)
+print &gt;&gt; f, &quot;start import: pid=&quot;,os.getpid(),&quot;tid=&quot;,thread.get_ident()
+time.sleep(1)
+print &gt;&gt; f, &quot;end import: pid=&quot;,os.getpid(),&quot;tid=&quot;,thread.get_ident()
+f.close()
+
+def handler(req):
+    req.write(&quot;hello&quot;)
+    return apache.OK
+
+When sending several requests in the same second while the
+server starts you obtain the following test.log (several 
+thread running the import code simultaneously):
+
+start import: pid= 3668 tid= 808
+start import: pid= 3668 tid= 4996
+start import: pid= 3668 tid= 1404
+start import: pid= 3668 tid= 652
+start import: pid= 3668 tid= 1108
+start import: pid= 3668 tid= 576
+end import: pid= 3668 tid= 808
+
+IMHO, the import of the PythonHandler should be executed
+at most once for a given subinterpreter.
+
+Is this a problem you can confirm?
+If yes, any idea on how to fix it?
+
+Thanks in advance,
+
+-sbi
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016229.html">[mod_python] mod_python in a shared environment
+</A></li>
+	<LI>Next message: <A HREF="016220.html">[mod_python] Rendering a page as a 404?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16213">[ date ]</a>
+              <a href="thread.html#16213">[ thread ]</a>
+              <a href="subject.html#16213">[ subject ]</a>
+              <a href="author.html#16213">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

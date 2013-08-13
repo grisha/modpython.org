@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] psp import issue
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp%20import%20issue&In-Reply-To=227f6fed0706212350h6912f0f5h8507be7186a3536d%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023894.html">
+   <LINK REL="Next"  HREF="023896.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] psp import issue</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp%20import%20issue&In-Reply-To=227f6fed0706212350h6912f0f5h8507be7186a3536d%40mail.gmail.com"
+       TITLE="[mod_python] psp import issue">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Fri Jun 22 03:03:05 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023894.html">[mod_python] psp import issue
+</A></li>
+        <LI>Next message: <A HREF="023896.html">[mod_python] psp import issue
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23895">[ date ]</a>
+              <a href="thread.html#23895">[ thread ]</a>
+              <a href="subject.html#23895">[ subject ]</a>
+              <a href="author.html#23895">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 22/06/07, maker joe &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">makerjoe at gmail.com</A>&gt; wrote:
+&gt;<i> hi graham
+</I>&gt;<i>
+</I>&gt;<i> there is a mistake on
+</I>&gt;<i> locals()[&quot;_%s&quot;+%k] = req.form[k]
+</I>&gt;<i>
+</I>&gt;<i> should be
+</I>&gt;<i> locals()[&quot;_%s&quot;+k] = req.form[k]
+</I>
+Actually, it should have been:
+
+  locals()[&quot;_%s&quot;%k] = req.form[k]
+
+as was trying to use mod operator on the string in preference to
+addition of string so that auto conversion of string would happen.
+
+Did this as for some reason, maybe old versions of mod_python, I have
+see a None key come through. If this did occur the addition of strings
+would fail as adding string with None, where as mod operator would
+have converted None object to None value in string and not died. Yes
+it could wipe out other field if one was called None, so by rights if
+this is still an issue should use:
+
+  if k:
+    locals()[&quot;_%s&quot;%k] = req.form[k]
+
+Graham
+
+&gt;<i> kind regards
+</I>&gt;<i> joseluis
+</I>&gt;<i>
+</I>&gt;<i> On 6/21/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; On 22/06/07, maker joe &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">makerjoe at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; sure you convinced me
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; but why not ?
+</I>&gt;<i> &gt; &gt;     for k in req.form:
+</I>&gt;<i> &gt; &gt;         exec (&quot;_&quot;+k+&quot;=&quot;+&quot;req.form[k]&quot;)
+</I>&gt;<i> &gt; &gt;         print k,_test
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Using a prefix is one way of avoiding the problem, but don't use exec
+</I>&gt;<i> &gt; as there is no need to. Use:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   locals()[&quot;_%s&quot;+%k] = req.form[k]
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt; On 6/21/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; On 22/06/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; and
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; req.form['varx']  by _varx
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; Don't recommend pushing form fields in local name space as doesn't
+</I>&gt;<i> &gt; &gt; &gt; &gt; make it as obvious that it is a form field and there would be a
+</I>&gt;<i> &gt; &gt; &gt; &gt; tendency not to perform checks to make sure the field you are looking
+</I>&gt;<i> &gt; &gt; &gt; &gt; for actually exists. Also, it will all possibly blow up if someone
+</I>&gt;<i> &gt; &gt; &gt; &gt; supplied a field you weren't expecting which replaced some important
+</I>&gt;<i> &gt; &gt; &gt; &gt; data or clashed with a keyword.
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; If you really must do something like that though, you might adapt the
+</I>&gt;<i> &gt; &gt; &gt; &gt; following code from mod_python.util.apply_fs_data(). Replace 'fs' with
+</I>&gt;<i> &gt; &gt; &gt; &gt; req.form and replace args with locals().
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt;     # add form data to args
+</I>&gt;<i> &gt; &gt; &gt; &gt;     for field in fs.list:
+</I>&gt;<i> &gt; &gt; &gt; &gt;         if field.filename:
+</I>&gt;<i> &gt; &gt; &gt; &gt;             val = field
+</I>&gt;<i> &gt; &gt; &gt; &gt;         else:
+</I>&gt;<i> &gt; &gt; &gt; &gt;             val = field.value
+</I>&gt;<i> &gt; &gt; &gt; &gt;         args.setdefault(field.name, []).append(val)
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt;     # replace lists with single values
+</I>&gt;<i> &gt; &gt; &gt; &gt;     for arg in args:
+</I>&gt;<i> &gt; &gt; &gt; &gt;         if ((type(args[arg]) is ListType) and
+</I>&gt;<i> &gt; &gt; &gt; &gt;             (len(args[arg]) == 1)):
+</I>&gt;<i> &gt; &gt; &gt; &gt;             args[arg] = args[arg][0]
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; BTW, if using publisher, a quicker way of doing this would be:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;   def func(req, arg1, args, **args):
+</I>&gt;<i> &gt; &gt; &gt;     locals().update(args)
+</I>&gt;<i> &gt; &gt; &gt;     ...
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; As I said though, this is dangerous as someone outside your web site
+</I>&gt;<i> &gt; &gt; &gt; can directly modify data your function uses to execute or cause your
+</I>&gt;<i> &gt; &gt; &gt; handler to crash in bad ways.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; For example, with publisher function:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;   def index(req, **args):
+</I>&gt;<i> &gt; &gt; &gt;     locals().update(args)
+</I>&gt;<i> &gt; &gt; &gt;     req.content_type = 'text/plain'
+</I>&gt;<i> &gt; &gt; &gt;     return 'mod_python.publisher', req.filename
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; If URL of:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;   <A HREF="http://localhost:8002/~grahamd/publisher/index.py?req=xxx">http://localhost:8002/~grahamd/publisher/index.py?req=xxx</A>
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; is used, I get an error saying:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;   AttributeError: 'mp_request' object has no attribute 'append'
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; This is because I was able to replace the request object argument with
+</I>&gt;<i> &gt; &gt; &gt; another value.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Same problem will occur if using the longer example I showed before.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Hopefully you will now be convinced this is a bad bad idea.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Graham
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023894.html">[mod_python] psp import issue
+</A></li>
+	<LI>Next message: <A HREF="023896.html">[mod_python] psp import issue
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23895">[ date ]</a>
+              <a href="thread.html#23895">[ thread ]</a>
+              <a href="subject.html#23895">[ subject ]</a>
+              <a href="author.html#23895">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

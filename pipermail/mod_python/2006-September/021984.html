@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] threads and FreeBSD: LD_PRELOAD=/usr/lib/libc_r.so
+	the	same as --enable-threads?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20threads%20and%20FreeBSD%3A%20LD_PRELOAD%3D/usr/lib/libc_r.so%0A%09the%09same%20as%20--enable-threads%3F&In-Reply-To=44F89F10.1090903%40zetaweb.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021983.html">
+   <LINK REL="Next"  HREF="021986.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] threads and FreeBSD: LD_PRELOAD=/usr/lib/libc_r.so
+	the	same as --enable-threads?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Chad Whitacre</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20threads%20and%20FreeBSD%3A%20LD_PRELOAD%3D/usr/lib/libc_r.so%0A%09the%09same%20as%20--enable-threads%3F&In-Reply-To=44F89F10.1090903%40zetaweb.com"
+       TITLE="[mod_python] threads and FreeBSD: LD_PRELOAD=/usr/lib/libc_r.so
+	the	same as --enable-threads?">chad at zetaweb.com
+       </A><BR>
+    <I>Fri Sep  1 17:17:27 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021983.html">[mod_python] threads and FreeBSD: LD_PRELOAD=/usr/lib/libc_r.so the
+	same as --enable-threads?
+</A></li>
+        <LI>Next message: <A HREF="021986.html">[mod_python] threads and FreeBSD: LD_PRELOAD=/usr/lib/libc_r.so
+	the	same as --enable-threads?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21984">[ date ]</a>
+              <a href="thread.html#21984">[ thread ]</a>
+              <a href="subject.html#21984">[ subject ]</a>
+              <a href="author.html#21984">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>All,
+
+Perhaps I ought to include more detail. Below are my install notes thus 
+far. Thanks.
+
+
+chad
+
+
+========================================
+     INSTALLING MOD_PYTHON ON FREEBSD
+========================================
+
+Download from <A HREF="http://www.modpython.org/">http://www.modpython.org/</A>
+
+    $ ./configure --with-apxs=/usr/local/apache2/bin/apxs
+    $ make
+    $ sudo make install
+
+Unfortunately, doing the standard dance on FreeBSD gives you the 
+following error when you try to LoadModule:
+
+   Syntax error on line 36 of /usr/local/apache2/conf/httpd.conf:
+   Cannot load /usr/local/apache2/modules/mod_python.so into server:
+     /usr/local/apache2/modules/mod_python.so: Undefined symbol
+     &quot;pthread_attr_init&quot;
+
+&quot;[T]hreads do not work well with Apache on FreeBSD&quot;,[1] so Apache does 
+not build with them by default on FreeBSD. You can get mod_python to 
+minimally work by compiling Apache with --enable-threads,[2] but using a 
+threaded Apache on FreeBSD does indeed appear to be a bad idea:
+
+     * &quot;The general experience is that after not very long, Apache starts
+       eating 100% of the CPU and not answering queries.&quot;[3]
+     * &quot;After doing a apache benchmark test with 'ab' I see a lot of
+       stuck http gets in /server-status listing.&quot;[4]
+
+Grisha's answer is to &quot;cause Apache to start with threaded libs&quot;[5] by 
+adding this to /usr/local/apache2/bin/envvars:[6]
+
+   export LD_PRELOAD=/usr/lib/libc_r.so
+
+But is this the same as compiling Apache with --enable-threads? There be 
+dragons, as noted above. Per ld.so(1),[7] LD_PRELOAD denotes &quot;[a] list 
+of shared libraries, separated by colons and/or white space, to be 
+linked in before any other shared libraries.&quot; And here my knowledge 
+ends: does linking in the library mean that Apache uses it (acquires 
+threadedness), or just that mod_python does? Does this mean I can use 
+threads from Python?
+
+Here's the thread on this problem on the mod_python dev list:
+
+     * Re: FreeBSD compile problem (was Getting ready for 3.2 beta 2)[8]
+
+-----
+
+[1] 
+<A HREF="http://mail-archives.apache.org/mod_mbox/httpd-python-dev/200509.mbox/%3c4324A60E.9090206@sympatico.ca%3e">http://mail-archives.apache.org/mod_mbox/httpd-python-dev/200509.mbox/%3c4324A60E.9090206@sympatico.ca%3e</A>
+[2] 
+<A HREF="http://www.monkey.org/freebsd/archive/freebsd-questions/200506/msg02836.html">http://www.monkey.org/freebsd/archive/freebsd-questions/200506/msg02836.html</A>
+[3] <A HREF="http://archives.seul.org/or/dev/Sep-2003/msg00016.html">http://archives.seul.org/or/dev/Sep-2003/msg00016.html</A>
+[4] 
+<A HREF="http://lists.freebsd.org/pipermail/freebsd-apache/2005-November/000404.html">http://lists.freebsd.org/pipermail/freebsd-apache/2005-November/000404.html</A>
+[5] 
+<A HREF="http://mail-archives.apache.org/mod_mbox/httpd-python-dev/200509.mbox/%3c20050912094856.K58317@grisha.dyndns.org%3e">http://mail-archives.apache.org/mod_mbox/httpd-python-dev/200509.mbox/%3c20050912094856.K58317@grisha.dyndns.org%3e</A>
+[6] 
+<A HREF="http://mail-archives.apache.org/mod_mbox/httpd-python-dev/200509.mbox/%3c20050912121753.W62057@grisha.dyndns.org%3e">http://mail-archives.apache.org/mod_mbox/httpd-python-dev/200509.mbox/%3c20050912121753.W62057@grisha.dyndns.org%3e</A>
+[7] 
+<A HREF="http://www.freebsd.org/cgi/man.cgi?query=ld.so&amp;manpath=FreeBSD+6.0-RELEASE">http://www.freebsd.org/cgi/man.cgi?query=ld.so&amp;manpath=FreeBSD+6.0-RELEASE</A>
+[8] 
+<A HREF="http://mail-archives.apache.org/mod_mbox/httpd-python-dev/200509.mbox/thread">http://mail-archives.apache.org/mod_mbox/httpd-python-dev/200509.mbox/thread</A>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021983.html">[mod_python] threads and FreeBSD: LD_PRELOAD=/usr/lib/libc_r.so the
+	same as --enable-threads?
+</A></li>
+	<LI>Next message: <A HREF="021986.html">[mod_python] threads and FreeBSD: LD_PRELOAD=/usr/lib/libc_r.so
+	the	same as --enable-threads?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21984">[ date ]</a>
+              <a href="thread.html#21984">[ thread ]</a>
+              <a href="subject.html#21984">[ subject ]</a>
+              <a href="author.html#21984">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

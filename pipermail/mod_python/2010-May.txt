@@ -1,0 +1,1185 @@
+From surly_the_clown at hotmail.com  Tue May  4 19:12:48 2010
+From: surly_the_clown at hotmail.com (Surly The Clown)
+Date: Tue May  4 19:12:57 2010
+Subject: [mod_python] mod_python import failure on FreeBSD AMD64
+Message-ID: <BAY144-W119EFB479E54E81AEB7F76AEF30@phx.gbl>
+
+
+Hello all,
+
+
+I have two FreeBSD machines, both running the latest FreeBSD-8.0 release, apache-2.2.14_6, and mod_python-3.3.1_2. On one of the machines, the i386 one, there are no problems. Everything works fine. On the other one, an AMD64 machine, any attempt to access a page handled by mod_python results in a 500 Internal Server Error response and the following error log:
+
+
+[Tue May 04 14:41:34 2010] [notice] mod_python: Creating 8 session mutexes based on 256 max processes and 0 max threads.
+[Tue May 04 14:41:34 2010] [notice] mod_python: using mutex_directory /tmp
+[Tue May 04 14:41:34 2010] [notice] Apache/2.2.14 (FreeBSD) mod_python/3.3.1 Python/2.6.4 configured -- resuming normal operations
+sem_init: No space left on device
+[Tue May 04 14:41:51 2010] [error] make_obcallback: could not import mod_python.apache.\n
+Traceback (most recent call last):
+  File "/usr/local/lib/python2.6/site-packages/mod_python/apache.py", line 29, in <module>
+    import cgi
+  File "/usr/local/lib/python2.6/cgi.py", line 40, in <module>
+    import urllib
+  File "/usr/local/lib/python2.6/urllib.py", line 26, in <module>
+    import socket
+  File "/usr/local/lib/python2.6/socket.py", line 64, in <module>
+    from _ssl import SSLError as sslerror
+ImportError: cannot import name SSLError
+[Tue May 04 14:41:51 2010] [error] make_obcallback: Python path being used "['/usr/local/lib/python2.6/site-packages/setuptools-0.6c11-py2.6.egg', '/usr/local/lib/python2.6/site-packages/nose-0.11.1-py2.6.egg', '/usr/local/lib/python26.zip', '/usr/local/lib/python2.6', '/usr/local/lib/python2.6/plat-freebsd8', '/usr/local/lib/python2.6/lib-tk', '/usr/local/lib/python2.6/lib-old', '/usr/local/lib/python2.6/lib-dynload', '/usr/local/lib/python2.6/site-packages', '/usr/local/lib/python2.6/site-packages/Numeric', '/usr/local/lib/python2.6/site-packages/gtk-2.0']".
+[Tue May 04 14:41:51 2010] [error] get_interpreter: no interpreter callback found.
+[Tue May 04 14:41:51 2010] [error] [client 192.168.123.106] python_handler: Can't get/create interpreter.
+[Tue May 04 14:41:51 2010] [error] [client 192.168.123.106] File does not exist: /usr/home/chrisa/test/favicon.ico, referer: http://192.168.123.136:8080/fetch.py
+
+
+Going into the python interpreter and entering "from _ssl import SSLError as sslerror" results in no error. Doing all the imports (except _apache) found in the apache.py file in order also results in no error. In fact, entering "from mod_python import apache" acts as expected, failing only on the "import _apache" line in apache.py, as that is only defined when the interpreter is embedded. The error with importing cgi only seems to occur when called from within apache, and only on the AMD64 machine.
+
+
+I doubt this is caused by some bug in the AMD64 version because as far as I've been able to tell, nobody has this problem but me.
+
+
+My httpd.conf on the machine which has the problem (comments stripped):
+
+
+ServerRoot "/usr/local"
+Listen 8080
+LoadModule deflate_module libexec/apache22/mod_deflate.so
+LoadModule log_config_module libexec/apache22/mod_log_config.so
+LoadModule mime_magic_module libexec/apache22/mod_mime_magic.so
+LoadModule unique_id_module libexec/apache22/mod_unique_id.so
+LoadModule mime_module libexec/apache22/mod_mime.so
+LoadModule dir_module libexec/apache22/mod_dir.so
+LoadModule authz_host_module libexec/apache22/mod_authz_host.so
+LoadModule python_module libexec/apache22/mod_python.so
+<IfModule !mpm_netware_module>
+<IfModule !mpm_winnt_module>
+User www
+Group www
+</IfModule>
+</IfModule>
+ServerAdmin you@example.com
+ServerName 192.168.123.136:8080
+DocumentRoot "/usr/home/chrisa/test"
+<Directory />
+    AllowOverride None
+    Options None
+    Order deny,allow
+    Deny from all
+</Directory>
+<Directory "/usr/home/chrisa/test">
+    Options None
+    DirectoryIndex index.html
+    AddHandler mod_python .py .php .html .swf .pdf .js
+    PythonHandler fetch
+    PythonDebug On
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+</Directory>
+<IfModule dir_module>
+    DirectoryIndex index.html
+</IfModule>
+<FilesMatch "^\.ht">
+    Order allow,deny
+    Deny from all
+    Satisfy All
+</FilesMatch>
+ErrorLog "/var/log/httpd-error.log"
+LogLevel warn
+<IfModule log_config_module>
+    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+    LogFormat "%h %l %u %t \"%r\" %>s %b" common
+    <IfModule logio_module>
+      LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %I %O" combinedio
+    </IfModule>
+    CustomLog "/var/log/httpd-access.log" combined
+</IfModule>
+DefaultType text/plain
+<IfModule mime_module>
+    TypesConfig etc/apache22/mime.types
+    AddEncoding x-compress .Z
+    AddEncoding x-gzip .gz .tgz
+</IfModule>
+
+
+
+The one on the machine where it works differs only in DocumentRoot and Directory, as the directory structure is a little different there.
+
+
+ 		 	   		  
+_________________________________________________________________
+MSN Dating: Find someone special. Start now.
+http://go.microsoft.com/?linkid=9729707
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20100504/31bc54a4/attachment.html
+From graham.dumpleton at gmail.com  Tue May  4 19:30:10 2010
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Tue May  4 19:30:17 2010
+Subject: [mod_python] mod_python import failure on FreeBSD AMD64
+In-Reply-To: <BAY144-W119EFB479E54E81AEB7F76AEF30@phx.gbl>
+References: <BAY144-W119EFB479E54E81AEB7F76AEF30@phx.gbl>
+Message-ID: <k2t88e286471005041630o3c4ac63ck11e16f50541ad268@mail.gmail.com>
+
+On 5 May 2010 09:12, Surly The Clown <surly_the_clown@hotmail.com> wrote:
+> Hello all,
+>
+>
+> I have two FreeBSD machines, both running the latest FreeBSD-8.0 release,
+> apache-2.2.14_6, and mod_python-3.3.1_2. On one of the machines, the i386
+> one, there are no problems. Everything works fine. On the other one, an
+> AMD64 machine, any attempt to access a page handled by mod_python results in
+> a 500 Internal Server Error response and the following error log:
+>
+>
+> [Tue May 04 14:41:34 2010] [notice] mod_python: Creating 8 session mutexes
+> based on 256 max processes and 0 max threads.
+> [Tue May 04 14:41:34 2010] [notice] mod_python: using mutex_directory /tmp
+> [Tue May 04 14:41:34 2010] [notice] Apache/2.2.14 (FreeBSD) mod_python/3.3.1
+> Python/2.6.4 configured -- resuming normal operations
+> sem_init: No space left on device
+
+The first problem is that you don't have enough SYSV semaphores
+configured for your system.
+
+You can try setting:
+
+  PythonOption mod_python.mutex_locks 4
+
+to reduce number used, but you still may not have enough.
+
+Try fixing that first using that option, or by increasing number of
+semaphores in kernel configuration.
+
+Graham
+
+> [Tue May 04 14:41:51 2010] [error] make_obcallback: could not import
+> mod_python.apache.\n
+> Traceback (most recent call last):
+> File "/usr/local/lib/python2.6/site-packages/mod_python/apache.py", line 29,
+> in <module>
+> import cgi
+> File "/usr/local/lib/python2.6/cgi.py", line 40, in <module>
+> import urllib
+> File "/usr/local/lib/python2.6/urllib.py", line 26, in <module>
+> import socket
+> File "/usr/local/lib/python2.6/socket.py", line 64, in <module>
+> from _ssl import SSLError as sslerror
+> ImportError: cannot import name SSLError
+> [Tue May 04 14:41:51 2010] [error] make_obcallback: Python path being used
+> "['/usr/local/lib/python2.6/site-packages/setuptools-0.6c11-py2.6.egg',
+> '/usr/local/lib/python2.6/site-packages/nose-0.11.1-py2.6.egg',
+> '/usr/local/lib/python26.zip', '/usr/local/lib/python2.6',
+> '/usr/local/lib/python2.6/plat-freebsd8', '/usr/local/lib/python2.6/lib-tk',
+> '/usr/local/lib/python2.6/lib-old', '/usr/local/lib/python2.6/lib-dynload',
+> '/usr/local/lib/python2.6/site-packages',
+> '/usr/local/lib/python2.6/site-packages/Numeric',
+> '/usr/local/lib/python2.6/site-packages/gtk-2.0']".
+> [Tue May 04 14:41:51 2010] [error] get_interpreter: no interpreter callback
+> found.
+> [Tue May 04 14:41:51 2010] [error] [client 192.168.123.106] python_handler:
+> Can't get/create interpreter.
+> [Tue May 04 14:41:51 2010] [error] [client 192.168.123.106] File does not
+> exist: /usr/home/chrisa/test/favicon.ico, referer:
+> http://192.168.123.136:8080/fetch.py
+>
+>
+> Going into the python interpreter and entering "from _ssl import SSLError as
+> sslerror" results in no error. Doing all the imports (except _apache) found
+> in the apache.py file in order also results in no error. In fact, entering
+> "from mod_python import apache" acts as expected, failing only on the
+> "import _apache" line in apache.py, as that is only defined when the
+> interpreter is embedded. The error with importing cgi only seems to occur
+> when called from within apache, and only on the AMD64 machine.
+>
+>
+> I doubt this is caused by some bug in the AMD64 version because as far as
+> I've been able to tell, nobody has this problem but me.
+>
+>
+> My httpd.conf on the machine which has the problem (comments stripped):
+>
+>
+> ServerRoot "/usr/local"
+> Listen 8080
+> LoadModule deflate_module libexec/apache22/mod_deflate.so
+> LoadModule log_config_module libexec/apache22/mod_log_config.so
+> LoadModule mime_magic_module libexec/apache22/mod_mime_magic.so
+> LoadModule unique_id_module libexec/apache22/mod_unique_id.so
+> LoadModule mime_module libexec/apache22/mod_mime.so
+> LoadModule dir_module libexec/apache22/mod_dir.so
+> LoadModule authz_host_module libexec/apache22/mod_authz_host.so
+> LoadModule python_module libexec/apache22/mod_python.so
+> <IfModule !mpm_netware_module>
+> <IfModule !mpm_winnt_module>
+> User www
+> Group www
+> </IfModule>
+> </IfModule>
+> ServerAdmin you@example.com
+> ServerName 192.168.123.136:8080
+> DocumentRoot "/usr/home/chrisa/test"
+> <Directory />
+> AllowOverride None
+> Options None
+> Order deny,allow
+> Deny from all
+> </Directory>
+> <Directory "/usr/home/chrisa/test">
+> Options None
+> DirectoryIndex index.html
+> AddHandler mod_python .py .php .html .swf .pdf .js
+> PythonHandler fetch
+> PythonDebug On
+> AllowOverride None
+> Order allow,deny
+> Allow from all
+> </Directory>
+> <IfModule dir_module>
+> DirectoryIndex index.html
+> </IfModule>
+> <FilesMatch "^\.ht">
+> Order allow,deny
+> Deny from all
+> Satisfy All
+> </FilesMatch>
+> ErrorLog "/var/log/httpd-error.log"
+> LogLevel warn
+> <IfModule log_config_module>
+> LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
+> combined
+> LogFormat "%h %l %u %t \"%r\" %>s %b" common
+> <IfModule logio_module>
+> LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %I
+> %O" combinedio
+> </IfModule>
+> CustomLog "/var/log/httpd-access.log" combined
+> </IfModule>
+> DefaultType text/plain
+> <IfModule mime_module>
+> TypesConfig etc/apache22/mime.types
+> AddEncoding x-compress .Z
+> AddEncoding x-gzip .gz .tgz
+> </IfModule>
+>
+>
+>
+> The one on the machine where it works differs only in DocumentRoot and
+> Directory, as the directory structure is a little different there.
+>
+>
+>
+> ________________________________
+> MSN Dating: Find someone special. Start now. Start now!
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+>
+From surly_the_clown at hotmail.com  Tue May  4 22:53:29 2010
+From: surly_the_clown at hotmail.com (Surly The Clown)
+Date: Tue May  4 22:53:35 2010
+Subject: [mod_python] mod_python import failure on FreeBSD AMD64
+Message-ID: <BAY144-W27436B31BF4E5E32D5A12FAEF40@phx.gbl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+> Date: Wed, 5 May 2010 09:30:10 +1000
+> Subject: Re: [mod_python] mod_python import failure on FreeBSD AMD64
+> From: graham.dumpleton@gmail.com
+> To: surly_the_clown@hotmail.com
+> CC: mod_python@modpython.org
+> 
+> On 5 May 2010 09:12, Surly The Clown <surly_the_clown@hotmail.com> wrote:
+> > Hello all,
+> >
+> >
+> > I have two FreeBSD machines, both running the latest FreeBSD-8.0 release,
+> > apache-2.2.14_6, and mod_python-3.3.1_2. On one of the machines, the i386
+> > one, there are no problems. Everything works fine. On the other one, an
+> > AMD64 machine, any attempt to access a page handled by mod_python results in
+> > a 500 Internal Server Error response and the following error log:
+> >
+> >
+> > [Tue May 04 14:41:34 2010] [notice] mod_python: Creating 8 session mutexes
+> > based on 256 max processes and 0 max threads.
+> > [Tue May 04 14:41:34 2010] [notice] mod_python: using mutex_directory /tmp
+> > [Tue May 04 14:41:34 2010] [notice] Apache/2.2.14 (FreeBSD) mod_python/3.3.1
+> > Python/2.6.4 configured -- resuming normal operations
+> > sem_init: No space left on device
+> 
+> The first problem is that you don't have enough SYSV semaphores
+> configured for your system.
+> 
+> You can try setting:
+> 
+>   PythonOption mod_python.mutex_locks 4
+> 
+> to reduce number used, but you still may not have enough.
+> 
+> Try fixing that first using that option, or by increasing number of
+> semaphores in kernel configuration.
+> 
+> Graham
+
+
+
+Thank you very much for responding. The lack of activity on this mailing list had me thinking no one used it anymore.
+
+I tried setting PythonOption mod_python.mutex_locks 4, and the problem persisted. I then tried increasing the number of available semaphores in the kernel from the default 10 (!) to 256, verified that that setting had changed, and then tried again. The problem still persists. Furthermore, four files that appear to be the mutexes exist in /tmp, named mpmtx15570 to mpmtx15573. Perhaps mod_python isn't using kernel semaphores? Its documentation says that it doesn't always. And /tmp isn't out of space (no partition is).
+
+Any more ideas?
+
+Error log:
+
+[Tue May 04 19:42:14 2010] [notice] mod_python: Creating 4 session mutexes based on 256 max processes and 0 max threads.
+[Tue May 04 19:42:14 2010] [notice] mod_python: using mutex_directory /tmp
+[Tue May 04 19:42:14 2010] [notice] Apache/2.2.14 (FreeBSD) mod_python/3.3.1 Python/2.6.4 configured -- resuming normal operations
+sem_init: No space left on device
+[Tue May 04 19:42:15 2010] [error] make_obcallback: could not import mod_python.apache.\n
+Traceback (most recent call last):
+  File "/usr/local/lib/python2.6/site-packages/mod_python/apache.py", line 29, in <module>
+    import cgi
+  File "/usr/local/lib/python2.6/cgi.py", line 40, in <module>
+    import urllib
+  File "/usr/local/lib/python2.6/urllib.py", line 26, in <module>
+    import socket
+  File "/usr/local/lib/python2.6/socket.py", line 64, in <module>
+    from _ssl import SSLError as sslerror
+ImportError: cannot import name SSLError
+[Tue May 04 19:42:15 2010] [error] make_obcallback: Python path being used "['/usr/local/lib/python2.6/site-packages/setuptools-0.6c11-py2.6.egg', '/usr/local/lib/python2.6/site-packages/nose-0.11.1-py2.6.egg', '/usr/local/lib/python26.zip', '/usr/local/lib/python2.6', '/usr/local/lib/python2.6/plat-freebsd8', '/usr/local/lib/python2.6/lib-tk', '/usr/local/lib/python2.6/lib-old', '/usr/local/lib/python2.6/lib-dynload', '/usr/local/lib/python2.6/site-packages', '/usr/local/lib/python2.6/site-packages/Numeric', '/usr/local/lib/python2.6/site-packages/gtk-2.0']".
+[Tue May 04 19:42:15 2010] [error] get_interpreter: no interpreter callback found.
+[Tue May 04 19:42:15 2010] [error] [client 192.168.123.106] python_handler: Can't get/create interpreter.
+[Tue May 04 19:42:15 2010] [error] [client 192.168.123.106] File does not exist: /usr/home/chrisa/test/favicon.ico, referer: http://192.168.123.136:8080/fetch.py
+
+httpd.conf:
+
+ServerRoot "/usr/local"
+
+Listen 8080
+LoadModule deflate_module libexec/apache22/mod_deflate.so
+LoadModule log_config_module libexec/apache22/mod_log_config.so
+LoadModule mime_magic_module libexec/apache22/mod_mime_magic.so
+LoadModule unique_id_module libexec/apache22/mod_unique_id.so
+LoadModule mime_module libexec/apache22/mod_mime.so
+LoadModule dir_module libexec/apache22/mod_dir.so
+LoadModule authz_host_module libexec/apache22/mod_authz_host.so
+LoadModule python_module libexec/apache22/mod_python.so
+<IfModule !mpm_netware_module>
+<IfModule !mpm_winnt_module>
+User www
+Group www
+</IfModule>
+</IfModule>
+ServerAdmin you@example.com
+ServerName 192.168.123.136:8080
+DocumentRoot "/usr/home/chrisa/test"
+PythonOption mod_python.mutex_locks 4
+<Directory />
+    AllowOverride None
+    Options None
+    Order deny,allow
+    Deny from all
+</Directory>
+<Directory "/usr/home/chrisa/test">
+    Options None
+    DirectoryIndex index.html
+    AddHandler mod_python .py .php .html .swf .pdf .js
+    PythonHandler fetch
+    PythonDebug On
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+</Directory>
+<IfModule dir_module>
+    DirectoryIndex index.html
+</IfModule>
+<FilesMatch "^\.ht">
+    Order allow,deny
+    Deny from all
+    Satisfy All
+</FilesMatch>
+ErrorLog "/var/log/httpd-error.log"
+LogLevel warn
+<IfModule log_config_module>
+    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+    LogFormat "%h %l %u %t \"%r\" %>s %b" common
+    <IfModule logio_module>
+      LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %I %O" combinedio
+    </IfModule>
+    CustomLog "/var/log/httpd-access.log" combined
+</IfModule>
+DefaultType text/plain
+<IfModule mime_module>
+    TypesConfig etc/apache22/mime.types
+    AddEncoding x-compress .Z
+    AddEncoding x-gzip .gz .tgz
+</IfModule>
+
+
+
+
+ 		 	   		  
+_________________________________________________________________
+Win a $10,000 shopping spree from Hotmail! Enter now.
+http://go.microsoft.com/?linkid=9729711
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20100504/330dd653/attachment-0001.html
+From graham.dumpleton at gmail.com  Tue May  4 23:01:23 2010
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Tue May  4 23:01:29 2010
+Subject: [mod_python] mod_python import failure on FreeBSD AMD64
+In-Reply-To: <BAY144-W27436B31BF4E5E32D5A12FAEF40@phx.gbl>
+References: <BAY144-W27436B31BF4E5E32D5A12FAEF40@phx.gbl>
+Message-ID: <y2u88e286471005042001l40a46d42n4b090f1bdaa3affa@mail.gmail.com>
+
+On 5 May 2010 12:53, Surly The Clown <surly_the_clown@hotmail.com> wrote:
+>> Date: Wed, 5 May 2010 09:30:10 +1000
+>> Subject: Re: [mod_python] mod_python import failure on FreeBSD AMD64
+>> From: graham.dumpleton@gmail.com
+>> To: surly_the_clown@hotmail.com
+>> CC: mod_python@modpython.org
+>>
+>> On 5 May 2010 09:12, Surly The Clown <surly_the_clown@hotmail.com> wrote:
+>> > Hello all,
+>> >
+>> >
+>> > I have two FreeBSD machines, both running the latest FreeBSD-8.0
+>> > release,
+>> > apache-2.2.14_6, and mod_python-3.3.1_2. On one of the machines, the
+>> > i386
+>> > one, there are no problems. Everything works fine. On the other one, an
+>> > AMD64 machine, any attempt to access a page handled by mod_python
+>> > results in
+>> > a 500 Internal Server Error response and the following error log:
+>> >
+>> >
+>> > [Tue May 04 14:41:34 2010] [notice] mod_python: Creating 8 session
+>> > mutexes
+>> > based on 256 max processes and 0 max threads.
+>> > [Tue May 04 14:41:34 2010] [notice] mod_python: using mutex_directory
+>> > /tmp
+>> > [Tue May 04 14:41:34 2010] [notice] Apache/2.2.14 (FreeBSD)
+>> > mod_python/3.3.1
+>> > Python/2.6.4 configured -- resuming normal operations
+>> > sem_init: No space left on device
+>>
+>> The first problem is that you don't have enough SYSV semaphores
+>> configured for your system.
+>>
+>> You can try setting:
+>>
+>> PythonOption mod_python.mutex_locks 4
+>>
+>> to reduce number used, but you still may not have enough.
+>>
+>> Try fixing that first using that option, or by increasing number of
+>> semaphores in kernel configuration.
+>>
+>> Graham
+>
+> Thank you very much for responding. The lack of activity on this mailing
+> list had me thinking no one used it anymore.
+
+It isn't actively developed any more and if all you want to do is host
+a web application, and not hook into Apache request phases, you are
+better off using WSGI capable Python web frameworks and hosting using
+mod_wsgi or fastcgi/flup.
+
+> I tried setting PythonOption mod_python.mutex_locks 4, and the problem
+> persisted. I then tried increasing the number of available semaphores in the
+> kernel from the default 10 (!) to 256, verified that that setting had
+> changed, and then tried again. The problem still persists. Furthermore, four
+> files that appear to be the mutexes exist in /tmp,
+
+The sem_init() call is I believe a kernel thing, not a filesystem type of lock.
+
+Such kernel setting changes usually only take affect after a system
+reboot. Did you do that?
+
+> named mpmtx15570 to
+> mpmtx15573. Perhaps mod_python isn't using kernel semaphores? Its
+> documentation says that it doesn't always. And /tmp isn't out of space (no
+> partition is).
+
+What is used depends on what Apache/APR sets up as default type of
+semaphore. It prefers certain types and what is available depends on
+the operating system.
+
+> Any more ideas?
+
+Don't use mod_python if you don't have to.
+
+What are you wanting to host using it?
+
+Graham
+
+> Error log:
+>
+> [Tue May 04 19:42:14 2010] [notice] mod_python: Creating 4 session mutexes
+> based on 256 max processes and 0 max threads.
+> [Tue May 04 19:42:14 2010] [notice] mod_python: using mutex_directory /tmp
+> [Tue May 04 19:42:14 2010] [notice] Apache/2.2.14 (FreeBSD) mod_python/3.3.1
+> Python/2.6.4 configured -- resuming normal operations
+> sem_init: No space left on device
+> [Tue May 04 19:42:15 2010] [error] make_obcallback: could not import
+> mod_python.apache.\n
+> Traceback (most recent call last):
+> File "/usr/local/lib/python2.6/site-packages/mod_python/apache.py", line 29,
+> in <module>
+> import cgi
+> File "/usr/local/lib/python2.6/cgi.py", line 40, in <module>
+> import urllib
+> File "/usr/local/lib/python2.6/urllib.py", line 26, in <module>
+> import socket
+> File "/usr/local/lib/python2.6/socket.py", line 64, in <module>
+> from _ssl import SSLError as sslerror
+> ImportError: cannot import name SSLError
+> [Tue May 04 19:42:15 2010] [error] make_obcallback: Python path being used
+> "['/usr/local/lib/python2.6/site-packages/setuptools-0.6c11-py2.6.egg',
+> '/usr/local/lib/python2.6/site-packages/nose-0.11.1-py2.6.egg',
+> '/usr/local/lib/python26.zip', '/usr/local/lib/python2.6',
+> '/usr/local/lib/python2.6/plat-freebsd8', '/usr/local/lib/python2.6/lib-tk',
+> '/usr/local/lib/python2.6/lib-old', '/usr/local/lib/python2.6/lib-dynload',
+> '/usr/local/lib/python2.6/site-packages',
+> '/usr/local/lib/python2.6/site-packages/Numeric',
+> '/usr/local/lib/python2.6/site-packages/gtk-2.0']".
+> [Tue May 04 19:42:15 2010] [error] get_interpreter: no interpreter callback
+> found.
+> [Tue May 04 19:42:15 2010] [error] [client 192.168.123.106] python_handler:
+> Can't get/create interpreter.
+> [Tue May 04 19:42:15 2010] [error] [client 192.168.123.106] File does not
+> exist: /usr/home/chrisa/test/favicon.ico, referer:
+> http://192.168.123.136:8080/fetch.py
+>
+> httpd.conf:
+>
+> ServerRoot "/usr/local"
+>
+> Listen 8080
+> LoadModule deflate_module libexec/apache22/mod_deflate.so
+> LoadModule log_config_module libexec/apache22/mod_log_config.so
+> LoadModule mime_magic_module libexec/apache22/mod_mime_magic.so
+> LoadModule unique_id_module libexec/apache22/mod_unique_id.so
+> LoadModule mime_module libexec/apache22/mod_mime.so
+> LoadModule dir_module libexec/apache22/mod_dir.so
+> LoadModule authz_host_module libexec/apache22/mod_authz_host.so
+> LoadModule python_module libexec/apache22/mod_python.so
+> <IfModule !mpm_netware_module>
+> <IfModule !mpm_winnt_module>
+> User www
+> Group www
+> </IfModule>
+> </IfModule>
+> ServerAdmin you@example.com
+> ServerName 192.168.123.136:8080
+> DocumentRoot "/usr/home/chrisa/test"
+> PythonOption mod_python.mutex_locks 4
+> <Directory />
+> AllowOverride None
+> Options None
+> Order deny,allow
+> Deny from all
+> </Directory>
+> <Directory "/usr/home/chrisa/test">
+> Options None
+> DirectoryIndex index.html
+> AddHandler mod_python .py .php .html .swf .pdf .js
+> PythonHandler fetch
+> PythonDebug On
+> AllowOverride None
+> Order allow,deny
+> Allow from all
+> </Directory>
+> <IfModule dir_module>
+> DirectoryIndex index.html
+> </IfModule>
+> <FilesMatch "^\.ht">
+> Order allow,deny
+> Deny from all
+> Satisfy All
+> </FilesMatch>
+> ErrorLog "/var/log/httpd-error.log"
+> LogLevel warn
+> <IfModule log_config_module>
+> LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
+> combined
+> LogFormat "%h %l %u %t \"%r\" %>s %b" common
+> <IfModule logio_module>
+> LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %I
+> %O" combinedio
+> </IfModule>
+> CustomLog "/var/log/httpd-access.log" combined
+> </IfModule>
+> DefaultType text/plain
+> <IfModule mime_module>
+> TypesConfig etc/apache22/mime.types
+> AddEncoding x-compress .Z
+> AddEncoding x-gzip .gz .tgz
+> </IfModule>
+>
+>
+> ________________________________
+> Win a $10,000 shopping spree from Hotmail! Enter now Enter now
+From surly_the_clown at hotmail.com  Tue May  4 23:13:51 2010
+From: surly_the_clown at hotmail.com (Surly The Clown)
+Date: Tue May  4 23:13:56 2010
+Subject: [mod_python] mod_python import failure on FreeBSD AMD64
+In-Reply-To: <y2u88e286471005042001l40a46d42n4b090f1bdaa3affa@mail.gmail.com>
+References: <BAY144-W27436B31BF4E5E32D5A12FAEF40@phx.gbl>,
+	<y2u88e286471005042001l40a46d42n4b090f1bdaa3affa@mail.gmail.com>
+Message-ID: <BAY144-W256F2BC9716AC93826066EAEF40@phx.gbl>
+
+
+> It isn't actively developed any more and if all you want to do is host
+> a web application, and not hook into Apache request phases, you are
+> better off using WSGI capable Python web frameworks and hosting using
+> mod_wsgi or fastcgi/flup.
+
+
+Unfortunately, I do need to hook into Apache request phases...
+
+
+> 
+> > I tried setting PythonOption mod_python.mutex_locks 4, and the problem
+> > persisted. I then tried increasing the number of available semaphores in the
+> > kernel from the default 10 (!) to 256, verified that that setting had
+> > changed, and then tried again. The problem still persists. Furthermore, four
+> > files that appear to be the mutexes exist in /tmp,
+> 
+> The sem_init() call is I believe a kernel thing, not a filesystem type of lock.
+> 
+> Such kernel setting changes usually only take affect after a system
+> reboot. Did you do that?
+
+
+Sure did.
+
+
+> 
+> > named mpmtx15570 to
+> > mpmtx15573. Perhaps mod_python isn't using kernel semaphores? Its
+> > documentation says that it doesn't always. And /tmp isn't out of space (no
+> > partition is).
+> 
+> What is used depends on what Apache/APR sets up as default type of
+> semaphore. It prefers certain types and what is available depends on
+> the operating system.
+
+
+I might have to dig into that to see where the sem_init message is coming from.
+
+
+> 
+> > Any more ideas?
+> 
+> Don't use mod_python if you don't have to.
+> 
+> What are you wanting to host using it?
+
+
+Big(ish) media files, and I'm wanting to hook into Apache so that I can control access to them with custom logic. As far as I've been able to determine, this is something that wsgi/fastcgi can't really do, unless you use URL rewriting to force the requests to go through a script. Even then, it's suboptimal as the file would then be piped through a script instead of handled directly by Apache. mod_python was pretty much exactly what I need.
+
+
+Thank you for your attempts to help, at any rate.
+
+
+ 		 	   		  
+_________________________________________________________________
+Win a $10,000 shopping spree from Hotmail! Enter now.
+http://go.microsoft.com/?linkid=9729711
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20100504/d517f851/attachment.html
+From graham.dumpleton at gmail.com  Tue May  4 23:17:07 2010
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Tue May  4 23:17:14 2010
+Subject: [mod_python] mod_python import failure on FreeBSD AMD64
+In-Reply-To: <BAY144-W256F2BC9716AC93826066EAEF40@phx.gbl>
+References: <BAY144-W27436B31BF4E5E32D5A12FAEF40@phx.gbl>
+	<y2u88e286471005042001l40a46d42n4b090f1bdaa3affa@mail.gmail.com>
+	<BAY144-W256F2BC9716AC93826066EAEF40@phx.gbl>
+Message-ID: <p2j88e286471005042017s490dd38cqca3faa9769d568fe@mail.gmail.com>
+
+On 5 May 2010 13:13, Surly The Clown <surly_the_clown@hotmail.com> wrote:
+>> > Any more ideas?
+>>
+>> Don't use mod_python if you don't have to.
+>>
+>> What are you wanting to host using it?
+>
+>
+> Big(ish) media files, and I'm wanting to hook into Apache so that I can
+> control access to them with custom logic. As far as I've been able to
+> determine, this is something that wsgi/fastcgi can't really do, unless you
+> use URL rewriting to force the requests to go through a script. Even then,
+> it's suboptimal as the file would then be piped through a script instead of
+> handled directly by Apache. mod_python was pretty much exactly what I need.
+
+
+Depends exactly on what you want to do. See:
+
+  http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms
+
+Graham
+From surly_the_clown at hotmail.com  Wed May  5 00:55:45 2010
+From: surly_the_clown at hotmail.com (Surly The Clown)
+Date: Wed May  5 00:55:51 2010
+Subject: [mod_python] mod_python import failure on FreeBSD AMD64
+Message-ID: <BAY144-W24C14007BB435C3AB6C12BAEF40@phx.gbl>
+
+
+
+
+
+
+
+
+
+
+> Date: Wed, 5 May 2010 13:17:07 +1000
+> Subject: Re: [mod_python] mod_python import failure on FreeBSD AMD64
+> From: graham.dumpleton@gmail.com
+> To: surly_the_clown@hotmail.com
+> CC: mod_python@modpython.org
+> 
+> On 5 May 2010 13:13, Surly The Clown <surly_the_clown@hotmail.com> wrote:
+> >> > Any more ideas?
+> >>
+> >> Don't use mod_python if you don't have to.
+> >>
+> >> What are you wanting to host using it?
+> >
+> >
+> > Big(ish) media files, and I'm wanting to hook into Apache so that I can
+> > control access to them with custom logic. As far as I've been able to
+> > determine, this is something that wsgi/fastcgi can't really do, unless you
+> > use URL rewriting to force the requests to go through a script. Even then,
+> > it's suboptimal as the file would then be piped through a script instead of
+> > handled directly by Apache. mod_python was pretty much exactly what I need.
+> 
+> 
+> Depends exactly on what you want to do. See:
+> 
+>   http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms
+> 
+> Graham
+
+
+
+Interesting. Unfortunately, those access control mechanisms all seem to be based on http access control, which is inadequate for my needs. Specifically, what I need is the ability to enforce one login per user. You can't do this with http access control because it allows or denies access based solely on what the client sends the server, and does not have any way of denying access if, say, that username was logged in somewhere else, or if that is the case, logging out the other user session in favor of the new one. I spent quite some time looking for modules for both apache and nginx before I came to the conclusion that there were none, which I find astonishing. It's of course possible that I've missed something. However, mod_python will allow me to do what I need, and this scheme of access control does work.
+
+
+Now, I can see why you'd prefer to use wsgi or fastcgi if they are adequate for your needs, but mod_python can do some things that those just can't, and they are useful things, so I'm surprised that it's been abandoned.
+
+
+At any rate, I now have an additional machine where mod_python works: an i386 FreeBSD instance running in QEMU. And I also discovered that running make extract in mod_python's directory yields the error: "/usr/local/sbin/apxs: not found" and "===>  mod_python-3.3.1_2 : Your apache does not support DSO modules." Bizarre. Searching the inter-net for the latter message makes me think that something is messed up with apache. However, /usr/local/sbin/apxs is on the system, is executable, and runs. Deinstalling apache and then attempting to rebuild it yields:
+
+
+./buildconf: /usr/local/bin/autoheader-2.62: not found
+
+
+which is once again actually on the system and working fine. This leads me to believe that something is seriously messed up with that system and that is likely why mod_python isn't working. Thank you for your assistance, though.
+
+
+
+ 		 	   		  
+_________________________________________________________________
+Win $10,000 from Hotmail! Enter Here.
+http://go.microsoft.com/?linkid=9729708
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20100504/00d396c8/attachment.html
+From graham.dumpleton at gmail.com  Wed May  5 01:51:51 2010
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed May  5 01:52:17 2010
+Subject: [mod_python] mod_python import failure on FreeBSD AMD64
+In-Reply-To: <BAY144-W24C14007BB435C3AB6C12BAEF40@phx.gbl>
+References: <BAY144-W24C14007BB435C3AB6C12BAEF40@phx.gbl>
+Message-ID: <m2v88e286471005042251ma7b7cc6enc51f8f18da74c8b2@mail.gmail.com>
+
+On 5 May 2010 14:55, Surly The Clown <surly_the_clown@hotmail.com> wrote:
+>
+>
+>> Date: Wed, 5 May 2010 13:17:07 +1000
+>> Subject: Re: [mod_python] mod_python import failure on FreeBSD AMD64
+>> From: graham.dumpleton@gmail.com
+>> To: surly_the_clown@hotmail.com
+>> CC: mod_python@modpython.org
+>>
+>> On 5 May 2010 13:13, Surly The Clown <surly_the_clown@hotmail.com> wrote:
+>> >> > Any more ideas?
+>> >>
+>> >> Don't use mod_python if you don't have to.
+>> >>
+>> >> What are you wanting to host using it?
+>> >
+>> >
+>> > Big(ish) media files, and I'm wanting to hook into Apache so that I can
+>> > control access to them with custom logic. As far as I've been able to
+>> > determine, this is something that wsgi/fastcgi can't really do, unless
+>> > you
+>> > use URL rewriting to force the requests to go through a script. Even
+>> > then,
+>> > it's suboptimal as the file would then be piped through a script instead
+>> > of
+>> > handled directly by Apache. mod_python was pretty much exactly what I
+>> > need.
+>>
+>>
+>> Depends exactly on what you want to do. See:
+>>
+>> http://code.google.com/p/modwsgi/wiki/AccessControlMechanisms
+>>
+>> Graham
+>
+>
+>
+> Interesting. Unfortunately, those access control mechanisms all seem to be
+> based on http access control, which is inadequate for my needs.
+> Specifically, what I need is the ability to enforce one login per user. You
+> can't do this with http access control because it allows or denies access
+> based solely on what the client sends the server, and does not have any way
+> of denying access if, say, that username was logged in somewhere else, or if
+> that is the case, logging out the other user session in favor of the new
+> one. I spent quite some time looking for modules for both apache and nginx
+> before I came to the conclusion that there were none, which I find
+> astonishing. It's of course possible that I've missed something. However,
+> mod_python will allow me to do what I need, and this scheme of access
+> control does work.
+
+I warn you that using mod_python to do that will be a PITA.
+
+You don't even need to hook into the early phases of Apache request
+processing to do what you want. You would be better off writing a
+standard WSGI application which incorporates the form/session based
+login mechanism to handle access and then use X-Sendfile response
+header and mod_sendfile to then serve up the static file.
+
+This gives you a number of benefits. The most important is that you
+have a portable solution as it could be hosted on mod_wsgi or
+mod_fcgid/flup on Apache with mod_xsendfile in Apache serving up the
+file based on X-Sendfile. You could also use nginx/fastcgi/flup and
+equivalent X-Sendile support in nginx using its mod_xsendfile.
+
+Another way besides using X-Sendfile is to use nginx X-Accel-Redirect
+header with private URL namespace. This can be used in front of
+nginx/fastcgi/flup or where nginx is front end to Apache/mod_wsgi.
+
+Thus, you have multiple widely used and well tested existing means of
+serving up static files via the web server, where the file is
+controlled by a web application implementing the access control.
+
+Another benefit is that you don't have to implement from scratch the
+form/session login mechanism as you can reuse an existing WSGI
+component which performs that task already. Options for that are
+Beaker (http://beaker.groovie.org/) and repoze.who
+(http://docs.repoze.org/who/2.0/).
+
+If you still don't want to go that path and want an Apache only
+solution, suggest you look at mod_auth_tkt
+(http://www.openfusion.com.au/labs/mod_auth_tkt/).
+
+There is also mod_session in Apache, but that is only available from
+Apache 2.3 onwards.
+
+> Now, I can see why you'd prefer to use wsgi or fastcgi if they are adequate
+> for your needs, but mod_python can do some things that those just can't, and
+> they are useful things, so I'm surprised that it's been abandoned.
+
+Few people need those additional features.
+
+> At any rate, I now have an additional machine where mod_python works: an
+> i386 FreeBSD instance running in QEMU. And I also discovered that running
+> make extract in mod_python's directory yields the error:
+> "/usr/local/sbin/apxs: not found" and "===> mod_python-3.3.1_2 : Your apache
+> does not support DSO modules." Bizarre.
+
+Not really. FreeBSD is a very backward system when it comes to Apache
+and you may find it only ships with Apache 1.3. Even when you can get
+Apache 2.X for FreeBSD, it often has all multithreading support
+disabled completely in APR libraries.
+
+> Searching the inter-net for the
+> latter message makes me think that something is messed up with apache.
+> However, /usr/local/sbin/apxs is on the system, is executable, and runs.
+> Deinstalling apache and then attempting to rebuild it yields:
+>
+>
+> ./buildconf: /usr/local/bin/autoheader-2.62: not found
+>
+>
+> which is once again actually on the system and working fine. This leads me
+> to believe that something is seriously messed up with that system and that
+> is likely why mod_python isn't working. Thank you for your assistance,
+> though.
+
+
+Graham
+From graham.dumpleton at gmail.com  Thu May 27 19:33:42 2010
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu May 27 19:33:50 2010
+Subject: [mod_python] The mod_python project soon to be officially dead.
+Message-ID: <AANLkTik5hew3mvUpqn9WfAejrtGQZSq2rXmjrU9yiYq0@mail.gmail.com>
+
+I have warned about this before on the list, but it is getting closer now.
+
+If you are a user of mod_python, read my blog post about the topic at:
+
+  http://blog.dscpl.com.au/2010/05/modpython-project-soon-to-be-officially.html
+
+Graham
+From graham.dumpleton at gmail.com  Thu May 27 20:07:30 2010
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu May 27 20:07:36 2010
+Subject: [mod_python] The mod_python project soon to be officially dead.
+In-Reply-To: <680A965E-9742-445E-961B-CCABBF85CF47@me.com>
+References: <AANLkTik5hew3mvUpqn9WfAejrtGQZSq2rXmjrU9yiYq0@mail.gmail.com>
+	<680A965E-9742-445E-961B-CCABBF85CF47@me.com>
+Message-ID: <AANLkTinrHJyCrLt4iOFpvsZtXMgCzjjjGKml7xud5mKf@mail.gmail.com>
+
+On 28 May 2010 09:53, Jason Caldwell <jscnet99@me.com> wrote:
+> Hi Graham --
+> I would like to see mod_python continue on. ?Supporting Py3.
+
+Well, find like minded people and take on development and support of
+mod_python yourself. That is going to be the only solution.
+
+Knowing all the problems with how to deal with all the Unicode/bytes
+issues in Python 3.X it is going even be a major task working out what
+the interfaces should look like and where bytes versus Unicode should
+be used. The argument about this for WSGI has been going on for almost
+2 years now I think and still now final resolution and WSGI is a lot
+smaller interface than mod_python.
+
+Also, there are a significant number of bugs in mod_python and
+seriously they would need to be addressed before even trying to go to
+Python 3.X. All up it is going to need some serious commitment and
+right now there is no one who who has said they are prepared to do
+that.
+
+> I find the frameworks annoying and really love the simplicity and lightness of mod_python.
+
+Did you look at Werkzeug and Flask as I mentioned in the blog. These
+are not heavy weight frameworks. Flask is specifically what is called
+a micro framework. Even if you didn't like Flask, it wouldn't take
+much effort to use Werkzeug to create an alternate micro framework
+that has usage pattern not too dissimilar to mod_python publisher. But
+one has to question whether that is a good idea either given the
+various design issues in publisher around multiple URLs being able to
+be used to map to a single resource and the problems that causes. Do
+you preserve these bad design issues or fix them?
+
+Graham
+
+> On May 27, 2010, at 4:33 PM, Graham Dumpleton wrote:
+>
+>> I have warned about this before on the list, but it is getting closer now.
+>>
+>> If you are a user of mod_python, read my blog post about the topic at:
+>>
+>> ?http://blog.dscpl.com.au/2010/05/modpython-project-soon-to-be-officially.html
+>>
+>> Graham
+>> _______________________________________________
+>> Mod_python mailing list
+>> Mod_python@modpython.org
+>> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+>
+
+From nashii at gmail.com  Thu May 27 20:18:13 2010
+From: nashii at gmail.com (=?ISO-8859-1?Q?Rapha=EBl_B=2E?=)
+Date: Thu May 27 20:18:40 2010
+Subject: [mod_python] The mod_python project soon to be officially dead.
+In-Reply-To: <AANLkTinrHJyCrLt4iOFpvsZtXMgCzjjjGKml7xud5mKf@mail.gmail.com>
+References: <AANLkTik5hew3mvUpqn9WfAejrtGQZSq2rXmjrU9yiYq0@mail.gmail.com> 
+	<680A965E-9742-445E-961B-CCABBF85CF47@me.com>
+	<AANLkTinrHJyCrLt4iOFpvsZtXMgCzjjjGKml7xud5mKf@mail.gmail.com>
+Message-ID: <AANLkTikEQ_pt5WeqJ77X9K4B6MhVRUxTR7sRZRUXHOFJ@mail.gmail.com>
+
+Hi,
+
+Is it possible to have something like psp with mod_wsgi ?
+'cause I have programmed some pages with psp (i don't really like publisher
+..) and I would like to continue using it.
+
+Is it as simple as for mod_python to use sessions ?
+
+It's really difficult to change the way we make things ...
+
+Rapha?l
+
+2010/5/28 Graham Dumpleton <graham.dumpleton@gmail.com>
+
+> On 28 May 2010 09:53, Jason Caldwell <jscnet99@me.com> wrote:
+> > Hi Graham --
+> > I would like to see mod_python continue on.  Supporting Py3.
+>
+> Well, find like minded people and take on development and support of
+> mod_python yourself. That is going to be the only solution.
+>
+> Knowing all the problems with how to deal with all the Unicode/bytes
+> issues in Python 3.X it is going even be a major task working out what
+> the interfaces should look like and where bytes versus Unicode should
+> be used. The argument about this for WSGI has been going on for almost
+> 2 years now I think and still now final resolution and WSGI is a lot
+> smaller interface than mod_python.
+>
+> Also, there are a significant number of bugs in mod_python and
+> seriously they would need to be addressed before even trying to go to
+> Python 3.X. All up it is going to need some serious commitment and
+> right now there is no one who who has said they are prepared to do
+> that.
+>
+> > I find the frameworks annoying and really love the simplicity and
+> lightness of mod_python.
+>
+> Did you look at Werkzeug and Flask as I mentioned in the blog. These
+> are not heavy weight frameworks. Flask is specifically what is called
+> a micro framework. Even if you didn't like Flask, it wouldn't take
+> much effort to use Werkzeug to create an alternate micro framework
+> that has usage pattern not too dissimilar to mod_python publisher. But
+> one has to question whether that is a good idea either given the
+> various design issues in publisher around multiple URLs being able to
+> be used to map to a single resource and the problems that causes. Do
+> you preserve these bad design issues or fix them?
+>
+> Graham
+>
+> > On May 27, 2010, at 4:33 PM, Graham Dumpleton wrote:
+> >
+> >> I have warned about this before on the list, but it is getting closer
+> now.
+> >>
+> >> If you are a user of mod_python, read my blog post about the topic at:
+> >>
+> >>
+> http://blog.dscpl.com.au/2010/05/modpython-project-soon-to-be-officially.html
+> >>
+> >> Graham
+> >> _______________________________________________
+> >> Mod_python mailing list
+> >> Mod_python@modpython.org
+> >> http://mailman.modpython.org/mailman/listinfo/mod_python
+> >
+> >
+>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20100528/2d32f916/attachment.html
+From graham.dumpleton at gmail.com  Thu May 27 20:25:43 2010
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu May 27 20:25:48 2010
+Subject: [mod_python] The mod_python project soon to be officially dead.
+In-Reply-To: <AANLkTikEQ_pt5WeqJ77X9K4B6MhVRUxTR7sRZRUXHOFJ@mail.gmail.com>
+References: <AANLkTik5hew3mvUpqn9WfAejrtGQZSq2rXmjrU9yiYq0@mail.gmail.com>
+	<680A965E-9742-445E-961B-CCABBF85CF47@me.com>
+	<AANLkTinrHJyCrLt4iOFpvsZtXMgCzjjjGKml7xud5mKf@mail.gmail.com>
+	<AANLkTikEQ_pt5WeqJ77X9K4B6MhVRUxTR7sRZRUXHOFJ@mail.gmail.com>
+Message-ID: <AANLkTikXimdqxd2l4eGP_mh6SCLtbKbK81nFk6KdyUG5@mail.gmail.com>
+
+2010/5/28 Rapha?l B. <nashii@gmail.com>:
+> Hi,
+>
+> Is it possible to have something like psp with mod_wsgi ?
+> 'cause I have programmed some pages with psp (i don't really like publisher
+> ..) and I would like to continue using it.
+>
+> Is it as simple as for mod_python to use sessions ?
+>
+> It's really difficult to change the way we make things ...
+
+PSP is mostly a standalone module in mod_python. There are
+dependencies on the mod_python request object, forms and sessions. One
+could though certainly port the PSP templating aspect to work as part
+of a WSGI mini framework of some sort, but any interaction with the
+request object, forms and sessions would likely need to change to
+match what the mini framework provides.
+
+Graham
+
+> 2010/5/28 Graham Dumpleton <graham.dumpleton@gmail.com>
+>>
+>> On 28 May 2010 09:53, Jason Caldwell <jscnet99@me.com> wrote:
+>> > Hi Graham --
+>> > I would like to see mod_python continue on. ?Supporting Py3.
+>>
+>> Well, find like minded people and take on development and support of
+>> mod_python yourself. That is going to be the only solution.
+>>
+>> Knowing all the problems with how to deal with all the Unicode/bytes
+>> issues in Python 3.X it is going even be a major task working out what
+>> the interfaces should look like and where bytes versus Unicode should
+>> be used. The argument about this for WSGI has been going on for almost
+>> 2 years now I think and still now final resolution and WSGI is a lot
+>> smaller interface than mod_python.
+>>
+>> Also, there are a significant number of bugs in mod_python and
+>> seriously they would need to be addressed before even trying to go to
+>> Python 3.X. All up it is going to need some serious commitment and
+>> right now there is no one who who has said they are prepared to do
+>> that.
+>>
+>> > I find the frameworks annoying and really love the simplicity and
+>> > lightness of mod_python.
+>>
+>> Did you look at Werkzeug and Flask as I mentioned in the blog. These
+>> are not heavy weight frameworks. Flask is specifically what is called
+>> a micro framework. Even if you didn't like Flask, it wouldn't take
+>> much effort to use Werkzeug to create an alternate micro framework
+>> that has usage pattern not too dissimilar to mod_python publisher. But
+>> one has to question whether that is a good idea either given the
+>> various design issues in publisher around multiple URLs being able to
+>> be used to map to a single resource and the problems that causes. Do
+>> you preserve these bad design issues or fix them?
+>>
+>> Graham
+>>
+>> > On May 27, 2010, at 4:33 PM, Graham Dumpleton wrote:
+>> >
+>> >> I have warned about this before on the list, but it is getting closer
+>> >> now.
+>> >>
+>> >> If you are a user of mod_python, read my blog post about the topic at:
+>> >>
+>> >>
+>> >> ?http://blog.dscpl.com.au/2010/05/modpython-project-soon-to-be-officially.html
+>> >>
+>> >> Graham
+>> >> _______________________________________________
+>> >> Mod_python mailing list
+>> >> Mod_python@modpython.org
+>> >> http://mailman.modpython.org/mailman/listinfo/mod_python
+>> >
+>> >
+>>
+>> _______________________________________________
+>> Mod_python mailing list
+>> Mod_python@modpython.org
+>> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+>
+

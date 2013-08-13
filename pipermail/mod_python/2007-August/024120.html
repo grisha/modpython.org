@@ -1,0 +1,121 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session class or Memcache to reduce load?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20class%20or%20Memcache%20to%20reduce%20load%3F&In-Reply-To=010201c7d9fe%24f02add10%24d0809730%24%40com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024119.html">
+   <LINK REL="Next"  HREF="024121.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session class or Memcache to reduce load?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20class%20or%20Memcache%20to%20reduce%20load%3F&In-Reply-To=010201c7d9fe%24f02add10%24d0809730%24%40com"
+       TITLE="[mod_python] Session class or Memcache to reduce load?">jpg at jgassociates.ca
+       </A><BR>
+    <I>Wed Aug  8 18:37:06 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024119.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+        <LI>Next message: <A HREF="024121.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24120">[ date ]</a>
+              <a href="thread.html#24120">[ thread ]</a>
+              <a href="subject.html#24120">[ subject ]</a>
+              <a href="author.html#24120">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Alec Matusis wrote:
+&gt;<i> Thanks everybody for responding.
+</I>&gt;<i> I implemented 
+</I>&gt;&gt;<i> For starters, you should use req.sendfile instead of manually reading
+</I>&gt;&gt;<i> / sending the file in Python.
+</I>&gt;<i> 
+</I>&gt;<i> This reduced load average from 13.0 to 10.0
+</I>
+I can see why you might want to speed things up! :)
+
+&gt;&gt;<i> Using DbmSession may actually increase your load for a couple of
+</I>&gt;&gt;<i> reasons. For starters access to the database is serialized by a global
+</I>&gt;&gt;<i> lock which may be a bottleneck.
+</I>&gt;<i> 
+</I>&gt;<i> In this regard, I have another question: should each request open it's own
+</I>&gt;<i> MySQL connection (the connection to our DB slave servers), or only one
+</I>&gt;<i> connection should be opened, and passed around between requests using
+</I>&gt;<i> DbmSession or some other means?
+</I>
+DbmSession won't get you anywhere here as you can't pickle the 
+connection object. Even if you could the connection would still need to 
+be re-established when the pickle is loaded so you are no further ahead. 
+Furthermore the overhead of reading + un-pickling is likely greater than 
+just opening and closing your DB connection anyway, so unless you are 
+already using session handling you could end up with lower performance. 
+Establishing a MySQL connection is pretty fast although this may not be 
+the case for other databases.
+
+Connection pooling or caching has been discussed on the list in the 
+past. You might want to dig through the mail archives. Just be aware 
+that when using the prefork-mpm each child will get it's own MySQL 
+connection. If you are under heavy load and alot of children get spawned 
+you could end up hitting a MySQL resource limit for the number of 
+connections. This would be bad. ;)
+
+Connection pooling would be more effective with the worker or threaded 
+mpms, where the number of children are limited. Threads in the same 
+child process can draw from the same pool so it's possible to actually 
+manage the pool.
+
+Are you currently using DbmSession? How many concurrent requests? What 
+version of mod_python you are using? Let me know and I'll pass along 
+some ideas for optimizing session handling.
+
+Jim
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024119.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+	<LI>Next message: <A HREF="024121.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24120">[ date ]</a>
+              <a href="thread.html#24120">[ thread ]</a>
+              <a href="subject.html#24120">[ subject ]</a>
+              <a href="author.html#24120">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

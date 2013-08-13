@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: PyThreadState_Swap(NULL)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20PyThreadState_Swap%28NULL%29&In-Reply-To=902F597E-399A-4A84-92DD-A67BB22DABE3%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021897.html">
+   <LINK REL="Next"  HREF="021900.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: PyThreadState_Swap(NULL)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Bryan</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20PyThreadState_Swap%28NULL%29&In-Reply-To=902F597E-399A-4A84-92DD-A67BB22DABE3%40dscpl.com.au"
+       TITLE="[mod_python] Re: PyThreadState_Swap(NULL)">belred at gmail.com
+       </A><BR>
+    <I>Sat Aug 19 23:21:35 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021897.html">[mod_python] PyThreadState_Swap(NULL)
+</A></li>
+        <LI>Next message: <A HREF="021900.html">[mod_python] Re: PyThreadState_Swap(NULL)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21898">[ date ]</a>
+              <a href="thread.html#21898">[ thread ]</a>
+              <a href="subject.html#21898">[ subject ]</a>
+              <a href="author.html#21898">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> 
+</I>&gt;&gt;<i> For a start, which version of mod_python are you using? There were some
+</I>&gt;&gt;<i> important changes in mod_python 3.2.8 to allow third party modules for
+</I>&gt;&gt;<i> Python to work properly where those third party modules used the simple
+</I>&gt;&gt;<i> GIL API for thread management.
+</I>&gt;<i> 
+</I>&gt;<i> Whoops, that should be mod_python 3.2.10. Not 3.2.8.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>
+
+hi graham,
+
+we are using mod_python 3.2.10.  you are right that we are doing something 
+similar to mod_python in that we fully embed python to process requests using 
+our protocol.  the difference is that our main protocol and message dispatcher 
+has nothing to do with apache and can plug into our own proprietary server as 
+well as 3rd party servers. our mod_xxx module is really just an adapter to let 
+our dispatcher plug into apache.  and our python adapter is a plug into our 
+dispatcher along with other language adapters.  this is a snippet of our code 
+and shows you where the failure is.  the failure occurs in the start function 
+and g_py_main_interpreter returned by PyThreadState_Swap(NULL) is NULL.  i 
+wouldn't mind grabbing your latest code from svn and looking at your new API, 
+except that i'm not sure using experimental code at this phase of development 
+process would be wise.  also, if i read what you wrote correctly, i would need 
+to tie our code to use the mod_python framework and i'm not willing to do that 
+since our python adapter has no knowledge of apache.  unless i'm wrong, i 
+believe the only real solution at this point is to use two apache processes. 
+one that includes mod_python which we use for cgi gui apps, and the other with 
+our dispatcher so there would be no conflicts.  this wouldn't be an optimal 
+solution, but it's doable.
+
+
+this is an example of our python adapter code and http.conf
+
+--- mod_xxx ---
+
+// this is an example of start
+
+
+if (!Py_IsInitialized()) {
+     Py_Initialize();
+}
+
+PyEval_InitThreads();
+g_py_main_interpreter = PyThreadState_Swap(NULL);
+PyThreadState_Swap(g_py_main_interpreter);
+PyEval_ReleaseLock();
+if (g_py_main_interpreter) {
+      log(&quot;PyThreadState_Swap(NULL) succeeded&quot;);
+}
+else {
+      log(&quot;PyThreadState_Swap(NULL) failed&quot;);
+}
+
+
+// this is an example of the main processing
+
+PyEval_AquireLock();
+py_interp = Py_NewInterpreter();
+PyThreadState_Swap(py_interp);
+... do normal python stuff here including executing python scripts
+PyThreadState_Swap(NULL);
+PyEval_ReleaseLock();
+
+
+
+// this is an example of stop
+
+PyThreadState_Swap(g_py_main_interpreter);
+Py_Finalize();
+g_py_main_interpreter = NULL
+
+
+
+---- apache's http.conf ----
+
+LoadFile  &quot;c:/Program Files/Common Files/Company/python/python24/python24.dll
+LoadModule python_module  &quot;../apache/bin/mod_python.so&quot;
+LoadModule mod_xxx        &quot;bin/mod_xxx.dll
+
+
+Listen 4119
+&lt;VirtualHost _default_:4119&gt;
+      &lt;Directory &quot;C:/Program Files/company/htdocs/xxx&quot;&gt;
+          SetHandler    mod_python
+          PythonHandler mod_python.publisher
+          PythonDebug   Off
+      &lt;/Directory&gt;
+&lt;/VirtualHost&gt;
+
+
+
+bryan
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021897.html">[mod_python] PyThreadState_Swap(NULL)
+</A></li>
+	<LI>Next message: <A HREF="021900.html">[mod_python] Re: PyThreadState_Swap(NULL)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21898">[ date ]</a>
+              <a href="thread.html#21898">[ thread ]</a>
+              <a href="subject.html#21898">[ subject ]</a>
+              <a href="author.html#21898">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

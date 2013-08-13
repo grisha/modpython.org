@@ -1,0 +1,405 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20child%20process%20XXXX%20still%20did%20not%20exit%2C%0A%09sending%20a%20SIGTERM&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019844.html">
+   <LINK REL="Next"  HREF="019846.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20child%20process%20XXXX%20still%20did%20not%20exit%2C%0A%09sending%20a%20SIGTERM&In-Reply-To="
+       TITLE="[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Jan  2 18:15:38 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019844.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+        <LI>Next message: <A HREF="019846.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19845">[ date ]</a>
+              <a href="thread.html#19845">[ thread ]</a>
+              <a href="subject.html#19845">[ subject ]</a>
+              <a href="author.html#19845">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Maybe mod_python has to be a bit more orderly as far as how it ends
+interpreters. Ie., maybe it should end each interpreter it has created
+explicitly using Py_EndInterpreter().
+
+This though may be dependent on first getting changes described in:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-77">http://issues.apache.org/jira/browse/MODPYTHON-77</A>
+
+incorporated. Specifically, the attachment:
+
+  <A HREF="http://issues.apache.org/jira/secure/attachment/12320489/grahamd_20051105.tar.gz">http://issues.apache.org/jira/secure/attachment/12320489/grahamd_20051105.tar.gz</A>
+
+Actually, this change may in itself fix the issue as it saves away the
+first interpreter state as &quot;main_interpreter&quot; and that will then be the
+interpreter state used to do the cleanup. This isn't the case at the
+moment.
+
+Can you apply that patch and see if things improve?
+
+Beyond that, as I suggest, maybe it needs to be more orderly and
+end each interpreter besides &quot;main_interpreter&quot; and then finally call
+Py_Finalize().
+
+Graham
+
+
+Martin Blais wrote ..
+&gt;<i> I think there is a deadlock somewhere, I start apache2 in debug mode
+</I>&gt;<i> and eventually manage to interrupt in this stack frame (where it
+</I>&gt;<i> remains stuck, cont'inuing does not help):
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i>     #0  0xb7b9b054 in __pthread_sigsuspend () from /lib/libpthread.so.0
+</I>&gt;<i>     #1  0xb7b9ae98 in __pthread_wait_for_restart_signal () from
+</I>&gt;<i> /lib/libpthread.so.0
+</I>&gt;<i>     #2  0xb7b9bd6b in sem_wait@@GLIBC_2.1 () from /lib/libpthread.so.0
+</I>&gt;<i>     #3  0xb79d943f in PyThread_acquire_lock () from
+</I>&gt;<i> /usr/lib/apache2/modules/mod_python.so
+</I>&gt;<i>     #4  0xb79d262e in PyThreadState_Delete () from
+</I>&gt;<i> /usr/lib/apache2/modules/mod_python.so
+</I>&gt;<i>     #5  0xb79d21e8 in PyInterpreterState_Delete () from
+</I>&gt;<i> /usr/lib/apache2/modules/mod_python.so
+</I>&gt;<i>     #6  0xb79d3318 in Py_Finalize () from /usr/lib/apache2/modules/mod_python.so
+</I>&gt;<i>     #7  0xb794eeea in python_finalize (data=0x0) at mod_python.c:1823
+</I>&gt;<i>     #8  0xb7c7a6ed in apr_pool_cleanup_run () from /usr/lib/libapr-0.so.0
+</I>&gt;<i>     #9  0xb7c79f8d in apr_pool_destroy () from /usr/lib/libapr-0.so.0
+</I>&gt;<i>     #10 0x0806860c in ap_graceful_stop_signalled ()
+</I>&gt;<i>     #11 0xb7b9def5 in __pthread_sighandler () from /lib/libpthread.so.0
+</I>&gt;<i>     #12 &lt;signal handler called&gt;
+</I>&gt;<i>     #13 0xb7b240b8 in poll () from /lib/libc.so.6
+</I>&gt;<i>     #14 0xb7c7b2af in apr_poll () from /usr/lib/libapr-0.so.0
+</I>&gt;<i>     #15 0x08068952 in ap_graceful_stop_signalled ()
+</I>&gt;<i>     #16 0x08067f0d in ap_graceful_stop_signalled ()
+</I>&gt;<i>     #17 0x08067954 in ap_mpm_run ()
+</I>&gt;<i>     #18 0x0806f02f in main ()
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> So I've added traces to python_finalize():
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> static apr_status_t python_finalize(void *data)
+</I>&gt;<i> {
+</I>&gt;<i>     interpreterdata *idata;
+</I>&gt;<i>     pid_t pid = getpid();
+</I>&gt;<i> 
+</I>&gt;<i>     idata = get_interpreter(NULL, NULL);
+</I>&gt;<i> 
+</I>&gt;<i>     fprintf(stderr, &quot;python_finalize %d\n&quot;, pid);
+</I>&gt;<i>     fflush(stderr);
+</I>&gt;<i> 
+</I>&gt;<i>     if (idata) {
+</I>&gt;<i> 
+</I>&gt;<i>       fprintf(stderr, &quot;  python_finalize %d - before \n&quot;, pid);
+</I>&gt;<i>       fflush(stderr);
+</I>&gt;<i> 
+</I>&gt;<i>       Py_Finalize();
+</I>&gt;<i> 
+</I>&gt;<i>       fprintf(stderr, &quot;  python_finalize %d - after\n&quot;, pid);
+</I>&gt;<i>       fflush(stderr);
+</I>&gt;<i> 
+</I>&gt;<i> #ifdef WITH_THREAD
+</I>&gt;<i>         PyEval_ReleaseLock();
+</I>&gt;<i> #endif
+</I>&gt;<i> 
+</I>&gt;<i>       fprintf(stderr, &quot;  python_finalize %d - after\n&quot;, pid);
+</I>&gt;<i>       fflush(stderr);
+</I>&gt;<i>     }
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i>     return APR_SUCCESS;
+</I>&gt;<i> 
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> And I get this log, which confirms that indeed the child never leaves
+</I>&gt;<i> Py_Finalize().
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> ==&gt; /var/log/apache2/error_log &lt;==
+</I>&gt;<i> [Mon Jan 02 17:29:17 2006] [error] python_cleanup 29677 - interp
+</I>&gt;<i> [Mon Jan 02 17:29:17 2006] [error] python_cleanup 29678 - interp
+</I>&gt;<i> [Mon Jan 02 17:29:17 2006] [error] python_cleanup 29677 - before
+</I>&gt;<i> python_finalize 29680
+</I>&gt;<i>   python_finalize 29680 - before
+</I>&gt;<i>   python_finalize 29680 - after
+</I>&gt;<i>   python_finalize 29680 - after
+</I>&gt;<i> python_finalize 29681
+</I>&gt;<i>   python_finalize 29681 - before
+</I>&gt;<i>   python_finalize 29681 - after
+</I>&gt;<i>   python_finalize 29681 - after
+</I>&gt;<i> python_finalize 29686
+</I>&gt;<i>   python_finalize 29686 - before
+</I>&gt;<i>   python_finalize 29686 - after
+</I>&gt;<i>   python_finalize 29686 - after
+</I>&gt;<i> [Mon Jan 02 17:29:17 2006] [error] python_cleanup 29678 - before
+</I>&gt;<i> python_finalize 29679
+</I>&gt;<i>   python_finalize 29679 - before
+</I>&gt;<i>   python_finalize 29679 - after
+</I>&gt;<i>   python_finalize 29679 - after
+</I>&gt;<i> python_finalize 29688
+</I>&gt;<i>   python_finalize 29688 - before
+</I>&gt;<i>   python_finalize 29688 - after
+</I>&gt;<i>   python_finalize 29688 - after
+</I>&gt;<i> dracohandler.py: child 29677 finishing childExit
+</I>&gt;<i> [Mon Jan 02 17:29:18 2006] [error] python_cleanup 29677 - after
+</I>&gt;<i> [Mon Jan 02 17:29:18 2006] [error] python_cleanup 29677 - released
+</I>&gt;<i> python_finalize 29677
+</I>&gt;<i>   python_finalize 29677 - before
+</I>&gt;<i> dracohandler.py: child 29678 finishing childExit
+</I>&gt;<i> [Mon Jan 02 17:29:18 2006] [error] python_cleanup 29678 - after
+</I>&gt;<i> [Mon Jan 02 17:29:18 2006] [error] python_cleanup 29678 - released
+</I>&gt;<i> python_finalize 29678
+</I>&gt;<i>   python_finalize 29678 - before
+</I>&gt;<i>   python_finalize 29677 - after
+</I>&gt;<i>   python_finalize 29677 - after
+</I>&gt;<i> python_finalize 29687
+</I>&gt;<i>   python_finalize 29687 - before
+</I>&gt;<i>   python_finalize 29687 - after
+</I>&gt;<i>   python_finalize 29687 - after
+</I>&gt;<i> [Mon Jan 02 17:29:21 2006] [warn] child process 29678 still did not
+</I>&gt;<i> exit, sending a SIGTERM
+</I>&gt;<i> [Mon Jan 02 17:29:23 2006] [warn] child process 29678 still did not
+</I>&gt;<i> exit, sending a SIGTERM
+</I>&gt;<i> [Mon Jan 02 17:29:25 2006] [warn] child process 29678 still did not
+</I>&gt;<i> exit, sending a SIGTERM
+</I>&gt;<i> [Mon Jan 02 17:29:27 2006] [error] child process 29678 still did not
+</I>&gt;<i> exit, sending a SIGKILL
+</I>&gt;<i> [Mon Jan 02 17:29:28 2006] [info] removed PID file
+</I>&gt;<i> /var/run/apache2.pid (pid=29673)
+</I>&gt;<i> [Mon Jan 02 17:29:28 2006] [notice] caught SIGTERM, shutting down
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On 1/2/06, Martin Blais &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">blais at furius.ca</A>&gt; wrote:
+</I>&gt;<i> &gt; Thanks Graham.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Looks like a new directive only available in 2.2...   will update now.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; More info:  I'm starting to hack into mod_python to find out what's
+</I>&gt;<i> &gt; happening there, and python_finalize() is not called for the offending
+</I>&gt;<i> &gt; processes.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On 1/2/06, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; Instead of using &quot;apachectl restart&quot;, try using &quot;apachectl graceful&quot;
+</I>&gt;<i> to see
+</I>&gt;<i> &gt; &gt; if that makes any difference.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; You may also want to adjust GracefulShutdownTimeout for this case to
+</I>&gt;<i> &gt; &gt; only allow a certain time for child processes to shutdown.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;   <A HREF="http://httpd.apache.org/docs/2.2/mod/mpm_common.html#gracefulshutdowntimeout">http://httpd.apache.org/docs/2.2/mod/mpm_common.html#gracefulshutdowntimeout</A>
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; By fiddling with this, you may be able to see if given time that the
+</I>&gt;<i> child
+</I>&gt;<i> &gt; &gt; processes do actually shutdown, or whether they actually hang. If they
+</I>&gt;<i> &gt; &gt; hang, then you may be able to attach using gdb to the child process
+</I>&gt;<i> and
+</I>&gt;<i> &gt; &gt; work out where it is hanging.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; It may just be a case that with Python loaded it takes longer to shutdown
+</I>&gt;<i> &gt; &gt; than Apache expects it to and so it abruptly kills it. I haven't been
+</I>&gt;<i> able
+</I>&gt;<i> &gt; &gt; to find any directive for specifying a shutdown timeout for &quot;restart&quot;
+</I>&gt;<i> which
+</I>&gt;<i> &gt; &gt; it waits before it kills the child processes.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Graham
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Martin Blais wrote ..
+</I>&gt;<i> &gt; &gt; &gt; On 1/2/06, Martin Blais &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">blais at furius.ca</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; Before someone asks, I did not get seg faults in my log, so that's
+</I>&gt;<i> not
+</I>&gt;<i> &gt; &gt; &gt; &gt; the problem.
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; On closer inspection though, I do have a few SSL error messages
+</I>&gt;<i> like
+</I>&gt;<i> &gt; &gt; &gt; these:
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Mon Jan 02 15:07:30 2006] [info] (70014)End of file found: SSL
+</I>&gt;<i> &gt; &gt; &gt; &gt; handshake interrupted by system [Hint: Stop button pressed in
+</I>&gt;<i> &gt; &gt; &gt; &gt; browser?!]
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Mon Jan 02 15:07:30 2006] [info] Connection to child 0 closed
+</I>&gt;<i> with
+</I>&gt;<i> &gt; &gt; &gt; &gt; abortive shutdown(server furius.dyndns.biz:443, client 127.0.0.1)
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Mon Jan 02 15:07:31 2006] [info] Connection to child 9 established
+</I>&gt;<i> &gt; &gt; &gt; &gt; (server furius.dyndns.biz:443, client 127.0.0.1)
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Mon Jan 02 15:07:31 2006] [info] Seeding PRNG with 136 bytes of
+</I>&gt;<i> entropy
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; ... the number of which does not match the number of zombie children
+</I>&gt;<i> &gt; &gt; &gt; &gt; (does not mean that it's not the problem though).
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; Any information/tips welcome.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; It's not the SSL errors, I just reproduced the zombie child error
+</I>&gt;<i> &gt; &gt; &gt; without getting the SSL errors (it's my automated test code that
+</I>&gt;<i> &gt; &gt; &gt; somehow creates the SSL problems, fiddling a lot with the browser
+</I>&gt;<i> does
+</I>&gt;<i> &gt; &gt; &gt; not cause SSL errors, but will result in children not wanting to
+</I>&gt;<i> die).
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; On 1/2/06, Martin Blais &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">blais at furius.ca</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; Hi
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; I'm getting messages like this in my apache2 log when I stop
+</I>&gt;<i> it after
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; running requests to a mod_python-based web app:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; ==&gt; /var/log/apache2/error_log &lt;==
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:12 2006] [warn] child process 21806 still did
+</I>&gt;<i> not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGTERM
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:12 2006] [warn] child process 21768 still did
+</I>&gt;<i> not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGTERM
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:12 2006] [warn] child process 21792 still did
+</I>&gt;<i> not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGTERM
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:14 2006] [warn] child process 21806 still did
+</I>&gt;<i> not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGTERM
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:14 2006] [warn] child process 21768 still did
+</I>&gt;<i> not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGTERM
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:14 2006] [warn] child process 21792 still did
+</I>&gt;<i> not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGTERM
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:16 2006] [warn] child process 21806 still did
+</I>&gt;<i> not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGTERM
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:16 2006] [warn] child process 21768 still did
+</I>&gt;<i> not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGTERM
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:16 2006] [warn] child process 21792 still did
+</I>&gt;<i> not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGTERM
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:18 2006] [error] child process 21806 still
+</I>&gt;<i> did not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGKILL
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:18 2006] [error] child process 21768 still
+</I>&gt;<i> did not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGKILL
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:18 2006] [error] child process 21792 still
+</I>&gt;<i> did not
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; exit, sending a SIGKILL
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:19 2006] [info] removed PID file
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; /var/run/apache2.pid (pid=21754)
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; [Mon Jan 02 13:04:19 2006] [notice] caught SIGTERM, shutting
+</I>&gt;<i> down
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; I've been tracking the problem, and on exit, the cleanup function
+</I>&gt;<i> (in
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; Python) that I registered with the mod_python server does get
+</I>&gt;<i> called,
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; and exits.
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; I saw somewhere that recompiling expat, and then all the rest
+</I>&gt;<i> (in my
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; case, python-2.4.2, apache2, mod_python-3.1.4, psycopg2) might
+</I>&gt;<i> fix
+</I>&gt;<i> &gt; &gt; &gt; the
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; issue (it would be due to a library incompatibility).  I did
+</I>&gt;<i> this,
+</I>&gt;<i> &gt; &gt; &gt; and
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; the problem still occurs.  I also tried using mod_python-3.2.5b
+</I>&gt;<i> and
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; the problem persists.  This is all running on Linux (Gentoo).
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; Any clue on how to debug this issue further?  I'm currently trying
+</I>&gt;<i> &gt; &gt; &gt; to
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; run gdb on a non-daemon apache2, or trying to attach to a running
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; child.  The problem is a bit tricky to fix, since it does not
+</I>&gt;<i> happen
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; always -- but always happens at least after I run a lot of requests
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; e.g. my automated test suite for my web app.
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; Any hints would be appreciated.
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; cheers,
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; _______________________________________________
+</I>&gt;<i> &gt; &gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt; &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt;
+</I></PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019844.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+	<LI>Next message: <A HREF="019846.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19845">[ date ]</a>
+              <a href="thread.html#19845">[ thread ]</a>
+              <a href="subject.html#19845">[ subject ]</a>
+              <a href="author.html#19845">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

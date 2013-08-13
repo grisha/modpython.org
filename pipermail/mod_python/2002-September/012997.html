@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] [PATCH] fix filter lookup failure
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5BPATCH%5D%20fix%20filter%20lookup%20failure&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012996.html">
+   <LINK REL="Next"  HREF="012998.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] [PATCH] fix filter lookup failure</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Gary Benson</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5BPATCH%5D%20fix%20filter%20lookup%20failure&In-Reply-To="
+       TITLE="[mod_python] [PATCH] fix filter lookup failure">gbenson at redhat.com
+       </A><BR>
+    <I>Thu Sep 12 11:25:30 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012996.html">[mod_python] free hosting?
+</A></li>
+        <LI>Next message: <A HREF="012998.html">[mod_python] Apache 2 and ModPython3
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12997">[ date ]</a>
+              <a href="thread.html#12997">[ thread ]</a>
+              <a href="subject.html#12997">[ subject ]</a>
+              <a href="author.html#12997">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+ap_register_*_filter() normalizes the filter's name before it stores it
+by converting it to lower case and removing special characters.  If the
+name is not the same when normalized then python_filter() will not be
+able to work out which filter it is and will segfault.  The attached
+patch fixes.
+
+Later,
+Gary
+
+[ <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">gbenson at redhat.com</A> ][ GnuPG 85A8F78B ][ <A HREF="http://inauspicious.org/">http://inauspicious.org/</A> ]
+-------------- next part --------------
+ap_register_*_filter normalizes the filter's name, so we need to store
+the normalized name for filter lookups rather than the name the user
+registered it with.
+
+Index: src/mod_python.c
+===================================================================
+RCS file: /cvsroot/modpython/mod_python/src/mod_python.c,v
+retrieving revision 1.73
+diff -u -r1.73 mod_python.c
+--- src/mod_python.c	6 Sep 2002 22:06:28 -0000	1.73
++++ src/mod_python.c	11 Sep 2002 15:58:56 -0000
+@@ -1479,23 +1479,24 @@
+ 
+     py_config *conf;
+     py_handler *fh;
++    ap_filter_rec_t *frec;
+     
+     if (!name)
+         name = apr_pstrdup(cmd-&gt;pool, handler);
+ 
++    /* register the filter NOTE - this only works so long as the
++       directive is only allowed in the main config. For .htaccess we
++       would have to make sure not to duplicate this */
++    frec = ap_register_input_filter(name, python_input_filter, NULL, AP_FTYPE_CONNECTION);
++ 
+     conf = (py_config *) mconfig;
+ 
+     fh = (py_handler *) apr_pcalloc(cmd-&gt;pool, sizeof(py_handler));
+     fh-&gt;handler = (char *)handler;
+     fh-&gt;dir = conf-&gt;config_dir;
+ 
+-    apr_hash_set(conf-&gt;in_filters, name, APR_HASH_KEY_STRING, fh);
++    apr_hash_set(conf-&gt;in_filters, frec-&gt;name, APR_HASH_KEY_STRING, fh);
+ 
+-    /* register the filter NOTE - this only works so long as the
+-       directive is only allowed in the main config. For .htaccess we
+-       would have to make sure not to duplicate this */
+-    ap_register_input_filter(name, python_input_filter, NULL, AP_FTYPE_CONNECTION);
+- 
+     return NULL;
+ }
+ 
+@@ -1503,23 +1504,24 @@
+                                                 const char *handler, const char *name) {
+     py_config *conf;
+     py_handler *fh;
++    ap_filter_rec_t *frec;
+  
+     if (!name)
+         name = apr_pstrdup(cmd-&gt;pool, handler);
+ 
++    /* register the filter NOTE - this only works so long as the
++       directive is only allowed in the main config. For .htaccess we
++       would have to make sure not to duplicate this */
++    frec = ap_register_output_filter(name, python_output_filter, NULL, AP_FTYPE_RESOURCE);
++ 
+     conf = (py_config *) mconfig;
+     
+     fh = (py_handler *) apr_pcalloc(cmd-&gt;pool, sizeof(py_handler));
+     fh-&gt;handler = (char *)handler;
+     fh-&gt;dir = conf-&gt;config_dir;
+ 
+-    apr_hash_set(conf-&gt;out_filters, name, APR_HASH_KEY_STRING, fh);
++    apr_hash_set(conf-&gt;out_filters, frec-&gt;name, APR_HASH_KEY_STRING, fh);
+ 
+-    /* register the filter NOTE - this only works so long as the
+-       directive is only allowed in the main config. For .htaccess we
+-       would have to make sure not to duplicate this */
+-    ap_register_output_filter(name, python_output_filter, NULL, AP_FTYPE_RESOURCE);
+- 
+     return NULL;
+ }
+ 
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012996.html">[mod_python] free hosting?
+</A></li>
+	<LI>Next message: <A HREF="012998.html">[mod_python] Apache 2 and ModPython3
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12997">[ date ]</a>
+              <a href="thread.html#12997">[ thread ]</a>
+              <a href="subject.html#12997">[ subject ]</a>
+              <a href="author.html#12997">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

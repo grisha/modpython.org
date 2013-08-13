@@ -1,0 +1,243 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod_python &amp; global persistence
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20%26%20global%20persistence&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017658.html">
+   <LINK REL="Next"  HREF="017663.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mod_python &amp; global persistence</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20%26%20global%20persistence&In-Reply-To="
+       TITLE="[mod_python] Mod_python &amp; global persistence">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Mar 15 18:22:19 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017658.html">[mod_python] Mod_python &amp; global persistence
+</A></li>
+        <LI>Next message: <A HREF="017663.html">[mod_python] mod_python interpreter creation issue
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17662">[ date ]</a>
+              <a href="thread.html#17662">[ thread ]</a>
+              <a href="subject.html#17662">[ subject ]</a>
+              <a href="author.html#17662">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>In answer to why it seems to take a few requests before the initialisation
+sticks, as explained in prior email, if you are using Apache in prefork
+mode this is exactly what you would expect as the first few requests
+are likely performed in different processes.
+
+I would suggest that you import the &quot;os&quot; module and then in your HTML
+response display the result of calling &quot;os.getpid()&quot;. If this values differs
+it will show that they are different processes which are handling the
+requests. As mentioned before, the data in each process is distinct and
+setting the value in one doesn't cause it to be set in another process.
+
+Anyway, this is the most likely explaination. Suggest you try seeing what
+&quot;os.getpid()&quot; yields for each request. If it is the same for each and every
+request and it still takes a few times to set the value, then come back
+to us.
+
+BTW, not a good idea to use &quot;list&quot; as it then hides the Python name for
+creation of instances of the list type.
+
+Graham
+
+Wagner,Harry wrote ..
+&gt;<i> Alan, Graham,
+</I>&gt;<i> Thanks for your help with this, and sorry for the delay in responding.
+</I>&gt;<i> I
+</I>&gt;<i> am still trying to understand what is happening here.  I changed my test
+</I>&gt;<i> script to: 
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> import sys, urllib, urlparse, xml.dom.pulldom, cgi, socket,
+</I>&gt;<i> xml.sax.saxutils, StringIO, math, glob, os.path, time
+</I>&gt;<i> 
+</I>&gt;<i> ddcServer = None
+</I>&gt;<i> resp = None
+</I>&gt;<i> 
+</I>&gt;<i> def list(req):
+</I>&gt;<i> 	global ddcServer
+</I>&gt;<i> 	now = str(time.time())
+</I>&gt;<i> 	if ddcServer:
+</I>&gt;<i> 		ddcServer.testing = &quot;ddcServer found&quot;
+</I>&gt;<i> 	else:
+</I>&gt;<i> 		ddcServer = DDCServer(&quot;ddcServer not found&quot;)
+</I>&gt;<i> 	resp = '''
+</I>&gt;<i> 	&lt;?xml version=&quot;1.0&quot; encoding=&quot;iso-8859-1&quot;?&gt;
+</I>&gt;<i> 	&lt;!DOCTYPE html\n
+</I>&gt;<i> 	  PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot;\n
+</I>&gt;<i> 	  &quot;<A HREF="http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;">http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;</A>&gt;\n
+</I>&gt;<i> 	&lt;html xmlns=&quot;<A HREF="http://www.w3.org/1999/xhtml&quot;">http://www.w3.org/1999/xhtml&quot;</A>&gt;\n
+</I>&gt;<i> 	  &lt;head&gt;\n
+</I>&gt;<i> 	    &lt;title&gt;ddcServerT&lt;/title&gt;\n
+</I>&gt;<i> 	  &lt;body&gt;\n
+</I>&gt;<i> 	  &lt;h1&gt;''' + ddcServer.testing + '''&lt;/h1&gt;
+</I>&gt;<i> 	  &lt;h2&gt;''' + now + '''&lt;/h2&gt;
+</I>&gt;<i> 	  &lt;/body&gt;
+</I>&gt;<i> 	&lt;/html&gt;\n
+</I>&gt;<i> 	'''
+</I>&gt;<i> 	return resp
+</I>&gt;<i> 	
+</I>&gt;<i> class DDCServer(object):
+</I>&gt;<i>     def __init__(self, testing):
+</I>&gt;<i> 	self.testing = testing
+</I>&gt;<i> 
+</I>&gt;<i> And wrapped it in another small bit of code (ddcServerTest.py):
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> from ddcServerT2 import list
+</I>&gt;<i> import sys, urllib, urlparse, xml.dom.pulldom, cgi, socket,
+</I>&gt;<i> xml.sax.saxutils, StringIO, math, glob, os.path
+</I>&gt;<i> 
+</I>&gt;<i> def handle(req):
+</I>&gt;<i> 	return list(req)
+</I>&gt;<i> 
+</I>&gt;<i> This is the code that gets invoked by the mod_python.publisher handler.
+</I>&gt;<i> The key was to only import the list function and not the ddcServerT2
+</I>&gt;<i> module. 
+</I>&gt;<i> 
+</I>&gt;<i> I can't explain the results, but the first few get requests to
+</I>&gt;<i> ddcServerTest.py produce 'ddcServer not found'.  After that the global
+</I>&gt;<i> remains resident in memory (I get ddcServer found).  The display time
+</I>&gt;<i> changes so I know it is not being cached by my browser.  
+</I>&gt;<i> 
+</I>&gt;<i> Is this reliable?  Any ideas why it takes a few get requests before the
+</I>&gt;<i> global remains resident?
+</I>&gt;<i> 
+</I>&gt;<i> Thanks!  harry 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> ---
+</I>&gt;<i> not sure why your code wouldn't work. I use the equivalent of the
+</I>&gt;<i> following to get the effect you're looking for:
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> ddcServer = None
+</I>&gt;<i> 
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>     global ddcServer 
+</I>&gt;<i>     if not ddcServer :
+</I>&gt;<i>         ddcServer = DDCServer()
+</I>&gt;<i>         # ...
+</I>&gt;<i>     # ...
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Incidentally, I once had problems with huge memory leaks when I wrote
+</I>&gt;<i> code similar to yours that assigned req to a variable that persisted
+</I>&gt;<i> across calls. They were fixed by assigning the variable to another value
+</I>&gt;<i> before returning (strange but true):
+</I>&gt;<i> 
+</I>&gt;<i>     ddcServer.req = req
+</I>&gt;<i>     ddcServer.do_GET()
+</I>&gt;<i>     ddcServer.req = None
+</I>&gt;<i> 
+</I>&gt;<i> --Alan
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On Mon, 7 Mar 2005 16:32:27 -0500, &quot;Wagner,Harry&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">wagnerh at oclc.org</A>&gt;
+</I>&gt;<i> said:
+</I>&gt;<i> &gt; Is there a way with mod_python to init global variables in a handler
+</I>&gt;<i> &gt; the first time it is called, so that they are available (and already
+</I>&gt;<i> &gt; initialized) in subsequent calls to the handler?  I thought the 
+</I>&gt;<i> &gt; following might work, but no joy:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; from mod_python import apache, util, Session
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; def handler(req):
+</I>&gt;<i> &gt; #       req.log_error(&quot;in handler&quot;)
+</I>&gt;<i> &gt; 	global ddcServer
+</I>&gt;<i> &gt; 	ddcServer.req = req
+</I>&gt;<i> &gt; 	ddcServer.do_GET()
+</I>&gt;<i> &gt; 	return apache.OK
+</I>&gt;<i> &gt; ...
+</I>&gt;<i> &gt; ddcServer = ''
+</I>&gt;<i> &gt; if not ddcServer:
+</I>&gt;<i> &gt; 	...
+</I>&gt;<i> &gt; 	ddcServer = DDCServer(None)	
+</I>&gt;<i> &gt; 	ddcServer.captions = DDCCaptions(captionsFile)
+</I>&gt;<i> &gt; 	ddcServer.localText = TextLocalization(captionsFile)
+</I>&gt;<i> &gt; 	ddcServer.ddcSearch = ddc3.DDCSearch(oclc2ddcFile, recFileName,
+</I>&gt;<i> &gt; compFile)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; The 'if not ddcServer' code is invoked with every call to the handler.
+</I>&gt;<i> &gt; Any ideas what I am doing wrong, or if this is possible with
+</I>&gt;<i> mod_python?
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; TIA... harry
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017658.html">[mod_python] Mod_python &amp; global persistence
+</A></li>
+	<LI>Next message: <A HREF="017663.html">[mod_python] mod_python interpreter creation issue
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17662">[ date ]</a>
+              <a href="thread.html#17662">[ thread ]</a>
+              <a href="subject.html#17662">[ subject ]</a>
+              <a href="author.html#17662">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

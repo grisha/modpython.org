@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] strange util.FieldStorage() behavior
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20strange%20util.FieldStorage%28%29%20behavior&In-Reply-To=20030528125754.B3291%40dagobert.e-technik.fh-schmalkalden.de">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006282.html">
+   <LINK REL="Next"  HREF="006288.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] strange util.FieldStorage() behavior</H1>
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20strange%20util.FieldStorage%28%29%20behavior&In-Reply-To=20030528125754.B3291%40dagobert.e-technik.fh-schmalkalden.de"
+       TITLE="[mod_python] strange util.FieldStorage() behavior">grisha at modpython.org
+       </A><BR>
+    <I>Wed May 28 10:47:25 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006282.html">[mod_python] strange util.FieldStorage() behavior
+</A></li>
+        <LI>Next message: <A HREF="006288.html">[mod_python] strange util.FieldStorage() behavior
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6287">[ date ]</a>
+              <a href="thread.html#6287">[ thread ]</a>
+              <a href="subject.html#6287">[ subject ]</a>
+              <a href="author.html#6287">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>
+I just ran this test using mod_python 3.0.3 and Apache 2.0.45 (on RH 8.0),
+I used ab (nice tool that comes with Apache) to run 100000 requests, and I
+have not seen any grwoth (except initally, but that's normal) in httpd's
+memory consumption.
+
+Grisha
+
+On Wed, 28 May 2003, Karsten Backhaus wrote:
+
+&gt;<i> I'm using mod_python 2.7.8 with apache 1.3.27 under SuSE Linux 8.2
+</I>&gt;<i>
+</I>&gt;<i> i wrote a simple handler script that only parses its &quot;cgi parameters&quot;
+</I>&gt;<i> using util.FieldStorage() and returns apache.OK
+</I>&gt;<i>
+</I>&gt;<i> the script worked fine so far, but everytime the script runs, the memory
+</I>&gt;<i> used by apache rises a few kbyte.
+</I>&gt;<i>
+</I>&gt;<i> next i removed the util.FieldStorage() function from the script, with the
+</I>&gt;<i> result, that the memory usage remains constant.
+</I>&gt;<i>
+</I>&gt;<i> because of that i searched for an other way to get access to the committed
+</I>&gt;<i> form parameters and found the mod_python.publisher handler.
+</I>&gt;<i>
+</I>&gt;<i> i added the publisher handler to my apache config and wrote a file
+</I>&gt;<i> &quot;hello.py&quot; with the following content:
+</I>&gt;<i> --------
+</I>&gt;<i> &quot;&quot;&quot; Publisher example &quot;&quot;&quot;
+</I>&gt;<i>
+</I>&gt;<i> def say(req, what=&quot;NOTHING&quot;):
+</I>&gt;<i>     return &quot;I am saying %s&quot; % what
+</I>&gt;<i> -------
+</I>&gt;<i>
+</I>&gt;<i> now a request with the url <A HREF="http://localhost/hello/say?what=blahblah">http://localhost/hello/say?what=blahblah</A>
+</I>&gt;<i> returns the expected &quot;I am saying blahblah
+</I>&gt;<i>
+</I>&gt;<i> i wrote a script, that calls wget on that url within an endless loop:
+</I>&gt;<i> ------- getit.pl
+</I>&gt;<i> while(1) {
+</I>&gt;<i>         system(&quot;wget -O test.htm <A HREF="http://localhost/hello/say?what=blah&quot;">http://localhost/hello/say?what=blah&quot;</A>);
+</I>&gt;<i> }
+</I>&gt;<i> -------
+</I>&gt;<i>
+</I>&gt;<i> next i wrote a verry simple &quot;tool&quot; that monitors memory usage of my
+</I>&gt;<i> http-servers
+</I>&gt;<i> ------- memwatch.pl
+</I>&gt;<i> while(1)
+</I>&gt;<i> {
+</I>&gt;<i>   open(OUTPUT, &quot;ps -C httpd -o \&quot;size= pid=\&quot; |&quot;) or die &quot;error: $!\n&quot;;
+</I>&gt;<i>   while(&lt;OUTPUT&gt;)
+</I>&gt;<i>   {
+</I>&gt;<i>     chomp();
+</I>&gt;<i>     my($first, $second) = split();
+</I>&gt;<i>     my($sec, $min, $hour) = localtime(time);
+</I>&gt;<i>     print &quot;$hour:$min:$sec &quot;, $first, &quot;\t(&quot;, $second, &quot;)\n&quot;;
+</I>&gt;<i>   }
+</I>&gt;<i>   sleep(1);
+</I>&gt;<i> }
+</I>&gt;<i> -------
+</I>&gt;<i>
+</I>&gt;<i> and, the unexpected happens, runnig memwatch.pl while running getit.pl
+</I>&gt;<i> shows the constant growing memory usage of the httpd processes.
+</I>&gt;<i>
+</I>&gt;<i> the longer the string after <A HREF="http://localhost/hello/say?what=">http://localhost/hello/say?what=</A> is, the
+</I>&gt;<i> more the memory seems to grow each time.
+</I>&gt;<i>
+</I>&gt;<i> reading the docs, i found, that even mod_python.publisher uses the
+</I>&gt;<i> functionality of util.FieldStorage(), which i wanted not to use
+</I>&gt;<i> because of the strange things i figured out during my first test
+</I>&gt;<i> (abovementioned)
+</I>&gt;<i>
+</I>&gt;<i> for me at the moment this looks like a amemory leakage in
+</I>&gt;<i> util.FieldStorage. i searched the archive and did not found anything
+</I>&gt;<i> regarding that behavior.
+</I>&gt;<i>
+</I>&gt;<i> so my question is: Am I doing something wrong?
+</I>&gt;<i>
+</I>&gt;<i> thanks in advance
+</I>&gt;<i> Karsten
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006282.html">[mod_python] strange util.FieldStorage() behavior
+</A></li>
+	<LI>Next message: <A HREF="006288.html">[mod_python] strange util.FieldStorage() behavior
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6287">[ date ]</a>
+              <a href="thread.html#6287">[ thread ]</a>
+              <a href="subject.html#6287">[ subject ]</a>
+              <a href="author.html#6287">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

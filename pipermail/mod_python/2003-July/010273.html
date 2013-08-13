@@ -1,0 +1,256 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20apache%20API%20and%20mod_python%20%3C-%3E%20protocol%20module%0A%09integration&In-Reply-To=20030716161514.Q95093%40onyx.ispol.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010272.html">
+   <LINK REL="Next"  HREF="010276.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration</H1>
+    <B>fitnah55</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20apache%20API%20and%20mod_python%20%3C-%3E%20protocol%20module%0A%09integration&In-Reply-To=20030716161514.Q95093%40onyx.ispol.com"
+       TITLE="[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration">fitnah55 at hotmail.com
+       </A><BR>
+    <I>Wed Jul 16 22:01:36 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010272.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration
+</A></li>
+        <LI>Next message: <A HREF="010276.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+ integration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10273">[ date ]</a>
+              <a href="thread.html#10273">[ thread ]</a>
+              <a href="subject.html#10273">[ subject ]</a>
+              <a href="author.html#10273">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+alright i just added the patch to my build directory.. and it wouldn't
+compile.  OKAY.  what is the freakin point of maintaining an accurate
+build archive if the freakin thing gets attacked by gremlins??
+
+okay so i tossed the original build (which without a doubt has not been
+changed by any legitimate or accidental work of my own on a machine that
+isn't accessable from remote), untarred the same archive, patched,
+rebuilt,
+no problem... damn gremlins
+
+BUT
+
+i'm still getting the same error with the actual connection test...
+
+any ideas?
+
+[Tue Jul 15 17:56:44 2003] [error] python_connection:
+ConnectionDispatch() returned nothing.
+
+
+&gt;<i> -----Original Message-----
+</I>&gt;<i> From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A> 
+</I>&gt;<i> [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] On Behalf Of 
+</I>&gt;<i> Gregory (Grisha) Trubetskoy
+</I>&gt;<i> Sent: Wednesday, July 16, 2003 8:47 PM
+</I>&gt;<i> To: Dustin Mitchell
+</I>&gt;<i> Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Subject: Re: [mod_python] apache API and mod_python &lt;-&gt; 
+</I>&gt;<i> protocol module integration
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Well, after some looking, apparently the APR does work this 
+</I>&gt;<i> way, it's just
+</I>&gt;<i> that the way the connection handler was coded probably 
+</I>&gt;<i> because I didn't
+</I>&gt;<i> understand APR well enough at the time I made it loop until specified
+</I>&gt;<i> length of bytes was read (I started out with replicating 
+</I>&gt;<i> req.read(), which
+</I>&gt;<i> knows how much data there is to read).
+</I>&gt;<i> 
+</I>&gt;<i> I attached a patch to the connobject.c that changes its 
+</I>&gt;<i> behaviour so that
+</I>&gt;<i> read(len) will read at most len bytes, and will only block if 
+</I>&gt;<i> no data is
+</I>&gt;<i> available. And len is an optional argument.
+</I>&gt;<i> 
+</I>&gt;<i> Here is a connection handler code that does the exact same 
+</I>&gt;<i> thing you had
+</I>&gt;<i> below. (note that print writes to stdout, which is visible if you run
+</I>&gt;<i> httpd with -X (stay in foreground) option:
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> 
+</I>&gt;<i> def connectionhandler(conn):
+</I>&gt;<i> 
+</I>&gt;<i>     print &quot;Connect from '%s'&quot; % `conn.remote_addr`
+</I>&gt;<i> 
+</I>&gt;<i>     while 1:
+</I>&gt;<i>         data = conn.read()
+</I>&gt;<i>         if not data: break
+</I>&gt;<i>         print &quot; Received: %s&quot; % `data`
+</I>&gt;<i> 
+</I>&gt;<i>     print &quot;Connection closed from '%s'&quot; % `conn.remote_addr`
+</I>&gt;<i> 
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> And here's the result:
+</I>&gt;<i> 
+</I>&gt;<i> $ ./bin/httpd -X
+</I>&gt;<i> Connect from '('0.0.0.0', 3513)'
+</I>&gt;<i>  Received: 'Hello\r\n'
+</I>&gt;<i>  Received: 'World\r\n'
+</I>&gt;<i> Connection closed from '('0.0.0.0', 3513)'
+</I>&gt;<i> 
+</I>&gt;<i> If I do 'for i in &quot;Hello World&quot;' thing, I get this:
+</I>&gt;<i> 
+</I>&gt;<i> Connect from '('0.0.0.0', 3524)'
+</I>&gt;<i>  Received: 'Hello World'
+</I>&gt;<i> Connection closed from '('0.0.0.0', 3524)'
+</I>&gt;<i> 
+</I>&gt;<i> Grisha
+</I>&gt;<i> 
+</I>&gt;<i> On Wed, 16 Jul 2003, Dustin Mitchell wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; On Wed, Jul 16, 2003 at 01:59:58PM -0400, Gregory (Grisha) 
+</I>&gt;<i> Trubetskoy wrote:
+</I>&gt;<i> &gt; &gt; This is not a problem of mod_python or Apache, this is 
+</I>&gt;<i> the way sockets
+</I>&gt;<i> &gt; &gt; work. If your protocol is such that you know ahead of 
+</I>&gt;<i> time how much to
+</I>&gt;<i> &gt; &gt; read (e.g. HTTP), then you can request this much data in one read.
+</I>&gt;<i> &gt; &gt; Otherwise, you must read in smallest unit sizes of your 
+</I>&gt;<i> protocol, which
+</I>&gt;<i> &gt; &gt; (I'm guessing) is 1 byte in case of Z39.50.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; This is not strictly true, as long as you're OK with 
+</I>&gt;<i> possibly getting a
+</I>&gt;<i> &gt; bit of *extra* data beyond a particular PDU (a little bit 
+</I>&gt;<i> of buffering
+</I>&gt;<i> &gt; can take care of that).  Apache has to do this to read the 
+</I>&gt;<i> HTTP header,
+</I>&gt;<i> &gt; which is not of a fixed length.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The socket blocking read interface is structured such that 
+</I>&gt;<i> it will block
+</I>&gt;<i> &gt; when *no* data is available, and will return *up to* the quantity
+</I>&gt;<i> &gt; specified in the recv() call if it is available.  However, if some
+</I>&gt;<i> &gt; smaller amount of data is available, that data will be returned
+</I>&gt;<i> &gt; immediately.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; To demonstrate, I hacked this together:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; from socket import *
+</I>&gt;<i> &gt; s = socket(AF_INET, SOCK_STREAM)
+</I>&gt;<i> &gt; s.bind((&quot;&quot;, 9900))
+</I>&gt;<i> &gt; s.listen(5)
+</I>&gt;<i> &gt; while 1:
+</I>&gt;<i> &gt;   ss, sa = s.accept()
+</I>&gt;<i> &gt;   print &quot;Connect from '%s'&quot; % (sa,)
+</I>&gt;<i> &gt;   while 1:
+</I>&gt;<i> &gt;     data = ss.recv(100)
+</I>&gt;<i> &gt;     if not data: break
+</I>&gt;<i> &gt;     print &quot; Received: %s&quot; % `data`
+</I>&gt;<i> &gt;   print &quot;Connection closed from '%s'&quot; % (sa,)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Then connected with telnet and typed &quot;Hello&quot; and &quot;World&quot; on separate
+</I>&gt;<i> &gt; lines.  Telnet, by default, buffers lines of input until a 
+</I>&gt;<i> newline, but
+</I>&gt;<i> &gt; you will note that in the two returns from ss.recv(), 
+</I>&gt;<i> neither contained
+</I>&gt;<i> &gt; 100 bytes of data:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Connect from '('127.0.0.1', 56260)'
+</I>&gt;<i> &gt;  Received: 'Hello\r\n'
+</I>&gt;<i> &gt;  Received: 'World\r\n'
+</I>&gt;<i> &gt; Connection closed from '('127.0.0.1', 56260)'
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Further, a loop such as:
+</I>&gt;<i> &gt;   for i in 'hello world': s.send(i)
+</I>&gt;<i> &gt; will produce output like this:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Connect from '('127.0.0.1', 56277)'
+</I>&gt;<i> &gt;  Received: 'h'
+</I>&gt;<i> &gt;  Received: 'ello world'
+</I>&gt;<i> &gt; Connection closed from '('127.0.0.1', 56277)'
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Either the client or the server's socket implementation is 
+</I>&gt;<i> buffering the
+</I>&gt;<i> &gt; characters because they're appearing so quickly, which cuts 
+</I>&gt;<i> down on the
+</I>&gt;<i> &gt; number of recv() calls which must be made.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I can't speak for the Apache sockets API, or the Python interface
+</I>&gt;<i> &gt; thereto, but sockets themselves *do* support this interface 
+</I>&gt;<i> (they'd be
+</I>&gt;<i> &gt; pretty useless if they didn't!).  I highly recommend W. Richard
+</I>&gt;<i> &gt; Stevens' TCP/IP Illustrated for an in-depth and very readable
+</I>&gt;<i> &gt; discussion of this and many other crucial implementation details of
+</I>&gt;<i> &gt; TCP/IP.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Dustin
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; --
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   Dustin Mitchell
+</I>&gt;<i> &gt;   <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">dustin at ywlcs.org</A>/<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">djmitche at alumni.uchicago.edu</A>
+</I>&gt;<i> &gt;   <A HREF="http://people.cs.uchicago.edu/~dustin/">http://people.cs.uchicago.edu/~dustin/</A>
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> 
+</I></PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010272.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration
+</A></li>
+	<LI>Next message: <A HREF="010276.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+ integration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10273">[ date ]</a>
+              <a href="thread.html#10273">[ thread ]</a>
+              <a href="subject.html#10273">[ subject ]</a>
+              <a href="author.html#10273">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

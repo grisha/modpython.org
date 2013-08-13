@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] ANN: Vampire 1.4 is now available.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ANN%3A%20Vampire%201.4%20is%20now%20available.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017182.html">
+   <LINK REL="Next"  HREF="017187.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] ANN: Vampire 1.4 is now available.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ANN%3A%20Vampire%201.4%20is%20now%20available.&In-Reply-To="
+       TITLE="[mod_python] ANN: Vampire 1.4 is now available.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Jan 23 00:40:10 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017182.html">[mod_python] Freebsd 5.3 - PyThreadState_Delete: tstate is still
+	current
+</A></li>
+        <LI>Next message: <A HREF="017187.html">[mod_python] psp_site example doesn't work
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17186">[ date ]</a>
+              <a href="thread.html#17186">[ thread ]</a>
+              <a href="subject.html#17186">[ subject ]</a>
+              <a href="author.html#17186">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Vampire 1.4 is now available.
+
+   <A HREF="http://www.dscpl.com.au/projects/vampire">http://www.dscpl.com.au/projects/vampire</A>
+
+   <A HREF="http://www.dscpl.com.au/downloads/vampire-1.4-20050123.tar.gz">http://www.dscpl.com.au/downloads/vampire-1.4-20050123.tar.gz</A>
+
+See the web site for information on what Vampire is all about.
+
+For those who have been tracking Vampire already, the main new things of
+interest in this release are:
+
+   - Vampire can now be used to intercept handlers other than that for 
+the
+     PythonHandler directive and it will be directed to a specific module
+     indicated within the handlers section of the Vampire config file. 
+Thus,
+     if in your &quot;.htaccess&quot; file you might have:
+
+       PythonAccessHandler vampire
+
+     In your &quot;.vampire&quot; config file you might then have:
+
+       [Handlers]
+
+       accesshandler = %(__config_root__)s/modules/access-handler.py
+
+     The handler function in the specified file must be the default for 
+the
+     particular directive, it cannot be modified like it can using &quot;::&quot; 
+in
+     the &quot;.htaccess&quot; file.
+
+   - Special conventions can now be used in form arguments to denote data
+     which should be translated to dictionaries and list. Specifically:
+
+       Keys (variable names) can have subkeys, with a ``.`` and can be
+       numbered with ``-``, like ``a.b-3=something`` means that the value
+       ``a`` is a dictionary with a key ``b``, and ``b`` is a list, the
+       third(-ish) element with the value ``something``. Numbers are used
+       to sort, missing numbers are ignored.
+
+     The code to achieve this bit of magic courtesy of some code from the
+     FormEncode/Validator package made available by Ian Bicking.
+
+   - The XmlRpcHandler class has been discarded completely. Instead, a 
+much
+     more low level request handler is provided whose job is only to 
+parse
+     the inbound request and then format the response. The actual 
+execution
+     of the request is passed off to a supplied callback. This callback
+     must work out how to then map the request to a specific method.
+
+     This means that in the first instance the support for XML-RPC 
+requests
+     is not as useful and more work is required to use it, but it opens
+     things up so that more powerful things can be done. For example, a
+     means of optionally having the request object also passed through to
+     methods could also be implemented. For example:
+
+       import vampire
+       import types
+
+       config = vampire.loadConfig(__req__,&quot;.vampire&quot;)
+       modules = config.get(&quot;Modules&quot;,&quot;common&quot;)
+       module = vampire.importModule(&quot;python-utils&quot;,modules)
+
+       def handler(req):
+
+         def _callback(req,name,params):
+           if name[0:1] != &quot;_&quot;:
+             if module.__dict__.has_key(name):
+               method = module.__dict__[name]
+               if type(method) == types.FunctionType:
+                 if len(method.func_code.co_varnames) != 0:
+                   if method.func_code.co_varnames[0] == &quot;req&quot;:
+                     params = list(params)
+                     params.insert(0,req)
+                 return method(*params)
+           raise Exception(&quot;Method Unavailable&quot;)
+
+         return vampire.serviceRequest(req,_callback)
+
+   - A cut down &quot;req&quot; object is now available when the Python code file
+     for a handler is being imported. This will be stored in the module 
+as
+     &quot;__req__&quot;. Once importing of the module has been completed it will 
+be
+     deleted out of the module. The cut down &quot;req&quot; object allows access 
+to
+     PythonOption variables using get_options(), other mod_python 
+settings
+     using get_config(), as well as attributes such as &quot;interpreter&quot; etc.
+     The &quot;uri&quot; and &quot;filename&quot; are also supplied such that the cut down 
+&quot;req&quot;
+     object can be used on configuration file lookup during module
+     importing. This is shown in practice in XML-RPC example above.
+
+Enjoy.
+
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017182.html">[mod_python] Freebsd 5.3 - PyThreadState_Delete: tstate is still
+	current
+</A></li>
+	<LI>Next message: <A HREF="017187.html">[mod_python] psp_site example doesn't work
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17186">[ date ]</a>
+              <a href="thread.html#17186">[ thread ]</a>
+              <a href="subject.html#17186">[ subject ]</a>
+              <a href="author.html#17186">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,203 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] process privileges
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20process%20privileges&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019131.html">
+   <LINK REL="Next"  HREF="019007.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] process privileges</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Khormaee, Cy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20process%20privileges&In-Reply-To="
+       TITLE="[mod_python] process privileges">cy.khormaee at hp.com
+       </A><BR>
+    <I>Mon Sep 12 11:10:06 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019131.html">[mod_python] Persistent web-service
+</A></li>
+        <LI>Next message: <A HREF="019007.html">[mod_python] publisher handler questions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19005">[ date ]</a>
+              <a href="thread.html#19005">[ thread ]</a>
+              <a href="subject.html#19005">[ subject ]</a>
+              <a href="author.html#19005">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I apologize for the lenghty turnaround time on this issue.  I did a some more testing including running the script under different users and modifying the unix privileges of the containg folders.  When I redirected the output of pdf latex to a file this was the error i recieved:
+
+This is pdfTeX, Version 3.14159-14h-released-20010417 (Web2C 7.3.3.1)
+! I can't write on file `plotoutput112.log'.
+Please type another transcript file name
+! Emergency stop
+No pages of output.
+
+when running this code exerpt:
+
+def makecsvpdf(results):
+         &quot;&quot;&quot;results dictionary should contain:
+                 html - the html formatting to present the file to user
+                 file - name of the output file
+                 time - timestamp(beautified)
+                 query - the query used to generate the output&quot;&quot;&quot;
+         csvfile = open(&quot;/var/www/html/pcode/tmp/&quot;+results['file'],'r')
+         temp = &quot;temp&quot;
+         csvdata=&quot;&quot;
+         while len(temp)!=0:
+                 temp= csvfile.readline()
+                 csvdata = csvdata+temp+&quot;\\newline&quot;
+         tex = &quot;&quot;&quot;\documentclass[12pt,letterpaper]{article}
+\usepackage{graphicx}
+\\begin{document}
+\section{&quot;Comma Separated Value Output:&quot;}&quot;&quot;&quot;+results['time']+&quot;&quot;&quot; \\newline &quot;&quot;&quot;+csvdata+&quot;&quot;&quot; \end{document}&quot;&quot;&quot;
+         texfile = open(&quot;/var/www/html/pcode/tmp/&quot;+results['file'][0:len(results['file'])-4]+'.tex','w')
+         texfile.write(tex)
+         os.system('pdflatex --interaction nonstopmode '+&quot;/var/www/html/pcode/tmp/&quot;+results['file'][0:len(results['file'])-4]+'.tex &gt; /tmp/testoutput.txt')
+         return &quot;&quot;&quot;&lt;HTML&gt;
+&lt;HEAD&gt;
+&lt;META HTTP-EQUIV=&quot;Refresh&quot; CONTENT=&quot;0;
+URL=&quot;&quot;&quot;+&quot;/pcode/tmp/&quot;+results['file'][0:len(results['file'])-4]+&quot;&quot;&quot;.pdf&quot;&gt;
+&lt;TITLE&gt;Servo Home&lt;/TITLE&gt;
+&lt;HEAD&gt;&lt;/HTML&gt;&quot;&quot;&quot;
+
+The basic idea is that this file will take a text file of csv values, make a TeX file out of them, and then convert that TeX file into a pdf by directly entering the command &quot;'pdflatex --interaction nonstopmode '+&quot;/var/www/html/pcode/tmp/&quot;+results['file'][0:len(results['file'])-4]+'.tex &gt; /tmp/testoutput.txt'&quot; into the commandline using the os module.  
+
+Unfortunatly, I do not have sufficient access privalages on the system I am working on to complete the modifications so kindly suggested by Eric.  Subsequently, I am attempting to find a simpler approach or find a well defined access issue to be corrected.  Again, I am at a loss for a solution/explanation, any assistance/debugging advice would be much appreciated.
+
+-=Cy=-
+
+-----Original Message-----
+From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+[mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>]On Behalf Of Eric Walstad
+Sent: Friday, August 26, 2005 11:38 AM
+To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Subject: Re: [mod_python] process privileges
+
+
+On Friday 26 August 2005 11:08, Jon-Pierre Gentil wrote:
+&gt;<i> On Friday 26 August 2005 11:31 am, Khormaee, Cy wrote:
+</I>&gt;<i> &gt; I'm currently trying to run pdflatex on a machine with RedHat
+</I>&gt;<i> &gt; Linux Corporate 3.0 by calling the os.system() command from mod
+</I>&gt;<i> &gt; python.  I am able to complete this operation from the command
+</I>&gt;<i> &gt; line python interpreter, but ill I get back when trying to run
+</I>&gt;<i> &gt; the command from apache/mod python all I receive is '256' and no
+</I>&gt;<i> &gt; changes are made to the file system.  All of the folders involved
+</I>&gt;<i> &gt; are set for full access(unix privilege 777).  My current guess is
+</I>&gt;<i> &gt; that this issue has something to do with apache's priority, but
+</I>&gt;<i> &gt; haven't been able to confirm this suspicion yet.  If you can
+</I>&gt;<i> &gt; provide any hints on how to debug this it would be much
+</I>&gt;<i> &gt; appreciated.
+</I>&gt;<i>
+</I>&gt;<i> If you could show us some code it would help.  Having a different
+</I>&gt;<i> priority should not affect filesystem access, but running in apache
+</I>&gt;<i> is a lot different than running manually in the interpreter, since
+</I>&gt;<i> you would run as a completely different user and most likely not
+</I>&gt;<i> have a home directory.
+</I>
+I've had luck running a system process triggered with mod_python by:
+
+ 1.  setup the sudo file to allow the Apache process (user www-data on 
+my debian box) to run a particular shell command.  Here a sample of 
+my sudo file:
+
+# User alias specification
+User_Alias      APACHE = www-data
+# Cmnd alias specification
+Cmnd_Alias      MOD_PYTHON_BRANCH = /path/to/shell/script.sh
+# User privilege specification
+APACHE          LOCALHOST = NOPASSWD: MOD_PYTHON_BRANCH
+
+ 2.  Call the register_cleanup method of the mod_python request object 
+to basically detach the system process (the shell script) from the 
+mod_python request.  You may not need to do it this way, but I did 
+because my shell script took a long time to complete and I didn't 
+want the web user waiting for it to complete.
+
+    req.register_cleanup(buildIt, working_dir)
+
+def buildIt(working_dir):
+    &quot;&quot;&quot;The 'callable object' needed by req.register_cleanup.
+    All this does is call the shell script.
+    &quot;&quot;&quot;
+    r, shell_script_output = \
+      commands.getstatusoutput(SHELL_SCRIPT_COMMAND % working_dir)
+
+If you search the mod_python list archives for my email address and 
+&quot;register_cleanup&quot; you will find more details.
+
+I hope that helps.
+
+Eric.
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019131.html">[mod_python] Persistent web-service
+</A></li>
+	<LI>Next message: <A HREF="019007.html">[mod_python] publisher handler questions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19005">[ date ]</a>
+              <a href="thread.html#19005">[ thread ]</a>
+              <a href="subject.html#19005">[ subject ]</a>
+              <a href="author.html#19005">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

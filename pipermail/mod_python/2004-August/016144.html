@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] XSLT versus 'traditional' templating (was: mod_python
+	Live examples)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20XSLT%20versus%20%27traditional%27%20templating%20%28was%3A%20mod_python%0A%09Live%20examples%29&In-Reply-To=87acwsot6y.fsf%40tapsellferrier.co.uk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016140.html">
+   <LINK REL="Next"  HREF="016148.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] XSLT versus 'traditional' templating (was: mod_python
+	Live examples)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Byron Ellacott</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20XSLT%20versus%20%27traditional%27%20templating%20%28was%3A%20mod_python%0A%09Live%20examples%29&In-Reply-To=87acwsot6y.fsf%40tapsellferrier.co.uk"
+       TITLE="[mod_python] XSLT versus 'traditional' templating (was: mod_python
+	Live examples)">bje at apnic.net
+       </A><BR>
+    <I>Thu Aug 19 13:31:54 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016140.html">[mod_python] mod_python Live examples
+</A></li>
+        <LI>Next message: <A HREF="016148.html">[mod_python] XSLT versus 'traditional' templating (was:
+	mod_python Live examples)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16144">[ date ]</a>
+              <a href="thread.html#16144">[ thread ]</a>
+              <a href="subject.html#16144">[ subject ]</a>
+              <a href="author.html#16144">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Nic Ferrier wrote:
+&gt;<i> Your architecture sounds more complicated than the one I use. I have
+</I>&gt;<i> business methods that deliver XML. The XML gets transformed into HTML
+</I>&gt;<i> (or not) by particular mod_python handlers. It's a very code based
+</I>&gt;<i> approach. 
+</I>
+(And yet, still under 300 lines of Python!)
+
+There are two reasons I chose the approach I have.  First, I am still 
+dealing with the top layer of the application: views and actions.  The 
+business methods may or may not be implemented using XML, but when a 
+page is being viewed, the data retrieved for that page will be expressed 
+as XML.  Thus, I insert the view level objects that know how to get 
+business results expressed in XML.  I have multiple modules allowed per 
+page to allow reuse: a menu module or a reminders module will commonly 
+be reused, and I'd rather just say &quot;This view will use the reminders 
+module&quot; and let the XSLT worry about how and where to put the output of 
+that module in the final display.
+
+&gt;<i> In my architecture, there is no aggregation of XML from collections of
+</I>&gt;<i> business methods (though there could be if it was pragmatic). There is
+</I>&gt;<i> no special 'view' definition. There is no need for a pluggable
+</I>&gt;<i> translation layer. The mod_python parts of the architecture are *very*
+</I>&gt;<i> disposable.
+</I>
+The pluggable translation layer would allow for me to replace XSLT with 
+a system that parsed the XML as template variables for processing in 
+some other template system.  Which I will probably never use.
+
+As I'm still dealing entirely at the top, /mod_/python could perhaps be 
+replaced with a CGI python, but the point is to map between a user's URI 
+request and business code that's got no reason to know or care how it's 
+being accessed.
+
+&gt;<i> And note that XSLT doesn't have to be slow; there's quite a lot of
+</I>&gt;<i> research going into improving speed. The pipelining approach has
+</I>&gt;<i> already been taken:
+</I>&gt;<i>   <A HREF="http://xml.apache.org/xalan-j/xsltc_usage.html">http://xml.apache.org/xalan-j/xsltc_usage.html</A>
+</I>
+Sorry, but I'm not sure what you mean by pipelining.  Since an XSLT 
+document can, at any point, examine any part of the source document, you 
+/must/ have the entire source document available to perform a transform. 
+  Consider how you would implement &lt;xsl:value-of 
+select=&quot;//foo/bar[@baz='quux']&quot;&gt; without a full document, for instance. 
+  In essense, XSLT is a document transformation tool, whereas 
+traditional HTML templating mechanisms, including PSP, are stream 
+templating tools.
+
+On the other hand, it's perfectly valid to compile the XSLT document to 
+some other, more convenient form, thus saving on the parsing, and it's 
+also valid to cache DOM trees instead of XML strings.  But these don't 
+change the basic fact that an XSLT transformation is still more complex 
+than your ordinary run-of-the-mill template translations.
+
+&gt;<i> In a RESTfull application you could also just add another server.
+</I>
+And I am talking not about scalability performance, but about 
+per-request response time.  If the system starts too slow to use for one 
+user making one request at a time, scaling well will simply mean it can 
+be too slow for lots of users at once.
+
+&gt;<i> Hmmm... but unless you translate the whole page you don't know that
+</I>&gt;<i> there won't be an error that you should signal with 500 (or
+</I>&gt;<i> whatever). 
+</I>&gt;<i> This is true for all templating applications, those that return data
+</I>&gt;<i> before translation completion are inherently weak.
+</I>
+Yes, this is true.  You can work optimistically, though, and say that in 
+a well tested production system, pages will not have parsing/templating 
+errors.  Or, you can say that they will only very rarely have them, and 
+in your approach prefer the case where those such errors do not occur. 
+In streaming templates, you can simply put data out to the client 
+browser as fast as you get it, and if a parsing error occurs, you will 
+fail ungracefully - but hey, it's an ungraceful and (hopefully) unlikely 
+error.  When you're transforming a document, you cannot perform the 
+transform until you have an entire document available to transform, and 
+thus you cannot send data to the client until near the end of your 
+processing.
+
+Same overall response time, but a far slower perception.
+
+&gt;<i> Python doesn't have 'standard' XSLT support yet... but when it does it
+</I>&gt;<i> will be possible to pass DOMs around instead of XML character
+</I>&gt;<i> streams. That will speed things up considerably.
+</I>
+Sure, or you just say that you expect DOMs to be of the type you can 
+handle.  You're defining an API, you can also define the types of the 
+arguments and return values.
+
+&gt;<i> And even though there is no 'standard' XSLT support I still think
+</I>&gt;<i> mod_python is a *very* good tool for RESTfull applications like this.
+</I>
+Yes, I'm not denying that.  My main claim here is that XSLT approaches, 
+and any approach that outputs (correct) XHTML, will always /feel/ slower 
+to the user than streaming template approaches, because in the first 
+case the entire document must be available to transform against, and in 
+the second case the entire document must be parsed before rendering begins.
+
+These aren't reasons to avoid the technologies, they are tradeoffs. 
+Your application will almost certainly feel slower, but it's likely to 
+have much better decoupling and maintainability, if you use XSLT to 
+transform XML data to markup.
+
+-- 
+bje
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016140.html">[mod_python] mod_python Live examples
+</A></li>
+	<LI>Next message: <A HREF="016148.html">[mod_python] XSLT versus 'traditional' templating (was:
+	mod_python Live examples)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16144">[ date ]</a>
+              <a href="thread.html#16144">[ thread ]</a>
+              <a href="subject.html#16144">[ subject ]</a>
+              <a href="author.html#16144">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

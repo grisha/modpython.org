@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%202.2%20authen/authz%20and%20%22require%22%20semantics&In-Reply-To=28012bc60709231405g43d82adfq3f0f7e3e7d39bec8%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024234.html">
+   <LINK REL="Next"  HREF="024243.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%202.2%20authen/authz%20and%20%22require%22%20semantics&In-Reply-To=28012bc60709231405g43d82adfq3f0f7e3e7d39bec8%40mail.gmail.com"
+       TITLE="[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sun Sep 23 21:32:40 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024234.html">[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics
+</A></li>
+        <LI>Next message: <A HREF="024243.html">[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24235">[ date ]</a>
+              <a href="thread.html#24235">[ thread ]</a>
+              <a href="subject.html#24235">[ subject ]</a>
+              <a href="author.html#24235">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 24/09/2007, Arnar Birgisson &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">arnarbi at gmail.com</A>&gt; wrote:
+&gt;<i> Hello there,
+</I>&gt;<i>
+</I>&gt;<i> I'm having some trouble finding the right docs/examples to solve my problem.
+</I>&gt;<i>
+</I>&gt;<i> What I want to do is to use a database (a Django model) to control
+</I>&gt;<i> access to svn and trac (let's just focus on svn to begin with).
+</I>&gt;<i>
+</I>&gt;<i> My urls are of the form <A HREF="http://svn.domain.tld/projectname/.">http://svn.domain.tld/projectname/.</A> In the db
+</I>&gt;<i> I have an entry for each project, and on it a boolean field indicating
+</I>&gt;<i> if the project should be public-readable or not.
+</I>&gt;<i>
+</I>&gt;<i> How can I leave it up to the authen- or authzhandler to decide when
+</I>&gt;<i> username/passwd is required? Seems if I require anything a
+</I>&gt;<i> login-dialog is popped up, even if the authenhandler never looks at
+</I>&gt;<i> the username and just return apache.OK if the project is
+</I>&gt;<i> public-readable. If I have no require lines, no authentication seems
+</I>&gt;<i> to take place and everything is wide-open regardless of the
+</I>&gt;<i> public-readable switch.
+</I>&gt;<i>
+</I>&gt;<i> &gt;From [1] it seems the proper way with apache 2.2. is to provide both
+</I>&gt;<i> an authen- and authzhandler, but I don't quite see how things should
+</I>&gt;<i> work in my case.
+</I>&gt;<i>
+</I>&gt;<i> Ideally, I'd like my config to look something like this:
+</I>&gt;<i>
+</I>&gt;<i> SetEnv DJANGO_SETTINGS_MODULE projectadmin.settings
+</I>&gt;<i> PythonHandlerModule projectadmin.authenhandler
+</I>&gt;<i> Require project-access svn_read
+</I>&gt;<i> &lt;LimitExcept GET PROPFIND OPTIONS REPORT&gt;
+</I>&gt;<i>     Require project-access svn_write
+</I>&gt;<i> &lt;/LimitExcept&gt;
+</I>&gt;<i>
+</I>&gt;<i> Making it work sanely with other auth- or authz handlers is no issue for me.
+</I>&gt;<i>
+</I>&gt;<i> Arnar
+</I>&gt;<i>
+</I>&gt;<i> [1] <A HREF="http://www.modpython.org/pipermail/mod_python/2007-July/024055.html">http://www.modpython.org/pipermail/mod_python/2007-July/024055.html</A>
+</I>
+Does it have to be configurable from Apache configuration, could you
+just do it all in the Python script?
+
+What we do to prevent people performing updates against tag
+directories in subversion is:
+
+&lt;Location /svn&gt;
+
+    DAV svn
+    SVNParentPath /usr/local/repository/subversion
+
+     .....
+
+    PythonInterpreter subversion_handlers
+    PythonPath 'sys.path + [&quot;/usr/local/pkg/apps/subversion&quot;]'
+    PythonFixupHandler subversion_handlers::protect_tagged_packages
+
+&lt;/Location&gt;
+
+In the Python code file, then have:
+
+from mod_python import apache
+import fnmatch
+
+# When access is to tagged packages, only allow read/only operations
+# and copy command. This means that tagged packages will be able to
+# be created, but will prevent files within a tagged package being
+# changed and committed back into the repository, replacing files in
+# the tagged version.
+
+RESTRICTED_URI = '/svn/drives/!svn/*/*/packages/tags/*/*/*'
+ALLOW_METHODS = [ 'OPTIONS', 'GET', 'PROPFIND', 'REPORT', 'COPY' ]
+
+def protect_tagged_packages(req):
+    if fnmatch.fnmatch(req.uri, RESTRICTED_URI):
+        if req.method in ALLOW_METHODS:
+            return apache.OK
+        return apache.HTTP_FORBIDDEN
+    return apache.OK
+
+The only thing thus permitted on a tag directory is deleting it and
+renaming it. Keep these for where people stuff up.
+
+So, we don't even use auth/authz for this bit, but just use a fixup handler.
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024234.html">[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics
+</A></li>
+	<LI>Next message: <A HREF="024243.html">[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24235">[ date ]</a>
+              <a href="thread.html#24235">[ thread ]</a>
+              <a href="subject.html#24235">[ subject ]</a>
+              <a href="author.html#24235">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

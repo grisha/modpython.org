@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problem with PSP and unicode
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20with%20PSP%20and%20unicode&In-Reply-To=43F234B8.8000608%40q-voz.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020265.html">
+   <LINK REL="Next"  HREF="020264.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Problem with PSP and unicode</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Deron Meranda</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20with%20PSP%20and%20unicode&In-Reply-To=43F234B8.8000608%40q-voz.com"
+       TITLE="[mod_python] Problem with PSP and unicode">deron.meranda at gmail.com
+       </A><BR>
+    <I>Thu Feb 16 10:56:50 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020265.html">[mod_python] Problem with PSP and unicode
+</A></li>
+        <LI>Next message: <A HREF="020264.html">[mod_python] Problem with PSP and unicode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20302">[ date ]</a>
+              <a href="thread.html#20302">[ thread ]</a>
+              <a href="subject.html#20302">[ subject ]</a>
+              <a href="author.html#20302">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 2/14/06, Gustavo C&#243;rdova Avila &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">gustavo.cordova at q-voz.com</A>&gt; wrote:
+&gt;<i> ...  Python is using
+</I>&gt;<i> ASCII encoding because it's the default encoding, you can check what your
+</I>&gt;<i> default encoding is with:
+</I>&gt;<i>
+</I>&gt;<i>     &gt;&gt;&gt; import sys
+</I>&gt;<i>     &gt;&gt;&gt; sys.getdefaultencoding()
+</I>&gt;<i>     'iso-8859-1'
+</I>&gt;<i>
+</I>&gt;<i> You see here I'm using LATIN1, because it gives me accents and &quot;&#241;&quot;, and
+</I>&gt;<i> other
+</I>&gt;<i> nice chars for spanish.  But, there's no _sys.getdefaultencoding()_ function
+</I>&gt;<i> available because it's explicitly deleted in /usr/lib/pythonXX/site.py:
+</I>&gt;<i>
+</I>&gt;<i>     (around line 394)
+</I>&gt;<i>     ...
+</I>&gt;<i>     if hasattr(sys, &quot;setdefaultencoding&quot;):
+</I>&gt;<i>        del sys.setdefaultencoding
+</I>&gt;<i>
+</I>&gt;<i> I really don't know the rationale for doing that, maybe to stop different
+</I>&gt;<i> modules from stomping on the default encoding, whatever.
+</I>&gt;<i>
+</I>&gt;<i> So, if you can configure your default encoding to whatever you need (&quot;UTF-8&quot;
+</I>&gt;<i> is pretty nice), unicode objects can be correctly serialized to strings
+</I>&gt;<i> without
+</I>&gt;<i> any problems:
+</I>
+I have already been trying to figure out a way around this.  It appears
+to me to be a poorly planned feature in Python itself.  The reson for this
+deletion (from what I can tell) makes sense in most cases--it's to prevent
+apps from pulling dangerous tricks, such as changing the encoding.
+Imagine a python module which sets the encoding internally
+because it is easier than calling explit encoding functions.  Since
+the default encoding is interpreter-wide (much like a global variable),
+it could break the rest of the application.  So Python removes the function
+to discourage sloppy shortcuts.
+
+However, there's no way to specify the default encoding when the
+interpreter is started (either via a python command-line option or
+the start interpreter C api).  And in some applications, especially
+like mod_python, retaining the ability to change encodings actually
+makes good sense.
+
+Obviously it's best if str() and such in a mod_python-based application
+has a default encoding which is the same as the request's content-type
+charset.
+
+Since Python's site.py deletes the sys.setdefaultencoding() function,
+there's no easy way to alter the encoding on a request-by-request
+basis.
+The next best would be to specify an encoding on an interpreter
+basis, perhaps with a directive such as
+
+   PythonOption DefaultEncoding utf-8
+
+but again, there's no way to do this in a stock Python distribution.
+I think this is something that should be discussed within the
+Python dev group.
+
+
+In the mean time, for people that use Unicode, you have a couple
+options,
+
+ 1. Alter the site.py and change your defaultencoding (to say &quot;utf-8&quot;)
+     as well as insuring your outgoing content-type has the same
+     charset parameter.
+
+ 2. Do explicit encoding.  You can even create your own helper
+     function like,
+
+   def ustr(s):
+       if not isinstance(s, basestring):
+           s = str(basestring)
+       if isinstance(s, unicode):
+           s = s.encode('utf-8')
+       return s
+
+     And then use ustr(...) in place of str(...)
+
+--
+Deron Meranda
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020265.html">[mod_python] Problem with PSP and unicode
+</A></li>
+	<LI>Next message: <A HREF="020264.html">[mod_python] Problem with PSP and unicode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20302">[ date ]</a>
+              <a href="thread.html#20302">[ thread ]</a>
+              <a href="subject.html#20302">[ subject ]</a>
+              <a href="author.html#20302">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

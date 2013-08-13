@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and SQLAlchemy don't mix?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20SQLAlchemy%20don%27t%20mix%3F&In-Reply-To=f4cdva%248ra%241%40sea.gmane.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023796.html">
+   <LINK REL="Next"  HREF="023799.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python and SQLAlchemy don't mix?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20SQLAlchemy%20don%27t%20mix%3F&In-Reply-To=f4cdva%248ra%241%40sea.gmane.org"
+       TITLE="[mod_python] mod_python and SQLAlchemy don't mix?">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Fri Jun  8 18:33:35 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023796.html">[mod_python] mod_python and SQLAlchemy don't mix?
+</A></li>
+        <LI>Next message: <A HREF="023799.html">[mod_python] Re: mod_python and SQLAlchemy don't mix?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23798">[ date ]</a>
+              <a href="thread.html#23798">[ thread ]</a>
+              <a href="subject.html#23798">[ subject ]</a>
+              <a href="author.html#23798">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 09/06/07, Gambit &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">gambit at alpenjodel.de</A>&gt; wrote:
+&gt;<i> Hi,
+</I>&gt;<i>
+</I>&gt;<i> I'm trying to write a fairly simple web app using mod_python and
+</I>&gt;<i> SQLAlchemy and I'm getting stability problems with the database which
+</I>&gt;<i> apparently are threading issues.
+</I>&gt;<i>
+</I>&gt;<i> Basically what I do is to create a SQLAlchemy engine in a separate
+</I>&gt;<i> module that is imported once at the beggining of my app:
+</I>&gt;<i>
+</I>&gt;<i> db = sa.create_engine('<A HREF="mysql://user:pass@localhost/mydb'">mysql://user:pass@localhost/mydb'</A>)
+</I>&gt;<i>
+</I>&gt;<i> And then I use this db variable freely in my code. This leads to errors
+</I>&gt;<i> when multiple users are using the app.
+</I>&gt;<i>
+</I>&gt;<i> The people at the SQLAlchemy mailing list didn't saw a problem with my
+</I>&gt;<i> approach and suggested this is a mod_python/mysql issue.
+</I>&gt;<i>
+</I>&gt;<i> Browsing through the archives of this list I found some possible
+</I>&gt;<i> explanations in an earlier discussion:
+</I>&gt;<i>
+</I>&gt;<i> &gt; multiple threads in apache get multiple copies of mod_python, each with
+</I>&gt;<i> &gt; it's own copy of the imported database module in memory and each module
+</I>&gt;<i> &gt; maintaining a different database connection
+</I>
+Which mailing list did this come from as the statement is wrong? This
+myth is one I have been trying to stamp out as it just causes
+misunderstandings of how mod_python works and lead people to think it
+is crap.
+
+When concurrent requests are handled by one Apache child process they
+are done so in different threads, but all those threads execute within
+the context of the same Python interpreter instance and use the same
+modules and data.
+
+Read:
+
+  <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/TheProcessInterpreterModel">http://www.dscpl.com.au/wiki/ModPython/Articles/TheProcessInterpreterModel</A>
+
+for further details.
+
+Beyond that, I am not familiar with SQLAlchemy and whether it is
+itself actually thread safe, maybe others can comment.
+
+One thing I would ask though is what version of mod_python are you
+using? If you aren't using mod_python 3.3.1 I would suggest you
+upgrade. If you are using mod_python 3.1.X or older, then be aware
+there are multithreading bugs in it which conceivably could cause you
+problems.
+
+BTW, define what you mean by stability problems. One of the problems
+with these database adapters is that the caching they do can cause
+problems in a multiprocess web server like Apache as they cache data
+in the processes and don't necessarily reflect quickly changes commit
+by an alternate process.
+
+Graham
+
+&gt;<i> &gt; The process which apache chooses to to handle a request is random.
+</I>&gt;<i>
+</I>&gt;<i> &gt; Don't be fooled into thinking that module-level attributes are global
+</I>&gt;<i> &gt; across your application as they are not. In anything other than winnt-mpm
+</I>&gt;<i> &gt; (which is a single, threaded process), you will have multiple, independent
+</I>&gt;<i> &gt; copies of that variable.
+</I>&gt;<i>
+</I>&gt;<i> So... I conclude I have multiple, independent SQLAlchemy engines created
+</I>&gt;<i> and thus I cannot just use the db object I created freely in my app.
+</I>&gt;<i>
+</I>&gt;<i> Does anyone knows how to solve this? Is someone here using mod_python
+</I>&gt;<i> and SQLAlchemy together successfully? Care to share some best practices?
+</I>&gt;<i>
+</I>&gt;<i> Thanks in advance
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Some sample code follows
+</I>&gt;<i>
+</I>&gt;<i> In dbinit.py:
+</I>&gt;<i>
+</I>&gt;<i> db = sa.create_engine('<A HREF="mysql://user:pass@localhost/mydb'">mysql://user:pass@localhost/mydb'</A>)
+</I>&gt;<i> metadata = sa.BoundMetaData(db)
+</I>&gt;<i> users_table = sa.Table('Users', metadata, autoload=True)
+</I>&gt;<i>
+</I>&gt;<i> class User(object):
+</I>&gt;<i>      pass
+</I>&gt;<i>
+</I>&gt;<i> sa.orm.clear_mappers()
+</I>&gt;<i> sa.mapper(User, users_table)
+</I>&gt;<i>
+</I>&gt;<i> In myapp.py
+</I>&gt;<i>
+</I>&gt;<i> import logging
+</I>&gt;<i> import sqlalchemy as sa
+</I>&gt;<i> from dbinit import *
+</I>&gt;<i>
+</I>&gt;<i> def justatest(req):
+</I>&gt;<i>       dbsession = sa.create_session(bind_to=db)
+</I>&gt;<i>       query = dbsession.query(User)
+</I>&gt;<i>       requested_uid = sanitize(req.form['uid'])
+</I>&gt;<i>       try:
+</I>&gt;<i>           user = query.get_by(Uid=requested_uid)
+</I>&gt;<i>       except sa.exceptions.SQLError, details:
+</I>&gt;<i>           logging.debug(&quot;got this error: %s&quot; % details)
+</I>&gt;<i>           dbsession.close()
+</I>&gt;<i>           return &quot;Yet another crash&quot;
+</I>&gt;<i>       else:
+</I>&gt;<i>           dbsession.close()
+</I>&gt;<i>           return show_message(req, &quot;Looks good&quot;)
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023796.html">[mod_python] mod_python and SQLAlchemy don't mix?
+</A></li>
+	<LI>Next message: <A HREF="023799.html">[mod_python] Re: mod_python and SQLAlchemy don't mix?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23798">[ date ]</a>
+              <a href="thread.html#23798">[ thread ]</a>
+              <a href="subject.html#23798">[ subject ]</a>
+              <a href="author.html#23798">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

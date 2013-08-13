@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Stopping Reimports
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Stopping%20Reimports&In-Reply-To=200408101328.i7ADRxIF028389%40modpython.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016024.html">
+   <LINK REL="Next"  HREF="016030.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Stopping Reimports</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Stopping%20Reimports&In-Reply-To=200408101328.i7ADRxIF028389%40modpython.org"
+       TITLE="[mod_python] Stopping Reimports">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Aug 10 20:28:29 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016024.html">[mod_python] Stopping Reimports
+</A></li>
+        <LI>Next message: <A HREF="016030.html">[mod_python] Stopping Reimports
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16027">[ date ]</a>
+              <a href="thread.html#16027">[ thread ]</a>
+              <a href="subject.html#16027">[ subject ]</a>
+              <a href="author.html#16027">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>What concerns me about mod_python (2.X, not sure about 3.X, haven't looked)
+and also mpservlets as well, is that the code to look to see if a module should
+be reloaded is of the form:
+
+  if not klass or mtime &gt; cached_mtime:
+
+Ie., reload the file if the file is newer.
+
+To my mind this is possibly wrong as it doesn't cater for the case where you
+might replace a file with an older version after you worked out the newer
+one didn't work and what you put back has a modification time in the past,
+not the future.
+
+For example:
+
+  cp myservlet.py myservlet.py.backup
+
+  # edit myservlet.py
+  # exercise myservlet
+  # find it loads and runs, but not desired result
+
+  mv myservlet.py.backup myservlet.py
+
+The myservlet.py file now has a mtime older than the modified one you briefly
+ran so it will not reload automatically. You are forced to touch the file to update
+its mtime.
+
+You can also have problems when files are stored on NFS mounted directories
+and the two machines aren't time synced very well and changes are made on the
+NFS server.
+
+I would thus have though saying:
+
+  if not klass or mtime != cached_mtime:
+
+would be more appropriate. Ie., if the mtime is different to cached mtime and not
+just newer.
+
+Comments?
+
+
+On Aug 10 15:27, &quot;Nicolas Lehuen&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nicolas at lehuen.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Subject: RE: [mod_python] Stopping Reimports
+</I>&gt;<i>
+</I>&gt;<i> Hi,
+</I>&gt;<i> 
+</I>&gt;<i> I don't think your solution is so ugly... A few weeks ago I wrote about a
+</I>&gt;<i> similar problem on this list, though my solution was to alter publisher.py
+</I>&gt;<i> to change the way it builds module names (publisher.py version 1.36, line 67
+</I>&gt;<i> in mod_python 3.1.3)... Or, as Daniel Popowich wrote, you could use
+</I>&gt;<i> mod_servlet (<A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>) which does
+</I>&gt;<i> correctly load modules.
+</I>&gt;<i> 
+</I>&gt;<i> Note that you were in fact quite lucky to experience reimports, since some
+</I>&gt;<i> people (including me, running mp 3.1.3 on Apache2 multithreaded on Windows)
+</I>&gt;<i> experience a much worse behaviour : no reimport at all, e.g. /foo/index.py
+</I>&gt;<i> would return the same page as /bar/index.py if /bar/index.py was touched
+</I>&gt;<i> after /foo/index.py !
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> 
+</I>&gt;<i> Nicolas Lehuen
+</I>&gt;<i> 
+</I>&gt;<i> &gt; -----Message d'origine-----
+</I>&gt;<i> &gt; De : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A> 
+</I>&gt;<i> &gt; [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] De la part de Cu _
+</I>&gt;<i> &gt; Envoy&#233; : mardi 10 ao&#251;t 2004 13:47
+</I>&gt;<i> &gt; &#192; : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> &gt; Objet : [mod_python] Stopping Reimports
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; mpy
+</I>&gt;<i> &gt; Hello, 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I'd like to know if there is some elegant way to deal with 
+</I>&gt;<i> &gt; the [notice] mod_python: (Re)importing module 'index' with 
+</I>&gt;<i> &gt; path set to [...]
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; The mod_python.apache importing mechanism works correctly, 
+</I>&gt;<i> &gt; the problem is, it keeps reimporting the same files.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I don't think reimporting is the best solution for modules 
+</I>&gt;<i> &gt; with same names but in different directories.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; It degrades performance with unneeded imports. 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Then,
+</I>&gt;<i> &gt; I try to use mod_python's sideeffect of not discarding 
+</I>&gt;<i> &gt; variables when importing already loaded modules to cache 
+</I>&gt;<i> &gt; frequently used data (If the module doesn't get reimported 
+</I>&gt;<i> &gt; all the time, it's variables keep their values between 
+</I>&gt;<i> &gt; subsequent requests). 
+</I>&gt;<i> &gt; Every reimport causes the cached data to be reloaded.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Also, it pollutes error_log :)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; My current &quot;solution&quot; is ugly, that's why I post here, maybe 
+</I>&gt;<i> &gt; somebody will come up with something better.
+</I>&gt;<i> &gt; The idea is - if i have to load a module &quot;my_module&quot;, which 
+</I>&gt;<i> &gt; is at /path/to/my_files, don't load it as my_module, but as 
+</I>&gt;<i> &gt; path_to_my_files_my_module That way, modules with same names 
+</I>&gt;<i> &gt; will be assigned different names in sys.modules and won't get 
+</I>&gt;<i> &gt; reloaded all the time.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; It's as using
+</I>&gt;<i> &gt; from path.to.my.files imort my_module as 
+</I>&gt;<i> &gt; path_to_my_files_my_module instead of from path.to.my.files 
+</I>&gt;<i> &gt; imort my_module
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Modules loaded with import_module are usually used by 
+</I>&gt;<i> &gt; pointers, not by symbolic names so, as for me, it's ok to 
+</I>&gt;<i> &gt; load it with a different name.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; my mod_python/apache.py import_module() now looks like this:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; def import_module(module_name, autoreload=1, log=0, path=None):
+</I>&gt;<i> &gt; .......
+</I>
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016024.html">[mod_python] Stopping Reimports
+</A></li>
+	<LI>Next message: <A HREF="016030.html">[mod_python] Stopping Reimports
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16027">[ date ]</a>
+              <a href="thread.html#16027">[ thread ]</a>
+              <a href="subject.html#16027">[ subject ]</a>
+              <a href="author.html#16027">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

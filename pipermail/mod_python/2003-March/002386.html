@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Success: PythonCGI (not the other way)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Success%3A%20PythonCGI%20%28not%20the%20other%20way%29&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002392.html">
+   <LINK REL="Next"  HREF="002387.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Success: PythonCGI (not the other way)</H1>
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Success%3A%20PythonCGI%20%28not%20the%20other%20way%29&In-Reply-To="
+       TITLE="[mod_python] Success: PythonCGI (not the other way)">mike.looijmans at asml.com
+       </A><BR>
+    <I>Fri Mar 21 07:35:40 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002392.html">[mod_python] has anyone successfully built mod_python3.03 on OpenBSD?
+</A></li>
+        <LI>Next message: <A HREF="002387.html">[mod_python] Success: PythonCGI (not the other way)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2386">[ date ]</a>
+              <a href="thread.html#2386">[ thread ]</a>
+              <a href="subject.html#2386">[ subject ]</a>
+              <a href="author.html#2386">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Since not all our servers are Apache 2.0.xx yet, and mod_python isn't
+available on those, I wanted to remain compatible with the CGI interface.
+
+But sacrificing performance by using the cgihandler (which made the server
+effectively single-threaded because of the stdout sharing) did not seem a good
+idea.
+
+Instead, I put it the other way around. The native connection mode is
+mod_python, and I let the CGI handler simulate the Request interface. By not
+using too big a subset, I managed to quite easily do this. The net effect is
+that the mod_python script now run much faster than the cgihandler conversion
+I used first, and the CGI still works at roughly the same speed (the impact on
+performance by creating the Request object is neglegible. The main part of the
+code is below.
+
+Each module has a main() function, that takes some parameters. One can use
+&quot;main(req, form)&quot; for example, or &quot;main(req, db, auth, form)&quot;. The main must
+write to req.write(..) just like a mod_python script would. The script does
+not know whether it's run from CGI or mod_python.
+
+Comments are welcome!
+
+##
+class Request:
+    def __init__(self):
+        environ = os.environ
+        self.subprocess_env = environ
+        self.content_type = &quot;text/plain&quot;
+        self.status = 200
+        self.args = environ.get('QUERY_STRING', '')
+        self.path_info = environ.get('PATH_INFO', '')
+        self.method  = environ['REQUEST_METHOD']
+        self.unparsed_uri = environ['REQUEST_URI']
+        self.uri = environ['SCRIPT_NAME']
+        self.content_length = -1
+        self._headed = 0
+        self.headers_out = self
+        self.headers = &quot;&quot;
+        self.read = sys.stdin.read
+        hin = {}
+        v = environ.get('HTTP_REFERER', '')
+        hin['Referer'] = v
+        hin['referer'] = v
+        if environ.has_key('HTTP_COOKIE'):
+            v = environ['HTTP_COOKIE']
+            hin['Cookie'] = v
+            hin['cookie'] = v
+        self.headers_in = hin
+    def add(self, key, value):
+        self.headers += '%s: %s\n' % (key, value)
+    def set_content_length(self, len):
+        self.content_length = len
+    def _writeheaders(self):
+        self._headed = 1
+        sys.stdout.write('status: %s\n' % self.status)
+        sys.stdout.write('Content-Type: %s\n' % self.content_type)
+        if self.content_length &gt;= 0:
+            sys.stdout.write('Content-Length: %s\n' % self.content_length)
+        sys.stdout.write(self.headers)
+        sys.stdout.write('\n')
+        self.write = sys.stdout.write
+    def write(self, s):
+        if not self._headed:
+            self._writeheaders()
+        sys.stdout.write(s)
+
+try:
+    req = Request()
+    program = req.path_info
+    if program[0] == '/':
+        program = program[1:]
+    if not program:
+        raise ERedirect, 'ops_webrellist'
+    try:
+        module = __import__(program)
+        try:
+            main = module.main
+        except AttributeError:
+            raise ENoMain, path
+        kwargs = {}
+        kwargs['req'] = req
+        expected = main.func_code.co_varnames[:main.func_code.co_argcount]
+        db = None
+        if 'form' in expected:
+            import cgi
+            form = cgi.FieldStorage()
+            kwargs['form'] = form
+            req.form = form
+# Some more stuff about database connections left out #
+        apply(module.main, (), kwargs)
+
+    except ImportError:
+        admin = os.environ['SERVER_ADMIN']
+        print '''Status: 404 Not Found
+Content-Type: text/html
+
+
+--
+Mike Looijmans
+ASML: <A HREF="http://www5nl.asml.nl/~mlooijma">http://www5nl.asml.nl/~mlooijma</A>
+Private: <A HREF="http://www.milosoftware.com">http://www.milosoftware.com</A>
+
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002392.html">[mod_python] has anyone successfully built mod_python3.03 on OpenBSD?
+</A></li>
+	<LI>Next message: <A HREF="002387.html">[mod_python] Success: PythonCGI (not the other way)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2386">[ date ]</a>
+              <a href="thread.html#2386">[ thread ]</a>
+              <a href="subject.html#2386">[ subject ]</a>
+              <a href="author.html#2386">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

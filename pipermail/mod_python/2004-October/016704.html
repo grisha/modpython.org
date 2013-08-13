@@ -1,0 +1,138 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Authentification/Session Management
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Authentification/Session%20Management&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016703.html">
+   <LINK REL="Next"  HREF="016705.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Authentification/Session Management</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Lukas Trejtnar</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Authentification/Session%20Management&In-Reply-To="
+       TITLE="[mod_python] Authentification/Session Management">l.trejtnar at open.ac.uk
+       </A><BR>
+    <I>Thu Oct 28 06:40:15 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016703.html">[mod_python] Re: Apache/mod_python SSLMutex
+</A></li>
+        <LI>Next message: <A HREF="016705.html">[mod_python] Authentification/Session Management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16704">[ date ]</a>
+              <a href="thread.html#16704">[ thread ]</a>
+              <a href="subject.html#16704">[ subject ]</a>
+              <a href="author.html#16704">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I tried both solutions and they don't work, unfortunately.
+
+The first solution by Jorey Bump doesn't pass the first 
+authentification. It keeps asking for a username and a password forever 
+(newsession == 1 -&gt; return apache.HTTP_UNAUTHORISED). Or did I miss 
+something?
+
+      newsession = 0
+
+      if req.session.is_new():
+          newsession = 1
+          req.session['passwd'] = passwd
+          req.session['user'] = user
+
+      if  passwd == &quot;spam&quot; and user == &quot;eggs&quot; and newsession == 0:
+          return apache.OK
+      else:
+          return apache.HTTP_UNAUTHORIZED
+
+
+The second solution by Terry MacDonald doesn't solve the problem either. 
+I modified the code a bit [1) a session has to be saved every time it's 
+authentified otherwise it expires after timeout period since creation 
+time (not last accessed)!!! 2) I always have to assign a value to 
+req.user variable otherwise Apache throws an error?!?!?.]:
+
+def authenhandler( req ) :
+	req.session = Session.Session(req, timeout=5)
+	if req.session.is_new() :
+		if 'spam' == req.get_basic_auth_pw() and 'eggs' == req.user  :
+			req.session['user'] = req.user
+			#req.session.save()
+		else:
+			return apache.HTTP_UNAUTHORIZED
+	req.user = req.session['user']
+	req.session.save()
+	return apache.OK
+
+
+It doesn't work because when the session expires, a user is not asked 
+for  a username and a password at all.
+
+It seems that the Apache authentification procedure is executed before 
+the mod_python authenhandler function is even called and its result is 
+remembered for time a browser is opened.
+
+I changed 'KepAlive' directive of the Apache config to 'Off', but it 
+didn't help.
+
+One solution would be to ask at the beginning of the authenhandler 
+function if the session is already expired. Something like:
+
+	if req.session.exists() and req.session.expired():
+		return apache.HTTP_UNAUTHORISED
+
+Unfortunately, I didn't find a way how to specify two functions 
+mentioned above.
+
+Any hint what I do wrong?
+
+Thanks,
+Lukas
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016703.html">[mod_python] Re: Apache/mod_python SSLMutex
+</A></li>
+	<LI>Next message: <A HREF="016705.html">[mod_python] Authentification/Session Management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16704">[ date ]</a>
+              <a href="thread.html#16704">[ thread ]</a>
+              <a href="subject.html#16704">[ subject ]</a>
+              <a href="author.html#16704">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

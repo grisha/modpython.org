@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] ValueError: Failed to acquire global mutex lock
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ValueError%3A%20Failed%20to%20acquire%20global%20mutex%20lock&In-Reply-To=003e01c810b5%248ead34a0%248201020a%40api104b4843840">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024340.html">
+   <LINK REL="Next"  HREF="024342.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] ValueError: Failed to acquire global mutex lock</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ValueError%3A%20Failed%20to%20acquire%20global%20mutex%20lock&In-Reply-To=003e01c810b5%248ead34a0%248201020a%40api104b4843840"
+       TITLE="[mod_python] ValueError: Failed to acquire global mutex lock">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Wed Oct 17 18:22:31 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024340.html">[mod_python] ValueError: Failed to acquire global mutex lock
+</A></li>
+        <LI>Next message: <A HREF="024342.html">[mod_python] I want mod_python to execute .pyc (or .pyo) files only
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24341">[ date ]</a>
+              <a href="thread.html#24341">[ thread ]</a>
+              <a href="subject.html#24341">[ subject ]</a>
+              <a href="author.html#24341">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 17/10/2007, Michael Robokoff &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mike.robokoff at apioutsourcing.com</A>&gt; wrote:
+&gt;<i> Graham, Thanks so much for your help, unfortunately I don't think it
+</I>&gt;<i> made any difference. I don't see any real change in error messages.
+</I>&gt;<i> Should I check on how to increase the semaphores at the system level?
+</I>
+What do the messages in the Apache error log indicate about how many
+mutexes mod_python is actually using? The directive must be in the
+correct context else it is ignored.
+
+&gt;<i> [Tue Oct 16 06:36:49 2007] [warn] (45)Deadlock situation detected/avoided:
+</I>&gt;<i> Failed to acquire global mutex lock at index 2
+</I>
+This error message possibly indicates the problem as being due to
+something else.
+
+One suggestion is to set the Apache configuration directive AcceptMutex.
+
+  <A HREF="http://httpd.apache.org/docs/2.2/mod/mpm_common.html#acceptmutex">http://httpd.apache.org/docs/2.2/mod/mpm_common.html#acceptmutex</A>
+
+Set it to:
+
+  AcceptMutex flock
+
+This may not change the lock type used by mod_python though because of
+it how it wrongly indicates which type of lock to use:
+
+  <A HREF="https://issues.apache.org/jira/browse/MODPYTHON-202">https://issues.apache.org/jira/browse/MODPYTHON-202</A>
+
+It may release more semaphores though for use.
+
+BTW, in apr.h in Apache include directory, what are the following set
+to for your system.
+
+#define APR_USE_FLOCK_SERIALIZE           0
+#define APR_USE_SYSVSEM_SERIALIZE         1
+#define APR_USE_POSIXSEM_SERIALIZE        0
+#define APR_USE_FCNTL_SERIALIZE           0
+#define APR_USE_PROC_PTHREAD_SERIALIZE    0
+#define APR_USE_PTHREAD_SERIALIZE         1
+
+#define APR_HAS_FLOCK_SERIALIZE           1
+#define APR_HAS_SYSVSEM_SERIALIZE         1
+#define APR_HAS_POSIXSEM_SERIALIZE        1
+#define APR_HAS_FCNTL_SERIALIZE           1
+#define APR_HAS_PROC_PTHREAD_SERIALIZE    0
+
+Graham
+
+&gt;<i> --Mike
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> -----Original Message-----
+</I>&gt;<i> From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;<i> Sent: Tuesday, October 16, 2007 7:29 AM
+</I>&gt;<i> To: Michael Robokoff
+</I>&gt;<i> Cc: mod_python
+</I>&gt;<i> Subject: Re: [mod_python] ValueError: Failed to acquire global mutex lock
+</I>&gt;<i>
+</I>&gt;<i> Your system has a low number of sysvsem's configured and it is running
+</I>&gt;<i> out. Whether you use prefork or worker shouldn't matter. You can
+</I>&gt;<i> change the number that mod_python uses, setting it to a lower value
+</I>&gt;<i> using the directive:
+</I>&gt;<i>
+</I>&gt;<i>   PythonOption mod_python.mutex_locks 4
+</I>&gt;<i>
+</I>&gt;<i> Must be defined at global scope in Apache configuration. Check Apache
+</I>&gt;<i> error logs to see if it works.
+</I>&gt;<i>
+</I>&gt;<i> Note, you must be using mod_python 3.3.1.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> On 16/10/2007, Michael Robokoff &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mike.robokoff at apioutsourcing.com</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Hello,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I just changed from running apache configured with &quot;mpm=prefork&quot; to
+</I>&gt;<i> &gt; &quot;mpm=worker&quot;.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Everything worked with the &quot;prefork&quot; attribute. We decided to change over
+</I>&gt;<i> to
+</I>&gt;<i> &gt; multi threading
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; to test performance, so I recompiled apache with the &quot;worker&quot; attribute.
+</I>&gt;<i> Now
+</I>&gt;<i> &gt; we get the error
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; [error] [client]   File
+</I>&gt;<i> &gt; &quot;/usr/local/lib/python2.5/site-packages/mod_python/Session.py&quot;,
+</I>&gt;<i> &gt; line 280, in lock\n
+</I>&gt;<i> &gt; _apache._global_lock(self._req.server, self._sid), referer:
+</I>&gt;<i> &gt; <A HREF="http://......">http://......</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &quot;ValueError: Failed to acquire global mutex lock&quot; referer: http:...
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Can you please give me some direction on this.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Michael Robokoff
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Senior Systems Administrator
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; API Outsourcing
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024340.html">[mod_python] ValueError: Failed to acquire global mutex lock
+</A></li>
+	<LI>Next message: <A HREF="024342.html">[mod_python] I want mod_python to execute .pyc (or .pyo) files only
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24341">[ date ]</a>
+              <a href="thread.html#24341">[ thread ]</a>
+              <a href="subject.html#24341">[ subject ]</a>
+              <a href="author.html#24341">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

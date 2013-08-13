@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Help with mod_python, mod_proxy &amp; cookies
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Help%20with%20mod_python%2C%20mod_proxy%20%26%20cookies&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023096.html">
+   <LINK REL="Next"  HREF="023099.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Help with mod_python, mod_proxy &amp; cookies</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Help%20with%20mod_python%2C%20mod_proxy%20%26%20cookies&In-Reply-To="
+       TITLE="[mod_python] Help with mod_python, mod_proxy &amp; cookies">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Jan 24 18:47:11 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023096.html">[mod_python] Help with mod_python, mod_proxy &amp; cookies
+</A></li>
+        <LI>Next message: <A HREF="023099.html">[mod_python] Help with mod_python, mod_proxy &amp; cookies
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23098">[ date ]</a>
+              <a href="thread.html#23098">[ thread ]</a>
+              <a href="subject.html#23098">[ subject ]</a>
+              <a href="author.html#23098">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Marc Boorshtein wrote ..
+&gt;<i> All,
+</I>&gt;<i> 
+</I>&gt;<i> I am trying to figure out a way to use mod python to change the Cookie
+</I>&gt;<i> header of a request and then pass the request off to mod_proxy.  When
+</I>&gt;<i> the response comes I wish to be able to adjust any Set-Cookie headers
+</I>&gt;<i> in the response back to the client.  I did something similar in
+</I>&gt;<i> mod_perl using filters and am assuming it would be a similar process.
+</I>&gt;<i> I wrote a quick input filter to trace the data going through the
+</I>&gt;<i> filter and found a few issues:
+</I>&gt;<i> 
+</I>&gt;<i> 1.  When I have a ProxyPass in my httpd config, apache doesn't fire my
+</I>&gt;<i> filter
+</I>&gt;<i> 2.  When I remove the ProxyPass rule my filter fires, but no data
+</I>&gt;<i> seems to be going through it
+</I>&gt;<i> 3.  When I specify AddInputFilter, is there anyway to have it apply
+</I>&gt;<i> globally (as opposed to for a particular file extension)?
+</I>
+Use SetInputFilter. This should be mentioned in Apache documentation
+where AddInputFilter is described.
+
+&gt;<i> Here's my code:
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> 
+</I>&gt;<i> def inputfilter(filter):
+</I>&gt;<i>     apache.log_error('in filter');
+</I>&gt;<i>     s = filter.read()
+</I>&gt;<i>     apache.log_error('begin data');
+</I>&gt;<i>     while s:
+</I>&gt;<i>         apache.log_error('data : ' + s);
+</I>&gt;<i>         filter.write(s.upper())
+</I>&gt;<i>         s = filter.read()
+</I>&gt;<i>     apache.log_error('end data');
+</I>&gt;<i> 
+</I>&gt;<i>     if s is None:
+</I>&gt;<i>         filter.close()
+</I>&gt;<i> 
+</I>&gt;<i> Here's my apache config:
+</I>&gt;<i> &lt;VirtualHost *&gt;
+</I>&gt;<i>   PythonDebug On
+</I>&gt;<i>   PythonPath &quot;sys.path + ['/home/mlb/workspace/Python\ CookieFilter/src']&quot;
+</I>&gt;<i>   PythonInputFilter CookieFilterInbound COOKIEINBOUND
+</I>&gt;<i>   AddInputFilter COOKIEINBOUND .html
+</I>&gt;<i>    ProxyPass / <A HREF="http://localhost:8080/">http://localhost:8080/</A>
+</I>&gt;<i> &lt;/VirtualHost&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Here's my log:
+</I>&gt;<i> 
+</I>&gt;<i> [Wed Jan 24 16:28:25 2007] [notice] Apache/2.2.3 (Fedora) configured
+</I>&gt;<i> -- resuming normal operations
+</I>&gt;<i> [Wed Jan 24 16:28:28 2007] [notice] mod_python: (Re)importing module
+</I>&gt;<i> 'CookieFilterInbound'
+</I>&gt;<i> [Wed Jan 24 16:28:28 2007] [error] in filter
+</I>&gt;<i> [Wed Jan 24 16:28:28 2007] [error] begin data
+</I>&gt;<i> [Wed Jan 24 16:28:28 2007] [error] end data
+</I>&gt;<i> [Wed Jan 24 16:28:28 2007] [error] [client 127.0.0.1] File does not
+</I>&gt;<i> exist: /var/www/html/showcookie.html
+</I>&gt;<i> [Wed Jan 24 16:28:28 2007] [error] in filter
+</I>&gt;<i> [Wed Jan 24 16:28:28 2007] [error] begin data
+</I>&gt;<i> [Wed Jan 24 16:28:28 2007] [error] end data
+</I>&gt;<i> [Wed Jan 24 16:29:23 2007] [notice] caught SIGTERM, shutting down
+</I>&gt;<i> 
+</I>&gt;<i> Any help would be greatly appreciated.
+</I>
+I don't believe you need to use an input filter, you could instead use a
+fixup handler to do everything, including enabling of the proxy itself.
+
+ &lt;VirtualHost *&gt;
+   PythonDebug On
+   PythonPath &quot;sys.path + ['/home/mlb/workspace/Python CookieFilter/src']&quot;
+   PythonFixupHandler myredirectandcookiefixup
+ &lt;/VirtualHost&gt;
+
+For starters, below (myredirectandcookiefixup.py) is how you initiate proxying.
+
+import posixpath
+
+from mod_python import apache
+
+def fixuphandler(req):
+
+  if req.proxyreq:
+    return apache.DECLINED
+
+  normalised_uri = posixpath.normpath(req.uri)
+
+  if normalised_uri:
+    if normalised_uri != '/' and req.uri[-1] == '/':
+      normalised_uri += '/'
+
+  length = len(req.filename)
+  length -= len(req.hlist.directory) - 1
+  length += len(req.path_info or '')
+
+  baseurl = normalised_uri[:-length]
+  path = normalised_uri[len(baseurl):]
+
+  req.proxyreq = apache.PROXYREQ_REVERSE
+  req.uri = '<A HREF="http://localhost:8080'">http://localhost:8080'</A> + path
+  req.filename = 'proxy:%s' % req.uri
+  req.handler = 'proxy-server'
+
+  return apache.OK
+
+All you then need to do is incorporate into this some code which uses
+req.headers_in to get to the cookie headers, strip them apart, change
+them as needed and then reassign them back into req.headers_in.
+When the &quot;proxy-server&quot; handler is run, it will take the headers from
+req.headers_in and use them when passing data through to backend.
+
+You will need to have mod_python 3.3.0b for this to work though.
+
+For more on enabling proxying in this way, see:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-141">http://issues.apache.org/jira/browse/MODPYTHON-141</A>
+
+and the mailing list discussion linked to it.
+
+Graham
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023096.html">[mod_python] Help with mod_python, mod_proxy &amp; cookies
+</A></li>
+	<LI>Next message: <A HREF="023099.html">[mod_python] Help with mod_python, mod_proxy &amp; cookies
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23098">[ date ]</a>
+              <a href="thread.html#23098">[ thread ]</a>
+              <a href="subject.html#23098">[ subject ]</a>
+              <a href="author.html#23098">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

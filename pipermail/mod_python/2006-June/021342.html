@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] running templates, was segmentation fault
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20running%20templates%2C%20was%20segmentation%20fault&In-Reply-To=44867E8E.70406%40ulb.ac.be">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021341.html">
+   <LINK REL="Next"  HREF="021329.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] running templates, was segmentation fault</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Wouter van Marle</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20running%20templates%2C%20was%20segmentation%20fault&In-Reply-To=44867E8E.70406%40ulb.ac.be"
+       TITLE="[mod_python] running templates, was segmentation fault">wouter at squirrel-systems.com
+       </A><BR>
+    <I>Wed Jun  7 04:09:38 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021341.html">[mod_python] running templates, was segmentation fault
+</A></li>
+        <LI>Next message: <A HREF="021329.html">[mod_python] Tiny patch for better apr_stat usage in sendfile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21342">[ date ]</a>
+              <a href="thread.html#21342">[ thread ]</a>
+              <a href="subject.html#21342">[ subject ]</a>
+              <a href="author.html#21342">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>This sounds very similar to my set-up.
+I have a base template.psp, containing the html header with css
+includes, and some divs, like:
+&lt;html&gt;&lt;head&gt;
+	header stuff
+&lt;/head&gt;&lt;body&gt;
+	common banner
+&lt;div id=navbar&gt;&lt;%=navbar%&gt;&lt;/div&gt;
+&lt;div id=body&gt;&lt;%=body%&gt;&lt;/div&gt;
+	common footer
+&lt;/body&gt;&lt;/html&gt;
+
+Separately I have a python script, that parses the various parts. These
+body and navbar parts are often psp files with variables to be entered
+in their own right: I put them through the psp interpreter first, catch
+back the html as string (use _psp instead of psp which causes the page
+to be published), and put these strings in the variables as given above.
+Works like a charm! Templates are in:
+./templates/template.psp (the main template)
+./templates/en/body.psp (the English body and other templates)
+./templates/cncn/body.psp (the Chinese simplified body and other
+templates)
+./templates/cnhk/body.psp (the Chinese traditional body and other
+templates)
+Just keep a variable language set to the correct language, and with
+&quot;os.path.join(TEMPLATEPATH, language, templatefilename)&quot; I can very
+easily get the right template, add it in the main body, etc. 
+Change the main body: changes are all over.
+Change the css files: layout changes all over.
+
+Hope it's useful for you.
+
+Wouter.
+
+On Wed, 2006-06-07 at 09:21 +0200, Julien Cigar wrote:
+&gt;<i> Jim's right, my idea was to do a kind of &quot;main&quot; template container, 
+</I>&gt;<i> something like :
+</I>&gt;<i> 
+</I>&gt;<i> &lt;html&gt;
+</I>&gt;<i> &lt;head&gt;...&lt;/head&gt;
+</I>&gt;<i> &lt;body&gt;
+</I>&gt;<i> &lt;div id=&quot;container&quot;&gt;
+</I>&gt;<i>   &lt;div id=&quot;header&quot;&gt; ... &lt;/div&gt;
+</I>&gt;<i>   &lt;div id=&quot;menu&quot;&gt; ... &lt;/div&gt;
+</I>&gt;<i>   &lt;div id=&quot;anothercommonpart&quot;&gt; ... &lt;/div&gt;
+</I>&gt;<i> 
+</I>&gt;<i>   &lt;div id=&quot;main&quot;&gt;
+</I>&gt;<i>     &lt;!-- MAIN STUFF GOES HERE --&gt;
+</I>&gt;<i>     &lt;%@ include file = &quot;...&quot; %&gt;
+</I>&gt;<i>   &lt;/div&gt;
+</I>&gt;<i> 
+</I>&gt;<i>   &lt;div id=&quot;footer&quot;&gt;...&lt;/div&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i> 
+</I>&gt;<i> in my example &quot;body_template = psp.PSP(req, filename=&quot;list.psp&quot;)&quot; whould 
+</I>&gt;<i> be the included file and the &quot;mytemplate.run({'body' : body_template})&quot; 
+</I>&gt;<i> would be the &quot;main&quot; template.
+</I>&gt;<i> Both are psp.PSP() instances. I thought I could to something like :
+</I>&gt;<i> 
+</I>&gt;<i> body_template = psp.PSP(file=&quot;foobar.psp&quot;)
+</I>&gt;<i> main = psp.PSP(file=&quot;main_template.psp&quot;)
+</I>&gt;<i> main.run(dict(body=body_template))
+</I>&gt;<i> 
+</I>&gt;<i> and later in the &quot;main&quot; template and &lt;%@ include file=&quot;&lt;%= body %&gt;&quot; %&gt;, 
+</I>&gt;<i> but as Jim said this doesn't work ...
+</I>&gt;<i> 
+</I>&gt;<i> Julien
+</I>&gt;<i> 
+</I>&gt;<i> Jim Gallacher wrote:
+</I>&gt;<i> &gt; David Bear wrote:
+</I>&gt;<i> &gt;&gt; On Tue, Jun 06, 2006 at 12:03:37PM -0400, Jim Gallacher wrote:
+</I>&gt;<i> &gt;&gt;&gt; As an alternative you could do:
+</I>&gt;<i> &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt; body_template = psp.PSP(req, filename=&quot;list.psp&quot;)
+</I>&gt;<i> &gt;&gt;&gt; mytemplate.run({'body' : body_template})
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; this syntax baffles me. where is 'mytemplate' defined? and what kind
+</I>&gt;<i> &gt;&gt; of an object is it?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; It's a reference to snippet of code in Julien's message. Since the 
+</I>&gt;<i> &gt; thread was discussing psp templates, one can assume his reference to 
+</I>&gt;<i> &gt; mytemplate.run() refers to a PSP instance created elsewhere in his 
+</I>&gt;<i> &gt; code which was not in the message but can be inferred.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Jim
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021341.html">[mod_python] running templates, was segmentation fault
+</A></li>
+	<LI>Next message: <A HREF="021329.html">[mod_python] Tiny patch for better apr_stat usage in sendfile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21342">[ date ]</a>
+              <a href="thread.html#21342">[ thread ]</a>
+              <a href="subject.html#21342">[ subject ]</a>
+              <a href="author.html#21342">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

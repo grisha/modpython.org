@@ -1,0 +1,130 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] problem with input filter and POST data (fileupload)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20problem%20with%20input%20filter%20and%20POST%20data%20%28fileupload%29&In-Reply-To=200902142349.30906.jerch%40rockborn.de">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026014.html">
+   <LINK REL="Next"  HREF="026016.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] problem with input filter and POST data (fileupload)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20problem%20with%20input%20filter%20and%20POST%20data%20%28fileupload%29&In-Reply-To=200902142349.30906.jerch%40rockborn.de"
+       TITLE="[mod_python] problem with input filter and POST data (fileupload)">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat Feb 14 18:00:55 EST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026014.html">[mod_python] problem with input filter and POST data (fileupload)
+</A></li>
+        <LI>Next message: <A HREF="026016.html">[mod_python] problem with input filter and POST data (fileupload)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26015">[ date ]</a>
+              <a href="thread.html#26015">[ thread ]</a>
+              <a href="subject.html#26015">[ subject ]</a>
+              <a href="author.html#26015">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2009/2/15 Joerg &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jerch at rockborn.de</A>&gt;:
+&gt;<i> Hi,
+</I>&gt;<i>
+</I>&gt;<i> I ve encountered a problem with a POST request while a mod_python input filter
+</I>&gt;<i> is running (on ubuntu 8.04 with apache 2.2.8 prefork and mod_python 3.3.1).
+</I>&gt;<i>
+</I>&gt;<i> the situation:
+</I>&gt;<i> Imagine the simplest input filter as stated in the docs and try to upload a
+</I>&gt;<i> file (some big POST data) thru this filter. This file will be trunceated to
+</I>&gt;<i> the first 64k.
+</I>&gt;<i>
+</I>&gt;<i> i have tracked down the problem to fragmented data handling in the file
+</I>&gt;<i> util.py. If i change line 363 in that file from
+</I>&gt;&gt;&gt;&gt;<i> req.readline(readBlockSize)
+</I>&gt;<i> to
+</I>&gt;&gt;&gt;&gt;<i> req.readline()
+</I>&gt;<i> it works again. so i dumped the stream data here to see wots going on
+</I>&gt;<i> with the data with 4 different setups:
+</I>&gt;<i>
+</I>&gt;<i> 1) req.readline() without filter
+</I>&gt;<i> 2) req.readline() with filter
+</I>&gt;<i> 3) req.readline(readBlockSize) without filter
+</I>&gt;<i> 4) req.readline(readBlockSize) with filter
+</I>&gt;<i>
+</I>&gt;<i> 1-3 seem to be exactly the same, while in the 4th case the req-stream is empty
+</I>&gt;<i> after some readings (then req.readline(readBlockSize) becomes None and the
+</I>&gt;<i> method returns as expected).
+</I>&gt;<i> I dont know why suddenly the stream is empty long before the boundery (or
+</I>&gt;<i> readline() thinks so), could this be some delay effect caused by the filter?
+</I>&gt;<i> or is this a special behavior by req.readline() itself with a given length?
+</I>&gt;<i>
+</I>&gt;<i> If this is not easy to patch, will there be any neg. effect of using
+</I>&gt;<i> req.readline() instead of req.readline(readBlockSize) aside from the big file
+</I>&gt;<i> problem?
+</I>
+Behaviour explained through failing to check for 'None' on data read
+by input filter before closing it.
+
+  from mod_python import apache
+
+  def outputfilter(filter):
+
+      s = filter.read()
+      while s:
+          filter.write(s.upper())
+          s = filter.read()
+
+      if s is None:
+          filter.close()
+
+In other words, forget the 'if s is None' and you will see that occur
+as input filter has been prematurely closed.
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026014.html">[mod_python] problem with input filter and POST data (fileupload)
+</A></li>
+	<LI>Next message: <A HREF="026016.html">[mod_python] problem with input filter and POST data (fileupload)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26015">[ date ]</a>
+              <a href="thread.html#26015">[ thread ]</a>
+              <a href="subject.html#26015">[ subject ]</a>
+              <a href="author.html#26015">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

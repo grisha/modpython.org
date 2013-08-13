@@ -1,0 +1,285 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] little problem with my handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20little%20problem%20with%20my%20handler&In-Reply-To=1143591080.16032%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020691.html">
+   <LINK REL="Next"  HREF="020697.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] little problem with my handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Julien Cigar</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20little%20problem%20with%20my%20handler&In-Reply-To=1143591080.16032%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] little problem with my handler">jcigar at ulb.ac.be
+       </A><BR>
+    <I>Wed Mar 29 02:21:47 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020691.html">[mod_python] little problem with my handler
+</A></li>
+        <LI>Next message: <A HREF="020697.html">[mod_python] little problem with my handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20694">[ date ]</a>
+              <a href="thread.html#20694">[ thread ]</a>
+              <a href="subject.html#20694">[ subject ]</a>
+              <a href="author.html#20694">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Many thanks for all those answers !
+
+
+Graham Dumpleton wrote:
+&gt;<i> A few comments on your handler.
+</I>&gt;<i>
+</I>&gt;<i> Julien Cigar wrote ..
+</I>&gt;<i>   
+</I>&gt;&gt;<i> Hello,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I'm writing my first home-made handler (inspired by mod_publisher).
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> Writing a publisher like handler which allows arbitrary traversal of objects
+</I>&gt;<i> is non trivial. Get it wrong and you can expose yourself to potential security
+</I>&gt;<i> holes. Be warned, don't attempt it unless you appreciate what the issues
+</I>&gt;<i> are. ;-)
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>I forgot to say that I don't want traversal of objects.
+&gt;<i> I also think you mean't mod_python.publisher. The Apache mod_publisher
+</I>&gt;<i> module is used to perform substitutions on XML/HTML as well as
+</I>&gt;<i> implementing an alternative to SSI of mod_include.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>&gt;&gt;<i> I wanted to do a &quot;ruby on rails&quot;-like dispatcher, so when I call : 
+</I>&gt;&gt;<i> <A HREF="http://somehost.com/foo/bar">http://somehost.com/foo/bar</A> it should call the bar() method of the class
+</I>&gt;&gt;<i> (controller) foo which lives under controllers/
+</I>&gt;&gt;<i> Please note that it is not at all complete, I'm just playing with it at
+</I>&gt;&gt;<i> the moment ..
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> Why cant you just use mod_python.publisher?
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>I could (I've used it for a lot of projects here). In fact I wanted to 
+understand mod_python more deeply by writing my own handler.
+&gt;&gt;<i> ...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Here is the code of my handler:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> #!/usr/bin/python
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> import sys
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> from mod_python import apache, util
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> sys.path.append('/home/jcigar/public_html/invasive_species/application')
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> Modifying sys.path from handlers, even from global scope in module is
+</I>&gt;<i> bad. It can cause problems in a multithreaded MPM if mod_python tries to
+</I>&gt;<i> update sys.path at the same time.
+</I>&gt;<i>
+</I>&gt;<i> Further, if module reloading is enabled, everytime the module is
+</I>&gt;<i> reloaded the directory will be added to sys.path meaning it will grow
+</I>&gt;<i> and grow and grow with multiple occurrences of the same directory
+</I>&gt;<i> appearing.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>right... I forgot that
+&gt;&gt;<i> def handler(req):
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     req.allow_methods([&quot;GET&quot;, &quot;POST&quot;])
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>     if req.method not in ([&quot;GET&quot;, &quot;POST&quot;]):
+</I>&gt;&gt;<i>         raise apache.SERVER_RETURN, apache.HTTP_METHOD_NOT_ALLOWED
+</I>&gt;&gt;<i>   
+</I>&gt;&gt;<i>     (controller, method) = (&quot;default&quot;, &quot;index&quot;)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     if req.path_info:
+</I>&gt;&gt;<i>         path_info = req.path_info.strip('/').split('/')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     if path_info[0].isalpha():
+</I>&gt;&gt;<i>         controller = path_info[0]
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>         if len(path_info) &gt; 1 and path_info[1].isalpha():
+</I>&gt;&gt;<i>             method = path_info[1]
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> Like mod_python.publisher, you have gone down the path of allowing
+</I>&gt;<i> defaults and similarly don't deal with trailing slashes in a reasonable
+</I>&gt;<i> way. This causes various problems due to the fact that different URLs
+</I>&gt;<i> can be used to address the same resource. The different URLs can
+</I>&gt;<i> have varying numbers of slashes in them, which makes calculating
+</I>&gt;<i> relative URLs to another resource fiddly and error prone.
+</I>&gt;<i>   
+</I>Is there a &quot;good&quot; way to handle relative urls ?
+&gt;<i>   
+</I>&gt;&gt;<i>     config = req.get_config()
+</I>&gt;&gt;<i>     (autoreload, log) = (int(config.get(&quot;PythonAutoReload&quot;, 1)), 
+</I>&gt;&gt;<i> int(config.get(&quot;PythonDebug&quot;, 0)))
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>     try:
+</I>&gt;&gt;<i>         module = apache.import_module('controllers.%s' % (controller, ),
+</I>&gt;&gt;<i> autoreload=autoreload, log=log)
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> Hope you don't expect autoreload to work on Python packages. It can be
+</I>&gt;<i> unreliable at best in publically released versions of mod_python and new
+</I>&gt;<i> module importer in future version will not support it. But then there
+</I>&gt;<i> are better ways of doing what you are doing when new importer is
+</I>&gt;<i> available as you will be able to load module by full path.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>so apache.import_module should not be used .. ?
+&gt;&gt;<i>     except ImportError:
+</I>&gt;&gt;<i>         req.log_error('Cannot import controller %s' % (controller, ))
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     object = getattr(module, method)
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> You don't reraise the ImportError exception or return any other sort
+</I>&gt;<i> of explicit error status. Thus, when module can't be imported, it will
+</I>&gt;<i> still try and access the method from the module, but module variable
+</I>&gt;<i> will not exist and so it will die.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>Yes, this handler is not complete at all (I was just playing a bit with)
+&gt;<i> Luckily you don't allow arbitrary traversal and only allow method
+</I>&gt;<i> name to start with alphabetic character, so no issue with notional
+</I>&gt;<i> private stuff prefixed with underscore.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>&gt;&gt;<i>     if callable(object):
+</I>&gt;&gt;<i>         req.params = util.FieldStorage(req, keep_blank_values=1)
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> It is traditional that if storing FieldStorage instance in request object
+</I>&gt;<i> that it be stored as req.form.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>ok :)
+&gt;&gt;<i>         result = util.apply_fs_data(object, req.params, req=req)
+</I>&gt;&gt;<i>     else:
+</I>&gt;&gt;<i>         req.log_error('%s is not callable' % (object, ))
+</I>&gt;&gt;<i>         return apache.HTTP_INTERNAL_SERVER_ERROR
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> Okay, so only allowing access to callable and not acess to data.
+</I>&gt;<i> More safe than mod_python.publisher in that respect.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>Yes, only to the function of the &quot;controller&quot; in fact. In the futur I'd 
+like to do like Ruby on Rails or Django, with some regex patterns (see 
+<A HREF="http://www.djangoproject.com/documentation/url_dispatch/">http://www.djangoproject.com/documentation/url_dispatch/</A>)
+&gt;&gt;<i>     if result or req.bytes_sent or req.next:
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> Do you understand what req.next attribute is? It probably isn't
+</I>&gt;<i> relevant to you and how you use it is probably wrong in this
+</I>&gt;<i> case anyway. I should probably check that how mod_python.publisher
+</I>&gt;<i> even uses it is sensible.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>&gt;&gt;<i>         req.content_type = 'text/html'
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> If data has already been sent, ie., req.bytes_sent, is non zero,
+</I>&gt;<i> then setting content length here will not do anything as it has
+</I>&gt;<i> to be set before first write of data.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>&gt;&gt;<i>         req.write(result)
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> Your callables must always ensure they return string objects.
+</I>&gt;<i> In mod_python.publisher, it will at least convert non string objects
+</I>&gt;<i> to strings and attempts to treat Unicode strings specially as well.
+</I>&gt;<i>
+</I>&gt;<i> Problem with this code is if bytes were sent and result is None,
+</I>&gt;<i> it will try and write result and die because it isn't a string.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>ok, so req.write(str(result))
+&gt;&gt;<i>         return apache.OK
+</I>&gt;&gt;<i>     else:
+</I>&gt;&gt;<i>         req.log_error('Nothing returned')
+</I>&gt;&gt;<i>         return apache.HTTP_INTERNAL_SERVER_ERROR
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In advance, thanks for support !
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> Overall, I don't see why you couldn't use mod_python.publisher.
+</I>&gt;<i> Yes, publisher provides more features, but if you set your code
+</I>&gt;<i> up correctly, you would still get same result as what you are
+</I>&gt;<i> aiming for without having to create your own handler.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>
+
+-- 
+Julien Cigar
+Belgian Biodiversity Platform
+<A HREF="http://www.biodiversity.be">http://www.biodiversity.be</A>
+Universit&#233; Libre de Bruxelles
+Campus de la Plaine CP 257
+B&#226;timent NO, Bureau 4 N4 115C (Niveau 4)
+Boulevard du Triomphe, entr&#233;e ULB 2
+B-1050 Bruxelles
+Work: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jcigar at ulb.ac.be</A>
+Personal: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mage at mordor.ath.cx</A>
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020691.html">[mod_python] little problem with my handler
+</A></li>
+	<LI>Next message: <A HREF="020697.html">[mod_python] little problem with my handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20694">[ date ]</a>
+              <a href="thread.html#20694">[ thread ]</a>
+              <a href="subject.html#20694">[ subject ]</a>
+              <a href="author.html#20694">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

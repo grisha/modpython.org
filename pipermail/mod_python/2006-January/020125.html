@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python executing old versions of my code
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20executing%20old%20versions%20of%20my%20code&In-Reply-To=43D96AF7.2080208%40jgassociates.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020123.html">
+   <LINK REL="Next"  HREF="020128.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python executing old versions of my code</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Peter Sanchez</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20executing%20old%20versions%20of%20my%20code&In-Reply-To=43D96AF7.2080208%40jgassociates.ca"
+       TITLE="[mod_python] mod_python executing old versions of my code">pjs at packet-addiction.org
+       </A><BR>
+    <I>Thu Jan 26 19:44:32 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020123.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+        <LI>Next message: <A HREF="020128.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20125">[ date ]</a>
+              <a href="thread.html#20125">[ thread ]</a>
+              <a href="subject.html#20125">[ subject ]</a>
+              <a href="author.html#20125">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Jan 26, 2006, at 4:36 PM, Jim Gallacher wrote:
+
+&gt;<i> Peter Sanchez wrote:
+</I>&gt;&gt;<i> I have been a little slow on this thread. This is something I had   
+</I>&gt;&gt;<i> planned on emailing the list about myself.
+</I>&gt;&gt;<i> I have a page hosted using mod_python.publisher (mod_python  
+</I>&gt;&gt;<i> version  3.2.5b) The page returns results from a PSP formatted  
+</I>&gt;&gt;<i> template  system. On a lot of pages I use a variable named &quot;info_msg&quot;
+</I>&gt;&gt;<i> Say I login to an account, info_msg is set to 'You have logged  
+</I>&gt;&gt;<i> in.'  Go to a new page, info_msg isn't used, but the template page  
+</I>&gt;&gt;<i> does  reference it (in case it was used) and you see 'You have  
+</I>&gt;&gt;<i> logged in' I  have been trying to figure it out, but no such luck.  
+</I>&gt;&gt;<i> I just found  this thread :)
+</I>&gt;<i>
+</I>&gt;<i> From what you are describing here I don't think this is a module  
+</I>&gt;<i> reload problem. How are you passing info_msg between your requests?  
+</I>&gt;<i> In the apache preform-mpm and worker-mpm models there will be a  
+</I>&gt;<i> python interpreter for each apache child process. Each interpeter  
+</I>&gt;<i> gets it's own copy of the module data. The value for a module  
+</I>&gt;<i> variable set in a request in one child will only be visible to  
+</I>&gt;<i> subsequent requests handled by that same child. If you want to  
+</I>&gt;<i> share some data between different requests you'll need to use  
+</I>&gt;<i> sessions, cookies, dump it into a database, or some other  
+</I>&gt;<i> persistent store.
+</I>
+OK, here is the layout.
+
+acvars.py contains a dictionary named &quot;ns&quot; that is used for PSP  
+template page data. The ns dictionary contains an entry for  
+'info_msg' ( ns = {'info_msg':  '&amp;nbsp;'} )
+
+Now, index.py has
+
+from acvars import *
+
+When a function has completed, and warrants some sort of user update,  
+the index.py function will do:
+
+ns['info_msg'] = 'Some updating message for the users benefit'
+
+ns is then passed to the PSP engine to format the HTML and the result  
+is printed to the user.
+
+This is the same thing for all functions in the index.py script  
+(which is the front end)
+
+Should I not be using from ... import * ?
+
+
+&gt;<i>
+</I>&gt;&gt;<i> As for the &quot;MaxRequestsPerChild 1&quot; work around. How big of a   
+</I>&gt;&gt;<i> performance hit does this give? Seems like it would slow things  
+</I>&gt;&gt;<i> down  a bit.
+</I>&gt;<i>
+</I>&gt;<i> Wrong. It'll slow it down *alot*. This trick should really only be  
+</I>&gt;<i> used on a development machine. Consider the following results for a  
+</I>&gt;<i> random bit of mod_python code on my machine.
+</I>&gt;<i>
+</I>&gt;<i> Using ab -n 1000 and the following apache config:
+</I>&gt;<i> StartServers         5
+</I>&gt;<i> MinSpareServers      5
+</I>&gt;<i> MaxSpareServers      10
+</I>&gt;<i> MaxClients          50
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> For MaxRequestsPerChild 0
+</I>&gt;<i> -------------------------
+</I>&gt;<i> Concurrency Level:      1
+</I>&gt;<i> Time taken for tests:   4.593905 seconds
+</I>&gt;<i> Complete requests:      1000
+</I>&gt;<i> Requests per second:    217.68 [#/sec] (mean)
+</I>&gt;<i> Time per request:       4.594 [ms] (mean)
+</I>&gt;<i> Transfer rate:          1061.84 [Kbytes/sec] received
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> For MaxRequestsPerChild 1
+</I>&gt;<i> -------------------------
+</I>&gt;<i> Concurrency Level:      1
+</I>&gt;<i> Time taken for tests:   378.930349 seconds
+</I>&gt;<i> Complete requests:      1000
+</I>&gt;<i> Requests per second:    2.64 [#/sec] (mean)
+</I>&gt;<i> Time per request:       378.930 [ms] (mean)
+</I>&gt;<i> Transfer rate:          12.87 [Kbytes/sec] received
+</I>&gt;<i>
+</I>&gt;<i> Ouch. Performance drops by a factor of 100 for MaxRequestsPerChild  
+</I>&gt;<i> == 1. You could set StartServers to compensate, but it's not a  
+</I>&gt;<i> general solution.
+</I>
+I figured it would be horrible to performance. I guess I was under  
+stating ;)
+
+&gt;<i>
+</I>&gt;&gt;<i> When will 3.2.6 be available?
+</I>&gt;<i>
+</I>&gt;<i> Unofficially, now. ;) Officially... well, we are likely going to  
+</I>&gt;<i> have that discussion on the python-dev list in the next day or so.
+</I>&gt;<i>
+</I>&gt;<i> Jim
+</I>
+Thanks!
+
+Peter
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020123.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+	<LI>Next message: <A HREF="020128.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20125">[ date ]</a>
+              <a href="thread.html#20125">[ thread ]</a>
+              <a href="subject.html#20125">[ subject ]</a>
+              <a href="author.html#20125">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

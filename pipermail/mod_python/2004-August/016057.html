@@ -1,0 +1,297 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] The right way to handle sessions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20right%20way%20to%20handle%20sessions&In-Reply-To=2AB88DEA-ED1C-11D8-A444-000A95B2E4E0%40amix.dk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016052.html">
+   <LINK REL="Next"  HREF="016137.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] The right way to handle sessions</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Amir Salihefendic</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20right%20way%20to%20handle%20sessions&In-Reply-To=2AB88DEA-ED1C-11D8-A444-000A95B2E4E0%40amix.dk"
+       TITLE="[mod_python] The right way to handle sessions">amix at amix.dk
+       </A><BR>
+    <I>Fri Aug 13 18:32:28 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016052.html">[mod_python] The right way to handle sessions
+</A></li>
+        <LI>Next message: <A HREF="016137.html">[mod_python] The right way to handle sessions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16057">[ date ]</a>
+              <a href="thread.html#16057">[ thread ]</a>
+              <a href="subject.html#16057">[ subject ]</a>
+              <a href="author.html#16057">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> def createSession(req):
+</I>&gt;<i>     new_session = Session.Session(req)
+</I>&gt;<i>     new_session.unlock()
+</I>&gt;<i>
+</I>&gt;<i>     #Check id
+</I>&gt;<i>     req.write(new_session.id())
+</I>&gt;<i>
+</I>&gt;<i>     return getSameSession(req, new_session.id())
+</I>&gt;<i>
+</I>&gt;<i> def getSameSession(req, SID):
+</I>&gt;<i>     same_session = Session.Session(req, SID)
+</I>&gt;<i>
+</I>&gt;<i>     #Check id
+</I>&gt;<i>     req.write(&quot;\n%s\n&quot; % same_session.id())
+</I>&gt;<i>
+</I>&gt;<i>     return &quot;Done&quot;
+</I>
+Argh forgot something very important (to save the damn session)!:
+def createSession(req):
+     new_session = Session.Session(req)
+     new_session.save()
+     new_session.unlock()
+
+     #Check id
+     req.write(new_session.id())
+
+     return getSameSession(req, new_session.id())
+
+def getSameSession(req, SID):
+     same_session = Session.Session(req, SID)
+     same_session.load()
+
+     #Check id
+     req.write(&quot;\n%s\n&quot; % same_session.id())
+
+     return &quot;Done&quot;
+
+*Tsk tsk*
+
+Med venlig hilsen / Kind regards
+Amir Salihefendic
+-----
+What we do in life echoes in eternity
+Den 13/8-2004, kl. 13.30, skrev Amir Salihefendic:
+
+&gt;<i> Thanks a lot for your time spent on the reply, I appreciate it.
+</I>&gt;<i>
+</I>&gt;<i> &quot;Under what circumstances do you call createSession() instead of 
+</I>&gt;<i> getSameSession()?&quot;
+</I>&gt;<i>
+</I>&gt;<i> Let's take another example:
+</I>&gt;<i> I am making a blog-system where I need to have an admin section. I am 
+</I>&gt;<i> using the publisher handler.
+</I>&gt;<i> Simple forms post username and password to admin.py
+</I>&gt;<i> Admin.py has an index function, which has username and password as 
+</I>&gt;<i> input.
+</I>&gt;<i> In the index function I check if the username and password match, if 
+</I>&gt;<i> they do I create an session and store username and password.
+</I>&gt;<i> Now, I need to redirect to a new function viewPosts (it's also located 
+</I>&gt;<i> in the admin module).
+</I>&gt;<i>
+</I>&gt;<i> In viewPosts I have to check if the right session is set - else 
+</I>&gt;<i> somebody could do admin.py/viewPosts and get access to the admin 
+</I>&gt;<i> section.
+</I>&gt;<i>
+</I>&gt;<i> Of course, I could solve problem in many other ways:
+</I>&gt;<i> - Send the SID to viewPosts
+</I>&gt;<i> - Place everything in one function (i.e. place everything in 
+</I>&gt;<i> admin.py/index)
+</I>&gt;<i> - &quot;Append&quot; the session to the req object
+</I>&gt;<i> - Make viewPosts private (i.e. do _viewPosts) and then I can only 
+</I>&gt;<i> access it by going through admin.py/index
+</I>&gt;<i> -etc.
+</I>&gt;<i>
+</I>&gt;<i> Anyway, I am interested in knowing: What is the smartest way to 
+</I>&gt;<i> &quot;share&quot;/access same session across functions (i.e. when you are 
+</I>&gt;<i> internal &quot;redirecting&quot;)? Example of what I mean by &quot;redirecting&quot; (not 
+</I>&gt;<i> working...):
+</I>&gt;<i> def createSession(req):
+</I>&gt;<i>     new_session = Session.Session(req)
+</I>&gt;<i>     return getSameSession(req)
+</I>&gt;<i>
+</I>&gt;<i> def getSameSession(req):
+</I>&gt;<i>     same_session = Session.Session(req)
+</I>&gt;<i>     return same_session.id()
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> My guess is to send the SID (working). This seems to be a very light 
+</I>&gt;<i> and easy approach:
+</I>&gt;<i> def createSession(req):
+</I>&gt;<i>     new_session = Session.Session(req)
+</I>&gt;<i>     new_session.unlock()
+</I>&gt;<i>
+</I>&gt;<i>     #Check id
+</I>&gt;<i>     req.write(new_session.id())
+</I>&gt;<i>
+</I>&gt;<i>     return getSameSession(req, new_session.id())
+</I>&gt;<i>
+</I>&gt;<i> def getSameSession(req, SID):
+</I>&gt;<i>     same_session = Session.Session(req, SID)
+</I>&gt;<i>
+</I>&gt;<i>     #Check id
+</I>&gt;<i>     req.write(&quot;\n%s\n&quot; % same_session.id())
+</I>&gt;<i>
+</I>&gt;<i>     return &quot;Done&quot;
+</I>&gt;<i>
+</I>&gt;<i> (This is a solution I use now.) Of course this is very simplified 
+</I>&gt;<i> example...
+</I>&gt;<i>
+</I>&gt;<i> Med venlig hilsen / Kind regards
+</I>&gt;<i> Amir Salihefendic
+</I>&gt;<i> -----
+</I>&gt;<i> What we do in life echoes in eternity
+</I>&gt;<i> Den 13/8-2004, kl. 1.17, skrev Byron Ellacott:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Amir Salihefendic wrote:
+</I>&gt;&gt;&gt;<i> I welcome myself to this list ;-)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Welcome!
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> [working example]
+</I>&gt;&gt;&gt;<i> def createSession(req):
+</I>&gt;&gt;&gt;<i> def getSameSession(req):
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The important thing to note here is that the code is identical in 
+</I>&gt;&gt;<i> both calls.  That is, if you call Session.Session(req) with no 
+</I>&gt;&gt;<i> session ID in cookies, or the existing session ID has no matching 
+</I>&gt;&gt;<i> session stored on disk, a new session ID is generated.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> But, the session is /not/ written to disk.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> def createSession(req):
+</I>&gt;&gt;&gt;<i>     return getSameSession(req)
+</I>&gt;&gt;&gt;<i> def getSameSession(req):
+</I>&gt;&gt;&gt;<i>     return same_session.id()
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> So when you change to calling getSameSession() from createSession() 
+</I>&gt;&gt;<i> you are in fact creating /two/ sessions.  My guess would be that your 
+</I>&gt;&gt;<i> apparent infinite loop is in fact a deadlock, caused by the fact that 
+</I>&gt;&gt;<i> your second created session will be reusing the session ID created by 
+</I>&gt;&gt;<i> the first one, and then attempting to establish a global lock on that 
+</I>&gt;&gt;<i> session ID.  Bad.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> This does not work - it makes an infinitive loop..!  Now to fix this 
+</I>&gt;&gt;&gt;<i> you need to unlock the session in createSession (.. I have no clue 
+</I>&gt;&gt;&gt;<i> why you have to do this..?). And then you need to restart apache...  
+</I>&gt;&gt;&gt;<i> i.e.:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This bears up my analysis well.  The locking done by the Session 
+</I>&gt;&gt;<i> module is an Apache-wide lock on the session ID.  So, when 
+</I>&gt;&gt;<i> createSession() first creates a session, it locks that sid.  Then, it 
+</I>&gt;&gt;<i> calls getSameSession() which attempts to lock the same sid.  The lock 
+</I>&gt;&gt;<i> call blocks here, waiting for the first lock to be released, but that 
+</I>&gt;&gt;<i> release will never come.  If you cause the first created session to 
+</I>&gt;&gt;<i> unlock itself, you will not create a deadlock, but you will need to 
+</I>&gt;&gt;<i> restart apache to break an existing deadlock.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> But this does not work quite well.. If you delete the Session:
+</I>&gt;&gt;&gt;<i> And then you do this:
+</I>&gt;&gt;&gt;<i> First time the id's aren't same - after that they are the same.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> When a session has been deleted, it is marked as invalid and calling 
+</I>&gt;&gt;<i> .load() on that sid will fail.  .__init__() will create a new sid if 
+</I>&gt;&gt;<i> .load() fails for an existing one, so I suspect you are seeing this 
+</I>&gt;&gt;<i> behaviour.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Overall, it seems you are making the session management process far 
+</I>&gt;&gt;<i> more complicated than it needs to be.  Under what circumstances do 
+</I>&gt;&gt;<i> you call createSession() instead of getSameSession() ?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I am successfully using the Session module to handle an HTML forms 
+</I>&gt;&gt;<i> based login system:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> session = Session.Session(req)
+</I>&gt;&gt;<i> if NeedAuth and not session.has_key('username'):
+</I>&gt;&gt;<i>     redirect(AuthPage)
+</I>&gt;&gt;<i> ServePage(req)
+</I>&gt;&gt;<i> session.save()
+</I>&gt;&gt;<i> return apache.OK
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This is a simplification, since I use an extensible application 
+</I>&gt;&gt;<i> object that allows you to change how sessions are generated and how 
+</I>&gt;&gt;<i> users are authenticated, but it boils down to the above.  I create a 
+</I>&gt;&gt;<i> new session or get an existing session.  I do not care which.  If the 
+</I>&gt;&gt;<i> page being requested needs auth, but the session doesn't contain a 
+</I>&gt;&gt;<i> username key, I redirect[1] to the login page, which stores the 
+</I>&gt;&gt;<i> username value into the session if the user presents the right 
+</I>&gt;&gt;<i> credentials.  Otherwise, I serve the requested page, then save the 
+</I>&gt;&gt;<i> session, and Bob's a builder.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Note that I cannot distinguish between an expired session and no 
+</I>&gt;&gt;<i> session at all, but this is a limitation of the Session module.  I 
+</I>&gt;&gt;<i> can distinguish between a new session and an existing session by 
+</I>&gt;&gt;<i> calling session.is_new(), but that distinction turns out not to be 
+</I>&gt;&gt;<i> very important.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> At some point, I will need to extract the sid from the cookie set 
+</I>&gt;&gt;<i> myself, to be able to distinguish between a timed out session, an 
+</I>&gt;&gt;<i> invalidated session, a missing session and a brand new session.  (Or 
+</I>&gt;&gt;<i> else I'll have to patch the Session module, which I'm not real keen 
+</I>&gt;&gt;<i> to do.)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -- 
+</I>&gt;&gt;<i> bje
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> [1] The 'redirects' I do are simply changing what view my code 
+</I>&gt;&gt;<i> believes it is processing, so execution continues down the line, and 
+</I>&gt;&gt;<i> session.save() is called in due order.  If you're using an Apache 
+</I>&gt;&gt;<i> internal redirect or a 302/303 redirect, you should ensure new 
+</I>&gt;&gt;<i> sessions are saved as soon as created with &quot;if session.is_new(): 
+</I>&gt;&gt;<i> session.save()&quot;.
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016052.html">[mod_python] The right way to handle sessions
+</A></li>
+	<LI>Next message: <A HREF="016137.html">[mod_python] The right way to handle sessions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16057">[ date ]</a>
+              <a href="thread.html#16057">[ thread ]</a>
+              <a href="subject.html#16057">[ subject ]</a>
+              <a href="author.html#16057">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

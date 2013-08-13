@@ -1,0 +1,257 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod_python &amp; cPickle / saving Instances
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20%26%20cPickle%20/%20saving%20Instances&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="025097.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mod_python &amp; cPickle / saving Instances</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Dominique.Holzwarth at ch.delarue.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20%26%20cPickle%20/%20saving%20Instances&In-Reply-To="
+       TITLE="[mod_python] Mod_python &amp; cPickle / saving Instances">Dominique.Holzwarth at ch.delarue.com
+       </A><BR>
+    <I>Tue Apr  1 05:09:15 EDT 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="025097.html">[mod_python] Mod_python &amp; cPickle / saving Instances
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25096">[ date ]</a>
+              <a href="thread.html#25096">[ thread ]</a>
+              <a href="subject.html#25096">[ subject ]</a>
+              <a href="author.html#25096">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hey Guys
+
+I was just playing around with the cPickle module to save some instance objects into binary files and 'offline' (normal python interpreter on local machine) it all works fine. However, when I try to do the same things under apache with mod_python I get a mod_python specific error...
+
+Here are my testing files:
+
+Pickletest.py
+*******************************************************************************************************************
+from mod_python import apache
+from mod_python import Session
+import cPickle, pickle
+
+myModule = apache.import_module('~/test/dummyclass.py')
+
+secretText = &quot;hallo&quot;
+
+def index(req):
+    req.session = Session.FileSession(req, secret=secretText)
+    if req.session.is_new():
+        myInstance = myModule.myClass()
+        myInstance.hit()
+        hits = str(myInstance.hitCounter)
+        myOtherInstance = myModule.myOtherClass()
+        myOtherInstance.hit()
+        randNum = str(myOtherInstance.randomNumber)
+        file = open('C:\\Program Files\\Apache Software Foundation\\Apache2.2\\test\\myInstances.pkl','wb')
+        cPickle.dump((myInstance, myOtherInstance), file)
+        file.close()
+        req.session.save()
+        return &quot;Hits: &quot;+hits+&quot; Random Number: &quot;+randNum
+    else:
+        file = open('C:\\Program Files\\Apache Software Foundation\\Apache2.2\\test\\myInstances.pkl','rb')
+        (myInstance, myOtherInstance) = cPickle.load(file)
+        file.close()
+        myInstance.hit()
+        myOtherInstance.hit()
+        hits = str(myInstance.hitCounter)
+        randNumber = str(myOtherInstance.randomNumber)
+        req.session['myInstances'] = (myInstance, myOtherInstance)
+        file = open('C:\\Program Files\\Apache Software Foundation\\Apache2.2\\test\\myInstances.pkl','wb')
+        cPickle.dump((myInstance, myOtherInstance), file)
+        file.close()
+        req.session.save()
+        return &quot;Hits: &quot;+hits+&quot; Random Number: &quot;+randNum+&quot; old session&quot;
+*******************************************************************************************************************
+
+This script does nothing more than saving / loading instance objects and displaying some sort of 'hit counter'
+
+Dummyclass.py
+*******************************************************************************************************************
+import random
+
+class myClass:
+    def __init__(self):
+        self.attribute = 1
+        self.text = &quot;hello world&quot;
+        self.hitCounter = 0
+
+    def hit(self):
+        self.hitCounter += 1
+
+class myOtherClass:
+    def __init__(self):
+        self.otherAttribute = 2
+        self.otherText = &quot;goodbye world&quot;
+        self.randomNumber = 0
+
+    def hit(self):
+        self.randomNumber = random.randint(0, 1000)
+*******************************************************************************************************************
+Defines some useless classes, of which instance objects should be stored :-)
+
+The script manages to write the *.pkl file which looks like this:
+
+myInstances.pkl
+*******************************************************************************************************************
+((i_mp_bee88a136571a696398a0eb82b06eeb3
+myClass
+p1
+(dp2
+S'attribute'
+p3
+I1
+sS'hitCounter'
+p4
+I1
+sS'text'
+p5
+S'hello world'
+p6
+sb(i_mp_bee88a136571a696398a0eb82b06eeb3
+myOtherClass
+p7
+(dp8
+S'otherText'
+p9
+S'goodbye world'
+p10
+sS'otherAttribute'
+p11
+I2
+sS'randomNumber'
+p12
+I105
+sbt.
+*******************************************************************************************************************
+
+As I understand the pickle-algorithm this file looks as intended except for the i_mp_bee88a136571a696398a0eb82b06eeb3 which normaly would be the name of the module. Obviously the module name is converted into some mod_python GUID thingy...
+
+The error message i get is the following:
+
+MOD_PYTHON ERROR
+
+ProcessId:      3784
+Interpreter:    'xx'
+
+ServerName:     'xx'
+DocumentRoot:   'C:/Program Files/Apache Software Foundation/Apache2.2/htdocs'
+
+URI:            '/python/test/pickletest.py'
+Location:       None
+Directory:      'C:/Program Files/Apache Software Foundation/Apache2.2/htdocs/python/'
+Filename:       'C:\\Program Files\\Apache Software Foundation\\Apache2.2\\htdocs\\python\\test\\pickletest.py'
+PathInfo:       ''
+
+Phase:          'PythonHandler'
+Handler:        'mod_python.publisher'
+
+Traceback (most recent call last):
+
+  File &quot;C:\Program Files\Python25\lib\site-packages\mod_python\importer.py&quot;, line 1537, in HandlerDispatch
+    default=default_handler, arg=req, silent=hlist.silent)
+
+  File &quot;C:\Program Files\Python25\lib\site-packages\mod_python\importer.py&quot;, line 1229, in _process_target
+    result = _execute_target(config, req, object, arg)
+
+  File &quot;C:\Program Files\Python25\lib\site-packages\mod_python\importer.py&quot;, line 1128, in _execute_target
+    result = object(arg)
+
+  File &quot;C:\Program Files\Python25\lib\site-packages\mod_python\publisher.py&quot;, line 213, in handler
+    published = publish_object(req, object)
+
+  File &quot;C:\Program Files\Python25\lib\site-packages\mod_python\publisher.py&quot;, line 425, in publish_object
+    return publish_object(req,util.apply_fs_data(object, req.form, req=req))
+
+  File &quot;C:\Program Files\Python25\lib\site-packages\mod_python\util.py&quot;, line 554, in apply_fs_data
+    return object(**args)
+
+  File &quot;C:\Program Files\Apache Software Foundation\Apache2.2\htdocs\python\test\pickletest.py&quot;, line 25, in index
+    (myInstance, myOtherInstance) = cPickle.load(file)
+
+ImportError: No module named _mp_bee88a136571a696398a0eb82b06eeb3
+
+
+MODULE CACHE DETAILS
+
+Accessed:       Tue Apr 01 11:05:33 2008
+Generation:     26
+
+_mp_bee88a136571a696398a0eb82b06eeb3 {
+  FileName:     'C:\\Program Files\\Apache Software Foundation\\Apache2.2\\htdocs\\python\\test\\dummyclass.py'
+  Instance:     1
+  Generation:   13
+  Modified:     Tue Apr 01 09:59:54 2008
+  Imported:     Tue Apr 01 10:05:22 2008
+}
+
+_mp_754c5030ce462c9ea7741cb6f66d6cc1 {
+  FileName:     'C:\\Program Files\\Apache Software Foundation\\Apache2.2\\htdocs\\python\\test\\pickletest.py'
+  Instance:     13
+  Generation:   26
+  Modified:     Tue Apr 01 10:56:58 2008
+  Imported:     Tue Apr 01 10:57:10 2008
+  Children:     'C:\\Program Files\\Apache Software Foundation\\Apache2.2\\htdocs\\python\\test\\dummyclass.py'
+}
+
+Is there a way how to use cPickle AND mod_python together? I also tried to use the session mechanism instead of the pickle mechanism to store instance objects in a binary file but that doesn't seem to work either (if I do a req.session['myInstances'] = (myInstance, myOtherInstance) then the session doesn't seem to be saved properly and thus, everytime I hit on browser-reload a new session is generated...)
+
+Would be really great if someone could help me with this!
+
+Greetings Dominique
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="025097.html">[mod_python] Mod_python &amp; cPickle / saving Instances
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25096">[ date ]</a>
+              <a href="thread.html#25096">[ thread ]</a>
+              <a href="subject.html#25096">[ subject ]</a>
+              <a href="author.html#25096">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

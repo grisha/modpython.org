@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Can%20i%20have%20both%20Marshal%20and%20Signed%0A%09CookieswithPublisher%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022432.html">
+   <LINK REL="Next"  HREF="022434.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Can%20i%20have%20both%20Marshal%20and%20Signed%0A%09CookieswithPublisher%3F&In-Reply-To="
+       TITLE="[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Oct 30 16:40:14 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022432.html">[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+</A></li>
+        <LI>Next message: <A HREF="022434.html">[mod_python] Can i have both Marshal and
+	Signed	CookieswithPublisher?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22433">[ date ]</a>
+              <a href="thread.html#22433">[ thread ]</a>
+              <a href="subject.html#22433">[ subject ]</a>
+              <a href="author.html#22433">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Clodoaldo Pinto Neto wrote ..
+&gt;<i> 2006/10/29, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+</I>&gt;<i> &gt; Clodoaldo Pinto Neto wrote ..
+</I>&gt;<i> &gt; &gt; 2006/10/29, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+</I>&gt;<i> &gt; &gt; IMHO, the least surprise behavior is if Cookie.get_cookies() returned
+</I>&gt;<i> &gt; &gt; all cookies of the given class regardless of how many different cookie
+</I>&gt;<i> &gt; &gt; classes there are in the header.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; There is nothing in a cookie string though to be able to identify it
+</I>&gt;<i> as being
+</I>&gt;<i> &gt; of a particular type. The only way you can know is to try and decode
+</I>&gt;<i> it and
+</I>&gt;<i> &gt; if it works then it probably is.
+</I>&gt;<i> 
+</I>&gt;<i> It is exactly what MarshalCookie.parse() does:
+</I>
+But it is still an assumption because they aren't tagged as being of a
+particular type. :-)
+ 
+&gt;<i>     def parse(Class, s, secret):
+</I>&gt;<i> 
+</I>&gt;<i>         dict = _parse_cookie(s, Class)
+</I>&gt;<i> 
+</I>&gt;<i>         for k in dict:
+</I>&gt;<i>             c = dict[k]
+</I>&gt;<i>             try:
+</I>&gt;<i>                 c.unmarshal(secret)
+</I>&gt;<i>             except (CookieError, ValueError):
+</I>&gt;<i>                 # downgrade to Cookie
+</I>&gt;<i>                 dict[k] = Cookie.parse(Cookie.__str__(c))[k]
+</I>&gt;<i> 
+</I>&gt;<i>         return dict
+</I>&gt;<i> 
+</I>&gt;<i> The problem that is happening is that one exception was not expected
+</I>&gt;<i> by the original code piece author. The exception is binascii.Error. It
+</I>&gt;<i> will happen whenever MarshalCookie.parse() tries to parse a Signed
+</I>&gt;<i> cookie. My proposed fix is just to import binascii and include the
+</I>&gt;<i> exception:
+</I>&gt;<i> 
+</I>&gt;<i>             try:
+</I>&gt;<i>                 c.unmarshal(secret)
+</I>&gt;<i>             except (CookieError, ValueError, binascii.Error):
+</I>&gt;<i>                 # downgrade to Cookie
+</I>&gt;<i>                 dict[k] = Cookie.parse(Cookie.__str__(c))[k]
+</I>&gt;<i> 
+</I>&gt;<i> This way MarshalCookie.get_cookies() will behave as per the documentation.
+</I>
+Yes and no. Yes one could do it, but after looking at it and thinking about
+it overnight I would probably do it in a different place. Instead, one would
+be better of first changing unmarshal() to:
+
+    def unmarshal(self, secret):
+
+        self.unsign(secret)
+
+        try:
+            data = base64.decodestring(self.value)
+        except binascii.Error:
+            raise CookieError, &quot;Incorrectly Encoded Cookie: %s=%s&quot; % (self.name, self.value)
+
+        self.value = marshal.loads(data)
+
+and leave parse() as is.
+
+The difference here is that you have split out the base64 decoding of
+the value string from the actual unmarshalling of the data.
+
+Next one has to contemplate whether one should for the marshal.loads()
+call separately catch EOFError, ValueError or TypeError exceptions as
+being indicative of badly formatted marshal data.
+
+The reason for doing this would be that I could use a SignedCookie at
+the same time where I decide to base64 encode the value myself. If I do
+this and the SignedCookie uses the same secret, the data would get
+past the signed check and the base64 decoding implemented by the
+MarshalCookie but then fail on unmarshalling if the data wasn't actually
+marshal data but some other format.
+
+So, to be even more precise:
+
+    def unmarshal(self, secret):
+
+        self.unsign(secret)
+
+        try:
+            data = base64.decodestring(self.value)
+        except:
+            raise CookieError, &quot;Value Not BASE64 Encoded: %s=%s&quot; % (self.name, self.value)
+
+        try:
+            self.value = marshal.loads(data)
+        except (EOFError, ValueError, TypeError):
+            raise CookieError, &quot;Cannot Unmarshal Cookie: %s=%s&quot; % (self.name, self.value)
+
+&gt;<i> &gt; This is probably not a good way of doing
+</I>&gt;<i> &gt; things. First off the application should only be decoding its own cookies
+</I>&gt;<i> &gt; and not others which may have been sent to the site in general. Thus,
+</I>&gt;<i> allowing
+</I>&gt;<i> &gt; one to say which cookies to decode is probably a better step.
+</I>&gt;<i> 
+</I>&gt;<i> I'm not opposing the new names argument. I just don't know enough
+</I>&gt;<i> about mod_python to opine on it, although the names argument alone
+</I>&gt;<i> will not fix the issue: an *expected* error that should be handled by
+</I>&gt;<i> mod_python. Or better, the names argument will only fix the issue if
+</I>&gt;<i> it is passed *and* if none of the passed cookie names is a Signed
+</I>&gt;<i> cookie. A nice addition perhaps, but not a fix.
+</I>
+The other thing I believe also should be added is a new keyword
+parameter called 'strict'. This would default to 0 to preserve existing
+behaviour. So I could say:
+
+  cookies = Cookie.get_cookies(req, Cookie.MarshalCookie, names=['xxx'], strict=1)
+
+If 'strict' is set to a truth value, then if a cookie fails to be decoded as
+the intended type, it would not fallback to returning Cookie, but raise
+again the original exception that cause the cookie not to be decoded.
+
+The Session code would for example always use 'strict' to ensure that
+SignedCookie doesn't fallback to 'Cookie', thus ensuring the extra
+security of the 64 character vs 32 character string is used.
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022432.html">[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+</A></li>
+	<LI>Next message: <A HREF="022434.html">[mod_python] Can i have both Marshal and
+	Signed	CookieswithPublisher?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22433">[ date ]</a>
+              <a href="thread.html#22433">[ thread ]</a>
+              <a href="subject.html#22433">[ subject ]</a>
+              <a href="author.html#22433">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

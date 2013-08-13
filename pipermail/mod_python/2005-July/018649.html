@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] global var on 2.7
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20global%20var%20on%202.7&In-Reply-To=42D1457C.4090609%40joreybump.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018648.html">
+   <LINK REL="Next"  HREF="018650.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] global var on 2.7</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>antoine</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20global%20var%20on%202.7&In-Reply-To=42D1457C.4090609%40joreybump.com"
+       TITLE="[mod_python] global var on 2.7">rouadec at gmail.com
+       </A><BR>
+    <I>Sun Jul 10 12:40:14 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018648.html">[mod_python] global var on 2.7
+</A></li>
+        <LI>Next message: <A HREF="018650.html">[mod_python] global var on 2.7
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18649">[ date ]</a>
+              <a href="thread.html#18649">[ thread ]</a>
+              <a href="subject.html#18649">[ subject ]</a>
+              <a href="author.html#18649">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>ok, thanks for those advices and insight into mod_python. I'll do more
+testing with the caching module it looks like a solution to my current
+problem.
+
+it's not trusly enormous but the loading makes the difference between
+an instantaneous page and a one second delay.
+
+I'm forwarding your answer to the mailing list for the future
+generations ;) (or at least the ones stuck with apache1.3 :)
+
+On 7/10/05, Jorey Bump &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">list at joreybump.com</A>&gt; wrote:
+&gt;<i> antoine wrote:
+</I>&gt;<i> &gt; hum, ok but I tried a few more time to access this page in different
+</I>&gt;<i> &gt; fashions and I can say in some circonstances the processes are being
+</I>&gt;<i> &gt; reused (and therefore my bigdict object is not reloaded, as expected)
+</I>&gt;<i> &gt; so it is consistent with Graham explanations.
+</I>&gt;<i> 
+</I>&gt;<i> I may have misinterpreted your statement to mean that you would
+</I>&gt;<i> eventually begin using the object in a persistent manner, rather than
+</I>&gt;<i> occassionally access it, which is the case and consistent with both of
+</I>&gt;<i> our explanations.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; The cached module &quot;trick&quot;  should be more performant that the &quot;global&quot;
+</I>&gt;<i> &gt; only if the modules are cached once for all the processes (and nor per
+</I>&gt;<i> &gt; process) I guess? Anyway, I'll try and see for myself.
+</I>&gt;<i> 
+</I>&gt;<i> Well, they are cached per child, so you get a boost.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Should this module also use global or not? Is a simple implementation like:
+</I>&gt;<i> 
+</I>&gt;<i> I wouldn't.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; CacheBigdic.py
+</I>&gt;<i> &gt; def getBigDic():
+</I>&gt;<i> &gt;   return looong_and_painful_process()
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; enough or should I go for :
+</I>&gt;<i> &gt; CacheBigdic.py
+</I>&gt;<i> &gt; bigdic = None
+</I>&gt;<i> &gt; def getBigDic():
+</I>&gt;<i> &gt;   global bigdic
+</I>&gt;<i> &gt;   if not bigdic:
+</I>&gt;<i> &gt;     return looong_and_painful_process()
+</I>&gt;<i> &gt;   else:
+</I>&gt;<i> &gt;     return bigdic
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; and call this from index.py with
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; import CacheBigdic
+</I>&gt;<i> &gt; bigdic = CacheBigdic.getBigdic()
+</I>&gt;<i> &gt; def index(req):
+</I>&gt;<i> &gt;   ...
+</I>&gt;<i> &gt;   use(bigdic)
+</I>&gt;<i> &gt;   ...
+</I>&gt;<i> 
+</I>&gt;<i> I'd do this, probably:
+</I>&gt;<i> 
+</I>&gt;<i> # CacheBigdic.py
+</I>&gt;<i> 
+</I>&gt;<i> bigdic = looong_and_painful_process()
+</I>&gt;<i> 
+</I>&gt;<i> # publishedmodulewithuniquename.py
+</I>&gt;<i> 
+</I>&gt;<i> import CacheBigdic
+</I>&gt;<i> def index(req):
+</I>&gt;<i>     ...
+</I>&gt;<i>     use(CacheBigdic.bigdic)
+</I>&gt;<i>     ...
+</I>&gt;<i> 
+</I>&gt;<i> If you find errors appearing in your apache log under heavy load, you
+</I>&gt;<i> may need to alter CacheBigdic.py:
+</I>&gt;<i> 
+</I>&gt;<i> try:
+</I>&gt;<i>     bigdic = looong_and_painful_process()
+</I>&gt;<i> except TheErrorYouSee:
+</I>&gt;<i>     bigdic = looong_and_painful_process()
+</I>&gt;<i> 
+</I>&gt;<i> It looks redundant, but it's needed because the module is cached. In any
+</I>&gt;<i> case, it's important to protect yourself if your bigdic gets you in trouble.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; I do not need truly global var, the cached object is never modified
+</I>&gt;<i> &gt; (and the long_and_painful_process() is already nothing but a (c)pickle
+</I>&gt;<i> &gt; ;).
+</I>&gt;<i> 
+</I>&gt;<i> Then this should work, but be aware that if your bigdic is truly
+</I>&gt;<i> enormous, you should tuck it away and only use it when needed. Excessive
+</I>&gt;<i> handling of bigdic could result in a huge load and bring your system to
+</I>&gt;<i> exhaustion.
+</I>&gt;<i> 
+</I>&gt;<i> A database is a good candidate for this.
+</I>&gt;<i> 
+</I>
+
+-- 
+Antoine
+<A HREF="http://delaunay.org/antoine">http://delaunay.org/antoine</A>
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018648.html">[mod_python] global var on 2.7
+</A></li>
+	<LI>Next message: <A HREF="018650.html">[mod_python] global var on 2.7
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18649">[ date ]</a>
+              <a href="thread.html#18649">[ thread ]</a>
+              <a href="subject.html#18649">[ subject ]</a>
+              <a href="author.html#18649">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

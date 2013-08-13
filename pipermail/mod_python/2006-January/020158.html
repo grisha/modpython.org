@@ -1,0 +1,238 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Various simple questions. I hope.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Various%20simple%20questions.%20I%20hope.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020157.html">
+   <LINK REL="Next"  HREF="020159.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Various simple questions. I hope.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Various%20simple%20questions.%20I%20hope.&In-Reply-To="
+       TITLE="[mod_python] Various simple questions. I hope.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Jan 29 17:27:12 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020157.html">[mod_python] Various simple questions. I hope.
+</A></li>
+        <LI>Next message: <A HREF="020159.html">[mod_python] Python Server Pages debugging security
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20158">[ date ]</a>
+              <a href="thread.html#20158">[ thread ]</a>
+              <a href="subject.html#20158">[ subject ]</a>
+              <a href="author.html#20158">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Bart wrote ..
+&gt;<i> Hey all.
+</I>&gt;<i> 
+</I>&gt;<i> Question. When I write:
+</I>&gt;<i>     def requesthandler(req):
+</I>&gt;<i>         req.content_type = &quot;text/plain&quot;
+</I>&gt;<i>         req.write(&quot;Hello World!&quot;)
+</I>&gt;<i>         return apache.OK
+</I>&gt;<i> ...it returns &quot;Hello World!0&quot;, so that style will
+</I>&gt;<i> corrupt particularly my non-HTML data, so I don't
+</I>&gt;<i> use it. Thing is, it's copy-pasted from 3.1(.3)
+</I>&gt;<i> documentation and I have 3.1.4 (-r1, in gentoo).
+</I>&gt;<i> 
+</I>&gt;<i> So is this a difference between using AddHandler
+</I>&gt;<i> python-program and AddHandler mod_python?
+</I>&gt;<i> Or do the docs accidentally describe 3.2 or and old
+</I>&gt;<i> version?   (I use:
+</I>&gt;<i>   AddHandler mod_python .py
+</I>&gt;<i>   PythonHandler mod_python.publisher
+</I>&gt;<i>   PythonDebug On
+</I>&gt;<i> Is this unusual?)
+</I>
+Using PythonHandler to specify your own handler code is different
+to specifying that mod_python.publisher be used. You are programming
+in the style expected where you specify your own handler code but
+are using mod_python.publisher as the dispatcher and thus why the
+example you copied isn't yielding the expected results.
+
+If using mod_python.publisher, you would write the above example as:
+
+    def requesthandler(req):
+        req.content_type = &quot;text/plain&quot;
+        return &quot;Hello World!&quot;
+
+Ie., the content of the page is returned as the result. You can still use
+req.write(), but whatever is returned from the function will also be
+appended and why you see the extra &quot;0&quot; at the end. That is the value
+of apache.OK converted to a string.
+
+&gt;<i> It also leaves me a little baffled on what I should
+</I>&gt;<i> return from a handler function. My code works,
+</I>&gt;<i> I just don't know whether it should be written
+</I>&gt;<i> the way it is.
+</I>&gt;<i> 
+</I>&gt;<i> People discuss apache.OK, and the difference
+</I>&gt;<i> between it and apache.DONE and such, so I'm
+</I>&gt;<i> guessing this is current code - but apparently
+</I>&gt;<i> it works differently under publisher. Or my version.
+</I>
+If using mod_python.publisher you can largely ignore the apache.OK
+and apache.DONE return statuses. Ie,. the main distinction is that for
+your own handler you use req.write() and return statuses where as
+if using mod_python.publisher the result of the function is the content
+and you use exceptions to indicate status.
+
+&gt;<i> It also left me confused about how to handle
+</I>&gt;<i> success and errors.
+</I>&gt;<i> 
+</I>&gt;<i> It seems like you're suppose to return simple ones
+</I>&gt;<i> and raise things on specific errors when you want
+</I>&gt;<i> apache to use its error pages
+</I>
+You can say:
+
+  raise apache.HTTP_SERVER_RETURN, apache.HTTP_NOT_FOUND
+
+when using either your own explicit handler or when using
+mod_python.publisher to indicate a specific status.
+
+If using your own explicitly handler you can also do:
+
+  return apache.HTTP_NOT_FOUND
+
+In both cases, Apache will construct any page to go along with that
+specific error response.
+
+&gt;<i> but apparently
+</I>&gt;<i> you set req.status for other cses yet, because where
+</I>&gt;<i> does this leave things like the 304?
+</I>&gt;<i> I use  req.status=apache.HTTP_NOT_MODIFIED
+</I>&gt;<i> elsewhere to handle my manual ETags on
+</I>&gt;<i> dynamically served images. Despite me just having
+</I>&gt;<i> read that setting req.status doesn't actually do
+</I>&gt;<i> anything, my header snooper tells me it does in
+</I>&gt;<i> fact work. Reading somewhere else says it works,
+</I>&gt;<i> is the way it should work, and should probably be
+</I>&gt;<i> followed by a return apache.DONE.
+</I>&gt;<i> But since that doesn't seem to apply to me, what
+</I>&gt;<i> do I do? How do I get these apache.THINGS, since
+</I>&gt;<i> they seem to be the way thing work for other people?
+</I>
+If you want to override what page is sent back by Apache with a
+specific error response, you would typically use something like:
+
+  req.status = apache.HTTP_NOT_FOUND
+  req.content_type = 'text/html'
+  req.write('&lt;html&gt;...&lt;/html&gt;')
+  raise apache.HTTP_SERVER_RETURN, apache.DONE
+
+or if using your own explicit handler, you could also say:
+
+  req.status = apache.HTTP_NOT_FOUND
+  req.content_type = 'text/html'
+  req.write('&lt;html&gt;...&lt;/html&gt;')
+  return apache.DONE
+
+The value apache.DONE is used instead of apache.OK as apache.DONE
+tells Apache that you have constructed the complete response and that
+it shouldn't go adding any page of its own for that status type.
+
+&gt;<i> Am I just missing something obvious?
+</I>
+You are simple mixing two different dispatch mechanisms together and
+the requirements it places on you as to how to write your published
+functions.
+
+&gt;<i> Also, because of the empty-string problem,
+</I>&gt;<i> I had to return something (I chose a space) instead of
+</I>&gt;<i> nothing, which I'm not sure is entirely up to HTTP specs
+</I>&gt;<i> since the RFC tells me &quot;The 304 response MUST NOT
+</I>&gt;<i> contain a message-body&quot;
+</I>&gt;<i> What's the better way of doing this?
+</I>&gt;<i> 
+</I>&gt;<i> (&quot;empty-string problem&quot;: Returning an empty string after
+</I>&gt;<i>   writing no data leads to borking out with 500/Internal Server
+</I>&gt;<i>   Error, and a &quot;funtion x returned no data&quot; error in the logs.
+</I>&gt;<i>   I'm guessing this is accepted, or at least expected behaviour,
+</I>&gt;<i>   though I'd prefer if that only happened on return None
+</I>&gt;<i>   (and implicitly on a lack of a return), but not on return &quot;&quot;)
+</I>
+Fixed in mod_python 3.2.6. In mod_python.publisher in 3.2.6 it
+will allow you return &quot;&quot; or None to represent nothing and it will
+not raise a 500 error. If you do return these and there was no prior
+output written, it will though log a warning message to the Apache
+logs.
+ 
+&gt;<i> So I suppose my real question is &quot;Is there a nice overview
+</I>&gt;<i> of the varying behaviour under different versions and different
+</I>&gt;<i> PyhonHandlers, particularly the current?&quot; Should I not be
+</I>&gt;<i> using the publisher, since it seems to contradict the docs?
+</I>
+It doesn't contradict the docs, as I said, you are mixing two different
+ways of using mod_python together. You just need to read the
+correct part of the docs.
+
+&gt;<i> *If* I'm going to have to know a few innards to use mod_python
+</I>&gt;<i> so be it, but right now I have a fragile environment with
+</I>&gt;<i> no simple way of telling what'll work without testing it.
+</I>&gt;<i> 
+</I>&gt;<i> And I don't like to bug you guys too much with this sort
+</I>&gt;<i> of &quot;huh, what? wah!&quot;, y'know :)
+</I>
+We don't generally mind being bugged, especially like in your case
+where it is obvious that you have done some homework to at least
+try and understand the issue before posting. It is those where
+it is obvious that they have not tried to work the problem out themselves
+where it can get annoying after a while, especially where it is also a
+bit off topic for the list. ;-)
+
+Anyway, hope the above comments help.
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020157.html">[mod_python] Various simple questions. I hope.
+</A></li>
+	<LI>Next message: <A HREF="020159.html">[mod_python] Python Server Pages debugging security
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20158">[ date ]</a>
+              <a href="thread.html#20158">[ thread ]</a>
+              <a href="subject.html#20158">[ subject ]</a>
+              <a href="author.html#20158">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

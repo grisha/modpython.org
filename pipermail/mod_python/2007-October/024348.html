@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Large File Upload Issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Large%20File%20Upload%20Issues&In-Reply-To=4717E060.80408%40library.unt.edu">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024347.html">
+   <LINK REL="Next"  HREF="024350.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Large File Upload Issues</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Large%20File%20Upload%20Issues&In-Reply-To=4717E060.80408%40library.unt.edu"
+       TITLE="[mod_python] Large File Upload Issues">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Thu Oct 18 18:03:20 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024347.html">[mod_python] Large File Upload Issues
+</A></li>
+        <LI>Next message: <A HREF="024350.html">[mod_python] import requires apache restart?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24348">[ date ]</a>
+              <a href="thread.html#24348">[ thread ]</a>
+              <a href="subject.html#24348">[ subject ]</a>
+              <a href="author.html#24348">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Read one byte at a time is exceedingly inefficient. Rather than
+reinvent the wheel, perhaps look at Tramline.
+
+  <A HREF="http://www.infrae.com/products/tramline">http://www.infrae.com/products/tramline</A>
+
+Personally I don't believe that Python is a good way of doing this and
+for best performance it should be done as an Apache module in C code.
+At least though the Tramline approach is more efficient than your
+current approach.
+
+Graham
+
+On 19/10/2007, Kurt Nordstrom &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">knordstrom at library.unt.edu</A>&gt; wrote:
+&gt;<i> We're working on a webapp that will need to receive, from its clients,
+</I>&gt;<i> fairly large files (it's an archival storage system).  The logical way
+</I>&gt;<i> to do this seems to be to use http PUT, with appropriate code on the
+</I>&gt;<i> server side to store the file to the proper place.
+</I>&gt;<i>
+</I>&gt;<i> Borrowing and modifying some code posted back in '05 to this list by a
+</I>&gt;<i> Jeremy Jones, I have been playing with this:
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i> import os
+</I>&gt;<i>
+</I>&gt;<i> def handler(request):
+</I>&gt;<i>     #request.content_type = &quot;text/plain&quot;
+</I>&gt;<i>     content_length = int(request.headers_in[&quot;Content-Length&quot;])
+</I>&gt;<i>     outPath = &quot;/home/webtmp/upload_out.dat&quot;
+</I>&gt;<i>     outFile = open(outPath, &quot;w&quot;)
+</I>&gt;<i>     conn = request.connection
+</I>&gt;<i>     i = 0
+</I>&gt;<i>     buf = &quot;&quot;
+</I>&gt;<i>     while i &lt; content_length:
+</I>&gt;<i>         c = conn.read(1)
+</I>&gt;<i>         if c == &quot;&quot;:
+</I>&gt;<i>             break
+</I>&gt;<i>         buf = buf + c
+</I>&gt;<i>         if len(buf) &gt;= 102400:
+</I>&gt;<i>             outFile.write(buf)
+</I>&gt;<i>             outFile.flush()
+</I>&gt;<i>             buf = &quot;&quot;
+</I>&gt;<i>         i += 1
+</I>&gt;<i>     if len(buf):
+</I>&gt;<i>         outFile.write(buf)
+</I>&gt;<i>         outFile.flush()
+</I>&gt;<i>     outFile.close()
+</I>&gt;<i>     talkBack = &quot;Recieved %s bytes\n&quot; % os.stat(outPath).st_size
+</I>&gt;<i>     request.set_content_length(len(talkBack))
+</I>&gt;<i>     request.write(talkBack)
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> Basically it reads bytes one at a time from the connection and puts them
+</I>&gt;<i> in a buffer, writing it to a file in 100k chunks (I'll probably up this,
+</I>&gt;<i> once it actually works the way I want it to).
+</I>&gt;<i>
+</I>&gt;<i> This seems to be working fine...up to a point.  For some reason, it
+</I>&gt;<i> seems to stall out on files that are larger than 95 Megs in size.  It
+</I>&gt;<i> just freezes, no activity from client or server, until I kill the client
+</I>&gt;<i> (I'm using curl -T to PUT files on the system).
+</I>&gt;<i>
+</I>&gt;<i> Any thoughts on what might be causing this?  I've already checked the
+</I>&gt;<i> apache config for timeout and request size limitations, which are well
+</I>&gt;<i> beyond anything that might cause this to be a problem.
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> ===
+</I>&gt;<i> Kurt Nordstrom
+</I>&gt;<i> Programmer
+</I>&gt;<i> University of North Texas Libraries
+</I>&gt;<i> Digital Projects Unit
+</I>&gt;<i> (940) 891-6747
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024347.html">[mod_python] Large File Upload Issues
+</A></li>
+	<LI>Next message: <A HREF="024350.html">[mod_python] import requires apache restart?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24348">[ date ]</a>
+              <a href="thread.html#24348">[ thread ]</a>
+              <a href="subject.html#24348">[ subject ]</a>
+              <a href="author.html#24348">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

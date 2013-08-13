@@ -1,0 +1,278 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] python path and 3.3
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20python%20path%20and%203.3&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022725.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] python path and 3.3</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20python%20path%20and%203.3&In-Reply-To="
+       TITLE="[mod_python] python path and 3.3">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Nov 30 23:10:45 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022725.html">[mod_python] python path and 3.3
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22726">[ date ]</a>
+              <a href="thread.html#22726">[ thread ]</a>
+              <a href="subject.html#22726">[ subject ]</a>
+              <a href="author.html#22726">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Eric Brunson wrote ..
+&gt;<i> Eric Brunson wrote:
+</I>&gt;<i> &gt; I just grabbed the latest SVN snapshot and installed it and I'm having
+</I>&gt;<i> &gt; a problem with importing now.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Using the publisher handler I'm trying to get my app from 3.1.4 going,
+</I>&gt;<i> &gt; but 3.3 no longer seems to want to find my lib/ subdirectory.  I've 
+</I>&gt;<i> &gt; added the following to my .htaccess:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; PythonPath &quot;['.']+sys.path&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I can display the sys.path in an app and it includes &quot;.&quot;, but it just
+</I>&gt;<i> &gt; doesn't find a subdirectory &quot;lib&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Is there something new with the module loading that I should be aware
+</I>&gt;<i> of?
+</I>&gt;<i> 
+</I>&gt;<i> Sorry.  Got a little quick on the send...  Here's the error message:
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/local/www/data/deviceWebGui/erictest.py&quot;, line 3, in &lt;module&gt;
+</I>&gt;<i>     from lib import HTMLBuilder
+</I>&gt;<i> 
+</I>&gt;<i> ImportError: No module named lib
+</I>&gt;<i> 
+</I>&gt;<i> And lib is a subdirectory of /usr/local/www/data/deviceWebGui/ 
+</I>
+The basic reason why this doesn't work for you is that in the old importer,
+the directory the Python*Handler directive was specified for was automatically
+added to sys.path, but in the new module importer this is no longer done.
+
+The reason that the directory was added to sys.path in the old importer
+was because the standard Python module import mechanism was used
+underneath to find modules and without the directory in sys.path, it would
+not find them.
+
+Adding directories to sys.path like this caused a number or problems and
+created some unpredictability as to what module would actually be found.
+For descriptions of problems, see:
+
+  <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/ModuleImportingIsBroken">http://www.dscpl.com.au/wiki/ModPython/Articles/ModuleImportingIsBroken</A>
+
+As such, in the new module importer, the standard Python module import
+mechanism is not used to search for the modules to be imported. Further,
+the directory is not added into sys.path as already mentioned and instead the
+new module importer maintains its own concept of where to search for
+modules.
+
+Now, if you had been using a file based module and it was located within
+the handler root directory, the new module importer would continue to find
+it okay. However, because you are putting your modules together into a
+subdirectory and faking (possibly) a package to hold them, it will not find it.
+
+The reason that new the module importer will not find the package is
+because it ignores packages altogether as packages can't be candidates
+for automatic module reloading. When the new importer can't find a file
+based module called 'lib.py', it will fallback to the standard Python module
+import mechanism which will detect packages, however, because the directory
+isn't in sys.path, it will not find it either.
+
+That Python packages contained within the handler root directory would be
+one point of incompatibility with the older importer was known, it just didn't
+occur to me that you were using a package when I first responded.
+
+As to a solution, there are a few, some being preferred over others depending
+on what you expectations are.
+
+First options is to add:
+
+  # PLEASE DON'T DO THIS. SEE BELOW.
+
+  PythonPath &quot;sys.path+'/some/directory/where/htaccess/is']&quot;
+
+into your .htaccess file.
+
+Although this is the simplest thing to do, it is also the least preferred and I
+would strongly recommend not doing it.
+
+The reason this is bad is that the new importer tries to keep separate its own
+module search path and that of sys.path used by the standard Python module
+search path.
+
+If you allow an overlap, like this would create, you run into the possibility of
+having unpredictable behaviour when searching for modules as well as other
+problems, much like some of the problems with the old importer.
+
+If you do try this, you should note that mod_python will output warnings to
+the Apache error log saying you are doing bad things because you will be
+telling it to look for reloadable modules in a directory which is also in sys.path.
+
+Although it will issue these warnings, things will actually still work for simple
+stuff at least. This is because the new importer will still pick file based modules
+from the directory it is complaining about. At the same time, when it falls back
+the standard Python module import mechanism for the package, it will work
+as it now looks in the handler root directory where the package directory is
+located.
+
+The second option is simply to move your package directory to somewhere
+outside of the document tree and use PythonPath to add to sys.path the
+new directory where you put it. This is not much different to the first option
+in that you are still using PythonPath, but mod_python will not complain as
+there is no overlap in directories for each module importing mechanism.
+
+Note that in both cases above, because a package is being used, none of
+the modules in the package will be candidates for automatic reloading when
+changes are made. You will need to restart Apache whenever you make changes
+to the modules in the package.
+
+If the modules in the package were third party stuff anyway, it is preferable
+to do this. Same if the modules aren't really specific to the web application
+anyway.
+
+The third option is to not use a package. If you created the package merely
+out of convenience to provide a namespace for the modules, this should
+be okay. Thus, remove the empty __init__.py file so that it isn't actually a
+package anymore. Then, change:
+
+  from lib import HTMLBuilder
+
+to:
+
+  from mod_python import apache
+
+  HTMLBuilder = apache.import_module('~/lib/HTMLBuilder.py')
+
+This is using the mod_python module importer directly to import the module
+by path. The '~/' prefix to the path is special and is understood by the
+module importer to be the directory that the active Python*Handler directive
+was specified for.
+
+If modules within the package were importing other modules from the same
+package using a global import. Ie.,
+
+  from lib import othermodule
+
+you can change it to just:
+
+  import othermodule
+
+and it will work.
+
+This works because although it is not a package anymore, the new mod_python
+module importer uses magic so that 'import' will map to mod_python's module
+importer first when used in a module which was imported using the importer.
+Further, the import will always look in the same directory as the module first,
+something the old importer didn't do.
+
+You could also have done:
+
+  othermodule = apache.import_module('othermodule')
+
+or:
+
+  othermodule = apache.import_module('~/lib/othermodule.py')
+
+or:
+
+  othermodule = apache.import_module('./othermodule.py')
+
+The last one uses an explicit path again, but expresses it relative to the same
+directory that the parent is contained in.
+
+This whole feature of using an actual path instead of the module name is
+something new in mod_python 3.3 and means one can more predictably
+import exactly the module you intend to import.
+
+Using this third option, because file based modules are being used
+and not a package, the modules are candidates for automatic reloading
+when changes are made to them. This means you would not have to restart
+Apache if reloading is enabled.
+
+A fourth option is to again remove the package __init__.py file so it isn't
+really a package anymore, but also move the directory to somewhere outside
+of the document tree. In order to find the modules though, the PythonPath
+directive is NOT used and instead the new module importers own search
+path is set. For example:
+
+  PythonOption mod_python.importer.path &quot;['/some/path/lib']&quot;
+
+The module importer path SHOULD NOT mention sys.path, it should instead
+be a distinct list of directories where only the new module importer will look.
+Because the 'lib' directory is include and the contents of the directory will be
+searched, can just say:
+
+  import HTMLBuilder
+
+If for some reason you wanted to do it this way, but not move the directory
+outside of the document tree, you could also say:
+
+  PythonOption mod_python.importer.path &quot;['~/lib']&quot;
+
+Here the '~/' prefix is again used so you don't have to have an absolute path.
+When used it will be expanded to the directory the handler was specified for.
+
+BTW, I hope you 'lib' directory contains its own .htaccess file which contains:
+
+  deny from all
+
+If not, because publisher is used, someone could invoke code in the lib
+subdirectory otherwise.
+
+Anyway, hope I haven't confused you too much. 
+
+Graham
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022725.html">[mod_python] python path and 3.3
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22726">[ date ]</a>
+              <a href="thread.html#22726">[ thread ]</a>
+              <a href="subject.html#22726">[ subject ]</a>
+              <a href="author.html#22726">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

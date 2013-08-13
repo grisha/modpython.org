@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] clarity on request.form
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20clarity%20on%20request.form&In-Reply-To=658B20A1-FC48-445C-97DC-9A6652FA68FA%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021232.html">
+   <LINK REL="Next"  HREF="021227.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] clarity on request.form</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20clarity%20on%20request.form&In-Reply-To=658B20A1-FC48-445C-97DC-9A6652FA68FA%40dscpl.com.au"
+       TITLE="[mod_python] clarity on request.form">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed May 24 01:08:12 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021232.html">[mod_python] clarity on request.form
+</A></li>
+        <LI>Next message: <A HREF="021227.html">[mod_python] evaluation psp for inclusion in psp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21233">[ date ]</a>
+              <a href="thread.html#21233">[ thread ]</a>
+              <a href="subject.html#21233">[ subject ]</a>
+              <a href="author.html#21233">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 24/05/2006, at 3:03 PM, Graham Dumpleton wrote:
+
+&gt;<i> Time for a couple more questions. :-)
+</I>&gt;<i>
+</I>&gt;<i> On 24/05/2006, at 1:55 PM, David Bear wrote:
+</I>&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Unfortunately PSP doesn't play too nice with publisher as far as
+</I>&gt;&gt;&gt;&gt;<i> form creation and will create its own if you access &quot;form&quot; from
+</I>&gt;&gt;&gt;&gt;<i> inside PSP page. If request is a GET request, although redundantly
+</I>&gt;&gt;&gt;&gt;<i> created, the form will still work. If a POST request though, there
+</I>&gt;&gt;&gt;&gt;<i> will be no fields as publisher already consumed it.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> So, in order to pass req.form to a psp, I would need to copy it to
+</I>&gt;&gt;&gt;<i> some object? simple
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>    thisform = req.form
+</I>&gt;&gt;&gt;<i>    vars = thisform
+</I>&gt;&gt;&gt;<i>    return psp.PSP('somepsp.html', vars)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> won't work? or will the assignment make a copy?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I just tried
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     myform = copy.deepcopy(req.form)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> and it failed..
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> where is req.form documented? I'm looking for its methods.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> The work around for this is to use something like:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>     page = psp.PSP(.....)
+</I>&gt;&gt;&gt;&gt;<i>     page.run({&quot;form&quot;: form})
+</I>&gt;&gt;&gt;&gt;<i>     ...
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> There was discussion about having PSP understand convention of  
+</I>&gt;&gt;&gt;&gt;<i> req.form
+</I>&gt;&gt;&gt;&gt;<i> being populated by publisher and use it if it exists, but no  
+</I>&gt;&gt;&gt;&gt;<i> consensus
+</I>&gt;&gt;&gt;&gt;<i> was reached on whether it was a good idea or not.
+</I>&gt;<i>
+</I>&gt;<i> You don't need to make a deep copy. The only thing wrong with what  
+</I>&gt;<i> you had is
+</I>&gt;<i> that vars has to be a dictionary.
+</I>&gt;<i>
+</I>&gt;<i>    thisform = req.form
+</I>&gt;<i>    vars = { &quot;form&quot;: thisform }
+</I>&gt;<i>    return psp.PSP('somepsp.html', vars=vars)
+</I>&gt;<i>
+</I>&gt;<i> Then just access methods of form object (ie., FieldStorage) through  
+</I>&gt;<i> &quot;form&quot; in PSP
+</I>&gt;<i> just like you would normally if using FieldStorage object. Eg.
+</I>&gt;<i>
+</I>&gt;<i>   form.get(&quot;field&quot;)
+</I>&gt;<i>
+</I>&gt;<i> etc.
+</I>
+Here is an example which I think will work. This will iterate over  
+all fields and show
+you what they are.
+
+&lt;html&gt;
+
+&lt;head&gt;
+&lt;title&gt;Form Values&lt;/title&gt;
+&lt;/head&gt;
+
+&lt;body&gt;
+
+&lt;h1&gt;Form Values&lt;/h1&gt;
+
+&lt;p&gt;
+&lt;table&gt;
+
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Name&lt;/th&gt;
+&lt;th&gt;Value&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+
+&lt;tbody&gt;
+&lt;%
+keys = form.keys()
+keys.sort()
+for key in keys:
+     # indent
+%&gt;
+     &lt;tr&gt;
+     &lt;td&gt;&lt;%=key%&gt;&lt;/td&gt;
+     &lt;td&gt;&lt;%=form[key]%&gt;&lt;/td&gt;
+     &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;%
+# end for
+%&gt;
+
+&lt;/table&gt;
+&lt;/p&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021232.html">[mod_python] clarity on request.form
+</A></li>
+	<LI>Next message: <A HREF="021227.html">[mod_python] evaluation psp for inclusion in psp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21233">[ date ]</a>
+              <a href="thread.html#21233">[ thread ]</a>
+              <a href="subject.html#21233">[ subject ]</a>
+              <a href="author.html#21233">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

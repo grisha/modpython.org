@@ -1,0 +1,312 @@
+from mod_python import apache
+import TicketTool
+
+from ApachePool import ApachePool
+dbpool = ApachePool()
+
+
+def accesshandler(req):
+	#apache.log_error("[TicketAuthenHandler] in handler() method")
+
+# ===========================================================
+# Authenication secition.  This handler contains both authen
+# and authz.  This is because it doesn't use the default
+# Basic authentication.  Without using Basic, I can't get the
+# authz handler to be called.  So, I have them together here
+# ===========================================================
+
+	# the NameError should only happen once in the life of the apache child process	
+	global ticketTool
+	try:
+		result, msg, user = ticketTool.verify_ticket(req)
+	except NameError:
+		# if the ticketTool hasn't been created yet, then do so.
+		ticketTool = TicketTool.TicketTool(req)
+		result, msg, user = ticketTool.verify_ticket(req)
+
+
+	#apache.log_error("[TicketAuthenHandler] verify_ticket result was " + str(result))
+	#apache.log_error("[TicketAuthenHandler] verify_ticket msg was " + msg)
+
+	# ditch the call if something wasn't correct
+	if result == 0:
+		#apache.log_error(msg, apache.APLOG_WARNING)
+		cookie = ticketTool.make_return_address(req)
+		cout = cookie.output(header="")
+		#apache.log_error( "cookie going out:" + cout)
+		req.err_headers_out['Set-Cookie'] = cout
+		req.err_headers_out['Pragma'] = 'no-cache'
+		req.err_headers_out['Cache-Control'] = 'no-cache'
+		req.err_headers_out['Expires'] = '-1'
+		return apache.HTTP_FORBIDDEN
+
+
+
+# ===========================================================
+# Authorization section
+# Make sure user's roles are sufficient to access uri
+# ===========================================================
+
+	#apache.log_error("[TicketAuthzHandler] in handler() method")
+
+	uri_roles = get_uri_roles(req)
+	#apache.log_error("URI ROLES:" + str(uri_roles))	
+
+	user_roles = get_user_roles(req, user)
+	#apache.log_error("USER ROLES:" + ",".join(user_roles.keys()))	
+
+	for a_uri, some_roles in uri_roles.items():
+		#apache.log_error( "AUTHZ: checking " + a_uri )
+		unauthorized = 1
+		if some_roles is not None:
+			for a_role in some_roles:
+				#apache.log_error("AUTHZ: examining role:" + a_role)
+				if user_roles.has_key(a_role):
+					#apache.log_error("AUTHZ: MATCH >>" + a_role)
+					unauthorized = 0
+		else:
+			#apache.log_error( "AUTHZ: " + a_uri + " is not protected" )
+			unauthorized = 0
+
+
+		if unauthorized:
+			#apache.log_error("AUTHZ: FAILED")
+			# can't return FORBIDDEN, since that may be used
+			# by the TicketAuthenHandler to redirect to the ticket
+			# master, and I sure don't want to do that for a missing
+			# role.
+			return apache.HTTP_PAYMENT_REQUIRED
+
+	return apache.OK
+
+# ===========================================================
+# End of main handler
+# ===========================================================
+
+
+def get_user_roles(req, user):
+
+
+	global userCache
+	global dbpool
+	try:
+		if userCache.has_key(user):
+			#apache.log_error("found user roles in cache")	
+			return userCache[user]
+	except NameError:
+		#apache.log_error("userCache doesn't exist, creating it")	
+		userCache = {}
+
+	#apache.log_error("userCache: " + str(userCache.keys()))
+
+
+	#apache.log_error("DB: retrieving user roles from database")	
+	db = dbpool.get_connection()
+	c = db.cursor()
+	c.execute( "SELECT ROLE_NAME FROM AUTH_USER_ROLES WHERE DN ='%s'" % (user,))
+	rset = c.fetchall()
+	roles = {}
+	for row in rset:
+		roles[row[0]] = None
+
+	userCache[user] = roles
+	return roles
+	c.close()
+	db.commit()
+	db.close()
+
+
+
+def get_uri_roles(req):
+	"""
+		break up the uri, make sure each part or substring of the uri is cached, then
+		retrieve the roles from the uriCache
+	"""
+	global uriCache
+	global dbpool
+
+	paths = get_paths(req)
+	uri_roles = []   # list of dicts 
+
+	try:
+		uncached_paths = [a_path for a_path in paths if uriCache.has_key(a_path) == 0]
+	except NameError:
+		#apache.log_error("uriCache doesn't exist, creating it")	
+		init_uri_cache(req)
+		uncached_paths = [a_path for a_path in paths if uriCache.has_key(a_path) == 0]
+	
+
+	if len(uncached_paths) > 0:
+		#apache.log_error("DB: retrieving uncached uri roles from database: " + str(uncached_paths))	
+		path_str = ",".join(map(add_quotes, uncached_paths))
+
+		db = dbpool.get_connection()
+		c = db.cursor()
+		sql = "SELECT URI, ROLE_NAME FROM AUTH_URI WHERE URI IN (%s)" % path_str
+		c.execute( sql )
+		rset = c.fetchall()
+		for row in rset:
+			if not uriCache.has_key(row[0]):
+				uriCache[row[0]] = []
+			uriCache[row[0]].append(row[1])
+		c.close()
+		db.commit()
+		db.close()
+	
+
+		# once all of the request_uri have been updated in the database, there
+		# may be more that need updating.  For this, assign an empty hash for those
+		# uris
+
+		uncached_paths = [a_path for a_path in paths if uriCache.has_key(a_path) == 0]
+		for i in uncached_paths:
+			uriCache[i] = None
+
+
+	uri_roles = {}
+	for i in paths:
+		uri_roles[i] = uriCache[i]	
+
+	return uri_roles
+	
+
+
+def init_user_cache(req):
+	global userCache
+	global dbpool
+	
+	opts = req.get_options()
+	fully_load = 'no'
+	try:
+		fully_load = opts['fullyLoadCache'].lower()
+	except KeyError:
+		pass
+
+
+	if fully_load == 'yes':
+		#apache.log_error("USER CACHE: fully loading from database")
+		db = dbpool.get_connection()
+		c = db.cursor()
+		c.execute( "SELECT DN, ROLE_NAME FROM AUTH_USER_ROLES")
+		rset = c.fetchall()
+		tmp = {}
+		roles = {}
+		for row in rset:
+			if tmp.has_key(row[0]) == 0:
+				tmp[row[0]] = {}
+
+			tmp[row[0]][row[1]] = None
+
+		c.close()
+		db.commit()
+		db.close()
+		userCache = tmp
+	else:
+		userCache = {}
+
+
+
+
+def init_uri_cache(req):
+	global uriCache
+	global dbpool
+	
+	opts = req.get_options()
+	fully_load = 'no'
+	try:
+		fully_load = opts['fullyLoadCache'].lower()
+	except KeyError:
+		pass
+
+
+	if fully_load == 'yes':
+		#apache.log_error("USER CACHE: fully loading from database")
+		db = dbpool.get_connection()
+		c = db.cursor()
+		sql = "SELECT URI, ROLE_NAME FROM AUTH_URI"
+		c.execute( sql )
+		rset = c.fetchall()
+		tmp = {}
+		for row in rset:
+			if not tmp.has_key(row[0]):
+				tmp[row[0]] = []
+			tmp[row[0]].append(row[1])
+
+		uriCache = tmp
+		c.close()
+		db.commit()
+		db.close()
+
+	else:
+		uriCache = {}
+
+
+
+
+def add_quotes(val):
+	return "'" + val + "'"
+	
+
+
+def get_paths(req):
+
+	uri_path = req.parsed_uri[apache.URI_PATH]
+	#apache.log_error("URI PATH:" + uri_path)
+	dirs = uri_path.split("/")
+	current_path = ''
+	paths = []
+	i = 0
+	while i < len(dirs) - 1:
+		if dirs[i] == '':
+			paths.append('/')
+		else:
+		#current_path = current_path + dirs[i] + '/'
+			current_path = current_path + '/' +  dirs[i]
+			paths.append(current_path)
+		##apache.log_error("URI PATH current path:" + current_path)
+		i = i + 1
+
+	paths.append(uri_path)
+	#apache.log_error("URI PATH current path:" + str(paths))
+	return paths
+
+
+def update_cache(req, userParm=None, uriParm=None):
+	"""
+	If user = None, do nothing for the userCache.
+	If user = 'ALL', recreate the entire cache
+	If user = other, then delete just that user from the cache
+	The same applies to the uri.
+
+	All of this crap should be moved to the Authz handler, eh?
+	"""
+
+	global userCache
+	global uriCache
+
+
+	if userParm is not None:
+		if userParm == 'ALL':
+			apache.log_error("[TicketAuthenHandler] CLEARING ENTIRE USER CACHE")
+			init_user_cache(req)
+		else:
+			if userCache.has_key(userParm):
+				apache.log_error("[TicketAuthenHandler] Clearing %s from userCache" % userParm)
+				del(userCache[userParm])
+			else:
+				pass
+				#apache.log_error("[TicketAuthenHandler] Invalid request to clearCache. %s was not found in userCache" % userParm)
+			
+
+	if uriParm is not None:
+		if uriParm == 'ALL':
+			apache.log_error("[TicketAuthenHandler] CLEARING ENTIRE URI CACHE")
+			uriCache = {}
+		else:
+			if uriCache.has_key(uriParm):
+				apache.log_error("[TicketAuthenHandler] Clearing %s from uriCache" % uriParm)
+				del(uriCache[uriParm])
+			else:
+				pass
+				#apache.log_error("[TicketAuthenHandler] Invalid request to clearCache. %s was not found in uriCache" % uriParm)
+			

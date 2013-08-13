@@ -1,0 +1,297 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Module importing solution (?)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Module%20importing%20solution%20%28%3F%29&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022791.html">
+   <LINK REL="Next"  HREF="022793.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Module importing solution (?)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>durumdara</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Module%20importing%20solution%20%28%3F%29&In-Reply-To="
+       TITLE="[mod_python] Module importing solution (?)">durumdara at gmail.com
+       </A><BR>
+    <I>Mon Dec 11 04:28:59 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022791.html">[mod_python] installing mod python
+</A></li>
+        <LI>Next message: <A HREF="022793.html">[mod_python] Module importing solution (?)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22792">[ date ]</a>
+              <a href="thread.html#22792">[ thread ]</a>
+              <a href="subject.html#22792">[ subject ]</a>
+              <a href="author.html#22792">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Skipped content of type multipart/alternative-------------- next part --------------
+import os, sys
+from threading import Lock
+
+_ImportLock = Lock()
+_Modules = {}
+
+def Import(ModPath):
+    ModPath = os.path.abspath(ModPath)
+    _ImportLock.acquire(1)
+    try:
+        if not os.path.exists(ModPath):
+            raise Exception, 'Module named &quot;%s&quot; does not exists!' % ModPath
+        modinfo = _Modules.get(ModPath, None)
+        needreload = (not modinfo)
+        actmodtime = os.path.getmtime(ModPath)
+        if modinfo:
+            modtime, module = modinfo
+            needreload = (actmodtime != modtime)
+        if not needreload:
+            return module
+        mpath, mfn = os.path.split(ModPath)
+        mf, me = os.path.splitext(mfn)
+        import imp
+        imp.acquire_lock( )
+        try:
+            afile, apathname, adescription = imp.find_module(mf, [mpath])
+            module = imp.load_module(mf, afile, ModPath, adescription)
+            del(sys.modules[mf])
+        finally:
+            imp.release_lock()
+        _Modules[ModPath] = [actmodtime, module]
+        return module
+    finally:
+        _ImportLock.release()
+
+
+#print os.path.abspath('./t1/index.py')
+#import sys
+#sys.exit()
+modtext = '''
+name = %s
+def PrintInfo():
+    print &quot;File:&quot;, __file__
+    print &quot;Name var:&quot;, name
+
+'''
+moddatas = []
+
+def WriteIndexPy(Number, VarValue):
+    spath = './subdir%03d' % Number
+    if not os.path.exists(spath):
+        os.makedirs(spath)
+    sfn = os.path.join(spath, 'index.py')
+    pytext = modtext % VarValue
+    f = open(sfn, 'w')
+    f.write(pytext)
+    f.close()
+
+print &quot;Creating modules&quot;
+for i in range(100):
+    WriteIndexPy(i, i)
+
+print &quot;Import new modules&quot;
+import time
+st = time.time()
+for i in range(100):
+    spath = './subdir%03d' % i
+    sfn = os.path.join(spath, 'index.py')
+    m = Import(sfn)
+    #print &quot;Module:&quot;, m
+    #print &quot;Module's var&quot;, m.name
+    #m.PrintInfo()
+et = time.time()
+print et - st, &quot;seconds&quot;
+
+print &quot;Import loaded modules&quot;
+import time
+st = time.time()
+for i in range(100):
+    spath = './subdir%03d' % i
+    sfn = os.path.join(spath, 'index.py')
+    m = Import(sfn)
+    #print &quot;Module:&quot;, m
+    #print &quot;Module's var&quot;, m.name
+    #m.PrintInfo()
+et = time.time()
+print et - st, &quot;seconds&quot;
+
+time.sleep(1)
+print &quot;Reload 1&quot;
+spath = './subdir%03d' % 0
+sfn = os.path.join(spath, 'index.py')
+WriteIndexPy(0,100)
+m = Import(sfn)
+print &quot;Module:&quot;, m
+print &quot;Module's var&quot;, m.name
+m.PrintInfo()
+
+print &quot;Reload 2&quot;
+m = Import(sfn)
+print &quot;Module:&quot;, m
+print &quot;Module's var&quot;, m.name
+m.PrintInfo()
+
+print &quot;Exec test&quot;
+import time
+st = time.time()
+for i in range(100):
+    spath = './subdir%03d' % i
+    sfn = os.path.join(spath, 'index.py')
+    execfile(sfn, globals(), locals())
+et = time.time()
+print et - st, &quot;seconds&quot;
+
+-------------- next part --------------
+import os, sys
+from threading import Lock
+
+_ImportLock = Lock()
+_Modules = {}
+
+def Import(ModPath):
+    ModPath = os.path.abspath(ModPath)
+    _ImportLock.acquire(1)
+    try:
+        if not os.path.exists(ModPath):
+            raise Exception, 'Module named &quot;%s&quot; does not exists!' % ModPath
+        modinfo = _Modules.get(ModPath, None)
+        needreload = (not modinfo)
+        actmodtime = os.path.getmtime(ModPath)
+        if modinfo:
+            modtime, module = modinfo
+            needreload = (actmodtime != modtime)
+        if not needreload:
+            return module
+        orgsyspath = sys.path[:]
+        try:
+            mpath, mfile = os.path.split(ModPath)
+            mfn, mfe = os.path.splitext(mfile)
+            for apath in orgsyspath:
+                amodpath = os.path.join(apath, mfile)
+                if os.path.exists(amodpath):
+                    sys.path.remove(apath)
+            sys.path.append(mpath)
+            if sys.modules.has_key(mfn):
+                del(sys.modules[mfn])
+            module = __import__(mfn)
+            sys.path.remove(mpath)
+            del(sys.modules[mfn])
+            _Modules[ModPath] = [actmodtime, module]
+            return module
+        finally:
+            sys.path = orgsyspath[:]
+    finally:
+        _ImportLock.release()
+
+
+#print os.path.abspath('./t1/index.py')
+#import sys
+#sys.exit()
+modtext = '''
+name = %s
+def PrintInfo():
+    print &quot;File:&quot;, __file__
+    print &quot;Name var:&quot;, name
+    
+'''
+moddatas = []
+for i in range(100):
+    spath = './subdir%03d' % i
+    if not os.path.exists(spath):
+        os.makedirs(spath)
+    sfn = os.path.join(spath, 'index.py')
+    pytext = modtext % i
+    open(sfn, 'w').write(pytext)
+import gc
+gc.collect()
+import time
+st = time.time()
+for i in range(100):
+    spath = './subdir%03d' % i
+    sfn = os.path.join(spath, 'index.py')
+    m = Import(sfn)
+    #moddatas.append([m, m.name])
+    #print &quot;Module:&quot;, m
+    #print &quot;Module's var&quot;, m.name
+    #m.PrintInfo()
+et = time.time()
+print et - st, &quot;seconds&quot;
+
+'''
+m1 = Import('./t1/index.py')
+print m1.name
+m2 = Import('./t2/index.py')
+print m2.name
+m2a = Import('./t2/index.py')
+print m2a.name
+'''
+-------------- next part --------------
+#import sys
+#print sys.modules
+#print &quot;mod1&quot;
+#print globals()
+#print locals()
+#print a
+#
+#a  = 2
+
+def main(RO):
+    x
+    
+-------------- next part --------------
+import os, sys
+
+a =  {'a' : 1}
+#locals()
+#print sys.modules.keys()
+execfile('execmod1.py', a)
+print a['a']
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022791.html">[mod_python] installing mod python
+</A></li>
+	<LI>Next message: <A HREF="022793.html">[mod_python] Module importing solution (?)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22792">[ date ]</a>
+              <a href="thread.html#22792">[ thread ]</a>
+              <a href="subject.html#22792">[ subject ]</a>
+              <a href="author.html#22792">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Caching issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Caching%20issues&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025918.html">
+   <LINK REL="Next"  HREF="025920.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Caching issues</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Tim Valenta</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Caching%20issues&In-Reply-To="
+       TITLE="[mod_python] Caching issues">tonightslastsong at gmail.com
+       </A><BR>
+    <I>Sun Jan 11 00:04:01 EST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025918.html">[mod_python] Problem with multiple runs of single script
+</A></li>
+        <LI>Next message: <A HREF="025920.html">[mod_python] Caching issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25919">[ date ]</a>
+              <a href="thread.html#25919">[ thread ]</a>
+              <a href="subject.html#25919">[ subject ]</a>
+              <a href="author.html#25919">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello all-- I've been experiencing a caching issue from the
+very beginning of my use of mod_python...  It's been at least 2 months now,
+and I keep running into actual issues that prevent me from coding.
+I have a knack for over-explaining, so I'll try to keep this concise yet
+descriptive.
+
+I'm developing a site on my local machine, Windows Vista, using Apache 2.2.x
+and mod_python 3.3.1 .  I'm a programmer for a living, and I'm not quick to
+point the finger at the language, *but* (you knew that was coming, eh?) I
+know my code isn't to blame for the issue:
+
+I write some basic code for an 'index.py' file, using the
+mod_python.publisher handler.  'index.py' includes other modules which I've
+coded from that same location, etc, etc.  Nothing fancy.  Any changes I make
+in the 'index.py' file will be reflected immediately on my local web server.
+ On the other hand, any changes I make to the modules included via import
+from within 'index.py' are completely ignored by the web server.  It took me
+a while to realize that my pages didn't reflect my code.  I also discovered
+that the .pyc files had nothing to do with it.  I finally just restarted the
+apache web service (which in fact runs as a service on my machine), and then
+my code finally gets pushed through to the web server.
+
+I've been looking around practically every other day for documentation on
+how to make apache/mod_python simply cut it out and stop caching my python
+code, but I've found nothing.  You can imagine the annoyance this presents,
+since I have to restart my web server every single time I make even the
+slightest change to a 'utility.py' file, etc.
+
+I've been coping with the problem for a while now, but then I've found far
+more annoying issues recently.  To abbreviate the problem into short terms,
+I've got a main module 'MAIN' which imports another module for a class
+'CLASS'.  CLASS also has a few imports, such as 'backend' stuff for
+interfacing with various databases, etc.  We'll call the 'backend' module
+&quot;BACKEND&quot;.  Given the setup, any changes I make to CLASS or BACKEND require
+an apache restart in order to take effect.
+
+I have a function in CLASS which calls a function from it's imported BACKEND
+module.  I tried adding a parameter to the BACKEND function in question, and
+properly passed said parameter while in CLASS, yet the mod_python debugger
+spits out an error about me having passed 3 arguments, when the BACKEND
+function takes exactly 2.  This is outright false, since my function in
+BACKEND looks like:
+
+def getUsers(self, req, terms):
+
+and I'm calling it with
+
+self.backend.getUsers(self.req, search)
+
+In reality, my code dictates that I'm passing 3 (including the implicit
+'self' argument), and BACKEND's 'getUsers' does in fact take exactly 3
+arguments.  Yet, the debugger is telling me that it takes only 2.
+
+I was trying to pass it 'req' because I wanted to investigate a little error
+in the code by printing something to the output HTML.  So, my attempt is
+foiled, since somewhere something isn't being updated to what my most
+current code actually says.
+
+Just to test, I made the 'getUsers' function return immediately with a
+string of gibberish, like 'return &quot;adsfasdfadsfa&quot;'.  this should make my
+other code spin wildly out of control and encounter errors, yet when I
+restart apache and test it... lo and behold, it's completely ignoring my
+goofy 'return' statement.  The 'getUsers' function is still somehow
+returning valid data, as if the 'return' wasn't there at all!
+
+So then I tried causing actual syntax errors.  The debugger caught this,
+much to my inner joy.  So I tried causing a semantic error instead:
+referencing a non-existent attribute of a non-existent variable:
+
+madeUpVar.moo = 42
+
+Syntactically, nothing wrong, but at run time it should most definitely
+encounter a NameError or something equally as realistic.  But I restart
+apache, and... nothing.  The line is completely ignored.
+
+Which leads me to believe that it's not actually being 'ignored' per se, but
+rather the code being compiled is not the same as the code in play within
+the web server.  When I delete my .pyc files and restart apache and visit
+the URL that triggers my python code, my .py files are in fact being
+recompiled down to their byte code .pyc files.  And clearly the interpreter
+is processing my code, since it flags me on improper syntax.  Yet, no matter
+what kind of syntactically-sound nonsense I put into my code, the changes
+aren't being reflected in my web server.
+
+These problems come and go, and I've go better explanation than over zealous
+caching.  I imagine that by tomorrow sometime when I start my computer up,
+the problem will have disappeared for the time being.
+
+I've cursed this computer up and down as I've tried to figure out ANYTHING
+that I can do to alleviate the issue, by to no avail.
+
+Anybody with counsel to spare my tired brain is welcome to share...
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090110/61a706bc/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090110/61a706bc/attachment.html</A>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025918.html">[mod_python] Problem with multiple runs of single script
+</A></li>
+	<LI>Next message: <A HREF="025920.html">[mod_python] Caching issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25919">[ date ]</a>
+              <a href="thread.html#25919">[ thread ]</a>
+              <a href="subject.html#25919">[ subject ]</a>
+              <a href="author.html#25919">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

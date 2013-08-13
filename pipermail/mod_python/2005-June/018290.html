@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Source code displayed by Mozilla/Firefox
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Source%20code%20displayed%20by%20Mozilla/Firefox&In-Reply-To=3be1d327a95a1e68d451170a344c4eb1%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018282.html">
+   <LINK REL="Next"  HREF="018297.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Source code displayed by Mozilla/Firefox</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Daniel J. Popowich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Source%20code%20displayed%20by%20Mozilla/Firefox&In-Reply-To=3be1d327a95a1e68d451170a344c4eb1%40dscpl.com.au"
+       TITLE="[mod_python] Source code displayed by Mozilla/Firefox">dpopowich at blue-fox.com
+       </A><BR>
+    <I>Mon Jun  6 10:39:07 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018282.html">[mod_python] Source code displayed by Mozilla/Firefox
+</A></li>
+        <LI>Next message: <A HREF="018297.html">[mod_python] Source code displayed by Mozilla/Firefox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18290">[ date ]</a>
+              <a href="thread.html#18290">[ thread ]</a>
+              <a href="subject.html#18290">[ subject ]</a>
+              <a href="author.html#18290">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+To clarify a few points made by Graham...
+
+&gt;<i> On 06/06/2005, at 2:04 AM, Colin Doherty wrote:
+</I>&gt;<i> &gt; I'm using mod_python servlets and psp and although the
+</I>&gt;<i> &gt; code works correctly for IE, the source code of the
+</I>&gt;<i> &gt; template is displayed with Mozilla and Firefox when
+</I>&gt;<i> &gt; called from the servlet.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'm setting the content type within the servlet:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; class test(Servlet):
+</I>&gt;<i> &gt;   content_type = 'text/html'
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; and calling the template thus:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   def respond(self):
+</I>&gt;<i> &gt;     Servlet.respond(self)
+</I>&gt;<i> &gt;     template = PSP(self.req, filename='test.html')
+</I>&gt;<i> &gt;     template.run({'servlet':self})
+</I>&gt;<i> &gt;     return True
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Any suggestions appreciated.
+</I>&gt;<i> 
+</I>
+&gt;<i> What is the URL you are using for the request? Are you using &quot;test.mps&quot;,
+</I>&gt;<i> &quot;test.html&quot; or just &quot;test&quot; with no extension?
+</I>&gt;<i>
+</I>&gt;<i>    Options -MultiViews
+</I>&gt;<i>
+</I>
+mod_python servlets (mps) enforces &quot;clean&quot; urls, so the only way to
+access a servlet in &quot;test.mps&quot; is with &quot;test&quot;, so MultiViews, in my
+experience, has to be turned off as Graham says. 
+
+&gt;<i> for that part of the directory heirachy, and make sure you always use
+</I>&gt;<i> &quot;test.mps&quot; explicitly.
+</I>
+This is incorrect: using &quot;test.mps&quot; explicitly will fail and return a
+404 error.
+
+mps does the following for req.filename:
+
+    1.  If it's a directory, &quot;DIR,&quot; do a brute-force internal redirect
+        to &quot;DIR/index&quot;.
+
+    2.  If the basename begins with &quot;.&quot; or &quot;_&quot; return 403.  This
+        allows you to co-locate data files or other python source
+        without worry of being downloaded by prying eyes.  (Future
+        versions may check every component of the path to see if it
+        begins with &quot;.&quot; or &quot;_&quot; so whole directory hierarchies can be
+        forbidden.
+
+    3.  If req.filename has an extension:
+           a) if the extension is &quot;.mps&quot; return 404 (this is where
+              &quot;clean&quot; urls are enforced).
+	   b) otherwise return apache.DECLINED if the file
+              exists, else 404.
+
+    4.  If req.filename has no extension:
+
+           a) if req.filename + &quot;.mps&quot; exists use it.
+           b) otherwise return apache.DECLINED if the file
+	      exists, else 404.
+
+Note how mps returns apache.DECLINED for non &quot;.mps&quot; files...this
+allows you to co-locate ANY mimetype: html, php, psp, jpg, gif,
+etc. within a directory &quot;handled&quot; by mps.  In fact, you can set your
+DocumentRoot to be handled by mps and all your content should be
+handled as expected (except for MultiViews and the extra performance
+hit of mps).
+
+In otherwords, with MultiViews off you can co-locate test.mps,
+test.html, test.php, test.psp all in the same directory without
+failure.
+
+&gt;<i> BTW, why specifically are you using mpservlets as when using PSP you may
+</I>&gt;<i> find they don't mesh very well? For example, one of the points of using
+</I>&gt;<i> mpservlets is that by supplying its own write/writeln methods in the
+</I>&gt;<i> servlet it does its own buffering of output. Because PSP is going to
+</I>&gt;<i> write direct to the request object using req.write(), the buffering in
+</I>&gt;<i> mpservlets is bypassed. Another reason people use mpservlets is that it
+</I>&gt;<i> has some session support, but then so does PSP.
+</I>
+&lt;soapbox&gt;
+While output buffering and session handling are bonuses, the main
+reason I wrote mps was to have an OO view of the web.  Writing an
+abstract base class that manages the overall layout of a site and
+then writing subclasses for specific pages is, imho, very powerful.
+Also, being able to re-use base class features in every servlet
+(particularly form/query variable processing) saves hours of
+programming.
+&lt;/soapbox&gt;
+
+Cheers,
+
+Daniel Popowich
+-----------------------------------------------
+<A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018282.html">[mod_python] Source code displayed by Mozilla/Firefox
+</A></li>
+	<LI>Next message: <A HREF="018297.html">[mod_python] Source code displayed by Mozilla/Firefox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18290">[ date ]</a>
+              <a href="thread.html#18290">[ thread ]</a>
+              <a href="subject.html#18290">[ subject ]</a>
+              <a href="author.html#18290">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

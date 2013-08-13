@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod_Python 2.7.8 and threading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_Python%202.7.8%20and%20threading&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="013697.html">
+   <LINK REL="Next"  HREF="013699.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mod_Python 2.7.8 and threading</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_Python%202.7.8%20and%20threading&In-Reply-To="
+       TITLE="[mod_python] Mod_Python 2.7.8 and threading">mike.looijmans at asml.com
+       </A><BR>
+    <I>Mon Jun  2 07:40:29 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="013697.html">[mod_python] Urgent Help Needed
+</A></li>
+        <LI>Next message: <A HREF="013699.html">[mod_python] Troubles of Memory
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13698">[ date ]</a>
+              <a href="thread.html#13698">[ thread ]</a>
+              <a href="subject.html#13698">[ subject ]</a>
+              <a href="author.html#13698">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Probably, the freeze is because apache 1.3 doesn't support threading.
+
+I guess the same applies to the &quot;req&quot; object as most GUIs: Only access the
+Request object from the thread that created it. It might work if you make the
+thread object like this:
+
+    def run(self):
+        self.result = &quot;Hello from thread!\n&quot;
+
+then after the join, use &quot;req.write(w.result)&quot; to output the result from the
+thread.
+
+Solution would be to remove the threading, since it is useless in a HTTP
+server anyway. The client has to wait for the data to be sent back anyway. If
+you want to use another handler for parts of the message, just send the client
+a &quot;304&quot; (redirect) response, or (if you feel like having fun) send a HTTP
+request to your own HTTP server, which will use another process or thread to
+handle it.
+
+I use HTTP client connections inside the HTTP server on our replication server
+(which acts as a sort of 'proxy': work on a replication slave of the MySQL
+master database and also caches files) to fetch files from the master server.
+
+--
+Mike Looijmans
+
+-----Original Message-----
+From: Russell Yanofsky &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rey4 at columbia.edu</A>&gt;
+To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>&gt;
+Date: Sunday, June 01, 2003 11:34 PM
+Subject: [mod_python] Mod_Python 2.7.8 and threading
+
+
+&gt;<i>Hi, I'm trying to get write a multithreaded script to run under mod_python
+</I>&gt;<i>and apache 1.3 on linux, but the script seems to just freeze up at the point
+</I>&gt;<i>of thread creation leaving the http connection open but not doing anything
+</I>&gt;<i>else.
+</I>&gt;<i>
+</I>&gt;<i>I isolated the problem in a little test script:
+</I>&gt;<i>
+</I>&gt;<i>-- begin mptest.py --
+</I>&gt;<i>from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i>def handler(req):
+</I>&gt;<i>  w = Worker(req)
+</I>&gt;<i>  req.write(&quot;Starting thread...\n&quot;)
+</I>&gt;<i>  w.start()
+</I>&gt;<i>  req.write(&quot;Joining thread...\n&quot;)
+</I>&gt;<i>  w.join()
+</I>&gt;<i>  req.write(&quot;Done.\n&quot;)
+</I>&gt;<i>  return apache.OK
+</I>&gt;<i>
+</I>&gt;<i>import threading
+</I>&gt;<i>
+</I>&gt;<i>class Worker(threading.Thread):
+</I>&gt;<i>  def __init__(self, req):
+</I>&gt;<i>    self.req = req
+</I>&gt;<i>    threading.Thread.__init__(self)
+</I>&gt;<i>
+</I>&gt;<i>  def run(self):
+</I>&gt;<i>    self.req.write(&quot;  Hello from thread!\n&quot;)
+</I>&gt;<i>-- end mptest.py --
+</I>&gt;<i>
+</I>&gt;<i>-- begin .htaccess --
+</I>&gt;<i>AddHandler python-program .py
+</I>&gt;<i>PythonHandler mptest
+</I>&gt;<i>PythonDebug On
+</I>&gt;<i>-- end .htaccess --
+</I>&gt;<i>
+</I>&gt;<i>The script runs fine on a windows box running Apache 2.0.46, Mod_Python
+</I>&gt;<i>3.0.3, and Python 2.2.2, but it freezes on my linux server running Apache
+</I>&gt;<i>1.3.27, Mod_Python 2.7.8, and Python 2.2.2.
+</I>&gt;<i>
+</I>&gt;<i>The place where it seems to freeze is at w.start(). If you comment that line
+</I>&gt;<i>out, it does complete execution. Is this problem a bug in mod_python, or
+</I>&gt;<i>have I done something wrong?
+</I>&gt;<i>
+</I>&gt;<i>- Russ
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>_______________________________________________
+</I>&gt;<i>Mod_python mailing list
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="013697.html">[mod_python] Urgent Help Needed
+</A></li>
+	<LI>Next message: <A HREF="013699.html">[mod_python] Troubles of Memory
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13698">[ date ]</a>
+              <a href="thread.html#13698">[ thread ]</a>
+              <a href="subject.html#13698">[ subject ]</a>
+              <a href="author.html#13698">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

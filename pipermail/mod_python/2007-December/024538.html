@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session Hanging Problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Hanging%20Problems&In-Reply-To=A71D6DDB-13D5-4DFB-94C4-8C07E3CE5058%40octopart.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024539.html">
+   <LINK REL="Next"  HREF="024541.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session Hanging Problems</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Hanging%20Problems&In-Reply-To=A71D6DDB-13D5-4DFB-94C4-8C07E3CE5058%40octopart.com"
+       TITLE="[mod_python] Session Hanging Problems">jpg at jgassociates.ca
+       </A><BR>
+    <I>Tue Dec  4 13:59:20 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024539.html">[mod_python] Session Hanging Problems
+</A></li>
+        <LI>Next message: <A HREF="024541.html">[mod_python] Newbie question: Custom module path not taken over by
+	importer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24538">[ date ]</a>
+              <a href="thread.html#24538">[ thread ]</a>
+              <a href="subject.html#24538">[ subject ]</a>
+              <a href="author.html#24538">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Harish Agarwal wrote:
+&gt;<i> 
+</I>&gt;<i> On Nov 26, 2007, at 1:38 PM, Graham Dumpleton wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> On 27/11/2007, Harish Agarwal &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">harish at octopart.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> I'm using session handling with ModPython 3.3.1.  Originally I was
+</I>&gt;&gt;&gt;<i> using DbmSession and have since transitioned to a custom MySQL Session
+</I>&gt;&gt;&gt;<i> handler.  With both session types, however, I've noticed that session
+</I>&gt;&gt;&gt;<i> initialization intermittently hangs (not forever, but takes as long as
+</I>&gt;&gt;&gt;<i> four minutes to complete), at a low-ish (a handful of times every
+</I>&gt;&gt;&gt;<i> hour, while receiving, say, on order of a thousand or so requests
+</I>&gt;&gt;&gt;<i> every hour) frequency which seems to scale with the amount of traffic
+</I>&gt;&gt;&gt;<i> we're receiving.  I had read that long DbmSession cleanups can cause
+</I>&gt;&gt;&gt;<i> problems, which is why I transitioned to the MySQL system, which takes
+</I>&gt;&gt;&gt;<i> &lt; 1 second to complete, but I'm still noticing the long session init
+</I>&gt;&gt;&gt;<i> times.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I put some debugging statements into the code and it seems to be
+</I>&gt;&gt;&gt;<i> related to session locking.  In particular, it is this function call
+</I>&gt;&gt;&gt;<i> in the lock method of the BaseSession class:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> _apache._global_lock(self._req.server, self._sid)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> which is taking some time to complete. I'm not familiar with
+</I>&gt;&gt;&gt;<i> _apache._global_lock (is it used to apply a mutex lock to the
+</I>&gt;&gt;&gt;<i> session?) and am having trouble finding information describing its
+</I>&gt;&gt;&gt;<i> usage - but it seems likely that this is the root cause.  In the past
+</I>&gt;&gt;&gt;<i> I've had problems with session locking but have since transitioned the
+</I>&gt;&gt;&gt;<i> code to ensure that only one session is created per request, as such:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> if not hasattr(req,'session'):
+</I>&gt;&gt;&gt;<i>             req.session = Session.MySQLSession(req)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Can anyone tell me if this kind of behavior is normal or is indicative
+</I>&gt;&gt;&gt;<i> of some common configuration or coding error?  Any help would be
+</I>&gt;&gt;&gt;<i> greatly appreciated.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Ignoring hangs, how long does your longest request normally take to
+</I>&gt;&gt;<i> execute? Are you perhaps performing file uploads that take a
+</I>&gt;&gt;<i> significant amount of time and are holding a session locked for the
+</I>&gt;&gt;<i> whole period of the request?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> To at least allow some level of concurrency, from memory mod_python
+</I>&gt;&gt;<i> holds a small pool of cross process mutex locks. Based on the session
+</I>&gt;&gt;<i> ID (I think) it should consistently pick the same mutex lock each
+</I>&gt;&gt;<i> time. Thus, if a request comes in with the same session ID it would be
+</I>&gt;&gt;<i> blocked while the existing request for that session runs. If however
+</I>&gt;&gt;<i> another request comes in with a different session ID, but where it
+</I>&gt;&gt;<i> maps to the same mutex lock from the pool, it will also be blocked
+</I>&gt;&gt;<i> until the request holding that lock has completed.
+</I>
+That is an accurate summary. The mutex index is calculated by the 
+following pseudo code:
+
+index = (hash(session_id) % (nlocks - 1) + 1)
+
+nlocks is 8 by default. Mutex index 0 is reserved for dbm file locking 
+so you really only have 7 mutexes available.
+
+The number of locks can be set with the &quot;PythonOption 
+mod_python.mutex_locks&quot; config directive or at compile time.
+
+&gt;&gt;<i> What this means is that the number of mutex locks in the pool
+</I>&gt;&gt;<i> effectively dictates how many parallel session based requests you can
+</I>&gt;&gt;<i> have executed across the whole of the Apache server. Thus, if you have
+</I>&gt;&gt;<i> requests that take a long time while still holding the session lock,
+</I>&gt;&gt;<i> it can lock out other requests until it completes.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> One can makes things a bit better by increasing the number of mutex
+</I>&gt;&gt;<i> locks in the pool, but you have to be careful not to create too many
+</I>&gt;&gt;<i> in case it is using sysvsem and your OS doesn't allocate enough.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The only other thing to do is to release the lock explicitly as soon
+</I>&gt;&gt;<i> as you no longer need it and don't rely on the cleanup handler for the
+</I>&gt;&gt;<i> request to unlock it.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In other words, what your application is doing, your own code and how
+</I>&gt;&gt;<i> you have written it could be the problem, and not necessarily
+</I>&gt;&gt;<i> mod_python itself.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If my memory has totally faded and my description is wrong, someone
+</I>&gt;&gt;<i> please correct me. :-)
+</I>
+It's all good. :)
+
+&gt;&gt;<i> Graham
+</I></PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024539.html">[mod_python] Session Hanging Problems
+</A></li>
+	<LI>Next message: <A HREF="024541.html">[mod_python] Newbie question: Custom module path not taken over by
+	importer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24538">[ date ]</a>
+              <a href="thread.html#24538">[ thread ]</a>
+              <a href="subject.html#24538">[ subject ]</a>
+              <a href="author.html#24538">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

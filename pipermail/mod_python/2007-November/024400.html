@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python or apache scalability?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20or%20apache%20scalability%3F&In-Reply-To=02c101c81eca%24be96a570%243bc3f050%24%40com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024399.html">
+   <LINK REL="Next"  HREF="024401.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python or apache scalability?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20or%20apache%20scalability%3F&In-Reply-To=02c101c81eca%24be96a570%243bc3f050%24%40com"
+       TITLE="[mod_python] mod_python or apache scalability?">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sun Nov  4 05:15:12 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024399.html">[mod_python] Mod Python, Webdav
+</A></li>
+        <LI>Next message: <A HREF="024401.html">[mod_python] mod_python or apache scalability?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24400">[ date ]</a>
+              <a href="thread.html#24400">[ thread ]</a>
+              <a href="subject.html#24400">[ subject ]</a>
+              <a href="author.html#24400">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 04/11/2007, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at matusis.com</A>&gt; wrote:
+&gt;<i> &gt; FWIW, I personally would try and move from prefork to worker MPM as
+</I>&gt;<i> &gt; the number of Apache child processes you are running with is to my
+</I>&gt;<i> &gt; mind excessive. Using worker would certainly drop memory usage for a
+</I>&gt;<i> &gt; start as you wouldn't need as many child processes to be started.
+</I>&gt;<i>
+</I>&gt;<i> I am just following up on this, since we tried worker MPM this weekend.
+</I>&gt;<i> On our dev/stage it worked perfectly.
+</I>&gt;<i> On live, worker MPM freed up about 2GB of memory compared to prefork.
+</I>&gt;<i> However, on live, it turned out to be unstable.
+</I>&gt;<i> This is what we say in the main error log:
+</I>&gt;<i>
+</I>&gt;<i> [Sun Nov 04 01:37:45 2007] [notice] child pid 20347 exit signal Segmentation
+</I>&gt;<i> fault (11)
+</I>&gt;<i> [Sun Nov 04 01:37:45 2007] [notice] child pid 20460 exit signal Aborted (6)
+</I>&gt;<i> [Sun Nov 04 01:37:45 2007] [notice] child pid 20515 exit signal Segmentation
+</I>&gt;<i> fault (11)
+</I>&gt;<i> *** glibc detected *** double free or corruption (!prev): 0x0000000000762c50
+</I>&gt;<i> ***
+</I>&gt;<i> *** glibc detected *** double free or corruption (!prev): 0x000000000075d100
+</I>&gt;<i> ***
+</I>&gt;<i> [Sun Nov 04 01:37:46 2007] [notice] child pid 20152 exit signal Segmentation
+</I>&gt;<i> fault (11)
+</I>&gt;<i>
+</I>&gt;<i> In the application log, we saw two types of errors:
+</I>&gt;<i>
+</I>&gt;<i> MySQLError: Connection to database failed
+</I>&gt;<i> OperationalError: (2006, 'MySQL server has gone away')
+</I>&gt;<i>
+</I>&gt;<i> and
+</I>&gt;<i>
+</I>&gt;<i> IOError: image file is truncated (44 bytes not processed)
+</I>&gt;<i>
+</I>&gt;<i> The first type has to do with MySQLdb module, but the second one occurred
+</I>&gt;<i> when large images were uploaded.
+</I>
+Which indicates that some third party package you are using is not
+thread safe. This can occur if you are also using PHP as various of
+its third party packages are not thread safe. Also ensure that you are
+using the latest available Python database adapters and that they are
+compiled against thread safe reentrant libraries.
+
+Graham
+
+&gt;<i> We had to revert to prefork as a result of this.
+</I>&gt;<i>
+</I>&gt;<i> On another note, I managed to empirically find the maximum ServerLimit for
+</I>&gt;<i> prefork, before the machine dies from swapping.
+</I>&gt;<i> It is 380 with 4GB RAM.
+</I>&gt;<i>
+</I>&gt;<i> &gt; -----Original Message-----
+</I>&gt;<i> &gt; From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;<i> &gt; Sent: Monday, October 01, 2007 6:47 PM
+</I>&gt;<i> &gt; To: Alec Matusis
+</I>&gt;<i> &gt; Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> &gt; Subject: Re: [mod_python] mod_python or apache scalability?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On 01/10/2007, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at matusis.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; in the apache error log. We also got
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; kernel: possible SYN flooding on port 80. Sending cookies.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; in /var/log/messages system log.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Have you determined for certain that you aren't the target of an
+</I>&gt;<i> &gt; external SYN Flood DOS attack?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Do a Google search for 'kernel: possible SYN flooding on port 80.
+</I>&gt;<i> &gt; Sending cookies' and you will find lots of stuff to read. Your running
+</I>&gt;<i> &gt; out of or having a large number of socket connections may be
+</I>&gt;<i> &gt; symptomatic of a large number of half open connections being created
+</I>&gt;<i> &gt; and then being left in TIME_WAIT. Thus perhaps do some better analysis
+</I>&gt;<i> &gt; of socket connection states using netstat. If not a SYN Flood, then
+</I>&gt;<i> &gt; possibly follow some of the other suggestions in the pages you will
+</I>&gt;<i> &gt; find when you do the search.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; FWIW, I personally would try and move from prefork to worker MPM as
+</I>&gt;<i> &gt; the number of Apache child processes you are running with is to my
+</I>&gt;<i> &gt; mind excessive. Using worker would certainly drop memory usage for a
+</I>&gt;<i> &gt; start as you wouldn't need as many child processes to be started. I
+</I>&gt;<i> &gt; wouldn't be concerned about running out of threads as when running
+</I>&gt;<i> &gt; worker I wouldn't suggest more than 25 threads per process as a
+</I>&gt;<i> &gt; starting point anyway. If your mod_python application was creating
+</I>&gt;<i> &gt; lots of threads, you are likely to hit the thread limit with prefork
+</I>&gt;<i> &gt; and not just worker so which MPM is used shouldn't be an issue in that
+</I>&gt;<i> &gt; case.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; BTW, what operating system are you using?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024399.html">[mod_python] Mod Python, Webdav
+</A></li>
+	<LI>Next message: <A HREF="024401.html">[mod_python] mod_python or apache scalability?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24400">[ date ]</a>
+              <a href="thread.html#24400">[ thread ]</a>
+              <a href="subject.html#24400">[ subject ]</a>
+              <a href="author.html#24400">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

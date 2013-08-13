@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: mod_python sample code
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20mod_python%20sample%20code&In-Reply-To=783.1030517956%40www33.gmx.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001838.html">
+   <LINK REL="Next"  HREF="001840.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: mod_python sample code</H1>
+    <B>vio</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20mod_python%20sample%20code&In-Reply-To=783.1030517956%40www33.gmx.net"
+       TITLE="[mod_python] Re: mod_python sample code">vmilitaru at sympatico.ca
+       </A><BR>
+    <I>Wed Aug 28 05:05:05 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001838.html">[OT] RE: [mod_python] Promoting Python as web application
+    developmentlanguage
+</A></li>
+        <LI>Next message: <A HREF="001840.html">[mod_python] Promoting Python as web application
+	developmentlanguage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1844">[ date ]</a>
+              <a href="thread.html#1844">[ thread ]</a>
+              <a href="subject.html#1844">[ subject ]</a>
+              <a href="author.html#1844">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Peter,
+I didn't do much (any) CGI, but I did something along those lines: a 
+combination apache+oracle+mod_python. So maybe I'll describe that a little,
+hopefully it will give you some pointers (just replace any references to oracle
+with your database of choice.) I hope it's not too verbose for you.
+If you don't mind, I'll CC this to the list so others may give you much better 
+tips on this topic than I,
+(... and hopefully lift up a little the technical vs. non-technical threads :-)
+Verbose example coming up:
+
+I'm assuming that you've installed mod_python, and run successfully the
+sample code and examples.
+
+So what I did - basically I took the publisher.py file which came with 
+my mod_python copy, and modified it to fit my needs. Things like
+
+import ...
+# my database settings
+import DCOracle2
+os.environ['ORACLE_SID'] = '...'
+os.environ['ORACLE_HOME'] = '...'
+my_connect_string='...'
+
+# a fast function (in C) to parse query string
+parse_qsl = apache.parse_qsl
+
+# I also changed all 'req' to 'REQUEST' for better clarity, so keep this
+# in mind when you are reading my code (Zope influence).
+
+def handler(REQUEST):
+    _REQUEST = REQUEST._req
+    _REQUEST.content_type = &quot;text/html&quot;
+
+    # at this point, I want to check if user's browser has sent 
+    # a cookie which I'm expecting (is he authenticated or not?)
+
+    ########
+    # if No Cookie Sent by Client
+    #
+    if not _REQUEST.headers_in.has_key(&quot;Cookie&quot;):
+        #
+        # substract 'requested_URL' and 'requested_vars'
+        #
+        requested_URL = str(_REQUEST.server.server_hostname) + str(_REQUEST.uri)        requested_vars = '' # handle GET requests
+        if _REQUEST.headers_in.has_key(&quot;content-length&quot;):
+            requested_vars = _REQUEST.read(int(_REQUEST.headers_in[&quot;content-length&quot;]))
+        #
+        # save 'requested URL and variables' in a cookie on client
+        #  - a cheezy way to do this I guess, but what I want to do is
+        #    save the URL the user requested, because I will redirect him
+        #    to my 'login' page, and this info will be lost.
+        #   
+        rURLlen = ('000' + str(len(requested_URL)))[-3:]
+        _REQUEST.headers_out.add('Set-Cookie',
+'v=L' # my internal token indicating it's a Login cookie
++ rURLlen 
++ requested_URL 
++ requested_vars 
++ '; '
++ 'path=/; ' # without the 'path', Netscape|Lynx won't store the cookie
+)
+        # now I'm sending the user the login page:
+        #
+        _REQUEST.headers_out.add('Pragma','no-cache')
+        _REQUEST.send_http_header()
+        #
+        # send login form
+        #
+        _REQUEST.write(login_form1) # 'login_form1' being simple html
+        raise apache.SERVER_RETURN, apache.OK
+    #
+    # /if No Cookie Sent by Client
+    ########
+
+    ########
+    # Process Login Form data
+    #
+    elif str(_REQUEST.uri) == '/login/login_action':
+        requested_vars = _REQUEST.read(int(_REQUEST.headers_in[&quot;content-length&quot;]        #
+        # parse query string
+        #
+        keep_blank_values=0
+        pairs = parse_qsl(requested_vars, keep_blank_values)
+        &quot;&quot;&quot; 
+'pairs' now looks like this (yours will obviously vary, depending on what 
+values you had in your form's html code):
+[('username', '...'),('password', '...'), ('submit', 'Continue')]
+
+But this is basically how I retrieve all data send by user in my html forms.
+        &quot;&quot;&quot;
+        #
+        # process 'missing Login field data' --&gt; send 'Data missing' login form
+        #
+        if len(pairs) != 3:
+            _REQUEST.write(login_form2)
+            raise apache.SERVER_RETURN, apache.OK
+        #
+        # put Login data in local vars (for processing)
+        #
+        items = []
+        for item in pairs[:-1]: # skip last item 'submit'
+            if item[0] not in ('username','persistent', 'password'):
+                _REQUEST.write(login_form2) # --&gt; send 'Data missing' login form                raise apache.SERVER_RETURN, apache.OK
+            items.append(item[1])
+        username,ac_password = items
+
+        #
+        # get database login data
+        #  - obviously this code is database-dependent
+        #  - 'users' is a table where I've put all my user data
+        SQL =  &quot;SELECT * FROM users WHERE username = '%s'&quot; % username
+        try:
+            connection = DCOracle2.connect(connect_string)
+            cursor = connection.cursor()
+            cursor.prepare(SQL)
+            cursor.execute()
+            cursor.arraysize = 20
+            db_result = cursor.fetchall()
+        except (DCOracle2.DatabaseError,TypeError), e:
+            # I am logging the error to some dedicated LOG file
+            LOG.write(timestamp + 'SQL: &gt;' + SQL + '&lt;   ' + str(e) + '\n')
+            LOG.flush()
+            raise apache.SERVER_RETURN, apache.HTTP_INTERNAL_SERVER_ERROR
+        if db_result == []:
+            _REQUEST.write(login_form3) # --&gt; send 'Wrong Data' login form
+            raise apache.SERVER_RETURN, apache.OK
+            &quot;&quot;&quot; 
+'db_result[0]' looks like this:
+['user_id','username', 'password', OracleDate(&quot;2002-07-10 02:20:31&quot;)]
+
+This obviously will depend on your table schema.
+            &quot;&quot;&quot;
+        db_userID,db_Username,db_Pword,db_Created = db_result[0]
+        #
+        # check Login Form data against Database data
+        #
+        if (password != db_Pword):
+            _REQUEST.write(login_form3) # --&gt; send 'Wrong Data' login form
+            raise apache.SERVER_RETURN, apache.OK
+        #
+        # set session in database
+        # - here I'm basically repeating the db code of earlier
+        #
+        #  then I'm created a session token, which I'm sending to the user
+        #  and will retrieve using the cookie mechanism (seen earlier).
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001838.html">[OT] RE: [mod_python] Promoting Python as web application
+    developmentlanguage
+</A></li>
+	<LI>Next message: <A HREF="001840.html">[mod_python] Promoting Python as web application
+	developmentlanguage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1844">[ date ]</a>
+              <a href="thread.html#1844">[ thread ]</a>
+              <a href="subject.html#1844">[ subject ]</a>
+              <a href="author.html#1844">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

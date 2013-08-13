@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Importing package under mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Importing%20package%20under%20mod_python&In-Reply-To=8D5970DD46B50A409A0E42BA407964FE0E733786%40SGBD012007.dlrmail.ad.delarue.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025063.html">
+   <LINK REL="Next"  HREF="025067.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Importing package under mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Importing%20package%20under%20mod_python&In-Reply-To=8D5970DD46B50A409A0E42BA407964FE0E733786%40SGBD012007.dlrmail.ad.delarue.com"
+       TITLE="[mod_python] Importing package under mod_python">list at joreybump.com
+       </A><BR>
+    <I>Tue Mar 25 08:55:02 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025063.html">[mod_python] Importing package under mod_python
+</A></li>
+        <LI>Next message: <A HREF="025067.html">[mod_python] Another sessions problem...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25064">[ date ]</a>
+              <a href="thread.html#25064">[ thread ]</a>
+              <a href="subject.html#25064">[ subject ]</a>
+              <a href="author.html#25064">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Dominique.Holzwarth at ch.delarue.com</A> wrote, at 03/25/2008 05:37 AM:
+
+&gt;<i> I've got some problems with importing modules from packages when using
+</I>&gt;<i> mod_python.
+</I>&gt;<i> Currently I'm using the Publisher Handler which is configured like this:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Directory &quot;C:\Program Files\Apache Software
+</I>&gt;<i> Foundation\Apache2.2\htdocs\python&quot;&gt; 
+</I>&gt;<i> 		AddHandler mod_python .py
+</I>&gt;<i> 		PythonHandler mod_python.publisher		
+</I>&gt;<i> 		PythonDebug On 
+</I>&gt;<i> &lt;/Directory&gt;
+</I>&gt;<i> 
+</I>&gt;<i> My directory structure looks like this
+</I>&gt;<i> 
+</I>&gt;<i> python/
+</I>&gt;<i> 	main.py
+</I>&gt;<i> 	database/
+</I>&gt;<i> 		__init__.py
+</I>&gt;<i> 		common.py
+</I>
+The new importer in mod_python will ignore packages in the published 
+directory and does not automatically add this location to the path when 
+it falls back to the regular Python importer. In a nutshell, avoid 
+trying to publish packages.
+
+There are other ways to include your package in the Python path. In 
+fact, yours is a good candidate, since I'm guessing you have included 
+database connection credentials, which you should NEVER put in your 
+DocumentRoot. Any number of scenarios could result in your credentials 
+being exposed.
+
+I create many of my mod_python applications as packages, and simply 
+publish a wrapper that imports one or two functions from the package. In 
+my virtual host configuration, I add the directory that contains all of 
+my packages to the path:
+
+   PythonPath &quot;['/var/www/www.example.com/python'] + sys.path&quot;
+
+Note that this directory is outside the DocumentRoot, which might be:
+
+   /var/www/www.example.com/site
+
+So, for a specific directory, the resulting configuration might be:
+
+   # Set Python path for entire virtual host
+   PythonPath &quot;['/var/www/www.example.com/python'] + sys.path&quot;
+   # All files in this directory use the Publisher handler
+   &lt;Directory /var/www/www.example.com/site/app&gt;
+     SetHandler python-program
+     PythonHandler mod_python.publisher
+     PythonDebug On
+   &lt;/Directory&gt;
+   # Custom virtual handler, using module in Python path
+   &lt;Location /virtual&gt;
+     SetHandler python-program
+     # this module (can be a package) must be in the Python path!
+     PythonHandler virtual
+     PythonDebug On
+   &lt;/Location&gt;
+
+With this approach, various handlers in a specific host can share a 
+common directory of modules, without needing to add it to the system's 
+site-packages directory, where it would be too public. There is also a 
+security advantage in storing database connection credentials outside 
+the DocumentRoot, where they are less likely to be exposed (due to a 
+misconfiguration, or absent-mindedly moving your code to a new host 
+before mod_python is properly configured). You simply import the modules 
+as you would in any other Python application.
+
+I'm happy with this approach, but the biggest disadvantage is that it 
+won't take full advantage of automatic module reloading, so moving new 
+code to a production environment might still involve restarting apache 
+httpd. For alternative approaches and an excellent explanation of how 
+packages are affected by the new module importer, see Graham's response 
+in this thread:
+
+  <A HREF="http://www.modpython.org/pipermail/mod_python/2006-November/022726.html">http://www.modpython.org/pipermail/mod_python/2006-November/022726.html</A>
+
+
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025063.html">[mod_python] Importing package under mod_python
+</A></li>
+	<LI>Next message: <A HREF="025067.html">[mod_python] Another sessions problem...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25064">[ date ]</a>
+              <a href="thread.html#25064">[ thread ]</a>
+              <a href="subject.html#25064">[ subject ]</a>
+              <a href="author.html#25064">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

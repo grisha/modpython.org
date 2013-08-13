@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Protecting%20Web%20apps%20from%20to%20many%20simultaneous%0A%09clicks/Hacking&In-Reply-To=1084502387.26128.59.camel%40ping.apnic.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015597.html">
+   <LINK REL="Next"  HREF="015607.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>SAiello at Jentoo.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Protecting%20Web%20apps%20from%20to%20many%20simultaneous%0A%09clicks/Hacking&In-Reply-To=1084502387.26128.59.camel%40ping.apnic.net"
+       TITLE="[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking">SAiello at Jentoo.com
+       </A><BR>
+    <I>Fri May 14 10:17:06 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015597.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+        <LI>Next message: <A HREF="015607.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15600">[ date ]</a>
+              <a href="thread.html#15600">[ thread ]</a>
+              <a href="subject.html#15600">[ subject ]</a>
+              <a href="author.html#15600">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> If you mean, 'how do I protect against someone maliciously trying to
+</I>&gt;<i> overload my server' then the throttling/bandwidth limiting suggestions
+</I>&gt;<i> already given are useful tools.  If you mean, 'how do I improve my
+</I>&gt;<i> server's performance to handle high load' then read on.
+</I>
+The reason I ask is a bit of both 'overload server' &amp; 'improve server's 
+performance'. Also it has a little of 'I want my program to run within 
+certain design parameters, and it should do some simple checking to make sure 
+it is running within those parameters'.
+
+&gt;<i> Use caching.  If you've only just asked the IMAP server for the contents
+</I>&gt;<i> of message #404, there's no good reason to ask it again.  You could
+</I>&gt;<i> cache the messages, the message indexes, or even the entire output of a
+</I>&gt;<i> given request.
+</I>
+I have already used some caching. When listing the contents of an email box I 
+cache the folder list, the message's ID in sorted order, and the current 
+window (i.e. 1-20) message's 'from, subject, date'. As I continue, I am not 
+sure where I am going to add more caching. The design of the email solution 
+(webmail and server backends) is designed to have many small nodes running in 
+parallel. It is not like I am going to have one IMAP server, with alot of web 
+frontends hitting it. The design is to have a local 'IMAP frontend' on every 
+web frontend. Thus, the 'IMAP frontends' contact the 'IMAP backends'. The 
+communication between the IMAP frontends and backends would handle individual 
+message caching. Also, it will probably do it alot more efficiently than I 
+can.
+
+&gt;<i> Also, you probably shouldn't be storing the 'current message position'
+</I>&gt;<i> in a session.  This implies that the user is only viewing one page at
+</I>&gt;<i> once, which in a lot of cases isn't true.  They might open a message in
+</I>&gt;<i> a new window or tab, for instance, and have two messages open at once.
+</I>&gt;<i> Which one is 'current' in that situation?
+</I>&gt;<i>
+</I>&gt;<i> A possibly better way would be to have the &quot;Next&quot; link, as generated in
+</I>&gt;<i> response to a request to display a particular message, also include
+</I>&gt;<i> information about which message should be considered the next message.
+</I>&gt;<i> For example, I would probably implement this as a method to display a
+</I>&gt;<i> message by ID, and for each generated display, include a &quot;Next&quot; button
+</I>&gt;<i> which generates a request to display message #(ID + 1).
+</I>&gt;<i>
+</I>&gt;<i> If the functionality of &quot;Next&quot; means &quot;Next Unread&quot; or some such, I'd
+</I>&gt;<i> probably generate a request to display the next unread message after
+</I>&gt;<i> message #ID, so once again, the knowledge about the 'current' message is
+</I>&gt;<i> tied to a particular display.
+</I>
+When I said 'Next', I meant the next button to display the next window of 
+messages in the email box (i.e. showing messages 1-20 and then 21-40).
+But the point you bring up is very valid, and brings up concerns for other 
+ways I have used session variables. Guess it is time for another rewrite. For 
+caching, do you have any suggestions ? dbm, external database, etc ?
+
+&gt;<i> ... so yes, the general idea is sound.  Your implementation is a little
+</I>&gt;<i> flawed, however.
+</I>
+Yeah I knew it was flawed, I need a better understanding of the dynamics and 
+workings of Apache/mod_python. I played around last night, and here is what I 
+came up with.
+
+if not sess.has_key('REQUESTS'):
+	sess['REQUESTS']=1
+	sess.save()
+else:
+	sess['REQUESTS']+=1
+	sess.save()
+	if sess['REQUESTS']&gt;1:
+		sess['REQUESTS']=0
+		sess.save()
+		req.internal_redirect('/python/error/manySessions')
+		return
+
+The '/python/error/manySessions' displays a quick little error, and there is 
+an auto refresh of three seconds. After the refresh, the user sees the page 
+they were looking for.
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015597.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+	<LI>Next message: <A HREF="015607.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15600">[ date ]</a>
+              <a href="thread.html#15600">[ thread ]</a>
+              <a href="subject.html#15600">[ subject ]</a>
+              <a href="author.html#15600">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

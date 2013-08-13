@@ -1,0 +1,135 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] For what session locking is? Do i need it while
+	using MySQL?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20For%20what%20session%20locking%20is%3F%20Do%20i%20need%20it%20while%0A%09using%20MySQL%3F&In-Reply-To=44DB375D.3080008%40jgassociates.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021810.html">
+   <LINK REL="Next"  HREF="021809.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] For what session locking is? Do i need it while
+	using MySQL?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Norman Tindall</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20For%20what%20session%20locking%20is%3F%20Do%20i%20need%20it%20while%0A%09using%20MySQL%3F&In-Reply-To=44DB375D.3080008%40jgassociates.ca"
+       TITLE="[mod_python] For what session locking is? Do i need it while
+	using MySQL?">NormanTindall at zdisk.net
+       </A><BR>
+    <I>Thu Aug 10 15:57:54 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021810.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+        <LI>Next message: <A HREF="021809.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21788">[ date ]</a>
+              <a href="thread.html#21788">[ thread ]</a>
+              <a href="subject.html#21788">[ subject ]</a>
+              <a href="author.html#21788">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello Jim,
+
+      I describe you the session locking mechanizm as i see,
+      correct me if i am wrong.
+
+      As to lock subroutine in _apache we passing:
+      1 - server object
+      2 - session_id
+      From this i can tell that in fact locked session_ids (session
+      data locked indirect)
+
+      +----------------------------------------------+---------------------+
+      |  session_id                       |  status  | serv that aq  lock  |
+      +----------------------------------------------+---------------------+
+      |  5540fda192a40b4acd084decdb6f66ed |  locked  | thread 1 server id
+      |  9ec0c48867bff638b7a790c314ed52ff |  locked  | thread 4 server id
+      |  .. .. .. .. .. .. .. .. .. .. .. .. .... .... .... .... ..
+      +-------------------------------------------------------------------
+          ^     |            ^           |                 ^      |
+   1)Lock |     |            | 4)Lock    |         7)Lock  |      |
+          | 3)release        |           |                 |  9) release
+          |     |            |    6)release                |      |
+      +-----------+    +--------------------+        +----------------
+      | thread 1  |    | thread 2           |        | thread 3 also
+      +-----------+    +-----------                   trying to aquire
+      | aquired lock   | trying to
+        on 5540fd..      aquire lock on                          |
+        sess_id          5540fd.. but blocked                    |
+                         until thread 1 releases lock            | 8) write
+               |                \   5) Write                     |
+     2) Write  |     +--------------------------------------+    |
+               -----&gt;|  session data (in file or mysql)     | &lt;---
+                     +--------------------------------------+
+
+       Thread 1 locking sess_id, making manipulation with session
+       data, writing it to file (or DBD or MySQL), release lock,
+       then thread 2 locking that sess_id and so on..
+       So in fact locked session_id, while session locked indirect,
+       because no manipulation can be made before lock aquire and so
+       manipulation with same sess_id data is quened across threads.
+
+       And if i right, my module from previous letter will work with
+       lock.
+
+       Am i right?
+
+-- 
+Best regards,
+ Norman                            mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">NormanTindall at zdisk.net</A>
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021810.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+	<LI>Next message: <A HREF="021809.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21788">[ date ]</a>
+              <a href="thread.html#21788">[ thread ]</a>
+              <a href="subject.html#21788">[ subject ]</a>
+              <a href="author.html#21788">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

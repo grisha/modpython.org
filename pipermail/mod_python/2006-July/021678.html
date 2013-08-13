@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Background threads in mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Background%20threads%20in%20mod_python&In-Reply-To=ae4ef4460607281508qf3d449es8d96a222200792c9%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021677.html">
+   <LINK REL="Next"  HREF="021681.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Background threads in mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Background%20threads%20in%20mod_python&In-Reply-To=ae4ef4460607281508qf3d449es8d96a222200792c9%40mail.gmail.com"
+       TITLE="[mod_python] Background threads in mod_python">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Jul 28 21:36:07 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021677.html">[mod_python] Background threads in mod_python
+</A></li>
+        <LI>Next message: <A HREF="021681.html">[mod_python] Background threads in mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21678">[ date ]</a>
+              <a href="thread.html#21678">[ thread ]</a>
+              <a href="subject.html#21678">[ subject ]</a>
+              <a href="author.html#21678">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 29/07/2006, at 8:08 AM, Christian Gross wrote:
+
+&gt;<i> I have been using mod_python and am wondering about creating
+</I>&gt;<i> background threads. I can create the background thread, but if the
+</I>&gt;<i> thread requires a longer processing time than the request the
+</I>&gt;<i> background thread is exited.
+</I>&gt;<i>
+</I>&gt;<i> Is it possible to create a background thread and have it execute
+</I>&gt;<i> without being killed?
+</I>
+How do you know the thread is being killed? Are you sure it isn't the  
+process
+as a whole?
+
+There isn't any fundamental reason why a thread can't outlive the  
+life of the
+request handler, but there are some common mistakes.
+
+Main issue that you cannot pass the mod_python request object to such  
+a thread
+and have it hold a reference to it and use the request object beyond  
+the life
+of the request handler. This is because the internals of the request  
+object
+are destroyed when the request handler returns and an access to the  
+request
+object may result in the Apache child process then subsequently  
+crashing.
+
+Alternatively, if the Apache child process doesn't crash, you might  
+at least
+cause a Python exception to occur because the state of something in the
+request object isn't as expected. This exception would effectively  
+cause the
+thread to exit unless the context in which the access was made to the  
+request
+object was protected by a try/except block.
+
+In either case, if a Python exception occurs within the thread and it  
+isn't
+caught, it might not actually result in the details of the exception  
+being logged.
+This is because if the exception details are output, they go to  
+standard error
+and anything sent to standard error or standard output when running  
+under
+mod_python isn't guaranteed to show up anywhere. It may if flushing  
+occurs,
+appear in the Apache error log, but I wouldn't depend on it.  
+Sometimes only
+such output ends up in the Apache error log when Apache itself is  
+shutdown
+and those streams get flushed at that point.
+
+In the above I talk about a Python exception occurring due to access  
+to a
+no longer valid request object, but even an uncaught exception in  
+your code
+will cause the same thing, with the thread appearing to exit but with  
+nothing
+necessarily being logged anywhere. What you want to do is to put a  
+try/except
+block around everything the thread does and if an exception occurs, then
+use apache.log_error() to log something to the Apache error log  
+indicating
+that the exception occurs and the details of the exception.
+
+One final thing, are you sure that the thread isn't deadlocking on  
+something
+and isn't just stalled? Have you actually used apache.log_error() to log
+something at the exit point of the top level thread function to  
+confirm that
+it is really exiting? Note that exiting explicitly, or because of a  
+Python
+exception occurring within the thread is the only way the thread can  
+truly
+be stopped as there is no way in Python for a thread to be externally  
+killed
+by another thread anyway.
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021677.html">[mod_python] Background threads in mod_python
+</A></li>
+	<LI>Next message: <A HREF="021681.html">[mod_python] Background threads in mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21678">[ date ]</a>
+              <a href="thread.html#21678">[ thread ]</a>
+              <a href="subject.html#21678">[ subject ]</a>
+              <a href="author.html#21678">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

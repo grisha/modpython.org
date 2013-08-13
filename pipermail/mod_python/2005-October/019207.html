@@ -1,0 +1,133 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] threading module within mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20threading%20module%20within%20mod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019231.html">
+   <LINK REL="Next"  HREF="019208.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] threading module within mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Fabiano Sidler</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20threading%20module%20within%20mod_python&In-Reply-To="
+       TITLE="[mod_python] threading module within mod_python">fabianosidler at swissonline.ch
+       </A><BR>
+    <I>Fri Oct  7 06:04:11 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019231.html">[mod_python] testhandler issue
+</A></li>
+        <LI>Next message: <A HREF="019208.html">[mod_python] threading module within mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19207">[ date ]</a>
+              <a href="thread.html#19207">[ thread ]</a>
+              <a href="subject.html#19207">[ subject ]</a>
+              <a href="author.html#19207">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi!
+
+I wanted the main thread to be notified about raised exceptions in other
+threads. Thus I wrote a threaded handler in a way similar like this:
+
+--- snip ---
+from mod_python import apache
+from threading import currentThread, Thread, Lock
+
+mainthread = currentThread()
+raiselock = Lock()
+raiselist = []
+def Raise(exc):
+ raiselock.acquire()
+ raiseexc.append(exc)
+ raiselock.release()
+mainthread.Raise = Raise
+
+class ReqThread(Thread):
+ def __init__(self, req):
+  Thread.__init__(self)
+  self.req = req
+ def run(self):
+  # Test raise
+  #raise Exception('run()')
+  mainthread.Raise(Exception('run()'))
+  return
+
+def handler(req):
+ exc = None
+ r = ReqThread(req)
+ r.start(); r.join()
+ raiselock.acquire()
+ if len(raiselist): exc = raiselist.pop
+ raiselock.release()
+ if exc: raise exc
+ return apache.OK
+--- snap ---
+
+However, this doesn't work. If I uncomment the raise in ReqThread.run,
+these exceptions even don't appear in the logs until I stop the httpd, which
+causes following additional errors:
+
+[Fri Oct 07 11:12:45 2005] [warn] child process 9229 still did not exit, 
+sending a SIGTERM
+[Fri Oct 07 11:12:45 2005] [warn] child process 9230 still did not exit, 
+sending a SIGTERM
+
+Quite strange, isn't it?
+I'm running Kubuntu and httpd uses mpm_prefork. Is there a chance to get my
+Threads working?
+
+Best wishes,
+Fips
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019231.html">[mod_python] testhandler issue
+</A></li>
+	<LI>Next message: <A HREF="019208.html">[mod_python] threading module within mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19207">[ date ]</a>
+              <a href="thread.html#19207">[ thread ]</a>
+              <a href="subject.html#19207">[ subject ]</a>
+              <a href="author.html#19207">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

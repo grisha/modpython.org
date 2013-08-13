@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Current Working Directory not set?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Current%20Working%20Directory%20not%20set%3F&In-Reply-To=43DA7A37.5050500%40barriescene.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020144.html">
+   <LINK REL="Next"  HREF="020145.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Current Working Directory not set?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Current%20Working%20Directory%20not%20set%3F&In-Reply-To=43DA7A37.5050500%40barriescene.com"
+       TITLE="[mod_python] Current Working Directory not set?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Jan 27 16:04:14 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020144.html">[mod_python] Current Working Directory not set?
+</A></li>
+        <LI>Next message: <A HREF="020145.html">[mod_python] Current Working Directory not set?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20143">[ date ]</a>
+              <a href="thread.html#20143">[ thread ]</a>
+              <a href="subject.html#20143">[ subject ]</a>
+              <a href="author.html#20143">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 28/01/2006, at 6:53 AM, Sean Jamieson wrote:
+
+&gt;<i> Hello everybody,
+</I>&gt;<i> I don't know if there's already been a discussion about this, it seems 
+</I>&gt;<i> like a small but obvious issue.
+</I>
+Many times. ;-)
+
+&gt;<i> The current working directory does not apear to be set when a 
+</I>&gt;<i> mod_python.publisher script runs; or rather it's set to &quot;/&quot; which is 
+</I>&gt;<i> not useful. This becomes quite a pain, as I'm forced to do many things 
+</I>&gt;<i> to work around it.
+</I>
+As someone else said, working directory can't be changed because of 
+multithreading
+abilities of mod_python.
+
+&gt;<i> i.e.
+</I>&gt;<i> 1) I've started using kid templates, and I have to use:
+</I>&gt;<i>     Template( file=req.document_root().'template.kid', ... )
+</I>&gt;<i> or
+</I>&gt;<i>    Template( 
+</I>&gt;<i> file=req.document_root().'project_dir/templates/template.kid', ... )
+</I>&gt;<i> rather then the more natural:
+</I>&gt;<i>    Template( file='templates/template.kid )
+</I>&gt;<i> this should find the 'templates' directory in the same directory as 
+</I>&gt;<i> the running script
+</I>
+Don't use req.document_root(). Instead, in that specific Python code 
+file,
+include at global scope:
+
+   import os
+   __here__ = os.path.dirname(__file__)
+   __templates__ = os.path.join(__here__,&quot;templates&quot;)
+
+That will give you the directory that file is located in, in a handy 
+variable
+which you can then use.
+
+     Template( file=os.path.join(__templates__,&quot;template.kid&quot;) )
+
+This is only useful though if all your publisher handlers are in the 
+one directory.
+If you have stuff spread over subdirectories, you start having to use 
+relative
+paths as appropriate in subdirectory handler files.
+
+   import os
+   __here__ = os.path.dirname(__file__)
+   __templates__ = os.path.join(__here__,&quot;..&quot;,&quot;templates&quot;)
+
+Thus, you may be better off doing something like:
+
+   def _templates(req,path):
+     return os.path.join(req.hlist.directory,&quot;templates&quot;,path)
+
+   ...
+
+     Template( file=_template(&quot;template.kid&quot;) )
+
+The req.hlist.directory variable will be set to the directory for which 
+PythonHandler
+is specified, thus giving you a root anchor point which you can use to 
+describe all
+paths relative to. Doing this means you have more flexibility as far as 
+moving code
+files around between directories without having to modify code.
+
+The other reference point you might use is:
+
+   def _templates(req,path):
+     directory = os.path.dirname(req.filename)
+     return os.path.join(directory,path)
+
+   ...
+
+     Template( file=_template(&quot;templates/template.kid&quot;) )
+
+The req.filename object is similar to using __file__ for most cases, 
+but getting the
+information from the request object instead.
+
+You might even create your own derived class from Kid's Template class 
+so you can
+pass it a 'req' object and relative template file path and have that 
+derived class
+constructor do the calculation of where the file is relative to 
+PythonHandler root
+or req.filename.
+
+In other words, to be more transparent, the template system would need 
+to know about
+the environment it is used in.
+
+&gt;<i> 2) I have to fully qualify imports from the document root, as the 
+</I>&gt;<i> document root is added to sys.modules, but the current directory is 
+</I>&gt;<i> not. So, if I'm in a subdirectory under the document root I have to 
+</I>&gt;<i> do:
+</I>&gt;<i>    import project_dir.subpackage.module
+</I>&gt;<i> when the current directory is 'project_dir'. This is silly, I should 
+</I>&gt;<i> be able to import something in, or under, the current working 
+</I>&gt;<i> directory:
+</I>&gt;<i>    import subpackage.module
+</I>
+If these packages contain reusable code used across various pages and 
+don't have
+actual code in them for generating pages, it is not a good idea to put 
+them under
+your document root. This is because with the right URL they may be able 
+to be
+invoked by a remote user because of publishers automatic mapping. Thus 
+you need to
+be very careful.
+
+If they do contain code for generating pages, you should not be using 
+&quot;import&quot;
+to access them as at the same time they could be getting loaded by 
+publisher using
+a different module loading system which will cause various problems.
+
+As suggested by someone else, look at using &quot;apache.import_module()&quot;.
+
+&gt;<i> I would have to do some hack involving seperating the dirname of 
+</I>&gt;<i> __file__ and adding it to sys.modules
+</I>
+I think you must have meant into sys.path. Same above, Modifying 
+sys.path directly
+in mod_python is not usually a good idea either. The use of 
+PythonHandler will
+automatically put that root directory in sys.path for you without 
+having to resort
+to using PythonPath. This all assumes you have already set PythonPath 
+explicitly
+and aren't using Location directive instead of Directory directive to 
+specify context
+in which mod_python is used.
+
+Graham
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020144.html">[mod_python] Current Working Directory not set?
+</A></li>
+	<LI>Next message: <A HREF="020145.html">[mod_python] Current Working Directory not set?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20143">[ date ]</a>
+              <a href="thread.html#20143">[ thread ]</a>
+              <a href="subject.html#20143">[ subject ]</a>
+              <a href="author.html#20143">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

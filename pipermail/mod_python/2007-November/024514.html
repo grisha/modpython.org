@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session Hanging Problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Hanging%20Problems&In-Reply-To=FAE275BD-DC2B-433E-B2C2-21C6AE67AA28%40gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024513.html">
+   <LINK REL="Next"  HREF="024516.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session Hanging Problems</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Harish Agarwal</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Hanging%20Problems&In-Reply-To=FAE275BD-DC2B-433E-B2C2-21C6AE67AA28%40gmail.com"
+       TITLE="[mod_python] Session Hanging Problems">harish at octopart.com
+       </A><BR>
+    <I>Mon Nov 26 14:29:36 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024513.html">[mod_python] Session Hanging Problems
+</A></li>
+        <LI>Next message: <A HREF="024516.html">[mod_python] Session Hanging Problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24514">[ date ]</a>
+              <a href="thread.html#24514">[ thread ]</a>
+              <a href="subject.html#24514">[ subject ]</a>
+              <a href="author.html#24514">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Did you also have problems with _apache._global_lock?  For now, I'm  
+not too worried about the database load (if necessary we can  
+transition to an in memory session handler as well), I'd just like to  
+understand the source of the problems as I have a feeling this problem  
+will always show up (as the other David has noticed this problem with  
+FileSession as well) as long as we're inheriting our session handler  
+from BaseSession.
+
+Thanks,
+Harish
+
+On Nov 26, 2007, at 11:21 AM, David Lenwell wrote:
+
+&gt;<i> yeah .. its very broken for me too .. What I am working on is my own  
+</I>&gt;<i> session handler.. I don't feel that mysql is a valid replacement  
+</I>&gt;<i> because it puts unnecessary load on your database server.
+</I>&gt;<i>
+</I>&gt;<i> We are debating on open sourcing the code I am working on. if I win  
+</I>&gt;<i> the argument that open source can be good for us then I will  
+</I>&gt;<i> contribute my code to the project.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Nov 26, 2007, at 10:55 AM, David Janes wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> All I can say is &quot;we too&quot; -- we're using FileSession. We have not  
+</I>&gt;&gt;<i> been
+</I>&gt;&gt;<i> able to come up with a cure, though we've minimized use of sessions
+</I>&gt;&gt;<i> which brings the frequency down significantly.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Regards, etc...
+</I>&gt;&gt;<i> David
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Nov 26, 2007 1:39 PM, Harish Agarwal &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">harish at octopart.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> I'm using session handling with ModPython 3.3.1.  Originally I was
+</I>&gt;&gt;&gt;<i> using DbmSession and have since transitioned to a custom MySQL  
+</I>&gt;&gt;&gt;<i> Session
+</I>&gt;&gt;&gt;<i> handler.  With both session types, however, I've noticed that  
+</I>&gt;&gt;&gt;<i> session
+</I>&gt;&gt;&gt;<i> initialization intermittently hangs (not forever, but takes as  
+</I>&gt;&gt;&gt;<i> long as
+</I>&gt;&gt;&gt;<i> four minutes to complete), at a low-ish (a handful of times every
+</I>&gt;&gt;&gt;<i> hour, while receiving, say, on order of a thousand or so requests
+</I>&gt;&gt;&gt;<i> every hour) frequency which seems to scale with the amount of  
+</I>&gt;&gt;&gt;<i> traffic
+</I>&gt;&gt;&gt;<i> we're receiving.  I had read that long DbmSession cleanups can cause
+</I>&gt;&gt;&gt;<i> problems, which is why I transitioned to the MySQL system, which  
+</I>&gt;&gt;&gt;<i> takes
+</I>&gt;&gt;&gt;<i> &lt; 1 second to complete, but I'm still noticing the long session init
+</I>&gt;&gt;&gt;<i> times.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I put some debugging statements into the code and it seems to be
+</I>&gt;&gt;&gt;<i> related to session locking.  In particular, it is this function call
+</I>&gt;&gt;&gt;<i> in the lock method of the BaseSession class:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> _apache._global_lock(self._req.server, self._sid)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> which is taking some time to complete. I'm not familiar with
+</I>&gt;&gt;&gt;<i> _apache._global_lock (is it used to apply a mutex lock to the
+</I>&gt;&gt;&gt;<i> session?) and am having trouble finding information describing its
+</I>&gt;&gt;&gt;<i> usage - but it seems likely that this is the root cause.  In the  
+</I>&gt;&gt;&gt;<i> past
+</I>&gt;&gt;&gt;<i> I've had problems with session locking but have since transitioned  
+</I>&gt;&gt;&gt;<i> the
+</I>&gt;&gt;&gt;<i> code to ensure that only one session is created per request, as  
+</I>&gt;&gt;&gt;<i> such:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> if not hasattr(req,'session'):
+</I>&gt;&gt;&gt;<i>            req.session = Session.MySQLSession(req)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Can anyone tell me if this kind of behavior is normal or is  
+</I>&gt;&gt;&gt;<i> indicative
+</I>&gt;&gt;&gt;<i> of some common configuration or coding error?  Any help would be
+</I>&gt;&gt;&gt;<i> greatly appreciated.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Thanks,
+</I>&gt;&gt;&gt;<i> -Harish
+</I>&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -- 
+</I>&gt;&gt;<i> David Janes
+</I>&gt;&gt;<i> Founder, BlogMatrix
+</I>&gt;&gt;<i> <A HREF="http://www.blogmatrix.com">http://www.blogmatrix.com</A>
+</I>&gt;&gt;<i> <A HREF="http://blogmatrix.blogmatrix.com">http://blogmatrix.blogmatrix.com</A>
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024513.html">[mod_python] Session Hanging Problems
+</A></li>
+	<LI>Next message: <A HREF="024516.html">[mod_python] Session Hanging Problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24514">[ date ]</a>
+              <a href="thread.html#24514">[ thread ]</a>
+              <a href="subject.html#24514">[ subject ]</a>
+              <a href="author.html#24514">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

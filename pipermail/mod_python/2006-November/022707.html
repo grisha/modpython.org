@@ -1,0 +1,224 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: MySQLSession, wiki, development and other stuff
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20MySQLSession%2C%20wiki%2C%20development%20and%20other%20stuff&In-Reply-To=B6C73A5E30565245BB6D32B5F5DF7A520BEDD8%40sense.emmastraat.pijnacker">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022719.html">
+   <LINK REL="Next"  HREF="022714.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: MySQLSession, wiki, development and other stuff</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20MySQLSession%2C%20wiki%2C%20development%20and%20other%20stuff&In-Reply-To=B6C73A5E30565245BB6D32B5F5DF7A520BEDD8%40sense.emmastraat.pijnacker"
+       TITLE="[mod_python] Re: MySQLSession, wiki, development and other stuff">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Nov 28 06:05:03 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022719.html">[mod_python] Re: Wiki for mod_python. Contributors welcome.
+</A></li>
+        <LI>Next message: <A HREF="022714.html">[mod_python] Re: MySQLSession, wiki, development and other stuff
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22707">[ date ]</a>
+              <a href="thread.html#22707">[ thread ]</a>
+              <a href="subject.html#22707">[ subject ]</a>
+              <a href="author.html#22707">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 28/11/2006, at 10:04 AM, Martijn Moeling wrote:
+&gt;<i> I emailed you guy's personally since you are the driving forces behind
+</I>&gt;<i> mod_python (i think) and this is not a real subject for that mailing
+</I>&gt;<i> list.
+</I>
+I see no reason why anything you talk about needs to be handled off
+the mailing list, so have sent my response back there.
+
+&gt;<i> I just send in a proposed new Session.py as a RFC backed with some
+</I>&gt;<i> documentation.
+</I>&gt;<i>
+</I>&gt;<i> I also found an today's article on the mailing list with subject:
+</I>&gt;<i> [mod_python] Wiki for mod_python. Contributors welcome.
+</I>&gt;<i> Which is about this subject, keeping the MySQLdb out as much as  
+</I>&gt;<i> possible
+</I>&gt;<i> was one of my goals, but I do not see another option.
+</I>
+There should be no reason for a MySQL session class to be within the
+mod_python session code file for it to work. The only thing you don't  
+get from
+having it separate is the ability for it to be created underneath the  
+Session.Session()
+call based on the value of PythonOption for setting the session type.
+Instead you would use:
+
+   req.session = MySqlSession(req)
+
+The only place where having to do this would be a problem is if you are
+using mod_python.psp as it internally uses Session.Session(). It only
+does this though if req.session doesn't exist as an attribute. Thus,  
+if you are
+using mod_python.psp you need to create your own handler which does:
+
+   from mod_python import psp
+
+   def handler(req):
+     req.session = MySqlSession(req)
+     return psp.handler(req)
+
+By assigning session instance to req.session, mod_python.psp will use  
+it.
+
+You will need to have a recent version of mod_python for this to work
+though.
+
+In mod_python 3.3, the ability to use the Apache authentication handler
+phase properly means that creating sessions in the main content handler
+phase is probably not as a good an option as writing a proper  
+authentication
+handler for the job. In that scenario, you wouldn't even need to wrap
+mod_python.psp as session creation would be in a separate handler
+anyway.
+
+&gt;<i> (yes I do: copy
+</I>&gt;<i> Session.py to my app dir and not include it from mod_python right?)
+</I>
+Making a copy of Session.py and modifying it is a bad idea as it is  
+already
+out of date if you are using mod_python 3.2.10 or older as various  
+changes
+have been made in code in mod_python 3.3. You will loose the benefit of
+these changes/fixes if you have your own copy based on an older version.
+
+&gt;<i> Storing the Sessions in an SQL database can be a huge advantage and I
+</I>&gt;<i> think it should be in Session.py since it expands possibilities.  
+</I>&gt;<i> (think
+</I>&gt;<i> of the multiple front end severs in my situation, and there are File,
+</I>&gt;<i> DBM memory possibilities, so why not add MySQL (which is used by most
+</I>&gt;<i> mod_python users anyway). With my current project I am preparing for
+</I>&gt;<i> 1.000.000 pageviews per hour!! One apache server with mod_python  
+</I>&gt;<i> can not
+</I>&gt;<i> handle that amount of users. (not all use sessions)
+</I>&gt;<i>
+</I>&gt;<i> Personally I think mod_python and MySQLdb should team up, I am an
+</I>&gt;<i> experienced programmer, but all those newbie guys run into trouble
+</I>&gt;<i> configuring the lot
+</I>
+The topic of having SQL database backed sessions included as a standard
+part of mod_python has been discussed before and rejected. Even the
+sqlite version which I referred you to was rejected. The issue was  
+that having
+dependencies on external packages was not desirable as it makes the
+development and testing more burdensome. This was even though sqlite  
+itself
+doesn't require a big database system but can work direct out of the
+filesystem.
+
+If there is every to be database backed sessions included in  
+mod_python as
+a standard feature, I'd suggest it is more likely to be code which  
+uses the
+Apache 2.2 mod_dbd module in some way so that that stuff in Apache can
+be leveraged for the task of database connection management etc. Keep in
+mind that mod_python is all about trying to use what Apache provides as
+much as possible, rather than creating a separate universe and just  
+using
+Apache as a hopping off point.
+
+&gt;<i> I would love to contribute to the wiki, I'll see into it over the next
+</I>&gt;<i> few days. I have been a programmer devoted to Open Source since Linux
+</I>&gt;<i> was half a kernel (I implemented large parts of the V4 TCP/IP stack).
+</I>
+If you want to get involved in the wiki great. Adding the MySQLSession
+class as an example would be a good thing to add to the wiki and for the
+time being at least is probably the most appropriate place for it to go.
+
+&gt;<i> Can you help me getting into mod_python development? I am  
+</I>&gt;<i> interested in
+</I>&gt;<i> adding useful features (like MySQLSession haha)
+</I>
+The way the Apache software foundation works is that new developers on
+projects get commit access on the repository by way of invitation.  
+They will
+get an invitation by demonstrating good knowledge of the package by
+helping out on the mailing lists by giving useful assistance to  
+others. Finding
+bugs in the package and investigating it to the level of being able  
+to provide
+a fix also helps. With the wiki now in place, contributing there  
+would also
+show your abilities and knowledge and in conjunction with other things
+give confidence that providing you commit access to the source code  
+would
+be the right thing to do.
+
+As a first step though, I would suggest you get yourself subscribed  
+to the
+mod_python developers mailing list in addition to the standard user  
+mailing
+list. I have never seen you post on the developers list so am  
+assuming you
+aren't subscribed there at present. Use the mailing list to learn,  
+and contribute
+as you can. If over time you give the core developers a good  
+impression and
+when we are looking for extra developers, then you would be considered.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022719.html">[mod_python] Re: Wiki for mod_python. Contributors welcome.
+</A></li>
+	<LI>Next message: <A HREF="022714.html">[mod_python] Re: MySQLSession, wiki, development and other stuff
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22707">[ date ]</a>
+              <a href="thread.html#22707">[ thread ]</a>
+              <a href="subject.html#22707">[ subject ]</a>
+              <a href="author.html#22707">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

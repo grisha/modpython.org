@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problem with html quoted/unquoted
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20with%20html%20quoted/unquoted&In-Reply-To=1147837098.17770.175.camel%40pistachio.squirrel">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021212.html">
+   <LINK REL="Next"  HREF="021127.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Problem with html quoted/unquoted</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martin MOKREJ&#352;</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20with%20html%20quoted/unquoted&In-Reply-To=1147837098.17770.175.camel%40pistachio.squirrel"
+       TITLE="[mod_python] Problem with html quoted/unquoted">mmokrejs at ribosome.natur.cuni.cz
+       </A><BR>
+    <I>Wed May 17 17:46:53 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021212.html">[mod_python] Problem with html quoted/unquoted
+</A></li>
+        <LI>Next message: <A HREF="021127.html">[mod_python] publisher on psp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21144">[ date ]</a>
+              <a href="thread.html#21144">[ thread ]</a>
+              <a href="subject.html#21144">[ subject ]</a>
+              <a href="author.html#21144">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+  I have just spent about 4 days implementing utf8 support in my webapp using
+mod_python, mysql-python-1.2.1, ElementTree and mysql-5.0. It turned out after
+adding:
+
+&lt;HEAD&gt;
+  &lt;META HTTP-EQUIV=&quot;Content-Type&quot; CONTENT=&quot;text/html; charset=UTF-8&quot;&gt;
+&lt;/HEAD&gt;
+
+and setting
+
+req.content_type = &quot;text/html; charset=UTF-8&quot;
+
+in the top-level index() function when using mod_python.publisher.
+
+I always get UTF8 data back from the user becasue of teh above then.
+Thus, there was no need to convert the data from POSTed HTML forms to unicode
+and to push the data in unicode using
+   connect(..., use_unicode=True, charset='utf8')
+That didn't work unless I updated to mysql-python-1.2.1 anyway. Still, I felt
+I can live with strings in utf-8 encoding and forget about conversion to unicode.
+But, using use unicode=False has shown a bug in mysql-python-1.2.1, so I filed
+a bug report on that and had to patch two lines. Next two days I spent figuring
+out why the data in exported XML files are screwed up. Yes, I do have to pass
+unicode objects to ElementTree.
+Tables in mysql I have charset set to utf8 charset, connection charset is utf8,
+Check also output from 'show full columns from $tablename'. Why don't you want
+to store utf8 data in mysql tables? It is supported, you can search on them,
+you can &quot;ignore&quot; the accented chars on searches if you wish ...
+
+In summary, except debugging print calls which use 'ascii' encoding to
+convert whatever object to string, I get always nice UTF-8 data back to the
+browser and browser always post in that encoding. Internally, I do not have to
+convert to unicode at all except the ElementTree problem.
+In case of those print calls used for debugging or when exceptions are raised,
+I get the \xc2, etc. In all other cases, I have strings, sometimes use
+isinstance(_var, basestring) checks and only once use unicode() call,
+actually _str.decode('utf8), when feeding data in (c)ElementTree.
+
+Regarding the entity problem, I had the same problem when I fed utf8 strings
+into ElementTree, I got out '&amp;#174', etc. That got fixed after feeding in unicode
+objects directly. I thought about htmltidy, actually tidy which I think
+has some pythonic interface, but probably as you said urllib has similar
+functionality.
+
+Hope this helps
+Martin
+
+Wouter van Marle wrote:
+&gt;<i> Hi all,
+</I>&gt;<i> 
+</I>&gt;<i> I have a problem with POST requests - loosely related to mod_python but
+</I>&gt;<i> I don't know a better place to ask.
+</I>&gt;<i> 
+</I>&gt;<i> I have a website run by python/mod_python/apache2, using a MySQL
+</I>&gt;<i> database (accessed through MySQLdb).
+</I>&gt;<i> 
+</I>&gt;<i> For html compatibility reasons, I store all the search data in the MySQL
+</I>&gt;<i> database in html-quoted format. The term in question that I ran into is:
+</I>&gt;<i> &quot;Jubil&#228;umsmodell&quot;, stored in the database as &quot;Jubil&amp;auml;umsmodell&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> The select in the html source, as presented to the browser, is fine (the
+</I>&gt;<i> html line is abbreviated for here; it contains many more options):
+</I>&gt;<i> &lt;select name=model&gt;
+</I>&gt;<i> 	&lt;option value=&quot;Jubil&amp;auml;umsmodell 40 Jahre&quot;&gt;Jubil&amp;auml;umsmodell 40
+</I>&gt;<i> Jahre&lt;/option&gt;
+</I>&gt;<i> &lt;/select&gt;
+</I>&gt;<i> 
+</I>&gt;<i> It is rendered correctly of course by the browser.
+</I>&gt;<i> Now when the user clicks go, and the POST is generated, the character is
+</I>&gt;<i> sent back in what I guess is UTF-8 encoding (I assume it's that, as
+</I>&gt;<i> that's my default encoding) (again only a snippet):
+</I>&gt;<i> &amp;model=Jubil%C3%A4umsmodell+40+Jahre
+</I>&gt;<i> 
+</I>&gt;<i> And as you can imagine this messes up the search in the MySQL database,
+</I>&gt;<i> where I can find the term only if it's html quoted again.
+</I>&gt;<i> 
+</I>&gt;<i> So the end of the whole story, the actual question is now: how do I get
+</I>&gt;<i> from this utf-8 encoding back to html quoted encoding, for searching in
+</I>&gt;<i> the database? And no, I'm not going to put the info in the database in
+</I>&gt;<i> utf-8, that must remain html quoted for many other locations where it
+</I>&gt;<i> goes wrong otherwise.
+</I>&gt;<i> 
+</I>&gt;<i> Wouter.
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+-- 
+Dr. Martin Mokrejs
+Faculty of Science, Charles University
+Vinicna 5, 128 43 Prague, Czech Republic
+<A HREF="http://www.iresite.org">http://www.iresite.org</A>
+<A HREF="http://www.iresite.org/~mmokrejs">http://www.iresite.org/~mmokrejs</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021212.html">[mod_python] Problem with html quoted/unquoted
+</A></li>
+	<LI>Next message: <A HREF="021127.html">[mod_python] publisher on psp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21144">[ date ]</a>
+              <a href="thread.html#21144">[ thread ]</a>
+              <a href="subject.html#21144">[ subject ]</a>
+              <a href="author.html#21144">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

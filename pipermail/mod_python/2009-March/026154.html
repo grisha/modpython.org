@@ -1,0 +1,226 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] multiple processing of the same python script by the
+	handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20multiple%20processing%20of%20the%20same%20python%20script%20by%20the%0A%09handler&In-Reply-To=88e286470903291833r62b83923n2793d76031d665ad%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026120.html">
+   <LINK REL="Next"  HREF="026155.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] multiple processing of the same python script by the
+	handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>David Sfiligoi</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20multiple%20processing%20of%20the%20same%20python%20script%20by%20the%0A%09handler&In-Reply-To=88e286470903291833r62b83923n2793d76031d665ad%40mail.gmail.com"
+       TITLE="[mod_python] multiple processing of the same python script by the
+	handler">webmaster at world-vr.com
+       </A><BR>
+    <I>Tue Mar 31 21:26:09 EDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026120.html">[mod_python] multiple processing of the same python script by the
+	handler
+</A></li>
+        <LI>Next message: <A HREF="026155.html">[mod_python] multiple processing of the same python script by the
+	handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26154">[ date ]</a>
+              <a href="thread.html#26154">[ thread ]</a>
+              <a href="subject.html#26154">[ subject ]</a>
+              <a href="author.html#26154">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Graham,
+
+Thanks for the quick response.   I have implemented a module which I place 
+in / (literally) for ensuring that the test works.   I then also wrote a 
+small stress test app which would hit the script with a parameter which 
+increments at each request to see so I can see if there is multiplicity of 
+logging.   Unfortunately there was still multiple entries of the same log 
+data.  I should  say that the data received by the server on the other end of 
+the socket is now unique(seems to be so far anyway). So thank you for 
+assisting :-)   The issue with the logging module still baffles me.  Perhaps 
+somebody else on the list has input?
+
+def handler(req):
+    davelogger = apache.import_module(&quot;/davelogger.py&quot;)    
+    request_data = util.FieldStorage(req)
+    clientip = req.get_remote_host(apache.REMOTE_NOLOOKUP)
+    geoip = 'NL'
+    str_req_data = str(clientip) + &quot;| CC: &quot; + str(geoip) + &quot;| &quot;
+    str_req_datadb = &quot;ip: &quot; + str(clientip) + &quot;| CC: &quot; + str(geoip) + &quot;| &quot;
+    for key in request_data:
+        str_req_datadb += &quot;| &quot; + str(key) + &quot;: &quot; + str(request_data[key])
+        str_req_data += str(key) + &quot;: &quot; + str(request_data[key]) + &quot;| &quot;
+
+    davelogger.logdata(str_req_data[:-2],str_req_datadb)
+    return apache.OK
+
+davelogger.py module:
+
+def logdata(data,datadb):
+    logger = logging.getLogger('mylogger.py')
+    logging_handler = 
+logging.FileHandler('/usr/local/apache2/htdocs/mylog.log')    
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    logging_handler.setFormatter(formatter)
+    logger.addHandler(logging_handler)
+    logger.setLevel(logging.INFO)
+
+    curtime = datetime.now().isoformat(' ')
+    try: 
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(0.5)
+        s.connect(('10.0.0.2', 8199))
+        message = &quot;date: &quot; + str(curtime[:-4] + &quot;| &quot; + datadb)
+        len_sent = s.send(message)
+        s.close()
+        
+    except:
+        data += '| dbupdate: failed|'
+        pass
+    logger.info(data)
+    
+    
+log data from the logger module
+2009-03-29 23:28:48,452 INFO 10.0.0.2| CC: NL| x: 195
+2009-03-29 23:28:48,452 INFO 10.0.0.2| CC: NL| x: 195
+2009-03-29 23:28:48,452 INFO 10.0.0.2| CC: NL| x: 195
+2009-03-29 23:28:48,452 INFO 10.0.0.2| CC: NL| x: 195
+2009-03-29 23:28:48,452 INFO 10.0.0.2| CC: NL| x: 195
+2009-03-29 23:28:48,452 INFO 10.0.0.2| CC: NL| x: 195
+2009-03-29 23:28:48,452 INFO 10.0.0.2| CC: NL| x: 195
+2009-03-29 23:28:48,500 INFO 10.0.0.2| CC: NL| x: 196
+2009-03-29 23:28:48,500 INFO 10.0.0.2| CC: NL| x: 196
+2009-03-29 23:28:48,500 INFO 10.0.0.2| CC: NL| x: 196
+2009-03-29 23:28:48,500 INFO 10.0.0.2| CC: NL| x: 196
+2009-03-29 23:28:48,500 INFO 10.0.0.2| CC: NL| x: 196
+2009-03-29 23:28:48,500 INFO 10.0.0.2| CC: NL| x: 196
+
+stdout from the socket server:
+{'date': '2009-03-29 
+23:28:48', 'ip': '10.0.0.2', 'CC': 'NL', 'eventid': '0de8b6b1b019d19bc3e7eb5ca986cdcade75e20587211569eebdfcc8', 'x': '194'}
+{'date': '2009-03-29 
+23:28:48', 'ip': '10.0.0.2', 'CC': 'NL', 'eventid': 'bc728c0113bb35d748bf2be0fae52a85242c87a0d41495aeee9d69c0', 'x': '195'}
+{'date': '2009-03-29 
+23:28:48', 'ip': '10.0.0.2', 'CC': 'NL', 'eventid': '9f946b3948d2f2b84b241e25f1a05f2260e53a98a7d1af5a61787f38', 'x': '196'}
+
+
+On Sunday 29 March 2009 09:33:46 pm you wrote:
+
+
+&gt;<i> 2009/3/30 David Sfiligoi &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">webmaster at world-vr.com</A>&gt;:
+</I>&gt;<i> &gt; Hi Graham,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Yes I agree defining my logger outside the mod python handler was a bad
+</I>&gt;<i> &gt; idea. Using the req.log_error works of course. &#160;Obviously if I wanted
+</I>&gt;<i> &gt; integrate this into all the other apps that revolve around those logs,
+</I>&gt;<i> &gt; i'd have to write a converter or change each apps which parses the log
+</I>&gt;<i> &gt; data.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'd like to understand this a bit better, perhaps I have the wrong basic
+</I>&gt;<i> &gt; idea on how the python handler works in overall, but if I install the log
+</I>&gt;<i> &gt; handler in the handler function and delete the log objects before ending,
+</I>&gt;<i> &gt; shouldn't that take care of the multiple logging issue?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Or are you saying that each piece of code that should not produce
+</I>&gt;<i> &gt; multiple entries of the same thing should really be inside a module so I
+</I>&gt;<i> &gt; can let import_module() take care of it?
+</I>&gt;<i>
+</I>&gt;<i> Put logging initialisation in a completely separate module outside of
+</I>&gt;<i> document tree and not inside of the handler code files. Setup
+</I>&gt;<i> PythonPath if need be where that separate module is located,  and then
+</I>&gt;<i> have handler code files import that module from that other location.
+</I>&gt;<i>
+</I>&gt;<i> This should ensure that the logging initialisation code is imported
+</I>&gt;<i> and run only once per process. If you intentionally then change the
+</I>&gt;<i> logging initialisation module code, you will need to restart Apache.
+</I>&gt;<i>
+</I>&gt;<i> &gt; Im seeing the same 'multiplicity' issue when I open a socket while in
+</I>&gt;<i> &gt; handler function. This is really what trigger the question.
+</I>&gt;<i>
+</I>&gt;<i> That I can't explain at this point. I was assuming that your
+</I>&gt;<i> duplicated logging may have been confusing the issue.
+</I>&gt;<i>
+</I>&gt;<i> &gt; Thanks,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; David
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On Sunday 29 March 2009 05:45:01 am Graham Dumpleton wrote:
+</I>&gt;<i> &gt;&gt; If you change a mod_python handler script, it will be automatically
+</I>&gt;<i> &gt;&gt; reloaded. This would be a problem in your code as you installed a log
+</I>&gt;<i> &gt;&gt; handler each time it is loaded into the same process. Having multiple
+</I>&gt;<i> &gt;&gt; instances of the log handler installed would result in the same
+</I>&gt;<i> &gt;&gt; information possibly being logged multiple times.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; I would suggest you add inside your handler script:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; &#160; req.log_error(&quot;I have been called&quot;)
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; If that appears twice in the Apache error log file then I would be
+</I>&gt;<i> &gt;&gt; concerned, otherwise I would say the problem is with your use of the
+</I>&gt;<i> &gt;&gt; logging module.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Also read about import_module() in:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; &#160; <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html">http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html</A>
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; as it explains a bit about module reloading and the way to preserve
+</I>&gt;<i> &gt;&gt; global data or avoid stuff which performs additive operations each
+</I>&gt;<i> &gt;&gt; time it is loaded.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Graham
+</I>
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026120.html">[mod_python] multiple processing of the same python script by the
+	handler
+</A></li>
+	<LI>Next message: <A HREF="026155.html">[mod_python] multiple processing of the same python script by the
+	handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26154">[ date ]</a>
+              <a href="thread.html#26154">[ thread ]</a>
+              <a href="subject.html#26154">[ subject ]</a>
+              <a href="author.html#26154">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

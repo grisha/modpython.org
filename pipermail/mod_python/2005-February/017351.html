@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Custom handler thread safety
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Custom%20handler%20thread%20safety&In-Reply-To=42051891.4080801%40hostway.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017350.html">
+   <LINK REL="Next"  HREF="017331.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Custom handler thread safety</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Custom%20handler%20thread%20safety&In-Reply-To=42051891.4080801%40hostway.com"
+       TITLE="[mod_python] Custom handler thread safety">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Feb  5 18:04:00 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017350.html">[mod_python] Custom handler thread safety
+</A></li>
+        <LI>Next message: <A HREF="017331.html">[mod_python] Force reload?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17351">[ date ]</a>
+              <a href="thread.html#17351">[ thread ]</a>
+              <a href="subject.html#17351">[ subject ]</a>
+              <a href="author.html#17351">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 06/02/2005, at 6:03 AM, Huzaifa Tapal wrote:
+
+&gt;<i>  So for each db, there is only one connection cached and that is the 
+</I>&gt;<i> one that is shared.&#160; The thread_id caused a problem in the 
+</I>&gt;<i> multithreaded environment because there could be a huge number of 
+</I>&gt;<i> threads that are processing requests and as a result too many 
+</I>&gt;<i> connections were made.&#160; I tried to go around this problem by removing 
+</I>&gt;<i> the thread_id from the resource_name, however, I still started running 
+</I>&gt;<i> into MySQL connection problems.
+</I>
+If you remove the thread ID, then looks like you have one connection 
+object
+per database. Thus if multiple threads want to use the same database, 
+you
+have contention again.
+
+&gt;<i>  My caching mechanism is not thread protected at all.&#160; Pretty much the 
+</I>&gt;<i> DALResources class is created as a singleton and imported in my 
+</I>&gt;<i> handler so that is available for all child threads in a process.&#160; One 
+</I>&gt;<i> thing I did yesterday was to try to make my DB Connection object 
+</I>&gt;<i> thread safe by locking the connection where it queries the db.&#160; That 
+</I>&gt;<i> actually, resulted in no more connection problems to the db.
+</I>
+Having a lock on the database connection object would avoid the 
+contention
+above, but causes all requests against a specific database to be 
+serialised.
+That is presuming the lock is on each instance of the database 
+connection
+and not one lock across all database connection objects.
+
+Serialisation on just the database access is at least not as bad as it 
+being
+on a request as a whole, but still not ideal.
+
+&gt;<i>  However, I still run into various problems, and I am very sure that 
+</I>&gt;<i> is because there is no locking mechanism available for all the objects 
+</I>&gt;<i> I am sharing by putting it in shared memory.&#160;&#160; What would you suggest 
+</I>&gt;<i> I do in terms of locking objects?&#160; Should I make the objects I am 
+</I>&gt;<i> storing in the cache thread safe or should I create one Caching object 
+</I>&gt;<i> and store all my shared objects in that and add locking to the get and 
+</I>&gt;<i> set methods?
+</I>
+This is where it gets harder for me to help. Knowing what is best 
+generally
+entails knowing quite a bit about the design of the application. There 
+are
+also various tradeoffs between making locking too fine grained and it 
+being
+at too high a level. Have it too fine grained and performance can drop, 
+plus
+you might not be adequately locking around combined updates across 
+multiple
+data structures. Have it too high and you risk loosing the benefits of 
+what
+threading gives you in the first place as things become serialised 
+again.
+
+Sounds though that at the moment this is the area you need to 
+concentrate on.
+The issue of database connection pooling could be improved, but will 
+not mean
+anything if the rest of the application stuffs up when it is accessing 
+shared
+data.
+
+Probably the first thing to look at is what distinct high level 
+functions does
+your code provide. Having worked out that, identify what shared 
+resources each
+needs to access/update. Then look at a scheme whereby on entry to each 
+high
+level function, it locks just those resources it is going to use.
+
+This is a bit better than arbitrarily locking everything before 
+entering any
+request, as the latter means that you lock stuff you aren't necessarily 
+using
+and thus could be locking out some other request that only needs to 
+access
+the data you aren't going to use.
+
+This is now where the balancing acts comes in in terms of making things 
+too
+fine grained or not. Try to avoid having locks on every little 
+resource. If
+there are a group of resources which are always used together, have 
+just one
+lock that covers the lot. Also watch out for deadlock situations where 
+two
+different functions access two resources in the opposite order to each 
+over.
+
+It may take a while to get just right if you aren't too familiar with 
+thread
+programming and problems associated with locking, but play with it and 
+see
+how you go.
+
+Graham
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017350.html">[mod_python] Custom handler thread safety
+</A></li>
+	<LI>Next message: <A HREF="017331.html">[mod_python] Force reload?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17351">[ date ]</a>
+              <a href="thread.html#17351">[ thread ]</a>
+              <a href="subject.html#17351">[ subject ]</a>
+              <a href="author.html#17351">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

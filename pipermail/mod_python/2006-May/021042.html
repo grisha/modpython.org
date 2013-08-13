@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonAuthzHandler not working
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthzHandler%20not%20working&In-Reply-To=1145850628.26998%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021041.html">
+   <LINK REL="Next"  HREF="021043.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonAuthzHandler not working</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthzHandler%20not%20working&In-Reply-To=1145850628.26998%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] PythonAuthzHandler not working">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri May  5 06:48:32 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021041.html">[mod_python] Mod_python.publisher behavior - sending .py file
+	tobrowser not processing it in pyton
+</A></li>
+        <LI>Next message: <A HREF="021043.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21042">[ date ]</a>
+              <a href="thread.html#21042">[ thread ]</a>
+              <a href="subject.html#21042">[ subject ]</a>
+              <a href="author.html#21042">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 24/04/2006, at 1:50 PM, Graham Dumpleton wrote:
+
+&gt;<i> Jim Gallacher wrote ..
+</I>&gt;&gt;<i> Ultimately however it seems to me there is a bug in mod_python.c  
+</I>&gt;&gt;<i> related
+</I>&gt;&gt;<i> to the whole AuthAthoritative business. Consider the following code
+</I>&gt;&gt;<i> pulled from the python_handler function. (mod_python.c line 1412
+</I>&gt;&gt;<i> revision 396250):
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     if (strcmp(phase, &quot;PythonAuthenHandler&quot;) == 0) {
+</I>&gt;&gt;<i>           ... snip ...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>           if (result == HTTP_UNAUTHORIZED)
+</I>&gt;&gt;<i>           {
+</I>&gt;&gt;<i>                if   (! conf-&gt;authoritative)
+</I>&gt;&gt;<i>                      result = DECLINED;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> conf-&gt;authoritative is initialized to 1, but we don't have an Apache
+</I>&gt;&gt;<i> directive to set the value. I wonder if the assumption was that  
+</I>&gt;&gt;<i> this was
+</I>&gt;&gt;<i> set by AuthAuthoritative, or if it there was an oversight in not  
+</I>&gt;&gt;<i> adding
+</I>&gt;&gt;<i> a new directive? Either way it's a bug. Mod_python should not concern
+</I>&gt;&gt;<i> itself with AuthAuthoritative, as that is for use by mod_auth, so we
+</I>&gt;&gt;<i> really need our on directive.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> As confirmation I modified python_handler to log conf- 
+</I>&gt;&gt;<i> &gt;authoritative and
+</I>&gt;&gt;<i> indeed it's value is unaffected by the AuthAthoritative setting.  
+</I>&gt;&gt;<i> In it's
+</I>&gt;&gt;<i> current state, PythonAuthenHander will *always* be authoritative.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Other mod_auth_* modules define their own  authoritative  
+</I>&gt;&gt;<i> directives, for
+</I>&gt;&gt;<i> example: AuthDBMAuthoritative, AuthLDAPAuthoritative,
+</I>&gt;&gt;<i> AuthMySQLAuthoritative and Anonymous_Authoritative. Following the  
+</I>&gt;&gt;<i> most
+</I>&gt;&gt;<i> common pattern I would suggest we add AuthPythonAuthoritative.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This issue may also be important to
+</I>&gt;&gt;<i> <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-129">http://issues.apache.org/jira/browse/MODPYTHON-129</A>
+</I>&gt;<i>
+</I>&gt;<i> I've noted the PythonAuthenHandler code in python_handler many  
+</I>&gt;<i> times and
+</I>&gt;<i> although I need to go back and look at it again I have been thinking
+</I>&gt;<i> that that section of code may possibly be partly bogus and  
+</I>&gt;<i> shouldn't be
+</I>&gt;<i> in there. The warning message about req.user not being set is possibly
+</I>&gt;<i> helpful, but why should mod_python be making a decision to change an
+</I>&gt;<i> unauthorized response back to a declined and why should it be  
+</I>&gt;<i> generating
+</I>&gt;<i> a WWW-Authenticate header with an assumption that Basic authorisation
+</I>&gt;<i> is being used when it may well not be. What is going to happen if I  
+</I>&gt;<i> write
+</I>&gt;<i> an authenhandler for Digest authentication and it returns  
+</I>&gt;<i> unauthorised,
+</I>&gt;<i> mod_python will obliterate any WWW-Authenticate header I may have
+</I>&gt;<i> placed there specific to Digest authentication.
+</I>&gt;<i>
+</I>&gt;<i> Thus I don't necessarily think it is a case of amending it some  
+</I>&gt;<i> way, it
+</I>&gt;<i> may be a case of obliterating it and make people do the correct thing
+</I>&gt;<i> in their handlers to begin with rather than providing a crutch to  
+</I>&gt;<i> fix their
+</I>&gt;<i> omissions. This may mean adding means of calling further auth related
+</I>&gt;<i> functions through the req object if there is something missing now,
+</I>&gt;<i> such as access to ap_note_basic_auth_failure().
+</I>
+FWIW, my concerns about something being a bit wrong with the code are a
+baseless in as much as ap_note_basic_auth_failure() only adds the header
+is AuthType is set to Basic. Thus it cant obliterate a Digest header.
+
+Still think mod_python shouldn't be doing any of this stuff anyway,  
+as the
+handler should have been doing it in the first place.
+
+Anyway, can remove this thread from my inbox now. :-)
+
+Graham
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021041.html">[mod_python] Mod_python.publisher behavior - sending .py file
+	tobrowser not processing it in pyton
+</A></li>
+	<LI>Next message: <A HREF="021043.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21042">[ date ]</a>
+              <a href="thread.html#21042">[ thread ]</a>
+              <a href="subject.html#21042">[ subject ]</a>
+              <a href="author.html#21042">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

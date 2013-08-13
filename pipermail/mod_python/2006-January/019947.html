@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Need help with server register_cleanup
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Need%20help%20with%20server%20register_cleanup&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019946.html">
+   <LINK REL="Next"  HREF="019948.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Need help with server register_cleanup</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Need%20help%20with%20server%20register_cleanup&In-Reply-To="
+       TITLE="[mod_python] Need help with server register_cleanup">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Jan 11 17:13:42 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019946.html">[mod_python] publisher form values
+</A></li>
+        <LI>Next message: <A HREF="019948.html">Addedum - [mod_python] could not import mod_python.apache.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19947">[ date ]</a>
+              <a href="thread.html#19947">[ thread ]</a>
+              <a href="subject.html#19947">[ subject ]</a>
+              <a href="author.html#19947">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>jelle wrote ..
+&gt;<i> I'm trying to use mp_server register_cleanup to dump some collected 
+</I>&gt;<i> runtime stats but need a more explicit code example.
+</I>&gt;<i> 
+</I>&gt;<i> As I understand it, server.register_cleanup function is called when the
+</I>&gt;<i> apache child process is terminated. Currently I have an apache directive
+</I>&gt;<i> set as MaxRequestsPerChild 10 to test that functionality.
+</I>&gt;<i> 
+</I>&gt;<i> Questions:
+</I>&gt;<i> 
+</I>&gt;<i> I'm using mp_servlets, should the register_cleanup call be in the mainline
+</I>&gt;<i> of a commonly imported file or should it be placed in a commonly called
+</I>&gt;<i> function or either way?
+</I>&gt;<i> 
+</I>&gt;<i> What is the appropriate import statement?
+</I>&gt;<i> 
+</I>&gt;<i> Does the callable function expect and parameters?
+</I>&gt;<i> 
+</I>&gt;<i> What is the complete call look like?
+</I>
+In mod_python 2.7 and 3.1, to register a cleanup handler to be
+executed when the server is shutdown, a call needs to be made to:
+
+  req.server.register_cleanup()
+
+Because the function is accessed via the request object, the call can only
+be made from with the context of an executing handler where there
+request object is actually available. Thus:
+
+  def cleanup(data):
+    ...
+
+  def handler(req):
+    req.server.register_cleanup(req,cleanup)
+    ...
+
+The problem here is that you don't actually want the function to be called
+everytime the request handler is called. Thus you need to have a flag to
+indicate whether you have already called it. Presuming you are using a
+non threaded Apache MPM, you would thus write:
+
+  flag = False
+
+  def handler(req):
+     if not flag:
+       flag = True
+       req.server.register_cleanup(req,cleanup)
+
+If you are using a multithreaded MPM, access to that flag and the call to
+register the cleanup function is going to have to be thread protected so
+that the initialisation isn't done by two different threads at the same time.
+
+The next problem you need to contend with is that if module reloading
+if allowed on this module it will result in registration happening every time
+the module is reloaded. Thus, you actually need to put the code in a
+separate module which is not the subject of module reloading. Ie., it
+should be a distinct module on your PYTHONPATH imported using 'import'
+and not in the document tree.
+
+  # myinitmodule.py
+
+  try:
+    import threading
+  except:
+    import dummy_threading as threading
+
+  lock = threading.Lock()
+
+  flag = False
+  
+  def cleanup(data):
+    ...
+
+  def register_cleanup(req):
+    lock.acquire()
+    if not flag:
+      flag = True
+      req.server.register_cleanup(req,cleanup)
+    lock.release()
+
+  # handler.py
+
+  import myinitmodule
+
+  def handler(req):
+    myinitmodule.register_cleanup(req)
+    ...
+
+Having said that, it is not gauranteed that the cleanup handler will
+actually be called. It will only be called when there is a clean shutdown.
+If the Apache child process gets hung on shutdown and the parent
+process has to explicitly kill it, the cleanup handler may not be called.
+This is compounded by the currently known issue of:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-109">http://issues.apache.org/jira/browse/MODPYTHON-109</A>
+
+The above is the portable way of doing it for different versions of
+mod_python. In mod_python 3.2, you are also able to access the
+function for registering a cleanup function direct from the 'apache'
+module. This call does not require the request object to be available.
+Thus in mod_python 3.2, you can actually say:
+
+  # myinitmodule.py
+
+  from mod_python import apache
+
+  try:
+    import threading
+  except:
+    import dummy_threading as threading
+
+  lock = threading.Lock()
+
+  flag = False
+  
+  def cleanup(data):
+    ...
+
+  def register_cleanup():
+    lock.acquire()
+    if not flag:
+      flag = True
+      apache.register_cleanup(cleanup)
+    lock.release()
+
+  # handler.py
+
+  import myinitmodule
+  myinitmodule.register_cleanup()
+
+  def handler(req):
+    ...
+
+Because in mod_python 3.2 you can do this, you could even use the
+PythonImport directive to import a module which does the registration
+and thus avoid having to do it in some handler module.
+
+Graham
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019946.html">[mod_python] publisher form values
+</A></li>
+	<LI>Next message: <A HREF="019948.html">Addedum - [mod_python] could not import mod_python.apache.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19947">[ date ]</a>
+              <a href="thread.html#19947">[ thread ]</a>
+              <a href="subject.html#19947">[ subject ]</a>
+              <a href="author.html#19947">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

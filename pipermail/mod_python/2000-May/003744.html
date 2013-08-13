@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Hi, database connection queston
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Hi%2C%20database%20connection%20queston&In-Reply-To=200005281429.KAA19075%40saltmine.radix.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003739.html">
+   <LINK REL="Next"  HREF="003748.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Hi, database connection queston</H1>
+    <B>Gregory Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Hi%2C%20database%20connection%20queston&In-Reply-To=200005281429.KAA19075%40saltmine.radix.net"
+       TITLE="[mod_python] Hi, database connection queston">grisha at ispol.com
+       </A><BR>
+    <I>Sun May 28 14:06:26 EST 2000</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003739.html">[mod_python] Hi, database connection queston
+</A></li>
+        <LI>Next message: <A HREF="003748.html">[mod_python] Hi, database connection queston
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3744">[ date ]</a>
+              <a href="thread.html#3744">[ thread ]</a>
+              <a href="subject.html#3744">[ subject ]</a>
+              <a href="author.html#3744">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>On Sun, 28 May 2000, Cary O'Brien wrote:
+
+&gt;<i> 1) How are people handling persistant database connections?
+</I>[....]
+&gt;<i>    It seems from the documentation that each request gets its own
+</I>&gt;<i>    subinterpreter.
+</I>
+Incorrect. Each directive directory and its subdirectories get its own
+subinterpreter. All requests for files in the directory where the
+Python*Handler directive was first encountered and its subdirectories are
+in the same subinterpreter.
+
+This behaviour can be altered via PythonInterpreter or
+PythonInterPerDirectory directives.
+
+As far as database connections - here how I used to do it. I had a module
+called data.py (this is not the entire code, some parts are cut out, think
+of it as an example rather than something ready to use. cfg contained
+configuration). In your scripts, you would have something like:
+
+import data
+result = data._run_sql(&quot;select * from myteable&quot;)
+
+And it would behave exactly as you describe - initiate the db connection
+once and keep it for as long as the process lives. Of course, you end up
+having as many connections as there are Apache processes, which you can
+control by MaxClients directive.
+
+-------------
+
+import cfg
+import mysqldb
+import string
+
+def _db_login(relogin = 0):
+    &quot;&quot;&quot;Login to the database
+    &quot;&quot;&quot;
+
+    global DB_CONN
+
+    if relogin:
+        DB_CONN = mysqldb.mysqldb(cfg.DB_LOGIN)
+        return DB_CONN
+    else:
+        try:
+            return DB_CONN
+
+        except NameError:
+
+            DB_CONN = mysqldb.mysqldb(cfg.DB_LOGIN)
+            return DB_CONN
+
+def _run_sql( sql, n = 0, with_desc=0 ):
+    &quot;&quot;&quot; Runs SQL on the server and returns result
+    &quot;&quot;&quot;
+
+    db = _db_login()
+
+    try:
+        cur = db.cursor()
+        rc = cur.execute(sql)
+
+    except:
+        # it's possible that mysql connection
+        # timed out. Try one more time.
+        db = _db_login(relogin = 1)
+        cur = db.cursor()
+        rc = cur.execute(sql)
+
+    if string.upper(string.split(sql)[0]) in \
+       (&quot;SELECT&quot;, &quot;SHOW&quot;, &quot;DESC&quot;, &quot;DESCRIBE&quot;):
+        if n:
+            recset = cur.fetchmany(n)
+        else:
+            recset = cur.fetchall()
+
+        if with_desc:
+            return recset, cur.description
+        else:
+            return recset
+    else:
+        return rc
+
+------------------
+
+&gt;<i> 2) Re Zope.  There seems to be a ZPublisher interface.  Does this mean I can
+</I>&gt;<i>    run 30 apache processes against the same Zope database?  
+</I>
+As I already said on comp.lang.python - no.
+
+&gt;<i>    How fine/course is
+</I>&gt;<i>    the locking on the zope database?  I asked this on the zope list a while
+</I>&gt;<i>    back and didn't get a good answer.
+</I>
+The first process will lock the database, and all the other ones will just
+sit there and wait :-(
+
+&gt;<i> 3) Does anyone have the bits to embed python calls in an html document a-la 
+</I>&gt;<i>    embperl/php/mod_dtcl? I know mixing logic with presentation is 
+</I>&gt;<i>    in general a bad idea, but having embedded code in documents is a fast
+</I>&gt;<i>    way to get things up and running.
+</I>
+You can use the Z DocuemntTemplate with ZHandler, it works pretty well.
+
+HTH,
+
+Grisha
+
+
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003739.html">[mod_python] Hi, database connection queston
+</A></li>
+	<LI>Next message: <A HREF="003748.html">[mod_python] Hi, database connection queston
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3744">[ date ]</a>
+              <a href="thread.html#3744">[ thread ]</a>
+              <a href="subject.html#3744">[ subject ]</a>
+              <a href="author.html#3744">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

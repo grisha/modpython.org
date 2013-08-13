@@ -1,0 +1,141 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> AW: [mod_python] Multiple submissions from the same user
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=AW%3A%20%5Bmod_python%5D%20Multiple%20submissions%20from%20the%20same%20user&In-Reply-To=d80792120804040840m640c8454ke42555566503f2b4%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025106.html">
+   <LINK REL="Next"  HREF="025111.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>AW: [mod_python] Multiple submissions from the same user</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Dominique.Holzwarth at ch.delarue.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=AW%3A%20%5Bmod_python%5D%20Multiple%20submissions%20from%20the%20same%20user&In-Reply-To=d80792120804040840m640c8454ke42555566503f2b4%40mail.gmail.com"
+       TITLE="AW: [mod_python] Multiple submissions from the same user">Dominique.Holzwarth at ch.delarue.com
+       </A><BR>
+    <I>Sat Apr  5 10:31:05 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025106.html">[mod_python] Multiple submissions from the same user
+</A></li>
+        <LI>Next message: <A HREF="025111.html">AW: [mod_python] Multiple submissions from the same user
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25110">[ date ]</a>
+              <a href="thread.html#25110">[ thread ]</a>
+              <a href="subject.html#25110">[ subject ]</a>
+              <a href="author.html#25110">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Your idea with locking might be a point in general, however it's not really want I to be honest. Think about a form that has a &quot;show&quot; button which sends a request to the server to get same data and display it to the user (as new html answer). Then what I'd like to have is that the user just can't hit that show button like 1000x in 1 sec so that a new request is started before a previous one is actually transferred back to the user.
+As it makes no sense to &quot;spam click&quot; that show button (just as an example) it also makes no sense to me to blow up my scripts just do handle that case.
+So what I was wondering about was if there's some sort of mechanism within apache or mod_python itself to simply ignore requests from the same user when a request for that user is still being processed.
+I know you can limit stuff like &quot;maxClient&quot; and &quot;ThreadsPerChild&quot; and &quot;maxThreads&quot; which is somehow related to how requests are being processed. But I have to admit that I dont really understand it to the fullest, so thats why I was asking here... ;-)
+
+Greetings
+Dominique
+________________________________________
+Von: Martin (gzlist) [<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">gzlist at googlemail.com</A>]
+Gesendet: Freitag, 4. April 2008 17:40
+An: Holzwarth, Dominique (Berne Bauhaus)
+Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Betreff: Re: [mod_python] Multiple submissions from the same user
+
+On 04/04/2008, &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Dominique.Holzwarth at ch.delarue.com</A>&gt; wrote:
+&gt;<i> Hello everyone
+</I>&gt;<i>
+</I>&gt;<i>  Does anyone know how I can configure apache and/or mod_python in a way, so that multiple requests from the same user are 'ignored' (python scripts not executed) if the answer of the first request wasn't completely sent to the browser yet?
+</I>&gt;<i>
+</I>&gt;<i>  I just stumbled over that problem while testing my web application which has a form with several &quot;submit&quot; buttons and when I click one of them - or different ones - very quick after each other ('spam clicking') then my scripts don't like that at all and gracefully die :-)
+</I>
+The solution is to stop the scripts dying? If for instance, it needs
+to write to a file user/{username} then running it twice at the same
+time will cause the second instance should either fall over or block
+till the first finishes, but the first should be unaffected either
+way. If that's not already the case, you need to have an explicit
+locking mechanism:
+
+def do_action_for(user):
+    with lock = lock_for(user):
+        dangerous_stuff_for(user)
+
+Once that's in place, you can fix your problem by blocking on the
+lock, then once the lock is acquired, checking to see if the action is
+already done, and returning the result straight away:
+
+def do_action_for(user):
+    with lock = lock_for(user):
+        result_filename = result_file_for(user)
+        if not os.exists(result_filename):
+            file(result_filename, &quot;w&quot;).write(dangerous_stuff_for(user))
+        fast_redirect_to(result_filename)
+
+If you're cunning, you can combine the lock and result cache mechanism.
+
+&gt;<i>  As a quick work-around I was thinking about simply disabling the submit buttons with javascript and the &quot;onsubmit&quot; event handler but as we all know javascript ain't THAT reliable so I was wondering if it's possible to control that problem on the server side.
+</I>
+Client side scripting really isn't the answer to a server program bug.
+Website users will do unexpected things whatever: like trying to
+delete the same item twice because they get back-button confused.
+Trying to take away their back button then is not the solution, you
+need to make sure you're coping with odd input.
+
+&gt;<i>  Another, but similar question I have:
+</I>&gt;<i>  How can I configure apache / mod_python to allow only ONE active session per user at a time? At the moment I can login with same user/pw unlimited times which also ain't really good for my application =)
+</I>
+With sessions, this is generally legal, but should invalidate the old
+session. Slightly annoying when you're testing with two browsers at
+once, as they log each other out, but the convention. You can do this
+by checking to see if the user already has a session in the database
+before handing out a new one, and removing it if they do.
+
+Martin
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025106.html">[mod_python] Multiple submissions from the same user
+</A></li>
+	<LI>Next message: <A HREF="025111.html">AW: [mod_python] Multiple submissions from the same user
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25110">[ date ]</a>
+              <a href="thread.html#25110">[ thread ]</a>
+              <a href="subject.html#25110">[ subject ]</a>
+              <a href="author.html#25110">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

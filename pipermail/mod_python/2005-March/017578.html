@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] options to suppress error when accessing module
+	directly with Publisher
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20options%20to%20suppress%20error%20when%20accessing%20module%0A%09directly%20with%20Publisher&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017577.html">
+   <LINK REL="Next"  HREF="017579.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] options to suppress error when accessing module
+	directly with Publisher</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>azurIt</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20options%20to%20suppress%20error%20when%20accessing%20module%0A%09directly%20with%20Publisher&In-Reply-To="
+       TITLE="[mod_python] options to suppress error when accessing module
+	directly with Publisher">azurit at pobox.sk
+       </A><BR>
+    <I>Fri Mar  4 01:59:29 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017577.html">[mod_python] could not import mod_python.apache
+</A></li>
+        <LI>Next message: <A HREF="017579.html">[mod_python] options to suppress error when accessing module
+	directly with Publisher
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17578">[ date ]</a>
+              <a href="thread.html#17578">[ thread ]</a>
+              <a href="subject.html#17578">[ subject ]</a>
+              <a href="author.html#17578">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>hi,
+
+i already reported this bug (but not received an answer
+yet..) and it can be easily fixed. just edit publisher.py,
+find this code:
+    if func_path[-1] == &quot;.&quot;:
+        func_path = func_path[:-1]
+
+    # if any part of the path begins with &quot;_&quot;, abort
+    if func_path[0] == '_' or string.count(func_path, &quot;._&quot;):
+        raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+
+and and replace it with this:
+    if func_path != &quot;&quot; and func_path[-1] == &quot;.&quot;:
+        func_path = func_path[:-1]
+
+    # if any part of the path begins with &quot;_&quot;, abort
+    if func_path != &quot;&quot;:
+        if func_path[0] == '_' or string.count(func_path,
+&quot;._&quot;):
+            raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+
+
+
+and there is also another bug. when you will try to refer to a
+function in non-existing script, you will get ImportError, for
+example <A HREF="http://192.168.0.1/non-existing-script/anything-here">http://192.168.0.1/non-existing-script/anything-here</A> .
+this can be easily fixed too:
+
+find this:
+    module = apache.import_module(module_name, _req, [path])
+
+replace with this:
+    try:
+        module = apache.import_module(module_name, _req,
+[path])
+    except ImportError:
+        raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+
+
+these bugs probably 'works' only in 2.7.x
+
+azurIt
+
+
+&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i> &gt; Yep, you must be using mod_python 2.7.X as there I get:
+</I>&gt;<i> 
+</I>&gt;<i> I am. I'm sorry I didn't test it on my 3.1 installation,
+</I>where it works  &gt; as expected. I made a wrong assumption when I
+glanced at the current  &gt; docs for info on Publisher traversal:
+&gt;<i> 
+</I>&gt;<i>  
+</I><A HREF="http://www.modpython.org/live/current/doc-html/hand-pub-alg-trav.html">http://www.modpython.org/live/current/doc-html/hand-pub-alg-trav.html</A> &gt; 
+&gt;<i> It turns out that this example refers to the module *and*
+</I>function,  &gt; which are both named index:
+&gt;<i> 
+</I>&gt;<i>   <A HREF="http://www.somehost/index/">http://www.somehost/index/</A> will return &quot;We are in index()&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Thanks for pointing out the 3.1 behaviour.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; This is one of the benefits of having publisher code which
+</I>is outside   &gt; &gt; of the main
+&gt;<i> &gt; release. It can be made to work the same with both 2.7.X
+</I>and 3.1.X   &gt; &gt; versions of mod_python
+&gt;<i> &gt; and you don't have to suffer the fact that such bugs in
+</I>2.7.X will most   &gt; &gt; likely never
+&gt;<i> &gt; be fixed.
+</I>&gt;<i> 
+</I>&gt;<i> True, but I'm revamping the site in preparation for upgrading
+</I>to apache  &gt; 2.x/mod_python 3.x, where it won't be an issue.
+&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+____________________________________
+EPI.sk Zbierka zakonov a uplne znenia online.
+Zakony, vyhlasky, nariadenia, denna aktualizacia.
+Najdete na stranke <A HREF="http://www.epi.sk/zbierka.htm">http://www.epi.sk/zbierka.htm</A>
+
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017577.html">[mod_python] could not import mod_python.apache
+</A></li>
+	<LI>Next message: <A HREF="017579.html">[mod_python] options to suppress error when accessing module
+	directly with Publisher
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17578">[ date ]</a>
+              <a href="thread.html#17578">[ thread ]</a>
+              <a href="subject.html#17578">[ subject ]</a>
+              <a href="author.html#17578">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

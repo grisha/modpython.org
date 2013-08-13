@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Validating input - Form Handler component
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Validating%20input%20-%20Form%20Handler%20component&In-Reply-To=4524EEA4.9040806%40ulb.ac.be">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022201.html">
+   <LINK REL="Next"  HREF="022205.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Validating input - Form Handler component</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Scott Chapman</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Validating%20input%20-%20Form%20Handler%20component&In-Reply-To=4524EEA4.9040806%40ulb.ac.be"
+       TITLE="[mod_python] Validating input - Form Handler component">scott_list at mischko.com
+       </A><BR>
+    <I>Thu Oct  5 16:39:30 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022201.html">[mod_python] Validating input - Form Handler component
+</A></li>
+        <LI>Next message: <A HREF="022205.html">[mod_python] Validating input - Form Handler component
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22203">[ date ]</a>
+              <a href="thread.html#22203">[ thread ]</a>
+              <a href="subject.html#22203">[ subject ]</a>
+              <a href="author.html#22203">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Here's a more dictionary oriented version of Julien's idea:
+
+class FormDict(dict):
+     '''This is a special dict that checks items as they are assigned.
+     It would be useful for web form submissions, etc.
+     At dict creation, errors are accumulated, if any, and sent back as a 
+group.'''
+     def __init__(self,**dictparms):
+         self.__valid_keys = ('id',)
+         errors = []
+         for key in dictparms:
+             try:
+                 self.__setitem__(key, dictparms[key])
+             except RuntimeError,e:
+                 errors.append(str(e))
+         if errors:
+             raise RuntimeError(errors)
+     def __setitem__(self, key, value):
+         if not key in self.__valid_keys:
+             raise RuntimeError, &quot;Invalid Key: %s&quot; % key
+         if key =='id':
+             try:
+                 mvalue = int(value)
+             except:
+                 raise RuntimeError, &quot;Invalid ID: %s&quot; % mvalue
+             if mvalue &lt;= 0:
+                 raise RuntimeError, &quot;Invalid ID: %s&quot; % mvalue
+             super(FormDict, self).__setitem__(key, mvalue)
+try:
+     md = FormDict(id=1,name='bill',address='123 any street')
+except RuntimeError, e:
+     error_list = list(e[0])
+     for error in error_list:
+         print error
+
+Julien Cigar wrote:
+&gt;<i> Hello,
+</I>&gt;<i> 
+</I>&gt;<i> What I ususally do is a Model object with properties, something like 
+</I>&gt;<i> this: <A HREF="http://rafb.net/paste/results/LwMH9m76.html">http://rafb.net/paste/results/LwMH9m76.html</A>
+</I>&gt;<i> Then in my Controller I have a method to parse the form, something like :
+</I>&gt;<i> 
+</I>&gt;<i> def parse_form(self, themodelobject) :
+</I>&gt;<i>    errors = []
+</I>&gt;<i>    for col in themodelobject.columns:
+</I>&gt;<i>       try:
+</I>&gt;<i>          setattr(themodelobject, col, self.params.get[col])
+</I>&gt;<i>       except Exception, e:
+</I>&gt;<i>          errors.append(str(e))
+</I>&gt;<i>    return errors
+</I>&gt;<i> 
+</I>&gt;<i> def add(self):
+</I>&gt;<i>    errors = parse_form(myModel())
+</I>&gt;<i>    if not errors:
+</I>&gt;<i>        ...
+</I>&gt;<i>    else:
+</I>&gt;<i>        ...
+</I>&gt;<i>     
+</I>&gt;<i> (it's a basic and limited example, but it show you the principle)
+</I>&gt;<i> 
+</I>&gt;<i> Julien
+</I>&gt;<i> 
+</I>&gt;<i> durumdara wrote:
+</I>&gt;&gt;<i> Hi !
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Do you knows about a Form handler component (module, class, unit, 
+</I>&gt;&gt;<i> package, etc.) that can uniformize the form handling on the web ?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The html form handling forces me to I repeat some of the codes in many 
+</I>&gt;&gt;<i> modules.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Example:
+</I>&gt;&gt;<i> 1. Init
+</I>&gt;&gt;<i> 2. Get inputs
+</I>&gt;&gt;<i> 3. Validating inputs: check field names, data types, I need to open 
+</I>&gt;&gt;<i> queries to see that actual data is valid (and existing), require all 
+</I>&gt;&gt;<i> the fields I need to make the next step, convert data from text to any 
+</I>&gt;&gt;<i> type, protect fields from SQL injection, etc.
+</I>&gt;&gt;<i> 3. Make operation (insert, update, delete, or select)
+</I>&gt;&gt;<i> 4. Show the results, build the result table and/or the form again.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> These steps are repeating modules by modules...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Do you heard about something like this, or I need to write this 
+</I>&gt;&gt;<i> component ?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Thanks for your help:
+</I>&gt;&gt;<i> dd
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022201.html">[mod_python] Validating input - Form Handler component
+</A></li>
+	<LI>Next message: <A HREF="022205.html">[mod_python] Validating input - Form Handler component
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22203">[ date ]</a>
+              <a href="thread.html#22203">[ thread ]</a>
+              <a href="subject.html#22203">[ subject ]</a>
+              <a href="author.html#22203">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

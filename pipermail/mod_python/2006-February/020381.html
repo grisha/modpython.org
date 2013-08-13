@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] The Session problem with mod_python3.2.7
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20Session%20problem%20with%20mod_python3.2.7&In-Reply-To=1ada01c636d1%242b03c550%24aa1ea8c0%40frank">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020379.html">
+   <LINK REL="Next"  HREF="020382.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] The Session problem with mod_python3.2.7</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20Session%20problem%20with%20mod_python3.2.7&In-Reply-To=1ada01c636d1%242b03c550%24aa1ea8c0%40frank"
+       TITLE="[mod_python] The Session problem with mod_python3.2.7">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Feb 21 05:45:11 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020379.html">[mod_python] The Session problem with mod_python3.2.7
+</A></li>
+        <LI>Next message: <A HREF="020382.html">[mod_python] The Session problem with mod_python3.2.7
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20381">[ date ]</a>
+              <a href="thread.html#20381">[ thread ]</a>
+              <a href="subject.html#20381">[ subject ]</a>
+              <a href="author.html#20381">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 21/02/2006, at 9:25 PM, Gavin wrote:
+
+&gt;&gt;<i> On 21/02/2006, at 5:41 PM, Gavin wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> hello Graham
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Thank you!
+</I>&gt;&gt;&gt;<i> My configuration is as following:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> &lt;Directory &quot;/data/HTTPD/htdocs/FeedBack&quot;&gt;
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>   AddHandler mod_python  .m
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Do you really mean &quot;.m&quot;? Don't you mean &quot;.psp, how else can you use
+</I>&gt;&gt;<i> &quot;sid.psp&quot;
+</I>&gt;&gt;<i> as file name?
+</I>&gt;&gt;<i>
+</I>&gt;<i> Right. I use sid.m.
+</I>
+In the URL, or for the file? Its a bit confusing. Is there are reason  
+you want
+to use &quot;.m&quot; extension?
+
+Anyway, when I take the PSP code you posted and which you referred to
+as &quot;sid.psp&quot; and put in a directory with .htaccess file of:
+
+AddHandler mod_python .psp
+PythonHandler mod_python.psp
+PythonDebug On
+
+If I access it as sid.psp in URL, the code works as expected.
+
+&gt;&gt;&gt;<i>   PythonHandler mod_python.psp
+</I>&gt;&gt;&gt;<i>   #PythonHandler mod_python.publisher
+</I>&gt;&gt;&gt;<i>   PythonPath &quot;['/data/HTTPD/py_api']+['/data/HTTPD/htdocs/FeedBack']
+</I>&gt;&gt;&gt;<i> +sys.path&quot;
+</I>&gt;&gt;&gt;<i>   PythonDebug Off
+</I>&gt;&gt;&gt;<i>   Options Indexes FollowSymLinks
+</I>&gt;&gt;&gt;<i>   Order deny,allow
+</I>&gt;&gt;&gt;<i>   Allow from all
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> &lt;/Directory&gt;
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I don't use PythonOption to override the either &quot;session_dbm&quot; or
+</I>&gt;&gt;&gt;<i> &quot;session_directory&quot;
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> All I can suggest then is to look for the file:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   /tmp/mp_sess.dbm.db
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> or something named similarly. I don't think it is meant to have extra
+</I>&gt;&gt;<i> &quot;.db&quot; extension
+</I>&gt;&gt;<i> but on my Mac there is one for some reason.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i> Cann't found any file like mp* under /tmp
+</I>
+All I can suggest then is to modify lib/python/mod_python/Session.py in
+mod_python source code and add in some debug statements to see what
+session database name is being set to.
+
+class DbmSession(BaseSession):
+
+     def __init__(self, req, dbm=None, sid=0, secret=None,  
+dbmtype=anydbm,
+                  timeout=0, lock=1):
+
+         if not dbm:
+             opts = req.get_options()
+             if opts.has_key(&quot;session_dbm&quot;):
+                 dbm = opts[&quot;session_dbm&quot;]
+             else:
+                 dbm = os.path.join(opts.get('session_directory',  
+tempdir), 'mp_sess.dbm')
+
+         self._dbmfile = dbm
+         self._dbmtype = dbmtype
+
+         # XXX DEBUG
+
+         apache.log_error(&quot;dbmfile=%s&quot;%self._dbmfile)
+
+Reinstall mod_python and restart Apache.
+
+Then when running test, look in Apache error_log to see where it  
+thinks it is getting
+put. See if file exists if not in /tmp.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020379.html">[mod_python] The Session problem with mod_python3.2.7
+</A></li>
+	<LI>Next message: <A HREF="020382.html">[mod_python] The Session problem with mod_python3.2.7
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20381">[ date ]</a>
+              <a href="thread.html#20381">[ thread ]</a>
+              <a href="subject.html#20381">[ subject ]</a>
+              <a href="author.html#20381">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

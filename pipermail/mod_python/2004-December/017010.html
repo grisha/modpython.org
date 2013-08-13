@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Minidom parse error
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Minidom%20parse%20error&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017009.html">
+   <LINK REL="Next"  HREF="017015.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Minidom parse error</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Dan R. Olsen III</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Minidom%20parse%20error&In-Reply-To="
+       TITLE="[mod_python] Minidom parse error">python at dan-olsen.net
+       </A><BR>
+    <I>Wed Dec 22 15:15:53 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017009.html">[mod_python] Revisiting ImportError: cannot import name psp
+</A></li>
+        <LI>Next message: <A HREF="017015.html">[mod_python] Minidom parse error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17010">[ date ]</a>
+              <a href="thread.html#17010">[ thread ]</a>
+              <a href="subject.html#17010">[ subject ]</a>
+              <a href="author.html#17010">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I am trying to parse a file that I am getting from a url. However, I 
+keep getting an error saying that a module does not have an attribute 
+parse. Here is the code followed by the error:
+
+----- BEGIN CODE -----
+
+import xml.dom.minidom
+#from xml.dom import minidom
+from mod_python import apache
+from dbxml import *
+import urllib
+
+
+### GET ALL THE URLS FROM THE OPML FILE
+#######################################
+def get_urls(req, url):
+    #req.write(url + &quot;\n&quot;)
+    xmlfile = 
+urllib.urlopen('<A HREF="http://www.windley.com/gems/mySubscriptions.opml'">http://www.windley.com/gems/mySubscriptions.opml'</A>)
+    #req.write(xmlfile + &quot;Great!!&quot;)
+    filedoc = xml.dom.minidom.parse(xmlfile)
+    req.write(&quot;HOW ABOUT HERE\n&quot;)
+    feeds = []
+    text = filedoc.getElementsByTagName(&quot;outline&quot;)
+    for nodes in text:
+        for (name, value) in nodes.attributes.items():
+            if name == 'xmlUrl':
+                feeds.append(value)
+    return feeds
+
+### SPLIT THE ARGUMENTS PASSED TO THE URL
+#########################################
+def split_args(args):
+    rose_args = {}
+    if args == None:
+        return rose_args
+
+    arglist = args.split('&amp;')
+
+    for arg in arglist:
+        tmp = arg.split('=')
+        if len(tmp) == 1:
+            rose_args[tmp[0]] = None
+        else:
+            rose_args[tmp[0].upper()] = tmp[1]
+    return rose_args
+
+### SEND ERROR IF SOMETHING GOES WRONG
+######################################
+def send_html_error(req, s, status):
+    req.content_type = 'text/html'
+    req.send_http_header()
+    req.write('&lt;p&gt;' + s + '&lt;/p&gt;')
+    raise apache.SERVER_RETURN, status
+
+### MAIN HANDLER METHOD WHERE ARE THE MAIN CALLS ARE MADE
+#########################################################
+def handler(req):
+    req.send_http_header()
+
+    request = req.args
+    rose_args = split_args(req.args)
+    if len(rose_args) == 0:
+        send_html_error(req, 'No parameters found', apache.HTTP_BAD_REQUEST)
+    if len(rose_args) != 2:
+        send_html_error(req, '&lt;strong&gt;&lt;font color=\&quot;RED\&quot;&gt;You must have 
+two parameters, one for \nyour OPML file and one for the 
+FLAVOR&lt;/font&gt;&lt;/strong&gt;', apache.HTTP_PRECONDITION_FAILED)
+
+    url = rose_args.get('URL', None)
+    flavor = rose_args.get('FLAVOR', None)
+    if url == None:
+        send_html_error(req, '&lt;strong&gt;&lt;font color=\&quot;RED\&quot;&gt;No URL 
+parameter found&lt;/font&gt;&lt;/strong&gt;', apache.HTTP_PRECONDITION_FAILED)
+    else:
+        req.write(&quot;OPML: &quot; + url + &quot;\n&quot;)
+
+    if flavor == None:
+        send_html_error(req, '&lt;strong&gt;&lt;font color=\&quot;RED\&quot;&gt;No FLAVOR 
+parameter found&lt;/font&gt;&lt;/strong&gt;', apache.HTTP_PRECONDITION_FAILED)
+    else:
+        flavor = flavor.upper()
+        if(flavor != 'RSS' and flavor != 'ATOM'):
+            req.write(&quot;FLAVOR: &quot; + flavor + &quot;\n&quot;)
+            send_html_error(req, '&lt;strong&gt;&lt;font color=\&quot;RED\&quot;&gt;The FLAVOR 
+you entered is not a valid flavor&lt;/font&gt;&lt;/strong&gt;', 
+apache.HTTP_PRECONDITION_FAILED)
+        else:
+            req.write(&quot;FLAVOR: &quot; + flavor + &quot;\n&quot;)
+
+    rose_urls = get_urls(req, url)   
+    req.write(rose_urls[0])
+    mgr = XmlManager()
+    container = mgr.openContainer(&quot;/web/htdocs/dev/danolsencreatedme.dbxml&quot;)
+
+    return apache.OK
+
+----- END CODE -----
+
+----- BEGIN OUTPUT ------
+
+OPML: <A HREF="http://www.windley.com/gems/mySubscriptions.opml">http://www.windley.com/gems/mySubscriptions.opml</A>
+FLAVOR: RSS
+
+Mod_python error: &quot;PythonHandler rose&quot;
+
+Traceback (most recent call last):
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 193, in Dispatch
+    result = object(req)
+
+  File &quot;/web/htdocs/dev/rose.py&quot;, line 78, in handler
+    rose_urls = get_urls(req, url)
+
+  File &quot;/web/htdocs/dev/rose.py&quot;, line 14, in get_urls
+    filedoc = xml.dom.minidom.parse(xmlfile)
+
+  File &quot;/usr/lib/python2.3/site-packages/_xmlplus/dom/minidom.py&quot;, line 1908, in parse
+    return expatbuilder.parse(file)
+
+AttributeError: 'module' object has no attribute 'parse'
+
+----- END OUTPUT -----
+
+If anyone can clue me in on why this is happening that would be great!
+
+Dan Olsen
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017009.html">[mod_python] Revisiting ImportError: cannot import name psp
+</A></li>
+	<LI>Next message: <A HREF="017015.html">[mod_python] Minidom parse error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17010">[ date ]</a>
+              <a href="thread.html#17010">[ thread ]</a>
+              <a href="subject.html#17010">[ subject ]</a>
+              <a href="author.html#17010">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,233 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: mysqldb error
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20mysqldb%20error&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020862.html">
+   <LINK REL="Next"  HREF="020866.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: mysqldb error</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20mysqldb%20error&In-Reply-To="
+       TITLE="[mod_python] Re: mysqldb error">nlv11281 at natlab.research.philips.com
+       </A><BR>
+    <I>Thu Apr 13 01:54:18 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020862.html">[mod_python] installing handlers on Apache server?
+</A></li>
+        <LI>Next message: <A HREF="020866.html">[mod_python] finding length of user file before uploading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20863">[ date ]</a>
+              <a href="thread.html#20863">[ thread ]</a>
+              <a href="subject.html#20863">[ subject ]</a>
+              <a href="author.html#20863">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>There is an optimization in the MySQL client that when the host is &quot;localhost&quot; (or the equivalent), 
+it will attempt to use a UNIX socket (or a named pipe on Windows) instead of a TCP/IP socket.
+
+If your DB is on the localhost, makeing sure the UNIX socket (/tmp/mysql.sock or something like 
+that) is there and functions properly can greatly improve security, since you can disable remote TCP 
+access to the database entirely, so that even if people get the password, they still cannot connect 
+to the DB (without access rights to that machine).
+
+I've seen machines that use /var/lib/mysql/mysql.sock, which the apache user (usually 'apache' or 
+'nobody') may not have access to.
+
+
+
+Mike Looijmans
+Philips Natlab / Topic Automation
+
+
+Graham Dumpleton wrote:
+
+ &gt; Whoops. I could be talking nonsense here. But  then I missed that
+ &gt; your code says 127.0.0.1 yet the error says 10.0.0.6.
+ &gt;
+ &gt; FWIW, the reason that I thought to suggest to look at this was that
+ &gt; I was using a database once where using 127.0.0.1 made it use
+ &gt; a local database connection rather than full IP connection and in
+ &gt; that situation, for whatever reason it actually ignored the user name
+ &gt; in the login and was using the user ID of the process connecting
+ &gt; to the database to determine privileges.
+ &gt;
+ &gt; I rarely use databases, so could though be completely wrong and
+ &gt; misunderstood what I saw at the time. :-(
+ &gt;
+ &gt; Someone who knows what they are talking about should step in
+ &gt; and save me now. :-)
+ &gt;
+ &gt; Graham
+ &gt;
+ &gt; Graham Dumpleton wrote ..
+ &gt;
+ &gt;&gt; Apache doesn't probably run as any of the users which your database
+ &gt;&gt; allows access to. Add lines in your CGI which says:
+ &gt;&gt;
+ &gt;&gt;  import os
+ &gt;&gt;  print os.getuid()
+ &gt;&gt;
+ &gt;&gt; and then see what user that UID actually is and give it access. User
+ &gt;&gt; may be something like &quot;apache&quot;, &quot;www&quot;, &quot;wwwroot&quot; or possibly even
+ &gt;&gt; &quot;nobody&quot; depending on the system configuration.
+ &gt;&gt;
+ &gt;&gt; You can also check your Apache configuration for lines:
+ &gt;&gt;
+ &gt;&gt; User www
+ &gt;&gt; Group www
+ &gt;&gt;
+ &gt;&gt; to see what it runs as:
+ &gt;&gt;
+ &gt;&gt; Graham
+ &gt;&gt;
+ &gt;&gt; Firat KUCUK wrote ..
+ &gt;&gt;
+ &gt;&gt;&gt; my distro is ubuntu breezy,
+ &gt;&gt;&gt; I used cgi handler. And text mime type
+ &gt;&gt;&gt; so i can view the print statement.
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; MySQL server 4.0.24
+ &gt;&gt;&gt; apache 2.0.54
+ &gt;&gt;&gt; python2.4-mysqldb 1.2.1
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; php, console python, cgi python works fine.
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; my .htaccess file
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; Allow from       All
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; AddHandler       mod_python .py
+ &gt;&gt;&gt; PythonHandler    mod_python.cgihandler
+ &gt;&gt;&gt; PythonDebug      On
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; DirectoryIndex   index.htm index.html index.php index.py index.pl
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; -----------------------------------------------------------------------------
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; #! /usr/bin/python
+ &gt;&gt;&gt; # -*- coding: UTF-8 -*-
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; print 'Content-Type: text/plain\n'
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; import MySQLdb
+ &gt;&gt;&gt; conn = MySQLdb.connect(
+ &gt;&gt;&gt;           host   = '127.0.0.1',
+ &gt;&gt;&gt;           user   = 'pismikrop',
+ &gt;&gt;&gt;           passwd = 'pass',
+ &gt;&gt;&gt;           db     = 'gate')
+ &gt;&gt;&gt; print conn
+ &gt;&gt;&gt; conn.close()
+ &gt;&gt;&gt;
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; -------------------------------------------
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; output: &lt;_mysql.connection open to '(null)' at 82a97e4&gt;
+ &gt;&gt;&gt;
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; if host = '10.0.0.6'
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; Mod_python error: &quot;PythonHandler mod_python.cgihandler&quot;
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; Traceback (most recent call last):
+ &gt;&gt;&gt;
+ &gt;&gt;&gt;  File &quot;/usr/lib/python2.4/site-packages/mod_python/apache.py&quot;, line
+ &gt;&gt;
+ &gt;&gt;
+ &gt;&gt; 299,
+ &gt;&gt;
+ &gt;&gt;&gt; in HandlerDispatch
+ &gt;&gt;&gt;    result = object(req)
+ &gt;&gt;&gt;
+ &gt;&gt;&gt;  File &quot;/usr/lib/python2.4/site-packages/mod_python/cgihandler.py&quot;, line
+ &gt;&gt;&gt; 96, in handler
+ &gt;&gt;&gt;    imp.load_module(module_name, fd, path, desc)
+ &gt;&gt;&gt;
+ &gt;&gt;&gt;  File &quot;/home/pismikrop/vhosts/mikropyuvasi/content/tests/mpcgi/firat.py&quot;,
+ &gt;&gt;&gt; line 11, in ?
+ &gt;&gt;&gt;    db     = 'gate')
+ &gt;&gt;&gt;
+ &gt;&gt;&gt;  File &quot;/usr/lib/python2.4/site-packages/MySQLdb/__init__.py&quot;, line 66,
+ &gt;&gt;&gt; in Connect
+ &gt;&gt;&gt;    return Connection(*args, **kwargs)
+ &gt;&gt;&gt;
+ &gt;&gt;&gt;  File &quot;/usr/lib/python2.4/site-packages/MySQLdb/connections.py&quot;, line
+ &gt;&gt;&gt; 134, in __init__
+ &gt;&gt;&gt;    super(Connection, self).__init__(*args, **kwargs2)
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; OperationalError: (2003, &quot;Can't connect to MySQL server on '10.0.0.6'
+ &gt;&gt;
+ &gt;&gt;
+ &gt;&gt; (111)&quot;)
+ &gt;&gt;
+ &gt;&gt;&gt; ------------------------------------------
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; mysql&gt; SELECT User, Host FROM user;
+ &gt;&gt;&gt; +------------------+--------------+
+ &gt;&gt;&gt; | User             | Host         |
+ &gt;&gt;&gt; +------------------+--------------+
+ &gt;&gt;&gt; | pismikrop        | %            |
+ &gt;&gt;&gt; | debian-sys-maint | localhost    |
+ &gt;&gt;&gt; | root             | localhost    |
+ &gt;&gt;&gt; | root             | mikropyuvasi |
+ &gt;&gt;&gt; +------------------+--------------+
+ &gt;&gt;&gt;
+ &gt;&gt;&gt; pismikrop user has all priviliges to all databases.
+ &gt;
+ &gt;
+ &gt;
+
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020862.html">[mod_python] installing handlers on Apache server?
+</A></li>
+	<LI>Next message: <A HREF="020866.html">[mod_python] finding length of user file before uploading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20863">[ date ]</a>
+              <a href="thread.html#20863">[ thread ]</a>
+              <a href="subject.html#20863">[ subject ]</a>
+              <a href="author.html#20863">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

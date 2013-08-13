@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] More translation handler help?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20More%20translation%20handler%20help%3F&In-Reply-To=ubsmzoil2.fsf%40cs.uu.nl">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012014.html">
+   <LINK REL="Next"  HREF="012015.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] More translation handler help?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Sean True</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20More%20translation%20handler%20help%3F&In-Reply-To=ubsmzoil2.fsf%40cs.uu.nl"
+       TITLE="[mod_python] More translation handler help?">seant at webreply.com
+       </A><BR>
+    <I>Fri Jul  6 12:34:27 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012014.html">[mod_python] link to image files broken
+</A></li>
+        <LI>Next message: <A HREF="012015.html">[mod_python] link to image files broken
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12017">[ date ]</a>
+              <a href="thread.html#12017">[ thread ]</a>
+              <a href="subject.html#12017">[ subject ]</a>
+              <a href="author.html#12017">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>With a little bit of help from Grisha, I got past my first problem (I needed
+a writable req.uri)
+and am onto a second one.
+
+I stripped out the following handlers from a much larger system, and they
+reproduce the problem.
+The production handler (handler) attempts to do a lookup_uri on the inbound
+URI. If there is no translation handler
+called for in the conf file, all is well, and the lookup works.
+
+If there is a translation handler declared using PythonTransHandler, the
+Transhandler gets called twice,
+and the server process appears to go into a loop -- never exits the
+production handler. I'm suspecting
+that there is a reentrancy issue here of some sort, but the Apache code
+specifically suggests calling lookup_uri() to
+get the mapping of &quot;/&quot; to filename, instead of using document_root().
+
+Comments on the rules of when one can and can't call lookup_uri() would be
+welcome.
+
+-- Sean
+
+
+Configuration:
+
+# Connections for general test site
+&lt;VirtualHost www.foo.com&gt;
+    DocumentRoot /usr/local/apache/htdocs/www.foo.com
+    ServerName www.foo.com
+    AddHandler python-program .phtml
+    PythonInterpreter xphtml
+    PythonHandler phtml.xphtml
+    PythonTransHandler phtml.xphtml
+&lt;/VirtualHost&gt;
+
+
+xphtml.py:
+
+
+
+from mod_python import apache
+from phtmllog import log, logIO
+
+def transhandler(req):
+    log(&quot;transhandler &quot;+`req.uri`)
+    return apache.DECLINED
+
+def handler(req):
+    log(&quot;lookup_uri &quot;+req.lookup_uri(req.uri).filename)
+    return apache.OK
+
+
+requestobject.c code for lookup_uri:
+
+/**
+ ** request.lookup_uri(request self, uri)
+ **
+ *    An interface to the ap_lookup_uri function.
+ */
+
+static PyObject * req_lookup_uri(requestobject *self, PyObject *args)
+{
+  const char *uri;
+  request_rec *req;
+
+
+  if (! PyArg_ParseTuple(args, &quot;s&quot;, &amp;uri))
+    return NULL;
+
+  req = (request_rec *)ap_sub_req_lookup_uri(uri,self-&gt;request_rec);
+  if (! req) {
+    Py_INCREF(Py_None);
+    return Py_None;
+  }
+  else {
+    return MpRequest_FromRequest(req);
+  }
+}
+
+
+...
+
+
+    {&quot;lookup_uri&quot;,           (PyCFunction) req_lookup_uri,
+METH_VARARGS},
+    { NULL, NULL } /* sentinel */
+};
+
+...
+
+
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012014.html">[mod_python] link to image files broken
+</A></li>
+	<LI>Next message: <A HREF="012015.html">[mod_python] link to image files broken
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12017">[ date ]</a>
+              <a href="thread.html#12017">[ thread ]</a>
+              <a href="subject.html#12017">[ subject ]</a>
+              <a href="author.html#12017">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

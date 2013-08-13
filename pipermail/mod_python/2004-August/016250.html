@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How can I turn off apparent caching of python code?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20can%20I%20turn%20off%20apparent%20caching%20of%20python%20code%3F&In-Reply-To=412CF668.9080907%40joreybump.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016216.html">
+   <LINK REL="Next"  HREF="016218.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How can I turn off apparent caching of python code?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20can%20I%20turn%20off%20apparent%20caching%20of%20python%20code%3F&In-Reply-To=412CF668.9080907%40joreybump.com"
+       TITLE="[mod_python] How can I turn off apparent caching of python code?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Aug 29 20:44:11 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016216.html">[mod_python] How can I turn off apparent caching of python code?
+</A></li>
+        <LI>Next message: <A HREF="016218.html">[mod_python] How can I turn off apparent caching of python code?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16250">[ date ]</a>
+              <a href="thread.html#16250">[ thread ]</a>
+              <a href="subject.html#16250">[ subject ]</a>
+              <a href="author.html#16250">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 26/08/2004, at 6:28 AM, Jorey Bump wrote:
+
+&gt;<i> Tobiah wrote:
+</I>&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Within your application you can do this:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>  req.headers_out['Pragma'] = 'no-cache'
+</I>&gt;&gt;&gt;<i>  req.headers_out['Cache-Control'] = 'no-cache'
+</I>&gt;&gt;&gt;<i>  req.headers_out['Expires'] = '-1'
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Or you can simply set the headers in httpd.conf or .htaccess:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>  &lt;Directory /var/www/foo/site&gt;
+</I>&gt;&gt;&gt;<i>   AddHandler python-program .py
+</I>&gt;&gt;&gt;<i>   PythonHandler mod_python.publisher
+</I>&gt;&gt;&gt;<i>   PythonDebug On
+</I>&gt;&gt;&gt;<i>   # set headers to prevent caching for anything in this directory
+</I>&gt;&gt;&gt;<i>   Header set Pragma &quot;no-cache&quot;
+</I>&gt;&gt;&gt;<i>   Header set Cache-Control &quot;no-cache&quot;
+</I>&gt;&gt;&gt;<i>   Header set Expires &quot;-1&quot;
+</I>&gt;&gt;&gt;<i> &lt;/Directory&gt;
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> My understanding of the entire request process is limited,
+</I>&gt;&gt;<i> but don't those directives only tell the client (browser)
+</I>&gt;&gt;<i> not to cache content?  My goal is to get mod_python to reload
+</I>&gt;&gt;<i> imported modules when their source file date is newer then
+</I>&gt;&gt;<i> the last import time.
+</I>&gt;<i>
+</I>&gt;<i> Yes, this is only related to Graham's point about cached pages.
+</I>
+The only problem with relying on setting these in the latter way is 
+where
+you don't have access to httpd.conf. One can put them in the .htaccess
+file, but only if mod_headers is loaded as a module into Apache in the
+first place. If it isn't loaded, you are back to the problem of not
+being able to modify httpd.conf to even add the loading of mod_headers
+in the first place. :-(
+
+Also, I don't want to specify that all resources have cache control
+disabled. This is because in Vampire, the mod_python handler I have been
+developing, it is possible to mix mod_python handlers and normal files
+in the same directory. For normal files, which have static content, I
+want normal caching arrangements to apply.
+
+Thus, what I actually would recommend is using:
+
+   &lt;Files *&gt;
+   ErrorHeader set Pragma &quot;no-cache&quot;
+   ErrorHeader set Cache-Control &quot;no-cache&quot;
+   ErrorHeader set Expires &quot;-1&quot;
+   &lt;/Files&gt;
+
+That is, only explicitly turn off caching for error responses. For 
+normal
+responses, then have each mod_python handler use:
+
+   req.headers_out['Pragma'] = 'no-cache'
+   req.headers_out['Cache-Control'] = 'no-cache'
+   req.headers_out['Expires'] = '-1'
+
+This gives you specific control although with some extra coding in every
+handler.
+
+The reason for the ErrorHeader statements, as alluded to in my original
+email, is to stop proxies caching an error response and not actually
+making the request to the web server again. I would have though that an
+error response should never be cached, but a proxy that I have to go
+through at my work does exactly that. I would have to wait some period
+of time for it to throw the cached error page away before I could then
+pickup up the response from my now modified and correctly functioning
+mod_python handler.
+
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016216.html">[mod_python] How can I turn off apparent caching of python code?
+</A></li>
+	<LI>Next message: <A HREF="016218.html">[mod_python] How can I turn off apparent caching of python code?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16250">[ date ]</a>
+              <a href="thread.html#16250">[ thread ]</a>
+              <a href="subject.html#16250">[ subject ]</a>
+              <a href="author.html#16250">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

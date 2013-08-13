@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: [Vampire] &quot;.vampire&quot; not loaded but I do not see
+	why
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20%5BVampire%5D%20%22.vampire%22%20not%20loaded%20but%20I%20do%20not%20see%0A%09why&In-Reply-To=20051108091048.GA31411%40nic.fr">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019477.html">
+   <LINK REL="Next"  HREF="019493.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: [Vampire] &quot;.vampire&quot; not loaded but I do not see
+	why</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20%5BVampire%5D%20%22.vampire%22%20not%20loaded%20but%20I%20do%20not%20see%0A%09why&In-Reply-To=20051108091048.GA31411%40nic.fr"
+       TITLE="[mod_python] Re: [Vampire] &quot;.vampire&quot; not loaded but I do not see
+	why">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Nov  8 04:32:19 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019477.html">[mod_python] Re: [Vampire] &quot;.vampire&quot; not loaded but I do not see
+	why
+</A></li>
+        <LI>Next message: <A HREF="019493.html">[mod_python] Re: [Vampire] &quot;.vampire&quot; not loaded but I do not see
+	why
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19478">[ date ]</a>
+              <a href="thread.html#19478">[ thread ]</a>
+              <a href="subject.html#19478">[ subject ]</a>
+              <a href="author.html#19478">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 08/11/2005, at 8:10 PM, Stephane Bortzmeyer wrote:
+
+&gt;<i> On Tue, Nov 08, 2005 at 08:04:35PM +1100,
+</I>&gt;<i>  Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote
+</I>&gt;<i>  a message of 157 lines which said:
+</I>&gt;<i>
+</I>&gt;&gt;<i> To confirm that the config file is being loaded at any point, 
+</I>&gt;&gt;<i> introduce
+</I>&gt;&gt;<i> a syntax error into it.
+</I>&gt;<i>
+</I>&gt;<i> I tried it and there is no error and no stack trace.
+</I>&gt;<i>
+</I>&gt;&gt;<i> If the file isn't even loaded, then could possibly be a file 
+</I>&gt;&gt;<i> permission
+</I>&gt;&gt;<i> or ownership issue. Ie., the user that Apache runs as can't read the
+</I>&gt;&gt;<i> file.
+</I>&gt;<i>
+</I>&gt;<i> The file is world-readable and the directory also (Apache can read the
+</I>&gt;<i> Python files).
+</I>&gt;<i>
+</I>&gt;<i> I'll try the rest soon, thanks.
+</I>
+Apply the following patch to Vampire and reinstall. You can then track
+through log messages in Apache error log file and see if where it is
+looking makes sense.
+
+Index: software/vampire/config.py
+===================================================================
+--- software/vampire/config.py  (revision 238)
++++ software/vampire/config.py  (working copy)
+@@ -74,6 +74,8 @@
+
+    def _search(self,req,name):
+
++    req.log_error(&quot;name = %s&quot;%name)
++
+      result = {
+        &quot;__handler_root__&quot; : &quot;&quot;,
+        &quot;__config_root__&quot; : &quot;&quot;,
+@@ -99,6 +101,8 @@
+
+      # Couldn't determine upper bounds of search.
+
++    req.log_error(&quot;handler_root [1] = %s&quot;%handler_root)
++
+      if handler_root is None:
+        return result
+
+@@ -119,6 +123,8 @@
+
+      handler_root = posixpath.normpath(handler_root)
+
++    req.log_error(&quot;handler_root [2] = %s&quot;%handler_root)
++
+      # Now search back up directories for file.
+
+      result[&quot;__handler_root__&quot;] = handler_root
+@@ -135,6 +141,8 @@
+      else:
+        config_root = posixpath.dirname(req.filename)
+
++    req.log_error(&quot;config_root = %s&quot;%config_root)
++
+      offset = &quot;&quot;
+
+      if req.path_info and req.path_info != '/':
+@@ -151,6 +159,8 @@
+
+        config_file = posixpath.join(config_root,name)
+
++      req.log_error(&quot;config_file = %s&quot;%config_file)
++
+        if os.path.exists(config_file):
+          config_root = posixpath.normpath(config_root)
+          baseurl_abs = posixpath.normpath(baseurl_abs)
+
+
+Example output where URL is against same directory .vampire file
+is held:
+
+[Tue Nov 08 20:25:23 2005] [error] [client 127.0.0.1] name = .vampire
+[Tue Nov 08 20:25:23 2005] [error] [client 127.0.0.1] handler_root [1] 
+= /Users/grahamd/Sites/vampire/
+[Tue Nov 08 20:25:23 2005] [error] [client 127.0.0.1] handler_root [2] 
+= /Users/grahamd/Sites/vampire
+[Tue Nov 08 20:25:23 2005] [error] [client 127.0.0.1] config_root = 
+/Users/grahamd/Sites/vampire
+[Tue Nov 08 20:25:23 2005] [error] [client 127.0.0.1] config_file = 
+/Users/grahamd/Sites/vampire/.vampire
+
+Where it is in a subdirectory:
+
+[Tue Nov 08 20:29:13 2005] [error] [client 127.0.0.1] name = .vampire
+[Tue Nov 08 20:29:13 2005] [error] [client 127.0.0.1] handler_root [1] 
+= /Users/grahamd/Sites/vampire/
+[Tue Nov 08 20:29:13 2005] [error] [client 127.0.0.1] handler_root [2] 
+= /Users/grahamd/Sites/vampire
+[Tue Nov 08 20:29:13 2005] [error] [client 127.0.0.1] config_root = 
+/Users/grahamd/Sites/vampire/articles
+[Tue Nov 08 20:29:13 2005] [error] [client 127.0.0.1] config_file = 
+/Users/grahamd/Sites/vampire/articles/.vampire
+[Tue Nov 08 20:29:13 2005] [error] [client 127.0.0.1] config_file = 
+/Users/grahamd/Sites/vampire/.vampire
+
+You can see how it tracks back up the directory hierarchy looking for 
+the
+config file, stopping when it gets to handler_root.
+
+Especially make sure that handler_root is even correct. There is code in
+their already to work around a mod_python bug, but maybe there are still
+some cases it doesn't work correctly.
+
+Graham
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019477.html">[mod_python] Re: [Vampire] &quot;.vampire&quot; not loaded but I do not see
+	why
+</A></li>
+	<LI>Next message: <A HREF="019493.html">[mod_python] Re: [Vampire] &quot;.vampire&quot; not loaded but I do not see
+	why
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19478">[ date ]</a>
+              <a href="thread.html#19478">[ thread ]</a>
+              <a href="subject.html#19478">[ subject ]</a>
+              <a href="author.html#19478">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,128 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] socket.py ssl() method problem in mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20socket.py%20ssl%28%29%20method%20problem%20in%20mod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018609.html">
+   <LINK REL="Next"  HREF="018611.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] socket.py ssl() method problem in mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Huzaifa Tapal</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20socket.py%20ssl%28%29%20method%20problem%20in%20mod_python&In-Reply-To="
+       TITLE="[mod_python] socket.py ssl() method problem in mod_python">huzaifa at hostway.com
+       </A><BR>
+    <I>Wed Jul  6 11:11:11 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018609.html">[mod_python] templating for newbie
+</A></li>
+        <LI>Next message: <A HREF="018611.html">[mod_python] mod python uses
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18610">[ date ]</a>
+              <a href="thread.html#18610">[ thread ]</a>
+              <a href="subject.html#18610">[ subject ]</a>
+              <a href="author.html#18610">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello All,
+
+I recently came across a problem in making secure socket connections 
+only introduced in the mod_python (persistent) version of my 
+application.  It seems that after a number of successful socket 
+connections, somehow and in someway the interpreter gets corrupted and 
+start receiving an error stating &quot;socket object is not of type _sock&quot; 
+coming from the socket.py module in python.
+
+To further explain, in httplib.py the connect method in HTTPSConnection, 
+creates a socket instance and then passes it the ssl() method in 
+socket.py to make it a secure socket connection.  That is where the 
+problem occurs and somehow the ssl() method starts claiming that its 
+receiving a bad type of socket object.
+
+After a whole lot of poking around I think the problem is in socket.py's 
+implementation of the modular level ssl() method and that it is not 
+thread safe.  Here is what the ssl() method looks like:
+
+    def ssl(sock, keyfile=None, certfile=None):
+         if hasattr(sock, &quot;_sock&quot;):
+             sock = sock._sock
+         return _realssl(sock, keyfile, certfile)
+
+
+I thought that the hasattr() call and then the referencing of the passed 
+socket object was somehow corrupting the mod_python interpreter and 
+thereafter any ssl() socket connections were failing with that error.  
+So I made a patch to httplib.py's connect() method to pass in a 
+socket._sock to the ssl() method instead so that the ssl() method 
+doesn't have to do the switch and that seems to work fine.
+
+After that successful attempt, we tried to determine, whether hasattr 
+check was need at all and that we can simply just modify the ssl() 
+method to be as following:
+
+    def ssl(sock, keyfile=None, certfile=None):
+         return _realssl(sock._sock, keyfile, certfile)
+
+
+That reintroduced the original error.  At this point I am stumped as to 
+what could be causing this type of interpreter corruption to happen for 
+the ssl() method.  I know the fact that the ssl() method is global in 
+the socket.py module has something to do with it but I can't figure it 
+how does the passed sock object be corrupted everytime.
+
+Does anybody have any insight into this problem or has run into this 
+problem at all?
+
+Hozi
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018609.html">[mod_python] templating for newbie
+</A></li>
+	<LI>Next message: <A HREF="018611.html">[mod_python] mod python uses
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18610">[ date ]</a>
+              <a href="thread.html#18610">[ thread ]</a>
+              <a href="subject.html#18610">[ subject ]</a>
+              <a href="author.html#18610">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

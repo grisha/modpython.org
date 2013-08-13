@@ -1,0 +1,198 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] transhandler setup?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20transhandler%20setup%3F&In-Reply-To=1125625148.8376%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018952.html">
+   <LINK REL="Next"  HREF="018975.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] transhandler setup?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Dirk van Oosterbosch, IR labs</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20transhandler%20setup%3F&In-Reply-To=1125625148.8376%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] transhandler setup?">labs at ixopusada.com
+       </A><BR>
+    <I>Sun Sep  4 13:08:25 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018952.html">[mod_python] transhandler setup?
+</A></li>
+        <LI>Next message: <A HREF="018975.html">[mod_python] transhandler setup?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18961">[ date ]</a>
+              <a href="thread.html#18961">[ thread ]</a>
+              <a href="subject.html#18961">[ subject ]</a>
+              <a href="author.html#18961">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 2-sep-05, at 03:39, Graham Dumpleton wrote:
+
+&gt;&gt;<i>
+</I>&gt;&gt;<i> &lt;IfModule mod_python.c&gt;
+</I>&gt;&gt;<i>      PythonPath &quot;sys.path + ['/var/www/python/']&quot;
+</I>&gt;&gt;<i>      PythonTransHandler translate
+</I>&gt;<i>
+</I>&gt;<i> Try adding here in addition to the above:
+</I>&gt;<i>
+</I>&gt;<i>   AddHandler mod_python .py
+</I>&gt;<i>   PythonHandler main
+</I>&gt;<i>
+</I>&gt;<i> Ie., rather than trying to use req.add_handler(). What happens then?
+</I>
+Well, I guess it works in the end.
+
+Sorry, my bad.
+I mixed up two versions of  main.py  I had laying around. (I modified 
+my translate.py so the  req.filename  becomes  main_from_trans.py , but 
+didn't use that name in the  PythonHandler  directive).
+It does strike me as strange however, that I have to use   PythonHander 
+python_main_file   in the apache configuration, when I have the 
+transhandler decide that it should use python_main_file.py as filename. 
+That would mean I can't make the transhandler fork its behavior between 
+different python files as the ones that should become the filename and 
+should be handled in the next phase (handler  that is). (Unless I have 
+it fork to different directories and use different &lt;Directory&gt; 
+configurations, of course)
+...
+I mean something like:
+-----translate.py:
+def transhandler(req):
+	...
+	if fork == 1:
+		req.filename = &quot;/var/www/python/main_alternative_a.py&quot;
+	else:
+		req.filename = &quot;/var/www/python/main_alternative_b.py&quot;
+	return apache.OK
+-----
+wouldn't work because I would have to say
+
+&lt;IfModule mod_python.c&gt;
+      PythonPath &quot;sys.path + ['/var/www/python/']&quot;
+      PythonTransHandler translate
+&lt;/IfModule&gt;
+
+&lt;Directory &quot;/var/www/python&quot;&gt;
+      AddHandler mod_python .py
+      PythonHandler main_alternative_a	---OR---	 PythonHandler 
+main_alternative_b
+&lt;/Directory&gt;
+
+...
+
+Also I found out that if I add
+req.add_handler(&quot;PythonHandler&quot;, &quot;main&quot;)
+to translate.py it executes the handler from main.py twice (you get a 
+double html file) , but only if it can successfully do the first one 
+(set by  req.filename = &quot;/var/www/python/main.py&quot; .
+
+
+But at least I got transhandler working finally.
+
+
+One last question though on performance and recommendation on design.
+I still see those two options as solutions for my design:
+1. have everything handled by one main.py file (which decides whether 
+or not it should really handle it or just decline and have apache take 
+over and which redirects urls for a directory e.g. 
+www.myserver.com/folder to var/www/folder/index.html internally if that 
+index.html is present)
+2. use two phases: transhandler and handler. Have transhandler find out 
+if the file (or directory) exists, and if not checks my database if it 
+can serve a virtual file or directory index and makes the req.filename 
+become a main.py to be handled in the second phase.
+
+&gt;<i>
+</I>&gt;<i> For an internal redirect, you probably want:
+</I>&gt;<i>
+</I>&gt;<i>   req.internal_redirect(req.uri+'/index.html')
+</I>&gt;<i>
+</I>&gt;<i> This will not send a response back to the browser and it will managed 
+</I>&gt;<i> internal
+</I>&gt;<i> to Apache.
+</I>
+
+Question I now have: does anybody know how efficient this internal 
+redirect would be in comparison to a database query?
+For the point is, that with option 1, all the static directories 
+(requests for www.myserver.com/folder) will go through apache twice: 
+(It first is handled by handler in main.py which then decides it should 
+be www.myserver.com/folder/index.html anyway.
+How economically inefficient is that performance wise?
+The alternative, option 2, has the downside of two database queries for 
+every dynamic page: First transhandler checks whether the url exists in 
+the database. Then later, handler again queries the database for this 
+url.
+
+Is one of these alternatives much more performance intensive than the 
+other?
+I know I am comparing apples with pears here. The one is an internal 
+redirect handled between mod_python and apache. The other is a database 
+query handled my MySQL and MySQLdb (which is also dependent to how the 
+database is designed and which field are indexed and so on...). Further 
+more the decision between the two options is also dependent on how many 
+these scenarios occur: do I have a lot of static index.html files which 
+are requested by only their directory, or do I serve mostly dynamic 
+pages.
+So indeed the decision won't be just a matter of comparing performances 
+of the two, but if someone can just give me a &quot;handle&quot;...
+
+Sorry for asking so many questions ...
+dirk
+
+
+
+-----------------------------
+Dirk van Oosterbosch
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">dirk at ixopusada.com</A>
+-----------------------------
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018952.html">[mod_python] transhandler setup?
+</A></li>
+	<LI>Next message: <A HREF="018975.html">[mod_python] transhandler setup?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18961">[ date ]</a>
+              <a href="thread.html#18961">[ thread ]</a>
+              <a href="subject.html#18961">[ subject ]</a>
+              <a href="author.html#18961">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

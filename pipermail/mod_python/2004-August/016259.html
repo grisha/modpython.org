@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] HTML::Mason ported to Python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20HTML%3A%3AMason%20ported%20to%20Python&In-Reply-To=9cd844804083007114afdd7cf%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016254.html">
+   <LINK REL="Next"  HREF="016207.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] HTML::Mason ported to Python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>mike bayer</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20HTML%3A%3AMason%20ported%20to%20Python&In-Reply-To=9cd844804083007114afdd7cf%40mail.gmail.com"
+       TITLE="[mod_python] HTML::Mason ported to Python">mike_mp at zzzcomputing.com
+       </A><BR>
+    <I>Mon Aug 30 12:17:56 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016254.html">[mod_python] HTML::Mason ported to Python
+</A></li>
+        <LI>Next message: <A HREF="016207.html">[mod_python] POST arrays
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16259">[ date ]</a>
+              <a href="thread.html#16259">[ thread ]</a>
+              <a href="subject.html#16259">[ subject ]</a>
+              <a href="author.html#16259">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>hey there -
+
+Currently, the ApacheRequestImpl object doesnt take an optional out_buffer
+argument, which would override the normal usage of the mod_python request
+as its out_buffer.  But it should; so I will add this today.  In that
+case, you can call it, from within your own mod_python request handler,
+as:
+
+  buffer = StringIO.StringIO()
+  myghty.ApacheHandler.handle(req, out_buffer = buffer)
+  string = buffer.getvalue()
+
+In the meantime, assuming you want your myghty template to have the full
+HTTP environment you've configured, here's the hack to get around it:
+
+   # initialize configuration variables
+   myghty.ApacheHandler.init_conf(req, require_directories = True)
+
+   # make your own request_impl
+   request_impl = myghty.ApacheHandler.ApacheRequestImpl(req,
+**myghty.ApacheHandler.confparams)
+
+   buffer = StringIO.StringIO()
+
+   # set its outbuffer
+   request_impl.out_buffer = buffer
+
+   myghty.ApacheHandler.handle(req, request_impl = request_impl)
+
+   string = buffer.getvalue()
+
+Or you could also just use Interpreter directly, if the http configuration
+is not so important.  You can make the %ARGS hash out of the mod_python
+request using myghty.ApacheHandler.make_request_args(req) and send the
+resulting dictionary object to the interpreter execute() method as the
+&quot;request_args&quot; parameter.
+
+Feel free to use the sourceforge BBS for Myghty questions:
+
+<A HREF="https://sourceforge.net/forum/forum.php?forum_id=398331">https://sourceforge.net/forum/forum.php?forum_id=398331</A>
+
+- mike
+
+
+
+&gt;<i> Mike--
+</I>&gt;<i>
+</I>&gt;<i> Is there a way to get the results of an ApacheHandler.handle call as a
+</I>&gt;<i> string (or to a file buffer, like the out_buffer argument for
+</I>&gt;<i> Interpreter objects)?
+</I>&gt;<i>
+</I>&gt;<i> -Ross
+</I>&gt;<i>
+</I>&gt;<i> On Wed, 25 Aug 2004 01:04:35 -0400 (EDT), mike bayer
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mike_mp at zzzcomputing.com</A>&gt; wrote:
+</I>&gt;&gt;<i> hi all -
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Ive done just what the subject says, for those of you unfamiliar with
+</I>&gt;&gt;<i> HTML::Mason its a pretty popular templating package for the mod_perl
+</I>&gt;&gt;<i> environment, used by sites like amazon.com and salon.com.  in
+</I>&gt;&gt;<i> traditional
+</I>&gt;&gt;<i> &quot;pick a name that has a 'y' in it&quot; fashion I have called it Myghty.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> the application supports everything Mason does, including subcomponents,
+</I>&gt;&gt;<i> methods, page inheritance, mod_python/CGI connectors, etc., with the
+</I>&gt;&gt;<i> exception of caching, which is an upcoming feature.  Plus it has some
+</I>&gt;&gt;<i> extra features designed to make life in a python multithreaded
+</I>&gt;&gt;<i> environment
+</I>&gt;&gt;<i> easier, if you are running under the worker MPM.   The code is 50% taken
+</I>&gt;&gt;<i> from Mason and 50% custom, although the general architecture is mostly
+</I>&gt;&gt;<i> the
+</I>&gt;&gt;<i> same.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Anyway, ive gotten it running standalone, with mod_python 2.7/3.1, with
+</I>&gt;&gt;<i> both the worker and prefork MPMs, and with the CGI handler, and it seems
+</I>&gt;&gt;<i> to work pretty well.  docs need some editing but content-wise are fairly
+</I>&gt;&gt;<i> close to complete.  I am hoping its something people will find useful
+</I>&gt;&gt;<i> once
+</I>&gt;&gt;<i> it is road-tested a little more, and also that some folks on here might
+</I>&gt;&gt;<i> want to help me test it out a little as I am sure the outside world will
+</I>&gt;&gt;<i> find tons of little issues I haven't come across yet.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> check it out at :   <A HREF="http://myghty.sourceforge.net/">http://myghty.sourceforge.net/</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> - mike
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016254.html">[mod_python] HTML::Mason ported to Python
+</A></li>
+	<LI>Next message: <A HREF="016207.html">[mod_python] POST arrays
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16259">[ date ]</a>
+              <a href="thread.html#16259">[ thread ]</a>
+              <a href="subject.html#16259">[ subject ]</a>
+              <a href="author.html#16259">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] global var on 2.7
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20global%20var%20on%202.7&In-Reply-To=2187eea70a2e07e5def30500efb70ebd%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018652.html">
+   <LINK REL="Next"  HREF="018654.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] global var on 2.7</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20global%20var%20on%202.7&In-Reply-To=2187eea70a2e07e5def30500efb70ebd%40dscpl.com.au"
+       TITLE="[mod_python] global var on 2.7">list at joreybump.com
+       </A><BR>
+    <I>Sun Jul 10 20:52:38 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018652.html">[mod_python] global var on 2.7
+</A></li>
+        <LI>Next message: <A HREF="018654.html">[mod_python] Using PythonAutoReload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18653">[ date ]</a>
+              <a href="thread.html#18653">[ thread ]</a>
+              <a href="subject.html#18653">[ subject ]</a>
+              <a href="author.html#18653">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> 
+</I>&gt;&gt;&gt;<i> I'd do this, probably:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> # CacheBigdic.py
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> bigdic = looong_and_painful_process()
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> # publishedmodulewithuniquename.py
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> import CacheBigdic
+</I>&gt;&gt;&gt;<i> def index(req):
+</I>&gt;&gt;&gt;<i>     ...
+</I>&gt;&gt;&gt;<i>     use(CacheBigdic.bigdic)
+</I>&gt;&gt;&gt;<i>     ...
+</I>&gt;<i> 
+</I>&gt;<i> This way of doing things can be problematic and may not be advisable.
+</I>&gt;<i> 
+</I>&gt;<i> The problem is that since the long and painful process is done at time
+</I>&gt;<i> of import (while the thread holds the global import lock) in a threaded
+</I>&gt;<i> MPM, you will block every request in the process which might want to
+</I>&gt;<i> import a module. Thus, if it took ten seconds, in the worse case when
+</I>&gt;<i> Apache process is just started, all requests could be stalled for ten
+</I>&gt;<i> seconds.
+</I>
+Threaded MPM is not used by apache 1.3.x, which was the reason for the 
+original post.
+
+&gt;<i> You are much better off doing it the first time you need it as you
+</I>&gt;<i> were doing. Doing it only the first time it is required also enables
+</I>&gt;<i> you to more easily return an error response if it fails. Subsequent
+</I>&gt;<i> requests which try again automatically to initiate the action.
+</I>
+True, perhaps, now that we know it's a readonly object, in which case 
+making it global is kind of a moot point. Anyway, I did say this was 
+only semipersistent (in the sense that different processes won't share 
+the exact same object). Without knowing the details of the application, 
+it's hard to say if it benefits from a semipersistent cache or implicit 
+creation/destruction for each request. I'll side with you here, although 
+the OP would probably do well to consider a database with connection 
+pooling of some sort.
+
+&gt;&gt;&gt;<i> If you find errors appearing in your apache log under heavy load, you
+</I>&gt;&gt;&gt;<i> may need to alter CacheBigdic.py:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> try:
+</I>&gt;&gt;&gt;<i>     bigdic = looong_and_painful_process()
+</I>&gt;&gt;&gt;<i> except TheErrorYouSee:
+</I>&gt;&gt;&gt;<i>     bigdic = looong_and_painful_process()
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> It looks redundant, but it's needed because the module is cached.
+</I>&gt;<i> 
+</I>&gt;<i> And if it fails the second time as well? 
+</I>
+The error is explicit, so I'd say go back to the drawing board and fix 
+the real problem. Sometimes catching the exception once is enough 
+('MySQL server has gone away' errors, for example). As long as it's not 
+a crutch, catching exceptions has its place.
+
+&gt;<i> At some point you would have
+</I>&gt;<i> to give up and the only way to reinitiate the action is to reload the
+</I>&gt;<i> module with no means of returning an customised error response as to
+</I>&gt;<i> what went wrong. Thus doing it at the time of the request is again
+</I>&gt;<i> preferable to do it at the time of import.
+</I>
+It really all depends on what looong_and_painful_process() does, what 
+exceptions are raised, what type of data sharing is required, 
+dependencies on other daemons or processes, how much memory, etc... If 
+an object is too fragile to initialize at time of import, that doesn't 
+necessarily mean it will be robustly created at the time of the request, 
+either.
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018652.html">[mod_python] global var on 2.7
+</A></li>
+	<LI>Next message: <A HREF="018654.html">[mod_python] Using PythonAutoReload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18653">[ date ]</a>
+              <a href="thread.html#18653">[ thread ]</a>
+              <a href="subject.html#18653">[ subject ]</a>
+              <a href="author.html#18653">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

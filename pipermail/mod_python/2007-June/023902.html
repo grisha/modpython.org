@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Output filters for large files
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Output%20filters%20for%20large%20files&In-Reply-To=467BAD0D.70507%40robhaswell.co.uk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023897.html">
+   <LINK REL="Next"  HREF="023898.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Output filters for large files</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Output%20filters%20for%20large%20files&In-Reply-To=467BAD0D.70507%40robhaswell.co.uk"
+       TITLE="[mod_python] Output filters for large files">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat Jun 23 07:24:28 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023897.html">[mod_python] Output filters for large files
+</A></li>
+        <LI>Next message: <A HREF="023898.html">[mod_python] Import problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23902">[ date ]</a>
+              <a href="thread.html#23902">[ thread ]</a>
+              <a href="subject.html#23902">[ subject ]</a>
+              <a href="author.html#23902">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 22/06/07, Robin Haswell &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">me at robhaswell.co.uk</A>&gt; wrote:
+&gt;<i> Hi there
+</I>&gt;<i>
+</I>&gt;<i> I'm having issues writing an output filter that can handle large files.
+</I>&gt;<i> My filter's primary purpose is to count the length of the output. Could
+</I>&gt;<i> someone assist me please?
+</I>&gt;<i>
+</I>&gt;<i> The code I have works very well except when a large file is passed
+</I>&gt;<i> through it, at which point it eats up memory, probably equal to the size
+</I>&gt;<i> of the file.
+</I>&gt;<i>
+</I>&gt;<i> Any assistance would be much appreciated.
+</I>&gt;<i>
+</I>&gt;<i> Here is my filter so far:
+</I>&gt;<i>
+</I>&gt;<i> def outputfilter(filter):
+</I>&gt;<i>
+</I>&gt;<i>     s = filter.read(4096)
+</I>&gt;<i>     bytes = 0
+</I>&gt;<i>     while s:
+</I>&gt;<i>         filter.write(str(s))
+</I>&gt;<i>         bytes += len(s)
+</I>&gt;<i>         s = filter.read(4096)
+</I>&gt;<i>
+</I>&gt;<i>     if s is None:
+</I>&gt;<i>         filter.close()
+</I>
+One generally would not provide a size argument to filter.read(),
+instead one would let Apache provide the data in the natural size that
+was written out by a handler or as read in from a file.
+
+By doing what you are doing you would be forcing Apache to break up
+data or have to accumulate it so as to give it in the size you want.
+The result of that would be an increase in the amount of memory which
+would be used as you are seeing.
+
+Also note that your output filter can be called more than once, so you
+have to store your byte count in the request object to preserve it
+between calls.
+
+Thus:
+
+def outputfilter1(filter):
+
+    if not hasattr(filter.req, 'mybytecount'):
+        filter.req.mybytecount = 0
+
+    s = filter.read()
+    while s:
+        filter.req.mybytecount += len(s)
+        filter.write(s)
+        s = filter.read()
+
+    if s is None:
+        filter.close()
+        # ... do something with byte count
+
+    return apache.OK
+
+BTW, why are you wanting to do this? The request object already has a
+bytes_sent attribute which Apache updates as data is written and will
+when all is done have the final content length in it. What you want to
+do with the value will determine the mechanism used to register a
+handler which will give you access to it after everything is done.
+
+Graham
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023897.html">[mod_python] Output filters for large files
+</A></li>
+	<LI>Next message: <A HREF="023898.html">[mod_python] Import problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23902">[ date ]</a>
+              <a href="thread.html#23902">[ thread ]</a>
+              <a href="subject.html#23902">[ subject ]</a>
+              <a href="author.html#23902">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

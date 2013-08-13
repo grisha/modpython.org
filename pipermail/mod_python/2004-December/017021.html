@@ -1,0 +1,208 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Newbie Publisher Handler questions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Newbie%20Publisher%20Handler%20questions&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017020.html">
+   <LINK REL="Next"  HREF="017022.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Newbie Publisher Handler questions</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>John Ward</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Newbie%20Publisher%20Handler%20questions&In-Reply-To="
+       TITLE="[mod_python] Newbie Publisher Handler questions">jbward at berkeley.edu
+       </A><BR>
+    <I>Wed Dec 29 01:38:59 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017020.html">[mod_python] psp.parsestring() hangs httpd
+</A></li>
+        <LI>Next message: <A HREF="017022.html">[mod_python] Newbie Publisher Handler questions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17021">[ date ]</a>
+              <a href="thread.html#17021">[ thread ]</a>
+              <a href="subject.html#17021">[ subject ]</a>
+              <a href="author.html#17021">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I'm just getting starting with mod_python and I have a few questions.  
+First of all, mod_python seems like a wonderful package so I'd like to 
+thank Gregory (Grisha) Trubetskoy (and other contributors) for writing 
+it.  I'm looking forward to doing more with it.
+
+In particular, I'd like to learn how to use the Publisher Handler to 
+handle certain tasks that I used to handle using 'old school' CGI 
+techniques.
+
+In the online manual in section 3.1, A Quick Start with the Publisher 
+Handler (<A HREF="http://www.modpython.org/live/current/doc-html/tut-pub.html">http://www.modpython.org/live/current/doc-html/tut-pub.html</A>), 
+there's an example of how to process form data and send it in an email 
+message.   If I were doing this the traditional CGI way, I'd probably 
+do the following:
+1) For security reasons, I'd limit the path available to the CGI script 
+(e.g., os.environ['PATH'] = '/bin:/usr/bin')
+2) I'd try to sanitize the form input in some way, probably using a 
+regular expression.
+3) I'd then open a pipe to sendmail (or another MTA) and add the 
+message to the mail queue.  I've found that adding messages to the mail 
+queue (as opposed to immediately sending messages) causes CGI scripts 
+to run much faster.
+
+Here are my questions:
+1. With mod_python, do I no longer have to worry about limiting the 
+path available to the script?  (I do my best to maintain an appropriate 
+level of paranoia, so one thing I'd like to learn is what security 
+mod_python handles for me and what security I need to write into my 
+scripts.)
+2. How do mod_python programmers typically handle sanitizing form input?
+3. Assuming one has an SMTP server listening on localhost, what is the 
+recommended way to add messages to the mail queue?
+4. When writing CGI scripts in Perl using CGI.pm, one has the option of 
+limiting the size of POSTs by setting a value for the '$MAX_POST' 
+variable.  Is there a way to do this using mod_python?  Or is this even 
+something I need to worry about?
+
+Any thoughts or feedback would greatly appreciated.
+
+Thanks.
+
+John
+
+
+Below is a simplified 'old school' CGI script that processes an HTML 
+form.  Though I'm not a CGI expert, this script shows what I'm trying 
+to do.
+
+### 'Old School' Python CGI Script ###
+
+        1 #!/usr/bin/python
+        2
+        3 # Import the necessary modules.
+        4 import cgi, re, os
+        5
+        6 # For security reasons, limit the path available to this 
+script.
+        7 os.environ['PATH'] = '/bin:/usr/bin'
+        8
+        9 # Define and compile a regular expression that we can use to 
+remove potentially dangerous characters.
+      10 # To allow for names, addresses, telephone numbers, and email 
+addresses, we need to allow numbers,
+      11 # underscores, letters, spaces, periods, the @ character, and 
+hyphens. The regular expression
+      12 # below matches characters that are *not* in our list of 
+allowed characters.
+      13 charpat = re.compile(r'[^\w\<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">s. at -</A>]')
+      14
+      15 # The function below makes use of the regular expression 
+defined above.  It takes a value
+      16 # as an argument and uses the re module's sub method to replace 
+special characters with empty strings.
+      17 # It returns a 'sanitized' version of the original value.
+      18 def sanitize(value):
+      19    sanitized = charpat.sub(&quot;&quot;,value)
+      20    return sanitized
+      21
+      22 # Function to display HTML if the web user submits the form 
+successfully.
+      23 def success():
+      24    print '''Content-type: text/html\n\n
+      25 &lt;html&gt;
+      26 &lt;head&gt;
+      27 &lt;title&gt;Thank you!&lt;/title&gt;
+      28 &lt;/head&gt;
+      29 &lt;body&gt;
+      30 &lt;h1&gt;Thank You!&lt;/h1&gt;
+      31 &lt;p&gt;Thank you for submitting your form.&lt;/p&gt;
+      32 &lt;/body&gt;
+      33 &lt;/html&gt;'''
+      34
+      35 # The mail function below starts by opening a pipe to sendmail 
+for writing. (Note: The options passed
+      36 # to sendmail are specific to the Sendmail MTA. The -t option 
+tells sendmail to look for the 'To:'
+      38 # and 'Subject:' headers in the text of the message.  This 
+enables us to avoid passing this information
+      38 # through the shell. The -i tells sendmail to ignore the '.' 
+character if it appears on its own line in the
+      39 # body of the message.  The -odq tells sendmail to add the 
+message to the mail queue, as opposed to sending
+      40 # the message immediately. I've found that queuing messages 
+makes CGI scripts run *much* faster.)
+      41 def mail(message):
+      42    m = os.popen('/usr/sbin/sendmail -t -i -odq', 'w')
+      43    print &gt;&gt; m, 'To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">webmaster at example.com</A>'
+      44    print &gt;&gt; m, 'Subject: Information submitted by Web User\n'
+      45    print &gt;&gt; m, message
+      46    m.close()
+      47
+      48 # End of function definitions
+      49
+      50
+      51 # Take in information entered by the web user and create a 
+FieldStorage object.
+      52 f = cgi.FieldStorage()
+      53
+      54 # Display HTML to the web user to show that the form submission 
+was successful.
+      55 success()
+      56
+      57 # Sanitize user input and store it as a list in 'info'.
+      58 info = [sanitize(f[i].value) for i in f.keys()]
+      59
+      60 # Mail the list stored in 'info' to the selected recipient.
+      61 mail(info)
+      62
+      63 # End of script
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017020.html">[mod_python] psp.parsestring() hangs httpd
+</A></li>
+	<LI>Next message: <A HREF="017022.html">[mod_python] Newbie Publisher Handler questions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17021">[ date ]</a>
+              <a href="thread.html#17021">[ thread ]</a>
+              <a href="subject.html#17021">[ subject ]</a>
+              <a href="author.html#17021">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

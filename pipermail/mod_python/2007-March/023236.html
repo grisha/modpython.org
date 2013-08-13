@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache/mod_python process sizes. Help wanted.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=B76BC114-0C62-42B1-AAFF-40B604E1AAB1%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023235.html">
+   <LINK REL="Next"  HREF="023237.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache/mod_python process sizes. Help wanted.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=B76BC114-0C62-42B1-AAFF-40B604E1AAB1%40dscpl.com.au"
+       TITLE="[mod_python] Apache/mod_python process sizes. Help wanted.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Mar  3 17:47:46 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023235.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+        <LI>Next message: <A HREF="023237.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23236">[ date ]</a>
+              <a href="thread.html#23236">[ thread ]</a>
+              <a href="subject.html#23236">[ subject ]</a>
+              <a href="author.html#23236">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 04/03/2007, at 9:30 AM, Graham Dumpleton wrote:
+
+&gt;<i> The result for mod_python request is (pid 405):
+</I>&gt;<i>
+</I>&gt;<i>   410 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;<i> 888K  30.4M
+</I>&gt;<i>   408 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;<i> 764K  30.4M
+</I>&gt;<i>   407 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+</I>&gt;<i> 768K  30.4M
+</I>&gt;<i>   406 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+</I>&gt;<i> 768K  30.4M
+</I>&gt;<i>   405 httpd        0.0%  0:00.37   1    10    86  2.40M  2.75M   
+</I>&gt;<i> 3.94M  32.0M
+</I>&gt;<i>   404 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;<i> 768K  30.4M
+</I>&gt;<i>   403 httpd        0.0%  0:00.06   1    11    39    32K  2.87M   
+</I>&gt;<i> 1.30M  30.4M
+</I>&gt;<i>
+</I>&gt;<i> Thus, private memory use by Apache child process jumps up to 2.40M.
+</I>&gt;<i> Ie., about an extra 2.2M.
+</I>&gt;<i>
+</I>&gt;<i> For a mod_wsgi request however, the result is (pid 407):
+</I>&gt;<i>
+</I>&gt;<i>   410 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;<i> 816K  30.4M
+</I>&gt;<i>   408 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;<i> 764K  30.4M
+</I>&gt;<i>   407 httpd        0.0%  0:00.01   1    10    39   568K  2.87M   
+</I>&gt;<i> 1.64M+ 30.4M
+</I>&gt;<i>   406 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+</I>&gt;<i> 768K  30.4M
+</I>&gt;<i>   405 httpd        0.0%  0:00.37   1    10    86  2.40M  2.75M   
+</I>&gt;<i> 3.95M  32.0M
+</I>&gt;<i>   404 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;<i> 768K  30.4M
+</I>&gt;<i>   403 httpd        0.0%  0:00.06   1    11    39    32K  2.87M   
+</I>&gt;<i> 1.30M  30.4M
+</I>&gt;<i>
+</I>&gt;<i> That is, private memory use by Apache child process only jumps up  
+</I>&gt;<i> to 568K.
+</I>&gt;<i> Ie., about an extra 350K.
+</I>&gt;<i>
+</I>&gt;<i> This is quite a big difference and really makes one wander what  
+</I>&gt;<i> mod_python
+</I>&gt;<i> is actually doing. This will also have to be investigated, but  
+</I>&gt;<i> probably still
+</I>&gt;<i> want to pursue this shared versus static library thing first.
+</I>
+Part of the jump is the imports in mod_python.apache:
+
+import sys
+import traceback
+import time
+import os
+import pdb
+import stat
+import imp
+import types
+import cgi
+import _apache
+import threading
+
+I had been thinking they would have been done when mod_python loaded
+for first interpreter, but they aren't done until time of first request.
+
+If I import the same modules into mod_wsgi example, then get (pid 429):
+
+   432 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+904K  30.4M
+   430 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+776K  30.4M
+   429 httpd        0.0%  0:00.18   1    10    67  1.95M  2.88M   
+3.33M  31.5M
+   428 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+780K  30.4M
+   427 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+780K  30.4M
+   426 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+780K  30.4M
+   425 httpd        0.0%  0:00.07   1    11    39    32K  2.87M   
+1.34M  30.4M
+
+Thus these modules alone causes it to jump up to 1.95M. This works out
+about an extra 1.4MB. Because mod_wsgi is all in C code aren't  
+relying on
+any Python modules so base overhead is less.
+
+Interesting. How many of these modules could be avoided in mod_python
+if we tried hard?
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023235.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+	<LI>Next message: <A HREF="023237.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23236">[ date ]</a>
+              <a href="thread.html#23236">[ thread ]</a>
+              <a href="subject.html#23236">[ subject ]</a>
+              <a href="author.html#23236">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

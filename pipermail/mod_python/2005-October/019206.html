@@ -1,0 +1,208 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] multiple requests to authenhandler for a single url
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20multiple%20requests%20to%20authenhandler%20for%20a%20single%20url&In-Reply-To=20051006130005.A11273%40grisha.dyndns.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019199.html">
+   <LINK REL="Next"  HREF="019191.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] multiple requests to authenhandler for a single url</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>reghigh</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20multiple%20requests%20to%20authenhandler%20for%20a%20single%20url&In-Reply-To=20051006130005.A11273%40grisha.dyndns.org"
+       TITLE="[mod_python] multiple requests to authenhandler for a single url">reghigh at thefactz.org
+       </A><BR>
+    <I>Fri Oct  7 03:30:11 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019199.html">[mod_python] multiple requests to authenhandler for a single url
+</A></li>
+        <LI>Next message: <A HREF="019191.html">[Fwd: Re: [mod_python] multiple requests to authenhandler for a single
+	url]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19206">[ date ]</a>
+              <a href="thread.html#19206">[ thread ]</a>
+              <a href="subject.html#19206">[ subject ]</a>
+              <a href="author.html#19206">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Gregory (Grisha) Trubetskoy wrote:
+&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On Thu, 6 Oct 2005, reghigh wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> Also why would /x/x result in two requests but /x/y in one (using 
+</I>&gt;&gt;<i> &lt;Location /x&gt;)?
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> I don't know, in my test (mod_python 3.1.3, httpd 2.0.54), when no 
+</I>
+Just for the record:
+
+Apache/2.0.52 (Unix) mod_auth_pgsql/2.0.1 SVN/1.1.4 DAV/2 
+mod_python/3.1.4 Python/2.4.1 Server at static Port 80
+
+&gt;<i> actual 'x' directory exists, the traversal stops right there. When x 
+</I>&gt;<i> does exist, it is called for /x/y, which is at it should be - it assumes 
+</I>&gt;<i> that 'y' is a file in the directory 'x' (even if y does not exist).
+</I>
+Note one can get similar results adding a trailing slash (so that y 
+becomes a directory)
+
+&gt;<i> Also there are a couple of other things in your prior e-mail that do not 
+</I>&gt;<i> make a lot of sense. Given:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;VirtualHost *:80&gt;
+</I>&gt;<i>   ServerName static
+</I>&gt;<i>   DocumentRoot &lt;omitted&gt;
+</I>&gt;<i> 
+</I>&gt;<i>   PythonPath &quot;['&lt;omitted&gt;'] + sys.path&quot;
+</I>&gt;<i>   PythonAuthenHandler test
+</I>&gt;<i>   PythonDebug On
+</I>&gt;<i> 
+</I>&gt;<i>   &lt;Location /x&gt;
+</I>&gt;<i>       AuthType Basic
+</I>&gt;<i>       AuthName &quot;Restricted Area&quot;
+</I>&gt;<i>       Require valid-user
+</I>&gt;<i>   &lt;/Location&gt;
+</I>&gt;<i> &lt;/VirtualHost&gt;
+</I>&gt;<i> 
+</I>&gt;<i> You say that
+</I>&gt;<i> 
+</I>&gt;<i>   /xx -&gt; not processed by handler
+</I>&gt;<i> 
+</I>&gt;<i> that cannot be if the &quot;PythonAuthenHandler test&quot; is at the VirtualHost
+</I>
+But my understanding is that authen stuff only gets called where we put 
+in the Apache auth stuff i.e. AuthType, AuthName, Require (I checked 
+this by keeping mod_python stuff and commenting out AuthType etc and 
+bingo no authentication and no exceptions from my python stuff). Since 
+apache auth stuff is inside Location /x (which does *not* match /xx) /xx 
+is not processed by authenhandler. Furthermore moving all mod_python 
+stuff inside Location makes no difference.
+
+&gt;<i> level. I also don't see SetHandler/AddHandler for mod_python - is that 
+</I>&gt;<i> at the server level?
+</I>
+On the second point: currently there is no AddHandler/SetHandler because 
+I found authenhandler was running without having this (my aim is to just 
+use mod_python for authentication and then have apache serve everything 
+else 'normally' -- btw this works entirely except for the multiple calls 
+problem). However in the interests of checking I had orginally had:
+
+AddHandler mod_python .py
+PythonHandler test
+
+def handler(req):
+     req.content_type = &quot;text/plain&quot;
+     req.write(req.uri)
+     return apache.OK
+
+And I have just re-added this but it makes no difference so far as I can 
+tell (furthermore I have verified this works fine in all ways if I 
+remove exception)
+
+&gt;<i> Also I'm not sure how your request continues processing even though 
+</I>&gt;<i> you're raising an exception - in my test the request processing stops 
+</I>&gt;<i> with 'Internal Server Error' as soon as the first exception is raised.
+</I>
+Here's the output I get for &lt;Location /x&gt; with url:
+
+   <A HREF="http://static/x/x/y">http://static/x/x/y</A>
+
+&lt;pre&gt;
+Mod_python error: &quot;PythonAuthenHandler test&quot;
+
+Traceback (most recent call last):
+
+   File 
+&quot;/Library/Frameworks/Python.framework/Versions/2.4/lib/python2.4/site-packages/mod_python/apache.py&quot;, 
+line 299, in HandlerDispatch
+     result = object(req)
+
+   File &quot;/Users/rgrp/Sites/python/test.py&quot;, line 16, in authenhandler
+     raise Exception('%s, %s, %s, %s' % (req.handler, req.unparsed_uri, 
+req.path_info, req.used_path_info))
+
+Exception: None, /x/y, /y, 2
+
+&lt;/pre&gt;
+
+&lt;pre&gt;
+Mod_python error: &quot;PythonAuthenHandler test&quot;
+
+Traceback (most recent call last):
+
+   File 
+&quot;/Library/Frameworks/Python.framework/Versions/2.4/lib/python2.4/site-packages/mod_python/apache.py&quot;, 
+line 299, in HandlerDispatch
+     result = object(req)
+
+   File &quot;/Users/rgrp/Sites/python/test.py&quot;, line 16, in authenhandler
+     raise Exception('%s, %s, %s, %s' % (req.handler, req.unparsed_uri, 
+req.path_info, req.used_path_info))
+
+Exception: None, /x/x/y, /x/y, 2
+
+&lt;/pre&gt;
+
+&gt;<i> In any event - when the authen handler is called is not controlled by 
+</I>&gt;<i> mod_python, it's something that is in the httpd territory. It would be 
+</I>&gt;<i> nice perhaps to get to the bottom of what this behaviour should be and 
+</I>&gt;<i> summarize it for the list.
+</I>
+Absolutely. Thanks for your comments so far.
+
+Regards,
+
+Tristan
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019199.html">[mod_python] multiple requests to authenhandler for a single url
+</A></li>
+	<LI>Next message: <A HREF="019191.html">[Fwd: Re: [mod_python] multiple requests to authenhandler for a single
+	url]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19206">[ date ]</a>
+              <a href="thread.html#19206">[ thread ]</a>
+              <a href="subject.html#19206">[ subject ]</a>
+              <a href="author.html#19206">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

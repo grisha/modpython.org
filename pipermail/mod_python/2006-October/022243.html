@@ -1,0 +1,344 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] AddHandler / SetHandler (black magic)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20AddHandler%20/%20SetHandler%20%28black%20magic%29&In-Reply-To=1697209921.20061007155520%40zdisk.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022242.html">
+   <LINK REL="Next"  HREF="022245.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] AddHandler / SetHandler (black magic)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20AddHandler%20/%20SetHandler%20%28black%20magic%29&In-Reply-To=1697209921.20061007155520%40zdisk.net"
+       TITLE="[mod_python] AddHandler / SetHandler (black magic)">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Oct  7 22:37:39 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022242.html">[mod_python] apache + python + mod_python: path error
+</A></li>
+        <LI>Next message: <A HREF="022245.html">[mod_python] apache + python + mod_python: path error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22243">[ date ]</a>
+              <a href="thread.html#22243">[ thread ]</a>
+              <a href="subject.html#22243">[ subject ]</a>
+              <a href="author.html#22243">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 07/10/2006, at 9:55 PM, Norman Tindall wrote:
+
+&gt;<i> GD&gt; Using AddHandler and other Apache directives is still the better
+</I>&gt;<i> GD&gt; way. In mod_python 3.3 it will be easier to do things like above,
+</I>&gt;<i> GD&gt; but it shouldn't be done in the response handler phase but an
+</I>&gt;<i> GD&gt; earlier phase such as the fixup handler phase. I'll be writing an
+</I>&gt;<i> GD&gt; article about this specific ability of mod_python 3.3 some time in
+</I>&gt;<i> GD&gt; the near future hopefully.
+</I>&gt;<i>
+</I>&gt;<i> GD&gt; Graham
+</I>&gt;<i>
+</I>&gt;<i>     The reason why i am using this is that i am using mod_python 3.1
+</I>&gt;<i>     by now. I will upgrade to 3.3 as soon as possible.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>      I have a question according to you last reply to my letter.
+</I>&gt;<i>      Suppose i want to process thing as this:
+</I>&gt;<i>
+</I>&gt;<i>                     +-------------------+
+</I>&gt;<i>                     |   start of req    |
+</I>&gt;<i>                     +-------------------+
+</I>&gt;<i>                       /            \
+</I>&gt;<i>                      /              \
+</I>&gt;<i>      +-----------------------+  +------------------------+
+</I>&gt;<i>      | extension is:         |  |  All other extension   |
+</I>&gt;<i>      | ['py','html','css']   |  |                        |
+</I>&gt;<i>      | and without extension |  +------------------------+
+</I>&gt;<i>      | but there are no real |              |
+</I>&gt;<i>      |  files at all, they   |              |
+</I>&gt;<i>      | all redirected to say |              |
+</I>&gt;<i>      | engine.py             |              |
+</I>&gt;<i>      | so i don`t want apache|              |
+</I>&gt;<i>      | to check for exsistance              |
+</I>&gt;<i>      | of file               |              |
+</I>&gt;<i>      +-----------------------+              |
+</I>&gt;<i>                |                     Apache standard
+</I>&gt;<i>          Python handler                  Handler
+</I>&gt;<i>                |                            |
+</I>&gt;<i>      ------------------------     ------------------------
+</I>&gt;<i>      In some cases script           Apache generates all
+</I>&gt;<i>      generates error pages          error pages
+</I>&gt;<i>      like 404,403,500
+</I>&gt;<i>      But in other cases
+</I>&gt;<i>      i want apache standard
+</I>&gt;<i>      error pages.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> What is the best,simple and fastest way?
+</I>&gt;<i> Can i do this with just apache directives or i have to parse, uri
+</I>&gt;<i> and extension by myself in fixuphandler as you said?
+</I>&gt;<i>
+</I>&gt;<i>    1 import posixpath
+</I>&gt;<i>    2 from mod_python import apache, psp
+</I>&gt;<i>    3
+</I>&gt;<i>    4 def fixuphandler(req):
+</I>&gt;<i>    5     extension = posixpath.splitext(req.filename)[1]
+</I>&gt;<i>    6     if extension in ['py','html','css']:
+</I>&gt;<i>    7         req.add_handler('PythonHandler', my_handler)
+</I>&gt;<i>    8         req.handler = 'mod_python'
+</I>&gt;<i>    9     return apache.OK
+</I>
+For mod_python 3.2 and earlier use Apache configuration of:
+
+   # Files which have no extension.
+
+   &lt;Files ~ '^[^.]*$'&gt;
+   SetHandler mod_python
+   &lt;/Files&gt;
+
+   # Files with extension of interest.
+
+   &lt;Files ~ '^.*\.(css|py|html)$&gt;
+   SetHandler mod_python
+   &lt;/Files&gt;
+
+   PythonHandler _handlers::handler
+   PythonHandler _handlers::handler_css | .css
+   PythonHandler _handlers::handler_py | .py
+   PythonHandler _handlers::handler_html | .html
+
+Note this is for .htaccess file, but can also be inside Directory  
+directive.
+
+If using mod_python 3.3 I might have made it more constrained by using:
+
+   &lt;Files ~ '^[^.]*$'&gt;
+   SetHandler mod_python
+   PythonHandler _handlers::handler
+   &lt;/Files&gt;
+
+   &lt;Files ~ '^.*\.(css|py|html)$&gt;
+   SetHandler mod_python
+   PythonHandler _handlers::handler_css | .css
+   PythonHandler _handlers::handler_py | .py
+   PythonHandler _handlers::handler_html | .html
+   &lt;/Files&gt;
+
+Ie., stick the PythonHandler inside the Files directive. This will  
+not work
+on mod_python 3.2 and earlier though if the Python handler module
+resides in the document tree. If the Python handler module is
+elsewhere on sys.path, then can do this for 3.2 and earlier. The reasons
+for the problems are documented at:
+
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-126">http://issues.apache.org/jira/browse/MODPYTHON-126</A>
+
+This is fixed in 3.3 though.
+
+With a Python handler module of:
+
+   from mod_python import apache
+
+   def _dump(req, extension):
+     req.content_type = 'text/plain'
+     print &gt;&gt; req, 'uri = %s' % req.uri
+     print &gt;&gt; req, 'filename = %s' % req.filename
+     print &gt;&gt; req, 'path_info = %s' % req.path_info
+     print &gt;&gt; req, 'extension = %s' % extension
+     return apache.OK
+
+   def handler(req):
+     return _dump(req, '')
+
+   def handler_css(req):
+     return _dump(req, '.css')
+
+   def handler_py(req):
+     return _dump(req, '.py')
+
+   def handler_html(req):
+     return _dump(req, '.html')
+
+If this directory is accessed as '/~grahamd/handlers/' and I use that  
+as the
+URL I get:
+
+   uri = /~grahamd/handlers/
+   filename = /Users/grahamd/public_html/handlers/
+   path_info =
+   extension =
+
+Thus handler() was called. Similarly if I use '/~grahamd/handlers/page'.
+
+   uri = /~grahamd/handlers/page
+   filename = /Users/grahamd/public_html/handlers/page
+   path_info =
+   extension =
+
+If I use any of the extensions of interest, I get something like:
+
+   uri = /~grahamd/handlers/page.css
+   filename = /Users/grahamd/public_html/handlers/page.css
+   path_info =
+   extension = .css
+
+   uri = /~grahamd/handlers/page.py
+   filename = /Users/grahamd/public_html/handlers/page.py
+   path_info =
+   extension = .py
+
+   uri = /~grahamd/handlers/page.html
+   filename = /Users/grahamd/public_html/handlers/page.html
+   path_info =
+   extension = .html
+
+Thus different handler gets called for each extension type.
+
+If I use any other extension, I get a 404 not found, unless the file  
+did actually
+exist as a static file in which case it would be returned.
+
+Now, there is one issue with doing it as above. That is that the Files
+directive only matches the first component of the path in req.filename
+appearing after the actual physical directory. Thus, if I use a URL of
+'/~grahamd/handlers/subdir/page.html', I will get:
+
+   uri = /~grahamd/handlers/subdir/page.html
+   filename = /Users/grahamd/public_html/handlers/subdir
+   path_info = /page.html
+   extension =
+
+and the handler for the '.html' extension will not be called as you  
+might expect.
+
+This is all to do with how Apache matches URLs against the physical
+directory hierarchy and how it determines what actually constitutes the
+path info for a request.
+
+At some point you would have to deal with this yourself if you were to
+take total control of mapping the URL to some target.
+
+Anyway, to ensure that Apache does what is required in this case, all  
+that
+is required is to create the physical directories in the file system  
+which
+correspond to those directories which you want to notionally hold what
+appear to be static files. Thus:
+
+   mkdir /Users/grahamd/public_html/handlers/subdir
+
+Now I get:
+
+   uri = /~grahamd/handlers/subdir/page.html
+   filename = /Users/grahamd/public_html/handlers/subdir/page.html
+   path_info =
+   extension = .html
+
+A benefit of still relying on Apache for doing this mapping and  
+creating the
+subdirectories, is you could use a modified handler of:
+
+   def handler_html(req):
+     if os.path.exists(req.filename):
+       return apache.DECLINED
+     return _dump(req, '.html')
+
+That is, because req.filename is valid, can simply check for the  
+existence
+of the file and if it exists return apache.DECLINED so that Apache  
+serves
+it up as a static file instead. Thus can mix static and dynamic files  
+with the
+static taking precedence.
+
+Note that using os.path.exists() here results in an extra stat()  
+call, but have
+to do this with mod_python 3.2 and earlier as some information missing
+with req.finfo. In mod_python 3.3, would instead use:
+
+   def handler_html(req):
+     if req.finfo.filetype == apache.APR_REG:
+       return apache.DECLINED
+     return _dump(req, '.html')
+
+BTW, rather than modify the handler, I could have had a separate handler
+whose only purpose was to check for static files:
+
+   def check_exists(req):
+     if req.finfo.filetype == apache.APR_REG:
+       return apache.DECLINED
+     return apache.OK
+
+Then in the Apache configuration, use:
+
+   PythonHandler _handlers::check_exists _handlers::handler_html | .html
+
+or:
+
+   PythonHandler _handlers::check_exists |.html
+   PythonHandler _handlers::handler_html | .html
+
+Both are equivalent.
+
+Ie., use a stacked handler. That the first returns apache.DECLINED  
+causes
+the latter not to be invoked. This way you have little handlers doing  
+specific
+jobs and aren't creating one huge handler that tries to do everything.
+
+Hope this is interesting.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022242.html">[mod_python] apache + python + mod_python: path error
+</A></li>
+	<LI>Next message: <A HREF="022245.html">[mod_python] apache + python + mod_python: path error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22243">[ date ]</a>
+              <a href="thread.html#22243">[ thread ]</a>
+              <a href="subject.html#22243">[ subject ]</a>
+              <a href="author.html#22243">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

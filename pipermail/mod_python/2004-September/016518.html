@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PSP content-type problem
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PSP%20content-type%20problem&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016517.html">
+   <LINK REL="Next"  HREF="016519.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PSP content-type problem</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Robert Fendt</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PSP%20content-type%20problem&In-Reply-To="
+       TITLE="[mod_python] PSP content-type problem">rmfendt at web.de
+       </A><BR>
+    <I>Sat Sep 25 18:33:11 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016517.html">[mod_python] TypeError:  help  (not enough non-keyword args)
+</A></li>
+        <LI>Next message: <A HREF="016519.html">[mod_python] PSP content-type problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16518">[ date ]</a>
+              <a href="thread.html#16518">[ thread ]</a>
+              <a href="subject.html#16518">[ subject ]</a>
+              <a href="author.html#16518">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I am playing around with mod_python at the moment (partly because I
+developed a bit of a dislike for PHP lately). Normally I use XHTML and use
+the &quot;Accept:&quot; header information by the UA to determine if it can parse
+the document as XML. In that case, it gets the document as
+application/xhtml+xml, otherwise (e.g., the IE) as text/html. The code I
+use for this in PHP is irrelevant, of course. In mod_python currently I
+use this:
+
+-----------------------------
+CHARSET = &quot;utf-8&quot;
+
+def index(req):
+  xmlctype = 'application/xhtml+xml'
+  htmlctype = 'text/html'
+  supportsxml = string.count(req.headers_in.get('Accept', &quot;&quot;), xmlctype)
+
+  if (supportsxml):
+    ctype = xmlctype
+  else:
+    ctype = htmlctype
+  req.content_type = ctype + '; charset=%s' % CHARSET
+-----------------------------
+
+This works quite well, but problems start when I try to include a psp page
+template like this:
+
+-----------------------------
+  vars = {'usexml': supportsxml,
+          'charset': CHARSET}
+  page = psp.PSP(req, 'index.psp', vars=vars)
+  return page
+-----------------------------
+
+Whatever I do, the page is _always_ delivered as &quot;text/html&quot;. If I repeat
+the content_type assignment inside the psp template, it works, but of
+course I do not want to repeat the recognition code in every page
+template. A look inside psp.py showed that indeed the content_type is
+overwritten. Here:
+
+-----------------------------
+    def __str__(self):
+        self.req.content_type = 'text/html'
+        self.run()
+        return &quot;&quot;
+-----------------------------
+
+and here:
+
+-----------------------------
+def handler(req):
+
+    req.content_type = &quot;text/html&quot;
+-----------------------------
+
+I would suggest changing it to what the publisher handler does (if this
+does not break anything, but at least it seems to work for me), e.g.:
+
+-----------------------------
+    def __str__(self):
+        if not self.req._content_type_set:
+            self.req.content_type = 'text/html'
+        self.run()
+        return &quot;&quot;
+-----------------------------
+
+One final remark: defining __str__(self) like above is (in my opinion) a
+very ugly hack. On trying something like
+
+page=str(psp.PSP(req, 'page.psp'))
+
+I would expect &quot;page&quot; to contain the PSP rendering of 'page.psp' as a
+string. What I would not expect, however, is the (attempted) string
+conversion causing a direct write to the UA. In fact I tried this while
+trying to get the psp class not to rewrite my content-type and was quite
+surprised at the result.
+
+Regards,
+Robert
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016517.html">[mod_python] TypeError:  help  (not enough non-keyword args)
+</A></li>
+	<LI>Next message: <A HREF="016519.html">[mod_python] PSP content-type problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16518">[ date ]</a>
+              <a href="thread.html#16518">[ thread ]</a>
+              <a href="subject.html#16518">[ subject ]</a>
+              <a href="author.html#16518">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

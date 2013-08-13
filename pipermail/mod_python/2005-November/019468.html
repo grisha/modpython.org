@@ -1,0 +1,203 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python.util.StorageField.read_to_boundary has
+	problems in 3.1 and 3.2
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python.util.StorageField.read_to_boundary%20has%0A%09problems%20in%203.1%20and%203.2&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019467.html">
+   <LINK REL="Next"  HREF="019469.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python.util.StorageField.read_to_boundary has
+	problems in 3.1 and 3.2</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Alexis Marrero</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python.util.StorageField.read_to_boundary%20has%0A%09problems%20in%203.1%20and%203.2&In-Reply-To="
+       TITLE="[mod_python] mod_python.util.StorageField.read_to_boundary has
+	problems in 3.1 and 3.2">amarrero at mitre.org
+       </A><BR>
+    <I>Sat Nov  5 11:14:45 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019467.html">[mod_python] Problems with PSP
+</A></li>
+        <LI>Next message: <A HREF="019469.html">Developer FAQ (was Re: [mod_python]
+	mod_python.util.StorageField.read_to_boundary
+	has	problems in 3.1 and 3.2)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19468">[ date ]</a>
+              <a href="thread.html#19468">[ thread ]</a>
+              <a href="subject.html#19468">[ subject ]</a>
+              <a href="author.html#19468">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>All,
+
+I don't think this is the right mailing list to send this but here it  
+goes. (Let me know if there is a developers list).
+
+The current 3.1 mod_python implementation of  
+mod_python.util.StorageField.read_to_boudary reads as follows:
+
+    203      def read_to_boundary(self, req, boundary, file):
+    204          delim = &quot;&quot;
+    205          line = req.readline()
+    206          sline = line.strip()
+    207          last_bound = boundary + &quot;--&quot;
+    208          while line and sline != boundary and sline !=  
+last_bound:
+    209              odelim = delim
+    210              if line[-2:] == &quot;\r\n&quot;:
+    211                  delim = &quot;\r\n&quot;
+    212                  line = line[:-2]
+    213              elif line[-1:] == &quot;\n&quot;:
+    214                  delim = &quot;\n&quot;
+    215                  line = line[:-1]
+    216              file.write(odelim + line)
+    217              line = req.readline()
+    218              sline = line.strip()
+
+As we have discussed previously:
+<A HREF="http://www.modpython.org/pipermail/mod_python/2005-March/017754.html">http://www.modpython.org/pipermail/mod_python/2005-March/017754.html</A>
+<A HREF="http://www.modpython.org/pipermail/mod_python/2005-March/017756.html">http://www.modpython.org/pipermail/mod_python/2005-March/017756.html</A>
+<A HREF="http://www.modpython.org/pipermail/mod_python/2005-November/019460.html">http://www.modpython.org/pipermail/mod_python/2005-November/019460.html</A>
+
+This triggered couple of changes in mod_python 3.2 Beta which reads  
+as follows:
+     33  # Fixes memory error when upload large files such as 700+MB  
+ISOs.
+     34  readBlockSize = 65368
+     35
+...
+    225     def read_to_boundary(self, req, boundary, file):
+...
+    234         delim = ''
+    235         lastCharCarried = False
+    236         last_bound = boundary + '--'
+    237         roughBoundaryLength = len(last_bound) + 128
+    238         line = req.readline(readBlockSize)
+    239         lineLength = len(line)
+    240         if lineLength &lt; roughBoundaryLength:
+    241             sline = line.strip()
+    242         else:
+    243             sline = ''
+    244         while lineLength &gt; 0 and sline != boundary and sline ! 
+= last_bound:
+    245             if not lastCharCarried:
+    246                 file.write(delim)
+    247                 delim = ''
+    248             else:
+    249                 lastCharCarried = False
+    250             cutLength = 0
+    251             if lineLength == readBlockSize:
+    252                 if line[-1:] == '\r':
+    253                     delim = '\r'
+    254                     cutLength = -1
+    255                     lastCharCarried = True
+    256             if line[-2:] == '\r\n':
+    257                 delim += '\r\n'
+    258                 cutLength = -2
+    259             elif line[-1:] == '\n':
+    260                 delim += '\n'
+    261                 cutLength = -1
+    262             if cutLength != 0:
+    263                 file.write(line[:cutLength])
+    264             else:
+    265                 file.write(line)
+    266             line = req.readline(readBlockSize)
+    267             lineLength = len(line)
+    268             if lineLength &lt; roughBoundaryLength:
+    269                 sline = line.strip()
+    270             else:
+    271                 sline = ''
+
+This function has a mysterious bug in it... For some files which I  
+could disclose (one of them been the PDF file for Apple Pages User  
+Manual in Italian) the uploaded file in the server ends up with the  
+same length but different sha512 (the only digest that I'm using).   
+The problem is a '\r' in the middle of a chunk of data that is much  
+larger than readBlockSize.
+
+Anyhow, I wrote a new function, which I believe is much simpler, and  
+test it with thousands and thousands of different files and so far it  
+seems to work fine.  It reads as follows:
+
+def read_to_boundary(self, req, boundary, file):
+     ''' read from the request object line by line with a maximum size,
+         until the new line starts with boundary
+     '''
+     previous_delimiter = ''
+     while 1:
+         line = req.readline(1&lt;&lt;16)
+         if line.startswith(boundary):
+             break
+
+         if line.endswith('\r\n'):
+             file.write(previous_delimiter + line[:-2])
+             previous_delimiter = '\r\n'
+
+         elif line.endswith('\r') or line.endswith('\n'):
+             file.write(previous_delimiter + line[:-1])
+             previous_delimiter = line[-1:]
+
+         else:
+             file.write(previous_delimiter + line)
+             previous_delimiter = ''
+
+Mod_python developers, let me know any comments on it and if you test  
+it and fails please also let me know.
+/amn
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20051105/4f6b17b3/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20051105/4f6b17b3/attachment-0001.html</A>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019467.html">[mod_python] Problems with PSP
+</A></li>
+	<LI>Next message: <A HREF="019469.html">Developer FAQ (was Re: [mod_python]
+	mod_python.util.StorageField.read_to_boundary
+	has	problems in 3.1 and 3.2)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19468">[ date ]</a>
+              <a href="thread.html#19468">[ thread ]</a>
+              <a href="subject.html#19468">[ subject ]</a>
+              <a href="author.html#19468">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

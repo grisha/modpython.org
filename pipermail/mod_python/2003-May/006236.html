@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python slowness
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20slowness&In-Reply-To=20030513203511.32703.qmail%40email.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006230.html">
+   <LINK REL="Next"  HREF="006237.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python slowness</H1>
+    <B>Alex Turner</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20slowness&In-Reply-To=20030513203511.32703.qmail%40email.com"
+       TITLE="[mod_python] mod_python slowness">aturner at neteconomist.com
+       </A><BR>
+    <I>Fri May 16 10:34:39 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006230.html">[mod_python] mod_python slowness
+</A></li>
+        <LI>Next message: <A HREF="006237.html">[mod_python] mod_python slowness
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6236">[ date ]</a>
+              <a href="thread.html#6236">[ thread ]</a>
+              <a href="subject.html#6236">[ subject ]</a>
+              <a href="author.html#6236">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>
+It's very unlikely to be a network problem because both the database and 
+the web server are running on the same host.  The timings that I took were 
+done by placing a start=time.time() at the top of the code section that 
+executes 
+the file, and a print time.time()-start at the end, so I'm fairly 
+convinced that these are accurate.  I then placed more time tests around 
+other parts of the mechanism which allowed me to gauge how long each 
+segment of the run takes.  I have found a serious flaw in my database 
+class, having corrected that though, I found something interesting:
+
+This is my init routine for by DBResult class:
+
+def __init__(self,query):
+ start=time.time()
+ self.query=query
+ self.counter=0;
+ self.lresults_l=self.query.getresult()
+ self.dresults_l=self.query.dictresult()
+ self.fresults_l=[]
+
+ # Copy the indexed/dict values into fresults
+ for a in range(len(self.lresults_l)):
+   x=0
+   self.fresults_l.append({})
+   for b in self.lresults_l[a]:
+      self.fresults_l[a][x]=b
+      x=x+1
+
+   for b in self.dresults_l[a].keys():
+      self.fresults_l[a][b]=self.dresults_l[a][b]
+
+ print &quot;Init time %f&lt;br&gt;\n&quot; % (time.time()-start)
+
+It's not pretty, but it does show something wierd:
+
+inside apache this gives a time of: 0.178554 secs
+outside apache this gives a time of: 0.093750 secs
+
+almost twice as fast.
+
+Maybe this is a pg module problem, I don't know, but it's certainly wierd!
+
+Alex Turner
+NetEconomist
+
+On Tue, 13 May 2003, Jack Diederich wrote:
+
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; I'm pretty sure this is not a DNS problem.  I can break down each loop
+</I>&gt;<i> &gt; that calls the database, and it shows 0.7 seconds per row returning
+</I>&gt;<i> &gt; instead of like 0.03 seconds.  The dns servers are all configured
+</I>&gt;<i> &gt; correctly for both forward and reverse lookups, and I do not have the same
+</I>&gt;<i> &gt; problems in PHP (other the fact that PHP is crap compared to python - but
+</I>&gt;<i> &gt; it's not this slow).
+</I>&gt;<i> 
+</I>&gt;<i> Are you doing anything wierd like running apache or progres
+</I>&gt;<i> through inetd (so it has to start a new process for every
+</I>&gt;<i> request)?  Or are you doing a new database connection for
+</I>&gt;<i> each row?
+</I>&gt;<i> 
+</I>&gt;<i> If the identical python program takes 1/10th the time running
+</I>&gt;<i> stand-alone I think the DNS was one the right track - it must
+</I>&gt;<i> be a network related problem.
+</I>&gt;<i> 
+</I>&gt;<i> You might also want to print to the resulting page the time
+</I>&gt;<i> the process took from start to finish.  If the page is very
+</I>&gt;<i> complicated it might look slower even if it isn't.
+</I>&gt;<i> 
+</I>&gt;<i> You can also try commenting out all the database calls and
+</I>&gt;<i> timing the stand alone and mod_python versions.  That will
+</I>&gt;<i> at least allow you to narrow down the problem.  Also consider
+</I>&gt;<i> using 'strace' on the stand alone and the apache version.
+</I>&gt;<i> Compare the system calls between the two to see if something
+</I>&gt;<i> pathological is happening in the mod_python case.
+</I>&gt;<i> 
+</I>&gt;<i> -jack
+</I>&gt;<i> 
+</I>
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006230.html">[mod_python] mod_python slowness
+</A></li>
+	<LI>Next message: <A HREF="006237.html">[mod_python] mod_python slowness
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6236">[ date ]</a>
+              <a href="thread.html#6236">[ thread ]</a>
+              <a href="subject.html#6236">[ subject ]</a>
+              <a href="author.html#6236">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

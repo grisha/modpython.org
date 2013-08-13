@@ -1,0 +1,216 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python 3.3 importer with &quot;import&quot; statement
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%203.3%20importer%20with%20%22import%22%20statement&In-Reply-To=7c93bf1e0705310242ia9e991dh26bc831d6151e291%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023754.html">
+   <LINK REL="Next"  HREF="023756.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python 3.3 importer with &quot;import&quot; statement</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%203.3%20importer%20with%20%22import%22%20statement&In-Reply-To=7c93bf1e0705310242ia9e991dh26bc831d6151e291%40mail.gmail.com"
+       TITLE="[mod_python] mod_python 3.3 importer with &quot;import&quot; statement">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Thu May 31 06:07:11 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023754.html">[mod_python] mod_python 3.3 importer with &quot;import&quot; statement
+</A></li>
+        <LI>Next message: <A HREF="023756.html">[mod_python] Book or other documentation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23755">[ date ]</a>
+              <a href="thread.html#23755">[ thread ]</a>
+              <a href="subject.html#23755">[ subject ]</a>
+              <a href="author.html#23755">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 31/05/07, Ben Hoyt &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ben at micropledge.com</A>&gt; wrote:
+&gt;<i> Hi guys,
+</I>&gt;<i>
+</I>&gt;<i> We're starting a web site running on mod_python, and we've run into import
+</I>&gt;<i> problems, specifically using
+</I>&gt;<i>
+</I>&gt;<i> from DIR import FILE
+</I>&gt;<i>
+</I>&gt;<i>  apache.import_modulewhere DIR is a directory (not a module or package) and
+</I>&gt;<i> file is a FILE.py file. It works with standard Python importing, but now
+</I>&gt;<i> that we have multiple virtual servers, we need to use, but we can't quite.
+</I>&gt;<i>
+</I>&gt;<i> Here's the long gory story:
+</I>&gt;<i> ---------------------
+</I>&gt;<i>
+</I>&gt;<i> Up till now we've just been using the standard import statement, and it's
+</I>&gt;<i> worked fine. But now we're running two copies of our Python code-base on two
+</I>&gt;<i> virtual servers. So there are two files called &quot; code.py&quot; and suchlike in
+</I>&gt;<i> two different directories, and the imports get confused if the two are out
+</I>&gt;<i> of sync. All as the docs explain ... because of how sys.modules is stored
+</I>&gt;<i> without full paths.
+</I>
+By default VirtualHosts use distinct Python interpreter instances.
+Thus, unless you have explicitly set PythonInterpreter explicitly so
+the same interpreters is used for both hosts there shouldn't be a
+problem if the two virtual hosts use the same module/package name but
+different versions obtained from different sys.path directories.
+
+&gt;<i> So I've just been trying to use the new apache.import_module(), but I'm
+</I>&gt;<i> running into various problems because we have multiple directories in our
+</I>&gt;<i> code structure, which looks something like this:
+</I>&gt;<i>
+</I>&gt;<i> code/
+</I>&gt;<i> code/code.py  # main file for mod_python usage, imports everything
+</I>&gt;<i> code/cli.py  # command line &quot;test harness&quot; loader
+</I>&gt;<i> code/logic/dbase.py
+</I>&gt;<i> code/logic/errors.py
+</I>&gt;<i> code/handlers/home.py
+</I>&gt;<i> code/handlers/users.py
+</I>&gt;<i> ...  # and heaps more files in each of the subdirs
+</I>&gt;<i>
+</I>&gt;<i> &quot;logic&quot; and &quot;handlers&quot; aren't actual packages, so we thought we'd be okay
+</I>&gt;<i> using apache.import_module() on code.py, and all the import statements
+</I>&gt;<i> scattered throughout the code would just work (am I correct in this? if the
+</I>&gt;<i> top-level import uses import_module, the rest will automatically?). code.py
+</I>&gt;<i> is actually run by modpython_gateway.py, a WSGI wrapper for mod_python that
+</I>&gt;<i> we modified to use import_module instead of __import__.
+</I>&gt;<i>
+</I>&gt;<i> But the problem is that it bombs out on statements like:
+</I>&gt;<i>
+</I>&gt;<i> from logic import errors
+</I>&gt;<i>
+</I>&gt;<i> with &quot;ImportError: No module named logic&quot;
+</I>&gt;<i>
+</I>&gt;<i> I guess this is because logic isn't a file/module, it's a directory. Is this
+</I>&gt;<i> correct? (In .htaccess, I have PythonOption mod_python.importer.path
+</I>&gt;<i> &quot;['c:/www/mpledge/code']&quot; so it definitely knows where to go, but the import
+</I>&gt;<i> statement fallback probably doesn't. It won't help if we set sys.path,
+</I>&gt;<i> because then we're back to the old import problems.)
+</I>&gt;<i>
+</I>&gt;<i> In short, we're wondering the best way forward using mod_python. The options
+</I>&gt;<i> we see are:
+</I>&gt;<i>
+</I>&gt;<i> 1) Only ever run one code base. Non-ideal.
+</I>&gt;<i>
+</I>&gt;<i>  2) Override __builtin__.__import__ with our own one that checks if it's a
+</I>&gt;<i> directory and calls your import_module on the result, e.g.,
+</I>&gt;<i> import_module('logic/errors'). Would this work?
+</I>
+Overriding import is more complicated than just replacing __import__. ;-)
+
+&gt;<i> 3) Write a patch to modpython's import_module that adds that functionality.
+</I>&gt;<i> But I'm guessing there's some good reason it doesn't support this -- is that
+</I>&gt;<i> correct?
+</I>
+It wasn't possible to support true Python packages. But then, as
+documented apache.import_module() does support pseudo packages using
+relative paths. I cant remember why I didn't support the pseudo
+packages through import, most likely because the __init__.py file if
+it did exist wouldn't get imported and as a result felt that that
+might confuse users.
+
+&gt;<i> 4) Change all our import statements to import_module calls. We have a lot of
+</I>&gt;<i> them in different forms, so this would be messy. Particularly because we
+</I>&gt;<i> want it to work in test/command-line mode too. And at the moment with import
+</I>&gt;<i> statements it works just as well from Apache with code.py and from the
+</I>&gt;<i> command line with &quot;python -i cli.py&quot;. So we'd have to do if/else conditions
+</I>&gt;<i> around all the imports, for whether it's in cli/test mode or not.
+</I>&gt;<i>
+</I>&gt;<i> 5) Look into FastCGI or something ... but we're not sure we want to go there
+</I>&gt;<i> at this stage.
+</I>
+I'd suggest other things before that, maybe mod_wsgi perhaps. :-)
+
+&gt;<i> Oh, and one more thing, we're also using Cheetah, so I guess we'll have to
+</I>&gt;<i> change its __import__s to import_module calls too...
+</I>&gt;<i>
+</I>&gt;<i>  What do you think is the best way?
+</I>
+Since your application is designed for WSGI, I would recommend against
+using any features which are specific to the mod_python module
+importer, whether that be implicit or explicit. The reason for that is
+that by doing so your application would then no longer be portable to
+other WSGI hosting solutions which cause you more work if you want to
+change later. I do acknowledge though that by making it a portable
+WSGI application, you have to give up automatic module reloading and
+thus would have to restart Apache whenever changes are made.
+
+That said, to make it a portable WSGI application, you would just need
+to turn your whole collection of modules into a package. The
+__init__.py files can though be all empty. Thus:
+
+micropledge/
+
+micropledge/__init__.py
+micropledge/code.py  # main file for mod_python usage, imports everything
+micropledge/cli.py  # command line &quot;test harness&quot; loader
+
+micropledge/logic/__init__.py
+micropledge/logic/dbase.py
+micropledge/logic/errors.py
+
+micropledge/handlers/__init__.py
+micropledge/handlers/home.py
+micropledge/handlers/users.py
+
+By being a package everything is then using a full dotted path. For
+example 'micropledge.logic.errors'. Thus same module name in separate
+subdirectories of the one package not a problem.
+
+As for keeping the different versions in different virtual hosts
+separate, the use of distinct Python sub interpreters should manage
+that as long as the sys.path in each only refers to its own version
+and not that of the other virtual host.
+
+Thus, in the first instance, would be investigating why your virtual
+hosts would be using the same Python sub interpreter.
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023754.html">[mod_python] mod_python 3.3 importer with &quot;import&quot; statement
+</A></li>
+	<LI>Next message: <A HREF="023756.html">[mod_python] Book or other documentation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23755">[ date ]</a>
+              <a href="thread.html#23755">[ thread ]</a>
+              <a href="subject.html#23755">[ subject ]</a>
+              <a href="author.html#23755">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

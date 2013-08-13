@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Some observations after writing my own modpython
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Some%20observations%20after%20writing%20my%20own%20modpython&In-Reply-To=88e286470705301722x5244474fs2d3b2314648e7d0b%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023777.html">
+   <LINK REL="Next"  HREF="023779.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Some observations after writing my own modpython</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Roger Binns</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Some%20observations%20after%20writing%20my%20own%20modpython&In-Reply-To=88e286470705301722x5244474fs2d3b2314648e7d0b%40mail.gmail.com"
+       TITLE="[mod_python] Some observations after writing my own modpython">rogerb at rogerbinns.com
+       </A><BR>
+    <I>Tue Jun  5 11:58:19 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023777.html">[mod_python] better understanding of the req object
+</A></li>
+        <LI>Next message: <A HREF="023779.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23778">[ date ]</a>
+              <a href="thread.html#23778">[ thread ]</a>
+              <a href="subject.html#23778">[ subject ]</a>
+              <a href="author.html#23778">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+Graham Dumpleton wrote:
+&gt;<i> Wow, when I suggested that it was more 'tongue in cheek', if you
+</I>&gt;<i> understand the expression. 
+</I>
+Of course.  But the code was fresh in my mind so what the heck :-)
+
+&gt;<i> The complaints one keep seeing about fastcgi/scgi is that it is a pain
+</I>&gt;<i> to setup both in the fact that you need to install separate backend
+</I>&gt;<i> packages and also in the configuration. 
+</I>
+Can't that be fixed by better documentation/installers?
+
+&gt;<i> You also see various
+</I>&gt;<i> complaints about it those process will just die or will hang around
+</I>&gt;<i> and not die.
+</I>
+I assume that is bugs in wsgiref or one of the other servers.
+
+&gt;<i> Overall, the intent is to make it as secure, simple and uncomplicated
+</I>&gt;<i> as possible for web hosting companies so they can see it as a viable
+</I>&gt;<i> option for hosting Python web applications.
+</I>
+I'd strongly recommend putting that paragraph at the top of the modwsgi
+home page.  A problem with a lot of open source projects is that they
+don't say what they are really good at.
+
+&gt;<i> Anyway, again, it is all about providing a system which is going to be
+</I>&gt;<i> safe to use in shared web hosting environments where users can't
+</I>&gt;<i> create havoc.
+</I>
+def handler(...):
+   while True:
+      pass
+
+&gt;<i> There are no APR functions in Apache 1.3. It doesn't have some
+</I>&gt;<i> equivalents as ap_ functions but not as many.
+</I>
+I guess you'd have to use the Python equivalent functions then.
+
+&gt;<i> Also, the apr_ functions
+</I>&gt;<i> mean you are using the Apache memory pools. I didn't want to use the
+</I>&gt;<i> memory pools as then the cumulative memory used is held until the end
+</I>&gt;<i> of the request, whereas using malloc/free means only hold memory for
+</I>&gt;<i> just the period I need to.
+</I>
+I can't imagine requests live that long to matter.  Also if you are
+talking premature optimizations, I believe it is far more effective to
+have the one free called that gets rid of the whole pool rather than
+individual frees.  The main thing that seemed wierd in the code is that
+it was doing these precise allocations whereas I'd expect Python or apr
+to do allocations larger than you requested so that when you add more
+chunks of data the space is likely already there.
+
+&gt;&gt;<i> You may find it worthwhile using PyObject_CallFunction instead of
+</I>&gt;&gt;<i> BuildValue and CallObject.  You have one less thing to track refcounts
+</I>&gt;&gt;<i> for and one less line of code.
+</I>&gt;<i> 
+</I>&gt;<i> Probably just did it that way as that is what the basic Python
+</I>&gt;<i> documentation examples use and so have always done that.
+</I>
+Yes, it would be nice if the docs and examples showed other functions
+you can use, especially ones that result in less code and one less
+variable to keep track of references on.
+
+&gt;&gt;<i> For the various objects that have a request_rec*, I don't see how they
+</I>&gt;&gt;<i> deal with outliving the request_req.
+</I>&gt;<i> 
+</I>&gt;<i> They don't and since I keep pushing this idea that mod_wsgi is meant
+</I>&gt;<i> to be as secure and robust as possible to satisfy web hosting
+</I>&gt;<i> companies, maybe I should.
+</I>
+reqs=[]
+
+def handler(req):
+   reqs.append(req)
+   [r.uri for r in reqs]
+
+That code will cause a core dump :-)
+
+&gt;<i> Strictly speaking though, a WSGI application should not be retaining
+</I>&gt;<i> references to the WSGI environment, the start_response function or
+</I>&gt;<i> anything else provided as part of the request. If it does, then it is
+</I>&gt;<i> incorrect.
+</I>
+There is incorrect, and there is crashing the entire process :-)
+
+&gt;<i> Maybe I misunderstand what you are talking about, or to what level you
+</I>&gt;<i> are applying it. What I thought you meant is that if one access an
+</I>&gt;<i> attribute of request_rec, such as content type, that you create a
+</I>&gt;<i> Python string object and return it, but that you also remember that
+</I>&gt;<i> Python string instance so the next time content type is access in same
+</I>&gt;<i> request, that Python string instance which is being held is return
+</I>&gt;<i> instead of having to create a new one.
+</I>
+OOR is not referring to individual attributes and &quot;small&quot; types such as
+string and integer but rather objects such as what wraps the
+request_rec, server, apr_tables etc.
+
+&gt;<i> Anyway, thanks greatly for reviewing my code and commenting on it.
+</I>&gt;<i> Just about everyone grabs the code and uses it, rather than digging
+</I>&gt;<i> into what it does and giving any feedback and how to make it better.
+</I>
+You are welcome.  It was interesting for me too.
+
+Roger
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.6 (GNU/Linux)
+
+iD8DBQFGZYgbmOOfHg372QQRAoaSAJ4tU16GndmvMOomUYzPw5rt4N+WhgCdEOB9
+lFcRVenn25VgX5y8P+PywSE=
+=GvGG
+-----END PGP SIGNATURE-----
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023777.html">[mod_python] better understanding of the req object
+</A></li>
+	<LI>Next message: <A HREF="023779.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23778">[ date ]</a>
+              <a href="thread.html#23778">[ thread ]</a>
+              <a href="subject.html#23778">[ subject ]</a>
+              <a href="author.html#23778">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

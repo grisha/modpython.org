@@ -1,0 +1,238 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problem with PSP and unicode
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20with%20PSP%20and%20unicode&In-Reply-To=20060214101420.K47576%40grisha.dyndns.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020302.html">
+   <LINK REL="Next"  HREF="020225.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Problem with PSP and unicode</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20with%20PSP%20and%20unicode&In-Reply-To=20060214101420.K47576%40grisha.dyndns.org"
+       TITLE="[mod_python] Problem with PSP and unicode">nicolas at lehuen.com
+       </A><BR>
+    <I>Tue Feb 14 14:23:57 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020302.html">[mod_python] Problem with PSP and unicode
+</A></li>
+        <LI>Next message: <A HREF="020225.html">[mod_python] forks, daemons and other beasts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20264">[ date ]</a>
+              <a href="thread.html#20264">[ thread ]</a>
+              <a href="subject.html#20264">[ subject ]</a>
+              <a href="author.html#20264">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>PSP should encode the unicode strings in the same character set the
+PSP page is written in. Now you've got two problems :).
+
+Somehow, the PSP calling code should pass an encoding name to the PSP
+evaluator, which should do some stringify values like that :
+
+def stringify(value,encoding):
+    if value is None:
+        # I guess it does that, I never used PSP :)
+        return ''
+    elif isinstance(value,unicode):
+        return value.encode(encoding)
+    else:
+        return str(value)
+
+There are three places where the encoding could be defined :
+
+1) In the PSP file, thanks to a special tag. XML files use the &lt;?xml
+version=&quot;1.0&quot; encoding=&quot;iso-8859-1&quot;?&gt; scheme, Python files use the #
+-*- coding: iso-8859-1 -*-, HTML files use the META content-type
+header, and so on and so forth. The PSP constructor would extract the
+encoding name from the file and use it when transforming unicode
+strings into bytes.
+
+2) When the PSP file is compiled, as an argument to the PSP constructor.
+
+3) When the PSP file is ran, as a dictionary member. This one is not a
+good idea since there are no reason the static part of the PSP file
+has a static encoding and changing the output encoding at runtime is
+bound to pose problems.
+
+In any case, you are bound to have problem when using non-unicode
+strings, should their encoding differ from the one used in the PSP
+file.
+
+The best thing to do IMHO would be to transform everything in Unicode,
+then convert it into an encoding supported by the client.
+
+That is to say, parse and store the PSP file as unicode strings,
+decoding the bytes from the file according to the encoding obtained
+from one of the first two methods above. Then turn input values into
+unicode (byte strings being converted to unicode according to their
+encoding) and build a fully unicode result document. mod_python would
+then have to select an encoding (based on content negociation with the
+browsers) to write the unicode document as bytes, not forgetting to
+specify the encoding in the &quot;Content-Type: text/html; charset=XXXX&quot;
+header. But then again, this complicates method 2 since if another
+encoding is selected, the encoding information which is inside the
+document should be modified.
+
+In other words, forget about byte strings, do everything in Unicode,
+and try to never automatically convert str into unicode or vice-versa,
+because this is bound to fail. This automatic conversion is really a
+weak spot of Python, it is really a shame. Anyway...
+
+Unicode isn't really complicated. You have to forget that unicode and
+str are nearly the same in Python. They are not. Unicode strings are
+arrays of thingies that represent characters - don't even think of
+these thingies as 16 or 32 bits integers. They are abstract values
+that each represent a given character.
+
+The problem is that &quot;thingies&quot; do not play well with electronics, so
+you have to convert them into bits and bytes to store or exchange
+them. Encodings are simply a mapping from thingies to bytes and vice
+versa.
+
+The trick is that encoders are built so that they are somewhat optimal
+for a given set of languages. As a consequence, most encoders cannot
+encode the whole set of Unicode characters.
+
+For example, the ASCII encoding can only encode 128 different
+characters, namely numbers, upper and lower case non-accentuated latin
+alphabet (as used in, surprise, the United States). ASCII only require
+7 bits to do so, which was good for antique communication systems.
+Nowadays, ASCII is OK if you're restricted to the English-speaking
+word, but as soon as a damn French guy wants to write you about how
+his caf&#233; his better than the stuff you get at Starbucks, well, he
+cannot, because the Unicode &quot;&#233;&quot; thingy cannot be encoded into ASCII.
+So you don't have to hear his rambling, and you're much better like
+that. But that's another story.
+
+A big bunch of different encodings use 8 bits to represent, say, a
+majority of characters used in the west european languages (ISO-8859-1
+AKA ISO-Latin-1 and its cousin ISO-Latin-15 which switches the 0x80
+value from an unused whitespace to the very useful euro sign),
+cyrillic alphabets (the Russian even have multiple different and
+mutually incompatible encoding for their alphabet), and so on.
+
+Then, there is a set of more universal encodings, UTF-16 (16 bits per
+character, but it cannot encode every Unicode character), UTF-32 (32
+bits per character) and the famous UTF-8, which occidental developers
+love because latin characters only use 8 bits, and oriental developers
+hate because their characters sometimes require 24 bits.
+
+An important thing to remember is that a piece of text can be
+represented either as a Unicode string, or as a byte array + the name
+of the encoding chosen to encode it. A BYTE ARRAY WITHOUT ENCODING
+INFORMATION CANNOT BE CONSIDERED AS TEXT. And that's the big problem
+of Python (which is not alone here, if that's a relief) : byte arrays
+(str in Python parlance) as considered as text in some default
+encoding, which varies considerably from place to place.
+
+As soon as you start exchanging byte arrays with someone without
+specifying the encoding in one way (the Content-Type header) or
+another (some content-type information embedded in the array, assuming
+that the encoding name is itself encoded in ASCII), then mayhem is
+sure to follow.
+
+The Windows platform is a good example : you get one encoding in the
+command processor (in France it is CP850), another in the GUI (usually
+it is ANSI, which is quite the same, but not equal to ISO-8859-1), and
+sometimes another in your Python source file (most of the standard
+library is written in ASCII, which is fortunately compatible with ANSI
+and ISO-8859-1). But the fun part is that when running a Python
+program (as opposed to typing stuff in the interactive prompt), the
+default encoding becomes ASCII ! As a result, accentuated character
+output is nearly always wrong when console output is performed, unless
+the programmer has thought about converting strings to CP850.
+
+I wish the situation was as simple as in the Java world, where all
+strings are Unicode strings, period...
+
+Joel Spolsky has written a very good article about Unicode : &quot;The
+Absolute Minimum Every Software Developer Absolutely, Positively Must
+Know About Unicode and Character Sets (No Excuses!)&quot;
+
+<A HREF="http://www.joelonsoftware.com/articles/Unicode.html">http://www.joelonsoftware.com/articles/Unicode.html</A>
+
+His explanation are even better than mine, I don't know why I have
+written this, and why you read it ;)
+
+Regards,
+Nicolas
+
+2006/2/14, Gregory (Grisha) Trubetskoy &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grisha at modpython.org</A>&gt;:
+&gt;<i>
+</I>&gt;<i> I'm a bit unicode-ignorant - what should PSP do? The idea was that a
+</I>&gt;<i> variable referred to in a PSP page would be an object that could stringify
+</I>&gt;<i> itself by implementing a __str__(), but obviously this doesn't work with
+</I>&gt;<i> unicode at all. But I'm not sure how self-representation works in the
+</I>&gt;<i> unicode world...
+</I>&gt;<i>
+</I>&gt;<i> Grisha
+</I>&gt;<i>
+</I>&gt;<i> On Mon, 13 Feb 2006, Dan Eloff wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; Actually I was just about to post a question about this. The psp generated
+</I>&gt;<i> code surrounds everything with str() before writing it, so it doesn't work
+</I>&gt;<i> with unicode at all.
+</I>&gt;<i>
+</I>&gt;<i> -Dan
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020302.html">[mod_python] Problem with PSP and unicode
+</A></li>
+	<LI>Next message: <A HREF="020225.html">[mod_python] forks, daemons and other beasts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20264">[ date ]</a>
+              <a href="thread.html#20264">[ thread ]</a>
+              <a href="subject.html#20264">[ subject ]</a>
+              <a href="author.html#20264">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

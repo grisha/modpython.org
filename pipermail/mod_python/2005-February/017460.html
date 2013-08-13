@@ -1,0 +1,134 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and db connections - architectural advice
+	needed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20db%20connections%20-%20architectural%20advice%0A%09needed&In-Reply-To=4214CF9B.6040005%40q-voz.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017458.html">
+   <LINK REL="Next"  HREF="017459.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python and db connections - architectural advice
+	needed</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20db%20connections%20-%20architectural%20advice%0A%09needed&In-Reply-To=4214CF9B.6040005%40q-voz.com"
+       TITLE="[mod_python] mod_python and db connections - architectural advice
+	needed">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Feb 17 16:02:15 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017458.html">[mod_python] mod_python and db connections - architectural advice
+	needed
+</A></li>
+        <LI>Next message: <A HREF="017459.html">[mod_python] mod_python + Plone ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17460">[ date ]</a>
+              <a href="thread.html#17460">[ thread ]</a>
+              <a href="subject.html#17460">[ subject ]</a>
+              <a href="author.html#17460">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 18/02/2005, at 4:08 AM, Gustavo C&#243;rdova Avila wrote:
+
+&gt;<i> BUT, I'd really like to hear other people's impressions on this.  One 
+</I>&gt;<i> of the things I've bumped into is when creating the first connection, 
+</I>&gt;<i> sometimes, upon initial import, many connections are made 
+</I>&gt;<i> simultaneously and then abandoned, but not destroyed.  This really 
+</I>&gt;<i> irks me; I've tried gating access to the base DB connection object 
+</I>&gt;<i> with a lock, but it's no good.
+</I>&gt;<i>
+</I>&gt;<i> The base DB object is a module-global reference to a psycopg 
+</I>&gt;<i> connection, and I keep around a lock whenever I need to change it 
+</I>&gt;<i> (because I use apache2 configured with worker). I don't know if I'm 
+</I>&gt;<i> stepping on my own toes or what, but it works:
+</I>
+If you are using worker MPM, sounds like the abandoned and not 
+destroyed connections
+may relate to the thread locking and duplicate interpreter creation 
+bugs I highlighted
+end of last year.
+
+The problem I am talking about was one where the same module could be 
+imported into two
+different threads at almost the same time. If the database connections 
+were global data
+and new imports just replaced the old, the first set to be created 
+would effectively
+be thrown away, but may not be shutdown properly.
+
+The other problem is that two whole interpreters could be created at 
+the same time for
+the same part of the document tree. Again, one would get thrown away, 
+but stuff like
+database connections may not get shutdown properly.
+
+Both these problems would manifest when using a multithreaded MPM and 
+on startup there
+was enough access going on to trigger the locking problems.
+
+See:
+
+   <A HREF="http://www.dscpl.com.au/projects/vampire/PATCHES">http://www.dscpl.com.au/projects/vampire/PATCHES</A>
+
+for the code fixes.
+
+The problem may also be caused by using auto reload and not ensuring 
+that you treat the
+database connection pool specially so that the old doesn't just get 
+reloaded on top of
+with it being lost but not shutdown.
+
+Graham
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017458.html">[mod_python] mod_python and db connections - architectural advice
+	needed
+</A></li>
+	<LI>Next message: <A HREF="017459.html">[mod_python] mod_python + Plone ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17460">[ date ]</a>
+              <a href="thread.html#17460">[ thread ]</a>
+              <a href="subject.html#17460">[ subject ]</a>
+              <a href="author.html#17460">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

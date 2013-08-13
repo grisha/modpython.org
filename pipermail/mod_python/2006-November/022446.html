@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Can%20i%20have%20both%20Marshal%20and%20Signed%0A%09CookieswithPublisher%3F&In-Reply-To=a595de7a0610310549j4b887b33t60a597e8f27f4050%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022445.html">
+   <LINK REL="Next"  HREF="022458.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Can%20i%20have%20both%20Marshal%20and%20Signed%0A%09CookieswithPublisher%3F&In-Reply-To=a595de7a0610310549j4b887b33t60a597e8f27f4050%40mail.gmail.com"
+       TITLE="[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Nov  2 04:23:56 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022445.html">[mod_python] sendfile problems with IE
+</A></li>
+        <LI>Next message: <A HREF="022458.html">[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22446">[ date ]</a>
+              <a href="thread.html#22446">[ thread ]</a>
+              <a href="subject.html#22446">[ subject ]</a>
+              <a href="author.html#22446">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 01/11/2006, at 12:49 AM, Clodoaldo Pinto Neto wrote:
+
+&gt;<i> 2006/10/31, Clodoaldo Pinto Neto &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">clodoaldo.pinto at gmail.com</A>&gt;:
+</I>&gt;&gt;<i> &gt;     def parse(Class, s, secret, downgrade=False, strict=False):
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Sorry, should be downgrade=True to not break existing applications.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Regards, Clodoaldo Pinto Neto
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> And test not downgrade:
+</I>&gt;<i>
+</I>&gt;<i>    def parse(Class, s, secret, downgrade=False, strict=False):
+</I>&gt;<i>
+</I>&gt;<i>       dict = _parse_cookie(s, Class)
+</I>&gt;<i>
+</I>&gt;<i>       del_list = list()
+</I>&gt;<i>       for k in dict:
+</I>&gt;<i>           c = dict[k]
+</I>&gt;<i>           try:
+</I>&gt;<i>               c.unmarshal(secret)
+</I>&gt;<i>           except (CookieError, ValueError):
+</I>&gt;<i>              if not downgrade:
+</I>&gt;<i>                  del_list.append(k)
+</I>&gt;<i>              else:
+</I>&gt;<i>                  if strict:
+</I>&gt;<i>                      raise
+</I>&gt;<i>                  else:
+</I>&gt;<i>                      # downgrade to Cookie
+</I>&gt;<i>                      dict[k] = Cookie.parse(Cookie.__str__(c))[k]
+</I>&gt;<i>
+</I>&gt;<i>       for k in del_list:
+</I>&gt;<i>           del dict(k)
+</I>&gt;<i>       return dict
+</I>
+Except that we are now using two options to represent what should be
+three exclusive possibilities. Possibly better off using a single  
+argument
+which can be assigned three values representing the possibilities of
+what to do when a mismatch occurs.
+
+1. Downgrade cookie if mismatch.
+2. Ignore cookie if mismatch.
+3. Raise exception if mismatch.
+
+In some respects, it is actually wrong that the downgrading is being  
+done
+within the parse() method of the derived classes. The derived class  
+should
+really have let the exception be passed back. Instead I would have  
+had the
+get_cookies() method catch the exception and downgrade the cookie at
+that point. Anyway, that is the way I would have designed it if  
+starting from
+scratch, but how it works is how it is documented and can't going  
+changing
+that now.
+
+Back to the options, I'll have to think about what names make sense, but
+the intent is something like:
+
+   MISMATCH_DOWNGRADE = 0
+   MISMATCH_IGNORE = 1
+   MISMATCH_EXCEPTION = 2
+
+   class MarshalCookie(Cookie):
+
+      def parse(Class, s, secret, mismatch=MISMATCH_DOWNGRADE):
+
+       dict = _parse_cookie(s, Class)
+
+       del_list = list()
+       for k in dict:
+           c = dict[k]
+           try:
+               c.unmarshal(secret)
+           except (CookieError, ValueError):
+               if mismatch == MISMATCH_EXCEPTION:
+                      raise
+               elif mismatch == MISMATCH_IGNORE:
+                      del_list.append(k)
+               else:
+                      # downgrade to Cookie
+                      dict[k] = Cookie.parse(Cookie.__str__(c))[k]
+
+       for k in del_list:
+           del dict(k)
+       return dict
+
+I don't like the name 'mismatch' though. Maybe make them non namespaced
+class attributes of Cookie instead. Thus you would ultimately write:
+
+   cookies = Cookies.get_cookies(req, mismatch=Cookies.Cookie.IGNORE)
+
+Any other suggestions?
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022445.html">[mod_python] sendfile problems with IE
+</A></li>
+	<LI>Next message: <A HREF="022458.html">[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22446">[ date ]</a>
+              <a href="thread.html#22446">[ thread ]</a>
+              <a href="subject.html#22446">[ subject ]</a>
+              <a href="author.html#22446">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

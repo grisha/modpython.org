@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session Hanging Problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Hanging%20Problems&In-Reply-To=47559EC9.1060104%40jgassociates.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024536.html">
+   <LINK REL="Next"  HREF="024540.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session Hanging Problems</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Harish Agarwal</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Hanging%20Problems&In-Reply-To=47559EC9.1060104%40jgassociates.ca"
+       TITLE="[mod_python] Session Hanging Problems">harish at octopart.com
+       </A><BR>
+    <I>Tue Dec  4 13:52:09 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024536.html">[mod_python] Session Hanging Problems
+</A></li>
+        <LI>Next message: <A HREF="024540.html">[mod_python] Session Hanging Problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24537">[ date ]</a>
+              <a href="thread.html#24537">[ thread ]</a>
+              <a href="subject.html#24537">[ subject ]</a>
+              <a href="author.html#24537">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>These aren't large files - this is the most typical request we serve  
+up,  which under normal circumstances takes &lt; 1 second to send (based  
+on timers I've sent up).  The case where this request is taking a long  
+time (I've noticed up to 300 seconds) is very rare, compared to how  
+many times we serve the page up, but is still a problem as it causes a  
+pile-up of session hangs which want the same mutex lock.
+
+It sounds like the best way to deal with this problem, given the below  
+issues surrounding session unlocking after every session.save(), is to  
+do
+
+session.unlock()
+req.write(data)
+
+before every single req.write I'm doing - is that correct?  If so, my  
+only point is that this seems to go against the general philosophy of  
+never explicitly having to do a session unlock (and in addition, makes  
+the code which goes into our mod_python handlers less clean).  Don't  
+get me wrong, I really appreciate mod python and it has served me  
+incredibly well, but my apologies if, as an end-user, I'm finding it  
+difficult to use it in what I think is a pretty standard way without  
+encountering problems as our traffic goes up.
+
+If you don't mind me asking, why are apache's mutexes limited?  If I  
+were to switch to fcntl.flock, would we no longer have a limited pool  
+of mutexes?
+
+-Harish
+
+
+On Dec 4, 2007, at 10:39 AM, Jim Gallacher wrote:
+
+&gt;<i> Harish Agarwal wrote:
+</I>&gt;&gt;<i> Have you noticed any performance issues?  I want to make sure to  
+</I>&gt;&gt;<i> keep things fast and am worried that departing from the Apache lock  
+</I>&gt;&gt;<i> system will degrade performance.  Why was mod python designed to  
+</I>&gt;&gt;<i> use the apache system and not use session specific locks?
+</I>&gt;<i>
+</I>&gt;<i> I wasn't around when session handling was first introduced, but I  
+</I>&gt;<i> assume the apache mutexes where used so that mod_python would be as  
+</I>&gt;<i> cross-platform as possible. Python's fcntl.flock() is only available  
+</I>&gt;<i> on *nix platforms.
+</I>&gt;<i>
+</I>&gt;<i> The big drawback with apache's mutexes is that we are dealing with  
+</I>&gt;<i> limited resource.
+</I>&gt;<i>
+</I>&gt;&gt;<i> Also a note for the list - I'm now explicitly unlocking the session  
+</I>&gt;&gt;<i> after each save to ensure that the session isn't locked during a  
+</I>&gt;&gt;<i> req.write call.  I've seen one hang since then, but in twelve  
+</I>&gt;&gt;<i> hours, that is much much better than the issues I was seeing before.
+</I>&gt;<i>
+</I>&gt;<i> Are you re-locking the session before modifying the session object?  
+</I>&gt;<i> If not then you've got a possible race condition and you risk losing  
+</I>&gt;<i> session data. The only safe way to do this multiple times within a  
+</I>&gt;<i> single request is:
+</I>&gt;<i>
+</I>&gt;<i> session.lock()
+</I>&gt;<i> session.read()
+</I>&gt;<i> session['stuff'] = 'whatever'
+</I>&gt;<i> session.save()
+</I>&gt;<i> session.unlock()
+</I>&gt;<i>
+</I>&gt;<i> Each read / save pair results in a disk access and unpickling/ 
+</I>&gt;<i> pickling the data, which may not be all that great for high  
+</I>&gt;<i> performance.
+</I>&gt;<i>
+</I>&gt;<i> You'll need to make sure the above sequence happens every time you  
+</I>&gt;<i> modify the session object. If your code is complicated it would be  
+</I>&gt;<i> pretty easy to lose some session data. You'll also need to make darn  
+</I>&gt;<i> sure that there are matching lock/unlock pairs. If not you'll  
+</I>&gt;<i> deadlock the session and in pretty short order you'll end up with a  
+</I>&gt;<i> self inflicted denial of service as apache runs out of mutexes. Make  
+</I>&gt;<i> sure you put a try/finally block in there with an unlock() in the  
+</I>&gt;<i> finally section.
+</I>&gt;<i>
+</I>&gt;&gt;<i> I think that this problem directly contradicts the general  
+</I>&gt;&gt;<i> philosophy behind using the mod_python session handling scheme - I  
+</I>&gt;&gt;<i> feel like I've read, a few times now, that there is no reason to  
+</I>&gt;&gt;<i> have to explicitly unlock sessions,
+</I>&gt;<i>
+</I>&gt;<i> Then you missed comments about the problem with long running  
+</I>&gt;<i> requests and session locking, such as the case of a large download.  
+</I>&gt;<i> There are times when it really is advantageous to explicitly unlock  
+</I>&gt;<i> a session. It's always best if you can finish with your session  
+</I>&gt;<i> object before sending the file.
+</I>&gt;<i>
+</I>&gt;<i> session['stuff'] = 'whatever'
+</I>&gt;<i> session.save()
+</I>&gt;<i> session.unlock()
+</I>&gt;<i> req.sendfile(&quot;my_big_file.iso&quot;)
+</I>&gt;<i>
+</I>&gt;&gt;<i> but this is an instance where running everything in its default  
+</I>&gt;&gt;<i> configuration (not unlocking sessions, flushing the buffer on  
+</I>&gt;&gt;<i> req.writes) causes serious hanging problems...  In addition,  
+</I>&gt;&gt;<i> unlocking the session after each save doesn't sit well with me - I  
+</I>&gt;&gt;<i> don't think the session is thread-safe now (given that there can be  
+</I>&gt;&gt;<i> multiple save's per request).
+</I>&gt;<i>
+</I>&gt;<i> It's not even a question of being thread safe. With prefork or  
+</I>&gt;<i> worker mpms you are also dealing with multiple processes. If we just  
+</I>&gt;<i> had to worry about one process with many threads life would be much  
+</I>&gt;<i> easier.
+</I>&gt;<i>
+</I>&gt;<i> Jim
+</I>&gt;<i>
+</I>&gt;&gt;<i> -Harish
+</I>&gt;&gt;<i> On Dec 4, 2007, at 1:48 AM, David Janes wrote:
+</I>&gt;&gt;&gt;<i> I'll note for the list that I put in the changes I outlined above  
+</I>&gt;&gt;&gt;<i> ---
+</I>&gt;&gt;&gt;<i> that is, handled locking entirely ourselves rather than using  
+</I>&gt;&gt;&gt;<i> Apache's
+</I>&gt;&gt;&gt;<i> lock function -- and I haven't had a hang since.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Regards, etc...
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> --David Janes
+</I>&gt;&gt;&gt;<i> Founder, BlogMatrix
+</I>&gt;&gt;&gt;<i> <A HREF="http://www.blogmatrix.com">http://www.blogmatrix.com</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://blogmatrix.blogmatrix.com">http://blogmatrix.blogmatrix.com</A>
+</I>&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024536.html">[mod_python] Session Hanging Problems
+</A></li>
+	<LI>Next message: <A HREF="024540.html">[mod_python] Session Hanging Problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24537">[ date ]</a>
+              <a href="thread.html#24537">[ thread ]</a>
+              <a href="subject.html#24537">[ subject ]</a>
+              <a href="author.html#24537">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

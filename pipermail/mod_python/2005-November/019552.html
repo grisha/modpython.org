@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python.so: undefined symbol: ap_loaded_modules
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python.so%3A%20undefined%20symbol%3A%20ap_loaded_modules&In-Reply-To=200511161620.30125.dokter%40icg.tu-graz.ac.at">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019551.html">
+   <LINK REL="Next"  HREF="019625.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python.so: undefined symbol: ap_loaded_modules</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python.so%3A%20undefined%20symbol%3A%20ap_loaded_modules&In-Reply-To=200511161620.30125.dokter%40icg.tu-graz.ac.at"
+       TITLE="[mod_python] mod_python.so: undefined symbol: ap_loaded_modules">jpg at jgassociates.ca
+       </A><BR>
+    <I>Wed Nov 16 12:46:31 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019551.html">[mod_python] mod_python.so: undefined symbol: ap_loaded_modules
+</A></li>
+        <LI>Next message: <A HREF="019625.html">[mod_python] mod_python.so: undefined symbol: ap_loaded_modules
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19552">[ date ]</a>
+              <a href="thread.html#19552">[ thread ]</a>
+              <a href="subject.html#19552">[ subject ]</a>
+              <a href="author.html#19552">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Mark Dokter wrote:
+&gt;<i> On Wednesday 16 November 2005 05:25, Graham Dumpleton wrote:
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i>A random bit of information that may not be relevant, but if you have
+</I>&gt;&gt;<i>multiple versions of Python installed and the one which is first in your
+</I>&gt;&gt;<i>PATH is not the same one as mod_python was built for, and you run
+</I>&gt;&gt;<i>&quot;apachectl restart&quot; or &quot;apachectl start&quot; explicitly, mod_python can fail
+</I>&gt;&gt;<i>because it will use the one found in PATH and not the one it was built
+</I>&gt;&gt;<i>for.
+</I>&gt;&gt;<i>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> I followed the FAQ to check the mod_python version:
+</I>&gt;<i> Set sys.path to 
+</I>&gt;<i> 
+</I>&gt;&gt;&gt;&gt;<i>sys.path
+</I>&gt;<i> 
+</I>&gt;<i> ['/usr/lib/python2.3/site-packages', '/usr/lib/python2.3', ...]
+</I>&gt;<i> 
+</I>&gt;<i> When importing mod_python.psp this gabe me:
+</I>&gt;<i> 
+</I>&gt;&gt;&gt;&gt;<i>import mod_python.psp
+</I>&gt;<i> 
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i>   File &quot;&lt;stdin&gt;&quot;, line 1, in ?
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/mod_python/psp.py&quot;, line 20, in ?
+</I>&gt;<i>     import apache, Session, util, _psp
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 28, in ?
+</I>&gt;<i>     import _apache
+</I>&gt;<i> ImportError: No module named _apache
+</I>
+That's good and it's what we expect. That means *python* can find the 
+mod_python modules. The _apache module is only available in a python 
+interpreter running in the Apache server module so we expect that import 
+to fail from the command line. If the python command line interpreter 
+couldn't find the mod_python modules you'd see &quot;ImportError: No module 
+named mod_python&quot;.
+
+&gt;<i> According to the FAQ this should be version 3.1 (as apt already told me)
+</I>&gt;<i> 
+</I>&gt;<i> I set the PythonPath variable in /etc/apache2/mods-enabled/mod_python.conf 
+</I>&gt;<i> like this:
+</I>&gt;<i> 
+</I>&gt;<i> PythonPath &quot;['/usr/lib/python2.3','/usr/lib/python2.3/site-packages',
+</I>&gt;<i> [/usr/lib/apache2/modules']&quot;
+</I>
+Wrong. /etc/apache2/mods-enabled contains symbolic links to 
+/etc/apache2/mods-available which in turn contains Apache configuration 
+files. These files hold directives for loading *Apache* modules. This 
+has nothing to do with the python modules in site-packages/mod_python. 
+/usr/lib/apache2/modules does *NOT* belong on your PythonPath.
+
+On Debian:
+
+/etc/apache2/mods-enabled/mod_python.conf should be a symbolic link to
+/etc/apache2/mods-available/mod_python.conf.
+
+/etc/apache2/mods-available/mod_python.conf should contain:
+
+LoadModule python_module /usr/lib/apache2/modules/mod_python.so
+
+This tells the server to load the *Apache* module mod_python.so. *Do 
+not* confuse this Apache module with the stuff in 
+site-packages/mod_python. It is not the same thing. mod_python.so 
+contains the magic that embeds the python interpreter into apache.
+
+&gt;<i> But I still get this in the log file:
+</I>&gt;<i> [Wed Nov 16 16:06:42 2005] [error] make_obcallback: could not import 
+</I>&gt;<i> mod_python.apache.\n
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i>The reason for failure can be because the one found doesn't have the
+</I>&gt;&gt;<i>mod_python Python code components installed for it, or it has a
+</I>&gt;&gt;<i>different version mod_python Python code components which are
+</I>&gt;&gt;<i>incompatible.
+</I>&gt;&gt;<i>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> I have the same package versions installed on another Debian system where it 
+</I>&gt;<i> works. So there must be something wrong with the configuration. The faulty 
+</I>&gt;<i> system was set up by someone else a while ago. There is 
+</I>&gt;<i> a /usr/lib/python2.2, /usr/lib/python2.4 and a /usr/local/python2.3. But 
+</I>&gt;<i> according to my PATH settings only /usr/lib/python2.3 is used. mod_python is 
+</I>&gt;<i> installed in /usr/lib/python2.3/site-packages/mod_python.
+</I>
+What do the first 2 lines of /var/log/apache2/error.log show after an 
+Apache restart? They should look something like this:
+
+[Wed Nov 16 12:24:07 2005] [notice] mod_python: Creating 8 session 
+mutexes based on 50 max processes and 0 max threads.
+[Wed Nov 16 12:24:07 2005] [notice] Apache/2.0.54 (Debian GNU/Linux) 
+DAV/2 SVN/1.2.0 mod_python/3.2.5-dev-20051112 Python/2.3.5 PHP/4.4.0-1 
+configured -- resuming normal operations
+
+Also check the output of the following command:
+   ldd /usr/lib/apache2/modules/mod_python.so |grep python
+
+Which on my system yields:
+   libpython2.3.so.1.0 =&gt; /usr/lib/libpython2.3.so.1.0 (0xb7e61000)
+
+Jim
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019551.html">[mod_python] mod_python.so: undefined symbol: ap_loaded_modules
+</A></li>
+	<LI>Next message: <A HREF="019625.html">[mod_python] mod_python.so: undefined symbol: ap_loaded_modules
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19552">[ date ]</a>
+              <a href="thread.html#19552">[ thread ]</a>
+              <a href="subject.html#19552">[ subject ]</a>
+              <a href="author.html#19552">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

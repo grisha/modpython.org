@@ -1,0 +1,190 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session-related hang
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session-related%20hang&In-Reply-To=88e286470708282025p36d792afxf9134ad6ea5a0d5a%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024161.html">
+   <LINK REL="Next"  HREF="024160.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session-related hang</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Boris Du&#353;ek</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session-related%20hang&In-Reply-To=88e286470708282025p36d792afxf9134ad6ea5a0d5a%40mail.gmail.com"
+       TITLE="[mod_python] Session-related hang">boris.dusek at gmail.com
+       </A><BR>
+    <I>Wed Aug 29 23:10:27 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024161.html">[mod_python] Session-related hang
+</A></li>
+        <LI>Next message: <A HREF="024160.html">[mod_python] Re: XSLT and mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24170">[ date ]</a>
+              <a href="thread.html#24170">[ thread ]</a>
+              <a href="subject.html#24170">[ subject ]</a>
+              <a href="author.html#24170">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Graham,
+
+On 8/28/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+&gt;<i> You are likely trying to create a session object when one has already
+</I>&gt;<i> been created for that request already and thus dead locking on
+</I>&gt;<i> yourself. There are lots of examples of people doing this in the
+</I>&gt;<i> www.modpython.org mailing list archives, search from www.modpython.org
+</I>&gt;<i> search box.
+</I>&gt;<i>
+</I>&gt;<i> What is in generate_content(...)? Without seeing how you are
+</I>&gt;<i> manipulating sessions can say exactly what you are doing wrong
+</I>
+The problem is fixed now. It was permission issue on the dbm file
+where DbmSession stores the session information (/tmp/mp_sess.dbm by
+default).
+
+&gt;<i> BTW, why are you creating a derived session object type?
+</I>
+Because we need some convenience methods for the session class, like
+for user management etc.
+
+&gt;<i> Also, using reload() like that is not recommended. Upgrade to
+</I>&gt;<i> mod_python 3.3.1 and read about import_module() function in:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html">http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html</A>
+</I>
+We would love to upgrade. It would be easy on our development virtual
+machines. But not at all easy to push for this upgrade on a production
+server where many sites are using it.
+
+&gt;<i> Graham
+</I>
+Thank you for your answer,
+Boris
+
+&gt;<i>
+</I>&gt;<i> On 29/08/2007, Boris Du&#353;ek &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">boris.dusek at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; Hi,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I am using Apache 2.2.3, mod_python 2.3.8. I experience a hang that is
+</I>&gt;<i> &gt; related to Session.
+</I>&gt;<i> &gt; I have such a class:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; file nanosession.py:
+</I>&gt;<i> &gt; class NanoSession(Session.DbmSession):
+</I>&gt;<i> &gt;     def __init__(self, req):
+</I>&gt;<i> &gt;         logging.debug(&quot;In NanoSession.__init__&quot;)
+</I>&gt;<i> &gt;         logging.debug(&quot;Calling DbmSession.__init__&quot;)
+</I>&gt;<i> &gt;         Session.DbmSession.__init__(self, req)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     def ...
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; in the index.py file, that gets displayed by mod_python.publisher,
+</I>&gt;<i> &gt; there is following code:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; def index(req, **vars):
+</I>&gt;<i> &gt;     logging.debug(&quot;Entered index.py/index&quot;)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     logging.debug(&quot;Reloading module 1&quot;)
+</I>&gt;<i> &gt;     reload(module1)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     logging.debug(&quot;Reloading module nanosession&quot;)
+</I>&gt;<i> &gt;     reload(nanosession)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     logging.debug(&quot;Reloading module 2&quot;)
+</I>&gt;<i> &gt;     reload(module2)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     logging.debug(&quot;Generating page content&quot;)
+</I>&gt;<i> &gt;     content = generate_content(...)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; When I hit for the index.py page, it was working for the first time. I
+</I>&gt;<i> &gt; am not really sure what I have been doing then, probably just surfing
+</I>&gt;<i> &gt; the other pages on the same site. And then suddenly, from then on,
+</I>&gt;<i> &gt; when I wanted to display some page, it took forever (I mean not long,
+</I>&gt;<i> &gt; I mean it did not display, Firefox displaying &quot;Waiting for ...&quot;,
+</I>&gt;<i> &gt; netcat displaying no output available). Then I asked a friend at a
+</I>&gt;<i> &gt; different computer (with a different IP) to try to access the same
+</I>&gt;<i> &gt; webpage - he could access it, and it displayed immediately. However,
+</I>&gt;<i> &gt; then he hit the reload button in his browser, and he was immediately
+</I>&gt;<i> &gt; from then on experiencing the same &quot;never loads&quot; behavior for any
+</I>&gt;<i> &gt; webpage that uses sessions.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The logging output from the above code shows that it hangs on
+</I>&gt;<i> &gt; DbmSession.__init__:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; DEBUG:root:Entered index.py/index
+</I>&gt;<i> &gt; DEBUG:root:Reloading module webpage
+</I>&gt;<i> &gt; DEBUG:root:Reloading module webpage
+</I>&gt;<i> &gt; DEBUG:root:Reloading module webpage
+</I>&gt;<i> &gt; DEBUG:root:Creating session
+</I>&gt;<i> &gt; DEBUG:root:nanosession.py/NanoSession.__init__
+</I>&gt;<i> &gt; DEBUG:root:calling DbnSession.__init__
+</I>&gt;<i> &gt; DEBUG:root:Entered index.py/index
+</I>&gt;<i> &gt; DEBUG:root:Reloading module webpage
+</I>&gt;<i> &gt; DEBUG:root:Reloading module webpage
+</I>&gt;<i> &gt; DEBUG:root:Reloading module webpage
+</I>&gt;<i> &gt; DEBUG:root:Creating session
+</I>&gt;<i> &gt; DEBUG:root:nanosession.py/NanoSession.__init__
+</I>&gt;<i> &gt; DEBUG:root:calling DbmSession.__init__
+</I>&gt;<i> &gt; ...
+</I>&gt;<i> &gt; and so on...
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Do you please have any suggestions about possible cause and workarounds?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Thanks,
+</I>&gt;<i> &gt; Boris Du&#353;ek
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024161.html">[mod_python] Session-related hang
+</A></li>
+	<LI>Next message: <A HREF="024160.html">[mod_python] Re: XSLT and mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24170">[ date ]</a>
+              <a href="thread.html#24170">[ thread ]</a>
+              <a href="subject.html#24170">[ subject ]</a>
+              <a href="author.html#24170">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Graham's New Importer
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Graham%27s%20New%20Importer&In-Reply-To=1147229823.28296%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021086.html">
+   <LINK REL="Next"  HREF="021096.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Graham's New Importer</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Graham%27s%20New%20Importer&In-Reply-To=1147229823.28296%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Graham's New Importer">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed May 10 07:39:04 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021086.html">[mod_python] Graham's New Importer
+</A></li>
+        <LI>Next message: <A HREF="021096.html">[mod_python] Graham's New Importer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21095">[ date ]</a>
+              <a href="thread.html#21095">[ thread ]</a>
+              <a href="subject.html#21095">[ subject ]</a>
+              <a href="author.html#21095">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 10/05/2006, at 12:57 PM, Graham Dumpleton wrote:
+
+&gt;<i> Dan Eloff wrote ..
+</I>&gt;&gt;<i> I think probably just:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> PythonOption importer.path &quot;C:\Documents And Settings\...&quot;  
+</I>&gt;&gt;<i> &quot;another path&quot;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I'm not sure the syntax allows for that, but something along those
+</I>&gt;&gt;<i> lines is the idea. None of those paths should be on sys.path.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> You shouldn't be able to specify this more than once for each python
+</I>&gt;&gt;<i> interpreter. I don't know how to enforce that, but it would prevent
+</I>&gt;&gt;<i> any wierdness with the same module being imported under different
+</I>&gt;&gt;<i> circumstances in the same interpreter.
+</I>&gt;<i>
+</I>&gt;<i> The only way you could enforce that it only be set once is to have it
+</I>&gt;<i> take two arguments, one being the interpreter name and the other the
+</I>&gt;<i> path, and only honour the option when it is set in the global Apache
+</I>&gt;<i> configuration. That is, read from:
+</I>&gt;<i>
+</I>&gt;<i>   apache.main_server.get_options()
+</I>&gt;<i>
+</I>&gt;<i> This is restrictive though, as makes it impossible to set it in a  
+</I>&gt;<i> local
+</I>&gt;<i> .htaccess file.
+</I>
+Now, FWIW, you can actually do sort of what you want now. It uses an  
+aspect of
+the module importer though for which how the interfaces will  
+eventually be made
+publically usable isn't finalised. That said, what you should be able  
+to do is
+put the following at the start of a module.
+
+   from mod_python import apache
+   __info__.path.extend(eval(apache.main_server.get_options().get 
+('my_import_path','[]')))
+
+The path you want to search has to be in global part of Apache  
+configuration.
+Its form should be like PythonPath, ie., Python list, but shouldn't  
+reference
+sys.path. Thus, just a list of directories.
+
+   PythonOption my_import_path &quot;['C:/Documents And Settings/...','C:/ 
+Some/Other/Path']&quot;
+
+The '__info__.path' is a special attribute of data kept in module by  
+the importer
+and acts as an embedded search path for modules. Once you have set that
+from code above run at global scope within module, it is possible to  
+use &quot;import&quot;
+or &quot;apache.import_module()&quot; after that point and the directories you  
+added will
+be searched for the module you want.
+
+Now although it is the intention that this hook for a search path be  
+able to be
+used, a final name and means of accessing it haven't been worked out.
+It would have been nice to be able to use &quot;__path__&quot; instead of  
+&quot;__info__.path&quot;,
+but &quot;__path__&quot; is special to Python and stuffs up normal imports if  
+specified in
+non package contexts.
+
+Overall, I have been thinking whether the following naming changes  
+should be
+made:
+
+   __info__ --&gt; __mp__
+
+   __clone__ --&gt; __mp_clone__
+   __purge__ --&gt; __mp_purge__
+
+Ie., use &quot;mp&quot; designator to make it clear that this is mod_python stuff.
+
+At the same time, could add:
+
+   __mp_path__ == __mp__.path
+
+Ie., &quot;__mp_path__&quot; would be an alias for &quot;__mp__.path&quot;. You would  
+need to
+make sure though that you always appended, inserted or extended the path
+through the alias as assignment would break the association and import
+code would only look at &quot;__mp__.path&quot;.
+
+By a module explicitly adding items to the embedded search path, it  
+would be
+more predictable perhaps than blindly always using what the option  
+may be set
+to, as by adding the code in you are making a conscious decision that  
+you want
+it to work that way. You need not even use an option to obtain what  
+the path
+should be set to, you could also use hard coded paths, or a path  
+determined by
+taking a relative path and adding it to the dirname of the __file__  
+attribute of the
+module.
+
+If you understand the feature above I am describing, will be  
+interested in your
+comments as to usability and also as to what naming conventions  
+should be
+used. It is because I hadn't worked out naming that I hadn't  
+mentioned this
+feature before.
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021086.html">[mod_python] Graham's New Importer
+</A></li>
+	<LI>Next message: <A HREF="021096.html">[mod_python] Graham's New Importer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21095">[ date ]</a>
+              <a href="thread.html#21095">[ thread ]</a>
+              <a href="subject.html#21095">[ subject ]</a>
+              <a href="author.html#21095">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

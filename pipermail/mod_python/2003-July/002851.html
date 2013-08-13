@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python weirdness, maybe related to importing?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20weirdness%2C%20maybe%20related%20to%20importing%3F&In-Reply-To=20030610081422.GC28085%40tummy.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002850.html">
+   <LINK REL="Next"  HREF="002852.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python weirdness, maybe related to importing?</H1>
+    <B>StianS&#248;iland</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20weirdness%2C%20maybe%20related%20to%20importing%3F&In-Reply-To=20030610081422.GC28085%40tummy.com"
+       TITLE="[mod_python] mod_python weirdness, maybe related to importing?">stian at soiland.no
+       </A><BR>
+    <I>Mon Jul  7 18:15:16 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002850.html">[mod_python] Compiling 2.7 statically
+</A></li>
+        <LI>Next message: <A HREF="002852.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2851">[ date ]</a>
+              <a href="thread.html#2851">[ thread ]</a>
+              <a href="subject.html#2851">[ subject ]</a>
+              <a href="author.html#2851">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 1970-01-01 01:00:00, Sean Reifschneider wrote:
+   ~~~~
+(.. importing the mail archives appearantly does not work that well
+anymore :=) )
+
+&gt;<i> On Tue, Jun 10, 2003 at 09:12:46AM +0200, David Fraser wrote:
+</I>&gt;<i> &gt;Do you mean you're using this import mechanism when you have the problem 
+</I>&gt;<i> &gt;with jotweb.input.Request below?
+</I>&gt;<i> 
+</I>&gt;<i> I mean that the imp module call is loading a module which then does an
+</I>&gt;<i> &quot;import jotweb.input&quot;.  If in the jotweb I don't have the __init__.py
+</I>&gt;<i> import all sub-packages or sub-modules, I will get an AttributeError
+</I>&gt;<i> such as:
+</I>&gt;<i> 
+</I>&gt;<i>   AttributeError: 'module' object has no attribute 'input'
+</I>
+I can confirm the very same problem. We've been scratching our heads
+today.
+
+[ in this post I'll be quoting python code like /print &quot;Python example&quot;/ ]
+
+
+We're using mod_python.publisher as PythonHandler, and have some
+library functions in /usr/local/nav/navme/lib/python.
+
+As our PythonPath seems to be totally mucked up, refering to
+/usr/lib/python and so on, we .. as a quickfix.. set it manually
+
+PythonPath &quot;['', '/usr/local/lib/python2.2/site-packages',
+    '/usr/lib/apache/python/lib/python2.2',
+    '/usr/lib/apache/python/lib/python2.2/plat-linux2',
+    '/usr/lib/apache/python/lib/python2.2/lib-tk',
+    '/usr/lib/apache/python/lib/python2.2/lib-dynload',
+    '/usr/lib/apache/python/lib/python2.2/site-packages',
+    '/usr/local/nav/navme/lib/python',
+    '/usr/local/lib/python2.2/site-packages', '.']&quot;
+
+(/usr/lib/apache/python/lib/python2.2 is our threadless installation,
+this is Apache/1.3.27 (Unix) (Red-Hat/Linux) mod_python/2.7.8
+Python/2.2.2 mod_ssl/2.8.12 OpenSSL/0.9.6b PHP/4.1.2)
+
+
+The problem was weird, in a method logout() in index.py, we try
+/from nav.web import state/. This always fail, both if we do it on a
+module level or inside the function.
+
+However, /from nav.web import auth/ works fine. The permissions are
+perfect, there are no .pyc-files hanging around, and there is really no
+big differences between the two files.
+
+Actually we found out that symlinking nav/web to nav/webb - and trying
+/from nav.webb import auth/  WORKED, suggesting some problems with
+caching. Several apache-restarts gives no more help.
+
+Using /usr/lib/apache/python/lib/python2.2/bin/python from the shell,
+running as httpd, with the same PythonPath as above (verified by
+req.write(&quot;%s&quot; % sys.path)  ), from nav import auth works perfect.
+
+
+The 'fix' you suggested, using import auth in nav/web/__init__.py - DID
+work, however, as in your case, there is no reason why this should be
+neccessary. 
+
+In SOME of the cases in this testing, the error message is not from
+/usr/local/nav/navme/apache/webroot/index.py (where the import actually
+happens), but from mod_python/apache.py in the function import_module.
+This function looks pretty weird to me, I tried adding some debug
+sentences to follow the execution paths.
+
+
+However, it turns out that our trouble-module nav.web.state is used as a
+fixup handler as well, PythonFixupHandler nav.web.state.
+
+Renaming to /PythonFixupHandler nav.webb.state/ removes the bug, 
+/from nav.web import state/  suddenly works again.
+
+
+So in our case, the problem is related to the module being used both in
+handlers and imported by submodules. Appearently the errors from
+mod_python.apache.import_module appears only those times the
+PythonFixupHandler won't load. 
+
+(debug messages reveal that import_module is NOT called by the normal
+import sentence - that's good, as I couldn't understand how it could
+have been called at that time :=) )
+
+
+
+However, the problem is still unsolved, although the __init__.py-import
+is  a working workaround (the symlink magic is NOT! :=) )
+
+Is your problem-module a part of other headers (or imports) as well?
+
+
+    (our team is also very pissed of by the need to restart apache every
+    minute to force reloading of all modules.  It's seems like a 
+    boring job to do like in 3.1 - as it still does not assure that
+    modules are reloaded only once and in the correct order.
+
+    A simple-but-stupid reload-all-modules-known-to-python fix did NOT
+    work, as subclasses in different modules get totally confused being
+    subclassed by some class that no longer exist. The problem is
+    reloading in the correct order, and only once per request.
+
+    Is there a nice way to UNLOAD all classes?  I'm thinking of
+    something like /del sys.modules['mymodule']/ - but.. I'll have to
+    check the module to see if it's mine or some internal python module
+    first :=) )
+
+
+-- 
+Stian S&#248;iland               Work toward win-win situation. Win-lose
+Trondheim, Norway           is where you win and the other lose.
+<A HREF="http://www.soiland.no/">http://www.soiland.no/</A>      Lose-lose and lose-win are left as an
+                            exercise to the reader.  [Limoncelli/Hogan]
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002850.html">[mod_python] Compiling 2.7 statically
+</A></li>
+	<LI>Next message: <A HREF="002852.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2851">[ date ]</a>
+              <a href="thread.html#2851">[ thread ]</a>
+              <a href="subject.html#2851">[ subject ]</a>
+              <a href="author.html#2851">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] extended access to conn_rec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20extended%20access%20to%20conn_rec&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003965.html">
+   <LINK REL="Next"  HREF="003966.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] extended access to conn_rec</H1>
+    <B>Richard Barrett</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20extended%20access%20to%20conn_rec&In-Reply-To="
+       TITLE="[mod_python] extended access to conn_rec">R.Barrett at ftel.co.uk
+       </A><BR>
+    <I>Wed Aug 23 11:30:18 EST 2000</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003965.html">[mod_python] Build errors with php-4.0.1pl2
+</A></li>
+        <LI>Next message: <A HREF="003966.html">[mod_python] interoperability with cgi module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3967">[ date ]</a>
+              <a href="thread.html#3967">[ thread ]</a>
+              <a href="subject.html#3967">[ subject ]</a>
+              <a href="author.html#3967">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>I've started working with mod_python-2.4.1; good stuff.
+
+I wanted to access the local_addr and remote_addr fields of the 
+conn_rec struct but access to the fields is not supported via the 
+connection object by mod_python.so
+
+Accordingly I've added some code to mod_python.c to return the 
+contents of these fields. The code is a minor variation of functions 
+'borrowed' from socketmodule.c in the standard Python 1.5.2 
+distribution. The python object returned is the same as that returned 
+by the getpeername and getsockname member functions on standard 
+socket objects. I would have called functions makeipaddr  and 
+makesockaddr in socketmodule.so instead of adding copies to 
+mod_python but they are declared as static in socketmodule.c and 
+hence are unavailable.
+
+If there is a better way of doing this or anything I've said above is 
+rubbish I would appreciate some (polite) feedback. I don't claim any 
+particular expertise with C or python extensions so some reader may 
+find fault with this stuff. But it works for me so far.
+
+The diff for my changes to mod_python.c follow:
+-----------------------------------------------------
+
+
+91a92,94
+&gt;<i>  /* Other headers */
+</I>&gt;<i>  #include &lt;sys/socket.h&gt;
+</I>&gt;<i>
+</I>928a932,954
+&gt;<i>  static PyObject *
+</I>&gt;<i>  mymakeipaddr(struct sockaddr_in *addr)
+</I>&gt;<i>  {
+</I>&gt;<i>      long x = ntohl(addr-&gt;sin_addr.s_addr);
+</I>&gt;<i>      char buf[100];
+</I>&gt;<i>      sprintf(buf, &quot;%d.%d.%d.%d&quot;,
+</I>&gt;<i>          (int) (x&gt;&gt;24) &amp; 0xff, (int) (x&gt;&gt;16) &amp; 0xff,
+</I>&gt;<i>          (int) (x&gt;&gt; 8) &amp; 0xff, (int) (x&gt;&gt; 0) &amp; 0xff);
+</I>&gt;<i>      return PyString_FromString(buf);
+</I>&gt;<i>  }
+</I>&gt;<i>
+</I>&gt;<i>  static PyObject *
+</I>&gt;<i>  mymakesockaddr(struct sockaddr_in *addr)
+</I>&gt;<i>  {
+</I>&gt;<i>      PyObject *addrobj = mymakeipaddr(addr);
+</I>&gt;<i>      PyObject *ret = NULL;
+</I>&gt;<i>      if (addrobj) {
+</I>&gt;<i>          ret = Py_BuildValue(&quot;Oi&quot;, addrobj, ntohs(addr-&gt;sin_port));
+</I>&gt;<i>          Py_DECREF(addrobj);
+</I>&gt;<i>      }
+</I>&gt;<i>      return ret;
+</I>&gt;<i>  }
+</I>&gt;<i>
+</I>968a995,1000
+&gt;<i>      else if (strcmp(name, &quot;local_addr&quot;) == 0) {
+</I>&gt;<i>  		return mymakesockaddr(&amp;(self-&gt;conn-&gt;local_addr));
+</I>&gt;<i>  	}
+</I>&gt;<i>      else if (strcmp(name, &quot;remote_addr&quot;) == 0) {
+</I>&gt;<i>  		return mymakesockaddr(&amp;(self-&gt;conn-&gt;remote_addr));
+</I>&gt;<i>  	}
+</I>------------------------------------------------------------------
+Richard Barrett, PostPoint 27,         e-mail:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">r.barrett at ftel.co.uk</A>
+Fujitsu Telecommunications Europe Ltd,      tel: (44) 121 717 6337
+Solihull Parkway, Birmingham Business Park, B37 7YU, England
+&quot;Democracy is two wolves and a lamb voting on what to have for
+lunch. Liberty is a well armed lamb contesting the vote.&quot;
+Benjamin Franklin, 1759
+------------------------------------------------------------------
+
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003965.html">[mod_python] Build errors with php-4.0.1pl2
+</A></li>
+	<LI>Next message: <A HREF="003966.html">[mod_python] interoperability with cgi module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3967">[ date ]</a>
+              <a href="thread.html#3967">[ thread ]</a>
+              <a href="subject.html#3967">[ subject ]</a>
+              <a href="author.html#3967">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

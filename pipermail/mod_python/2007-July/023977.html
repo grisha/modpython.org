@@ -1,0 +1,239 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python 3.3.1 memory leak?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%203.3.1%20memory%20leak%3F&In-Reply-To=729753ee0707030515r4a121347p6ca12bb07dd39e62%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023976.html">
+   <LINK REL="Next"  HREF="023978.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python 3.3.1 memory leak?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%203.3.1%20memory%20leak%3F&In-Reply-To=729753ee0707030515r4a121347p6ca12bb07dd39e62%40mail.gmail.com"
+       TITLE="[mod_python] mod_python 3.3.1 memory leak?">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Tue Jul  3 08:22:39 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023976.html">[mod_python] mod_python 3.3.1 memory leak?
+</A></li>
+        <LI>Next message: <A HREF="023978.html">[mod_python] mod_python 3.3.1 memory leak?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23977">[ date ]</a>
+              <a href="thread.html#23977">[ thread ]</a>
+              <a href="subject.html#23977">[ subject ]</a>
+              <a href="author.html#23977">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 03/07/07, yubing &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">trueice at gmail.com</A>&gt; wrote:
+&gt;<i> That's great of you:)
+</I>&gt;<i> I've tried a php scriptlet that pumps file to user, it has the same memory
+</I>&gt;<i> behavior as the python pumper.
+</I>&gt;<i> The pooled allocated memory will only be released when the apache thread
+</I>&gt;<i> exits (reaches the MaxRequestsPerChild).
+</I>
+No. The pool here is associated with the particular request, not the
+whole process. So would be released and available for use at the end
+of the request. Nothing to do with MaxRequestsPerChild.
+
+&gt;<i> However, our streaming code's memory usage(VmRSS) grows too fast in one
+</I>&gt;<i> request (maybe 16k per second).
+</I>&gt;<i> Is mod_python using such pooled allocation mechanisms during one request ?
+</I>
+Not sure what to suggest at the moment bar having it on a different
+port or host and using a custom Python web server for just that one
+task.
+
+I can only presume that this problem exists because mod_python is
+using a high level API for writing response data. It is quite possible
+if writing a custom C handler that if one used the bucket API directly
+then one could control it better and ensure that bucket structures
+released straight away after data flushed.
+
+Anyway, mod_wsgi suffers the same problem, so I might have to dig into
+the lower level bucket API for a solution so I can at least make
+mod_wsgi work properly. From that, might understand how to fix
+mod_python.
+
+Sleep time for me now, but maybe I'll come up with some bright idea
+during the night. :-)
+
+Graham
+
+&gt;<i>  On 7/3/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; All I can say is that is simply how Apache works. It is not a problem
+</I>&gt;<i> &gt; with mod_python. To try and explain it, look at simpler code of
+</I>&gt;<i> &gt; ap_rflush() which is one of two Apache functions called when you call
+</I>&gt;<i> &gt; req.write ().
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; AP_DECLARE(int) ap_rflush(request_rec *r)
+</I>&gt;<i> &gt; {
+</I>&gt;<i> &gt;     conn_rec *c = r-&gt;connection;
+</I>&gt;<i> &gt;     apr_bucket_brigade *bb;
+</I>&gt;<i> &gt;     apr_bucket *b;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     bb = apr_brigade_create(r-&gt;pool, c-&gt;bucket_alloc);
+</I>&gt;<i> &gt;     b = apr_bucket_flush_create(c-&gt;bucket_alloc);
+</I>&gt;<i> &gt;     APR_BRIGADE_INSERT_TAIL(bb, b);
+</I>&gt;<i> &gt;     if (ap_pass_brigade(r-&gt;output_filters, bb) !=
+</I>&gt;<i> APR_SUCCESS)
+</I>&gt;<i> &gt;         return -1;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     return 0;
+</I>&gt;<i> &gt; }
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The important thing here is r-&gt;pool. This is a memory pool which
+</I>&gt;<i> &gt; exists for the life of a request. When you allocate memory from the
+</I>&gt;<i> &gt; memory pool, it will only be reclaimed at the end of the request. Ie.,
+</I>&gt;<i> &gt; it isn't like malloc/free where you can give back a block of memory
+</I>&gt;<i> &gt; using free and it will be reusable straight away.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Now, every time a flush is occurring, it needs to create a bucket
+</I>&gt;<i> &gt; brigade which holds a special flush object. This is then passed down
+</I>&gt;<i> &gt; through the output filters. In this case it causes any pending data to
+</I>&gt;<i> &gt; be flushed out.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Now because the memory for those bucket structures is only reclaimed
+</I>&gt;<i> &gt; at the end of the request, it means if you have a very long running
+</I>&gt;<i> &gt; request which outputs data in small blocks, then there will be an
+</I>&gt;<i> &gt; incremental use of memory because of the need to create the bucket
+</I>&gt;<i> &gt; structures. This memory will be unavailable for use by anything else
+</I>&gt;<i> &gt; until the requests ends.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; FWIW, I didn't realise Apache did this either. I can see there are
+</I>&gt;<i> &gt; potentially good reasons for it being done this way, but still was a
+</I>&gt;<i> &gt; surprise.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On 03/07/07, yubing &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">trueice at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; oh, sorry, that's my typo in the mail, it should have been:
+</I>&gt;<i> &gt; &gt; ------------------------------
+</I>&gt;<i> &gt; &gt; def pump_file(req):
+</I>&gt;<i> &gt; &gt;     fp = open(&quot;/dev/zero&quot;, &quot;r&quot;)
+</I>&gt;<i> &gt; &gt;     while(True):
+</I>&gt;<i> &gt; &gt;         buf = fp.read(4096)
+</I>&gt;<i> &gt; &gt;         try:
+</I>&gt;<i> &gt; &gt;             req.write(buf)
+</I>&gt;<i> &gt; &gt;             time.sleep(0.1)
+</I>&gt;<i> &gt; &gt;         except:
+</I>&gt;<i> &gt; &gt;             fp.close()
+</I>&gt;<i> &gt; &gt;             break
+</I>&gt;<i> &gt; &gt; -------------------------------
+</I>&gt;<i> &gt; &gt; you can still observe the memory going up slowly
+</I>&gt;<i> &gt; &gt; BTW: I'm using the prefork mpm of apache
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; On 7/3/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A> &gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; On 03/07/07, yubing &lt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">trueice at gmail.com</A> &gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; Our project has a live HTTP video streamer written in python, which
+</I>&gt;<i> &gt; &gt; keeps
+</I>&gt;<i> &gt; &gt; &gt; &gt; pumping a stream out to the client.
+</I>&gt;<i> &gt; &gt; &gt; &gt; The HTTP serving module is a simple mod_python request handler
+</I>&gt;<i> running
+</I>&gt;<i> &gt; &gt; on
+</I>&gt;<i> &gt; &gt; &gt; &gt; Apache 2.2.4 with mod_python 3.3.1 (Python 2.5.1).
+</I>&gt;<i> &gt; &gt; &gt; &gt; The stream is read out of our streaming server via TCP socket, and
+</I>&gt;<i> the
+</I>&gt;<i> &gt; &gt; &gt; &gt; python script just do some simple processing like header building,
+</I>&gt;<i> each
+</I>&gt;<i> &gt; &gt; &gt; &gt; allocated buffer is del-ed after being used.
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; The problem is:
+</I>&gt;<i> &gt; &gt; &gt; &gt; We observed that after its running serveral hours, its memory
+</I>&gt;<i> occupation
+</I>&gt;<i> &gt; &gt; &gt; &gt; grows up to serveral hundreds of megabytes and keeps growing in
+</I>&gt;<i> 4k-8k
+</I>&gt;<i> &gt; &gt; &gt; &gt; increment every 1-2 seconds.
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; Below is a simple testing scriptlet, the memory leaking issue is not
+</I>&gt;<i> so
+</I>&gt;<i> &gt; &gt; &gt; &gt; serious as our live serving module, but you can still observe 4k
+</I>&gt;<i> memory
+</I>&gt;<i> &gt; &gt; &gt; &gt; growing every serveral seconds.
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; Could anyone help me to figure out the root cause of this issue?
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; --------------------------
+</I>&gt;<i> &gt; &gt; &gt; &gt; import time
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; def pump_file(req):
+</I>&gt;<i> &gt; &gt; &gt; &gt;     while(True):
+</I>&gt;<i> &gt; &gt; &gt; &gt;         fp = open(&quot;/dev/zero&quot;, &quot;r&quot;)
+</I>&gt;<i> &gt; &gt; &gt; &gt;         buf = fp.read(4096)
+</I>&gt;<i> &gt; &gt; &gt; &gt;         try:
+</I>&gt;<i> &gt; &gt; &gt; &gt;             req.write(buf)
+</I>&gt;<i> &gt; &gt; &gt; &gt;             del buf
+</I>&gt;<i> &gt; &gt; &gt; &gt;             time.sleep(0.1)
+</I>&gt;<i> &gt; &gt; &gt; &gt;         except:
+</I>&gt;<i> &gt; &gt; &gt; &gt;             fp.close()
+</I>&gt;<i> &gt; &gt; &gt; &gt;             break
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; BTW, you do realise that you open the file in the loop when it should
+</I>&gt;<i> &gt; &gt; &gt; be outside.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Graham
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; --
+</I>&gt;<i> &gt; &gt; truly yours
+</I>&gt;<i> &gt; &gt; ice
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> truly yours
+</I>&gt;<i> ice
+</I></PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023976.html">[mod_python] mod_python 3.3.1 memory leak?
+</A></li>
+	<LI>Next message: <A HREF="023978.html">[mod_python] mod_python 3.3.1 memory leak?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23977">[ date ]</a>
+              <a href="thread.html#23977">[ thread ]</a>
+              <a href="subject.html#23977">[ subject ]</a>
+              <a href="author.html#23977">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

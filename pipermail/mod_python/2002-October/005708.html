@@ -1,0 +1,347 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Segfault when using PythonImport directive
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Segfault%20when%20using%20PythonImport%20directive&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005706.html">
+   <LINK REL="Next"  HREF="005707.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Segfault when using PythonImport directive</H1>
+    <B>Jack Diederich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Segfault%20when%20using%20PythonImport%20directive&In-Reply-To="
+       TITLE="[mod_python] Segfault when using PythonImport directive">jack_diederich at email.com
+       </A><BR>
+    <I>Tue Oct  8 16:03:52 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005706.html">[mod_python] Segfault when using PythonImport directive
+</A></li>
+        <LI>Next message: <A HREF="005707.html">[mod_python] Segfault when using PythonImport directive
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5708">[ date ]</a>
+              <a href="thread.html#5708">[ thread ]</a>
+              <a href="subject.html#5708">[ subject ]</a>
+              <a href="author.html#5708">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>Cut N Pasted from a <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">python-dev at httpd.apache.org</A> email last month
+since I don't know where an archive would be.
+
+I was talking about mod_python 2.x with apahce 1.x 
+But I would be willing to guess it is the same problem.
+
+-jack
+
+
+
+you can never garuntee that python_init() will be called only once.
+All memory allocated from the original pool is freed before the next
+call to python_init()
+just having the single python_imports table seems to avoid this for
+some reason, but it isn't garunteed (I don't want to know what
+happens on USR1).
+
+we need a cleanup func that just resets the python_imports state
+between calls to python_init()
+
+/* This func can go anywhere above directive_PythonImports */
+void cleanup_python_imports(void *data)
+{
+  python_imports = NULL;
+}
+/* This line needs to go in directive_PythonImports in the if block
+where we call ap_make_table */
+ap_register_cleanup(cmd-&gt;pool, NULL,
+cleanup_python_imports, ap_null_cleanup);
+
+
+The end result is that we remake the table if python_init() is called
+more than once.  This is OK because the configuration is also reread.
+ We don't have to worry about the global 'interpreters' variable
+because it is allocated by Python outside of apache's memory
+management, but we might have a small memory leak if we get USR1'd
+over and over again because it is never Py_DECREF'd in
+python_finalize.  On the other hand, Py_Finalize() is probably smart
+enough to take of that for us.
+----- Original Message -----
+From: &quot;Michael C. Neel&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">neel at mediapulse.com</A>&gt;
+Date: Tue, 8 Oct 2002 16:33:19 -0400 
+To: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rmunn at pobox.com</A>&gt;, &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>&gt;
+Subject: RE: [mod_python] Segfault when using PythonImport directive
+
+
+&gt;<i> Not addressing the segfault, couldn't you handle globals in the python
+</I>&gt;<i> program itself?  I do this for database handles my self:
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> import MySQLdb
+</I>&gt;<i> 
+</I>&gt;<i> db = MySQLdb.connect(&quot;yada yada&quot;)
+</I>&gt;<i> 
+</I>&gt;<i> def handler(req):
+</I>&gt;<i> 	do cool db stuff with req here
+</I>&gt;<i> 
+</I>&gt;<i> I do this often, and I've checked that each request doesn't generate a
+</I>&gt;<i> db connection by watching the MySQL number of connects.  One thing to
+</I>&gt;<i> keep in mind is that a db handle may go stale if not used by some
+</I>&gt;<i> databases, so be sure to add some code to test out the db handle each
+</I>&gt;<i> request and reconnect if needed.  The DB API 2.0 spec doesn't define a
+</I>&gt;<i> ping method like perl's DBI does, so I usually add one myself for this.
+</I>&gt;<i> 
+</I>&gt;<i> Mike
+</I>&gt;<i> 
+</I>&gt;<i> --
+</I>&gt;<i> Michael C. Neel
+</I>&gt;<i> Director of Software Development
+</I>&gt;<i> Mediapulse, Inc.
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> -----Original Message-----
+</I>&gt;<i> From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rmunn at pobox.com</A> [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rmunn at pobox.com</A>] 
+</I>&gt;<i> Sent: Tuesday, October 08, 2002 1:35 PM
+</I>&gt;<i> To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Subject: [mod_python] Segfault when using PythonImport directive
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> I'm using mod_python 3.0.0 BETA 2 with Apache 2.0.42 and encountering a
+</I>&gt;<i> segfault every time I try to use the PythonInclude directive. The
+</I>&gt;<i> segfault occurs even when I try to have Apache do a configuration syntax
+</I>&gt;<i> check (/usr/apache2/bin/apachectl configtest). I've narrowed it down to
+</I>&gt;<i> a single PythonInclude line. This is the &lt;Directory&gt; directive in which
+</I>&gt;<i> the PythonInclude directive appears:
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Directory /var/www/publisher&gt;
+</I>&gt;<i>     AddHandler python-program .py
+</I>&gt;<i>     PythonHandler mod_python.publisher
+</I>&gt;<i>     PythonInterpPerDirective On
+</I>&gt;<i>     PythonImport globals
+</I>&gt;<i> &lt;/Directory&gt;
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> If I comment out the &quot;PythonImport globals&quot; line, everything runs fine.
+</I>&gt;<i> 
+</I>&gt;<i> Here's the contents of my /var/www/publisher directory:
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rmunn at localhost</A>:/var/www/publisher$ ls -l
+</I>&gt;<i> total 8
+</I>&gt;<i> -rw-r--r--    1 rmunn    users          12 Oct  7 19:22 globals.py
+</I>&gt;<i> -rw-r--r--    1 rmunn    users         133 Oct  8 12:26 tryme.py
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rmunn at localhost</A>:/var/www/publisher$ cat globals.py 
+</I>&gt;<i> foo = 'bar'
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rmunn at localhost</A>:/var/www/publisher$ cat tryme.py 
+</I>&gt;<i> def show(req, name):
+</I>&gt;<i>     try:
+</I>&gt;<i>         return str(globals.foo)
+</I>&gt;<i>     except AttributeError, NameError:
+</I>&gt;<i>         return str(dir(globals))
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> As you can see, what I'm trying to do is have some global variables
+</I>&gt;<i> pre-defined in my mod_python scripts; I plan on using this to accomplish
+</I>&gt;<i> expensive operations (like opening database connections) once per apache
+</I>&gt;<i> process child instead of once per request.
+</I>&gt;<i> 
+</I>&gt;<i> Here's the gdb backtrace of my segfault. I'm running httpd -t to only
+</I>&gt;<i> get a configuration syntax check and it's still failing. Any ideas?
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">root at localhost</A>:/usr/apache2/conf# gdb ../bin/httpd 
+</I>&gt;<i> GNU gdb 5.2.1
+</I>&gt;<i> Copyright 2002 Free Software Foundation, Inc.
+</I>&gt;<i> GDB is free software, covered by the GNU General Public License, and you
+</I>&gt;<i> are
+</I>&gt;<i> welcome to change it and/or distribute copies of it under certain
+</I>&gt;<i> conditions.
+</I>&gt;<i> Type &quot;show copying&quot; to see the conditions.
+</I>&gt;<i> There is absolutely no warranty for GDB.  Type &quot;show warranty&quot; for
+</I>&gt;<i> details.
+</I>&gt;<i> This GDB was configured as &quot;i686-pc-linux-gnu&quot;...
+</I>&gt;<i> (gdb) run -t
+</I>&gt;<i> Starting program: /usr/apache2/bin/httpd -t
+</I>&gt;<i> [New Thread 1024 (LWP 29765)]
+</I>&gt;<i> 
+</I>&gt;<i> Program received signal SIGSEGV, Segmentation fault.
+</I>&gt;<i> [Switching to Thread 1024 (LWP 29765)]
+</I>&gt;<i> __pthread_mutex_lock (mutex=0x10) at mutex.c:99
+</I>&gt;<i> 99      mutex.c: No such file or directory.
+</I>&gt;<i>         in mutex.c
+</I>&gt;<i> (gdb) backtrace full
+</I>&gt;<i> #0  __pthread_mutex_lock (mutex=0x10) at mutex.c:99
+</I>&gt;<i>         mutex = (pthread_mutex_t *) 0x10
+</I>&gt;<i>         self = 0x0
+</I>&gt;<i> #1  0x403d8f43 in PyThread_acquire_lock (lock=0x0, waitflag=1) at
+</I>&gt;<i> Python/thread_pthread.h:359
+</I>&gt;<i>         lock = 0x0
+</I>&gt;<i>         success = 1078103364
+</I>&gt;<i>         status = 0
+</I>&gt;<i>         error = 0
+</I>&gt;<i> #2  0x403bbb4e in PyEval_AcquireLock () at Python/ceval.c:267
+</I>&gt;<i> No locals.
+</I>&gt;<i> #3  0x4037c1b3 in directive_PythonImport (cmd=0xbffffc30,
+</I>&gt;<i> mconfig=0x80e0958, module=0x80e0e28 &quot;globals&quot;) at mod_python.c:1220
+</I>&gt;<i>         cmd = (cmd_parms *) 0x0
+</I>&gt;<i>         mconfig = (void *) 0x0
+</I>&gt;<i>         module = 0x0
+</I>&gt;<i> #4  0x08067349 in invoke_cmd (cmd=0x4040d154, parms=0xbffffc30,
+</I>&gt;<i> mconfig=0x80e0958, args=0x80d594f &quot;&quot;) at config.c:800
+</I>&gt;<i>         w = 0x80e0e28 &quot;globals&quot;
+</I>&gt;<i>         w2 = 0xbffffc30 &quot;&quot;
+</I>&gt;<i>         w3 = 0x4040d154 &quot;\231n?@\234&#193;7@&quot;
+</I>&gt;<i>         errmsg = 0x0
+</I>&gt;<i> #5  0x08067a53 in ap_walk_config_sub (current=0x80d5928,
+</I>&gt;<i> parms=0xbffffc30, section_vector=0x80e05f0) at config.c:1082
+</I>&gt;<i>         dir_config = (void *) 0x4040d154
+</I>&gt;<i>         retval = 0x4040d154 &quot;\231n?@\234&#193;7@&quot;
+</I>&gt;<i>         cmd = (command_rec *) 0x4040d154
+</I>&gt;<i>         current = (ap_directive_t *) 0x80d5928
+</I>&gt;<i>         parms = (cmd_parms *) 0xbffffc30
+</I>&gt;<i>         mod = (module *) 0x4040d2e0
+</I>&gt;<i> #6  0x08067ad1 in ap_walk_config (current=0x80d5850, parms=0xbffffc30,
+</I>&gt;<i> section_vector=0x80e05f0) at config.c:1121
+</I>&gt;<i>         errmsg = 0x0
+</I>&gt;<i>         current = (ap_directive_t *) 0x80d5928
+</I>&gt;<i>         parms = (cmd_parms *) 0xbffffc30
+</I>&gt;<i>         oldconfig = (ap_conf_vector_t *) 0x80b3488
+</I>&gt;<i> #7  0x08074beb in dirsection (cmd=0xbffffc30, mconfig=0x80b3598,
+</I>&gt;<i> arg=0x80e0792 &quot;&quot;) at core.c:1625
+</I>&gt;<i>         cmd = (cmd_parms *) 0xbffffc30
+</I>&gt;<i>         errmsg = 0x0
+</I>&gt;<i>         endp = 0x80e07e0 &quot;&quot;
+</I>&gt;<i>         old_overrides = 150
+</I>&gt;<i>         old_path = 0x0
+</I>&gt;<i>         conf = (core_dir_config *) 0x80e07e0
+</I>&gt;<i>         new_dir_conf = (ap_conf_vector_t *) 0x80e05f0
+</I>&gt;<i>         r = (regex_t *) 0x0
+</I>&gt;<i>         thiscmd = (command_rec *) 0x8088bec
+</I>&gt;<i>         err = 0x0
+</I>&gt;<i> #8  0x08066e6e in invoke_cmd (cmd=0x8088bec, parms=0xbffffc30,
+</I>&gt;<i> mconfig=0x80b3598, args=0x80d5828 &quot;/var/www/publisher&gt;&quot;) at config.c:713
+</I>&gt;<i>         w = 0x80d5808 &quot;&#248;W\r\b(X\r\b&quot;
+</I>&gt;<i>         w2 = 0xbffffc30 &quot;&quot;
+</I>&gt;<i>         w3 = 0x4040d154 &quot;\231n?@\234&#193;7@&quot;
+</I>&gt;<i>         errmsg = 0x0
+</I>&gt;<i> #9  0x08067a53 in ap_walk_config_sub (current=0x80d5808,
+</I>&gt;<i> parms=0xbffffc30, section_vector=0x80b3488) at config.c:1082
+</I>&gt;<i>         dir_config = (void *) 0x4040d154
+</I>&gt;<i>         retval = 0x4040d154 &quot;\231n?@\234&#193;7@&quot;
+</I>&gt;<i>         cmd = (command_rec *) 0x8088bec
+</I>&gt;<i>         current = (ap_directive_t *) 0x80d5808
+</I>&gt;<i>         parms = (cmd_parms *) 0xbffffc30
+</I>&gt;<i>         mod = (module *) 0x808ed60
+</I>&gt;<i> #10 0x08067ad1 in ap_walk_config (current=0x80b49d0, parms=0xbffffc30,
+</I>&gt;<i> section_vector=0x80b3488) at config.c:1121
+</I>&gt;<i>         errmsg = 0x0
+</I>&gt;<i>         current = (ap_directive_t *) 0x80d5808
+</I>&gt;<i>         parms = (cmd_parms *) 0xbffffc30
+</I>&gt;<i>         oldconfig = (ap_conf_vector_t *) 0x0
+</I>&gt;<i> #11 0x080684e0 in ap_process_config_tree (s=0x80b2ec8,
+</I>&gt;<i> conftree=0x80b49d0, p=0x8098d10, ptemp=0x80c4dc0) at config.c:1583
+</I>&gt;<i>         s = (server_rec *) 0x4040d154
+</I>&gt;<i>         p = (apr_pool_t *) 0x8098d10
+</I>&gt;<i>         ptemp = (apr_pool_t *) 0x0
+</I>&gt;<i>         errmsg = 0x808defc &quot;&quot;
+</I>&gt;<i>         parms = {info = 0x0, override = 95, limited = -1,
+</I>&gt;<i> limited_xmethods = 0x0, xlimited = 0x0, config_file = 0x0, directive =
+</I>&gt;<i> 0x80d5928, pool = 0x8098d10, 
+</I>&gt;<i>   temp_pool = 0x80c4dc0, server = 0x80b2ec8, path = 0x80e07c8
+</I>&gt;<i> &quot;/var/www/publisher/&quot;, cmd = 0x4040d154, context = 0x80e05f0,
+</I>&gt;<i> err_directive = 0x0}
+</I>&gt;<i> #12 0x0806a811 in main (argc=2, argv=0xbffffd44) at main.c:564
+</I>&gt;<i>         c = 116 't'
+</I>&gt;<i>         configtestonly = 1
+</I>&gt;<i>         confname = 0x8086518 &quot;conf/httpd.conf&quot;
+</I>&gt;<i>         def_server_root = 0x8086528 &quot;/usr/apache2&quot;
+</I>&gt;<i>         temp_error_log = 0x0
+</I>&gt;<i>         process = (process_rec *) 0x8096d88
+</I>&gt;<i>         server_conf = (server_rec *) 0x80b2ec8
+</I>&gt;<i>         pglobal = (apr_pool_t *) 0x8096d08
+</I>&gt;<i>         pconf = (apr_pool_t *) 0x8098d10
+</I>&gt;<i>         plog = (apr_pool_t *) 0x80c2db8
+</I>&gt;<i>         ptemp = (apr_pool_t *) 0x80c4dc0
+</I>&gt;<i>         pcommands = (apr_pool_t *) 0x80c0db0
+</I>&gt;<i>         opt = (apr_getopt_t *) 0x80c0e48
+</I>&gt;<i>         rv = 0
+</I>&gt;<i>         mod = (module **) 0x80b2ec8
+</I>&gt;<i>         optarg = 0x0
+</I>&gt;<i>         signal_server = (apr_OFN_ap_signal_server_t *) 0x4040d154
+</I>&gt;<i> &lt;python_commands+264&gt;
+</I>&gt;<i> #13 0x40189571 in __libc_start_main (main=0x806a370 &lt;main&gt;, argc=2,
+</I>&gt;<i> ubp_av=0xbffffd44, init=0x805b824 &lt;_init&gt;, fini=0x80812e0 &lt;_fini&gt;,
+</I>&gt;<i> rtld_fini=0x4000aa24 &lt;_dl_fini&gt;, 
+</I>&gt;<i>     stack_end=0xbffffd3c) at ../sysdeps/generic/libc-start.c:129
+</I>&gt;<i>         ubp_av = (char **) 0xbffffd44
+</I>&gt;<i>         fini = (void (*)()) 0x400154ac &lt;_dl_debug_mask&gt;
+</I>&gt;<i>         rtld_fini = (void (*)()) 0x80e0e28
+</I>&gt;<i>         ubp_ev = (char **) 0x0
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> -- 
+</I>&gt;<i> Robin Munn
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rmunn at pobox.com</A>
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+-- 
+__________________________________________________________
+Sign-up for your own FREE Personalized E-mail at Mail.com
+<A HREF="http://www.mail.com/?sr=signup">http://www.mail.com/?sr=signup</A>
+
+
+&quot;Free price comparison tool gives you the best prices and cash back!&quot;
+<A HREF="http://www.bestbuyfinder.com/download.htm">http://www.bestbuyfinder.com/download.htm</A>
+
+
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005706.html">[mod_python] Segfault when using PythonImport directive
+</A></li>
+	<LI>Next message: <A HREF="005707.html">[mod_python] Segfault when using PythonImport directive
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5708">[ date ]</a>
+              <a href="thread.html#5708">[ thread ]</a>
+              <a href="subject.html#5708">[ subject ]</a>
+              <a href="author.html#5708">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

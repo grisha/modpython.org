@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Dynamic &lt;IMG&gt; with PIL
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Dynamic%20%3CIMG%3E%20with%20PIL&In-Reply-To=29a6ca010705181736o246f5922t8f32b4bc4f69f637%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023649.html">
+   <LINK REL="Next"  HREF="023651.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Dynamic &lt;IMG&gt; with PIL</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Robert Norman</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Dynamic%20%3CIMG%3E%20with%20PIL&In-Reply-To=29a6ca010705181736o246f5922t8f32b4bc4f69f637%40mail.gmail.com"
+       TITLE="[mod_python] Dynamic &lt;IMG&gt; with PIL">tfcrobert at gmail.com
+       </A><BR>
+    <I>Fri May 18 22:10:42 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023649.html">[mod_python] Dynamic &lt;IMG&gt; with PIL
+</A></li>
+        <LI>Next message: <A HREF="023651.html">[mod_python] [SPAM] Hello, (Re) importing module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23650">[ date ]</a>
+              <a href="thread.html#23650">[ thread ]</a>
+              <a href="subject.html#23650">[ subject ]</a>
+              <a href="author.html#23650">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Colin,
+
+That did it! I hadn't understood the underlying process.
+So my handler gets called once for the main page and again with the name of
+the image file contained in the IMG tag. The handler just calls the image
+generator and merges it into the page. Worked great!  I already had the
+image to StringIO working, so it was simply a matter of staging the
+requests.
+
+Mod-python is... cool.
+
+Rob
+
+
+On 5/18/07, Colin Bean &lt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ccbean at gmail.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Hi Robert,
+</I>&gt;<i>
+</I>&gt;<i> An image tag in your document won't contain any actual image data, it
+</I>&gt;<i> simply provides a URL which the browser uses to fetch that image data.
+</I>&gt;<i> So in order to do what you want to do, you'll need at least two
+</I>&gt;<i> separate handlers: one to generate the initial page and one to
+</I>&gt;<i> generate some dynamic image content.
+</I>&gt;<i> To explain a little better: after a browser initially loads an HTML
+</I>&gt;<i> page, it will find the SRC attribute for each IMG tag and then perform
+</I>&gt;<i> a *separate* HTTP request to that URL, and expect some understandable
+</I>&gt;<i> image data back.  So you will need to generate the image content
+</I>&gt;<i> separately from the page, and vice versa.
+</I>&gt;<i>
+</I>&gt;<i> The suggestion that you posted is probably pretty close to what you
+</I>&gt;<i> will want to do:  you'll have a hander which generates your image in
+</I>&gt;<i> PIL, sets the content type, and writes the properly encoded image data
+</I>&gt;<i> (and nothing else) to the request.  I don't use publisher, but I'm
+</I>&gt;<i> pretty sure this will NOT work with publisher, you will probably have
+</I>&gt;<i> to write a small custom handler to do this.  Might look something like
+</I>&gt;<i> this pseudocode (note I haven't tested this in any way):
+</I>&gt;<i>
+</I>&gt;<i> from cStringIO import StringIO  #Way to hold the encoded image data, for
+</I>&gt;<i> now
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>     #Grab whatever parameters you need...
+</I>&gt;<i>     #Generate a PIL image, let's call it img....
+</I>&gt;<i>
+</I>&gt;<i>     s = StringIO()
+</I>&gt;<i>     img.save(s, 'jpeg')  #We have to encode this as a jpeg or similar
+</I>&gt;<i> format,
+</I>&gt;<i>                                 #if we send the raw PIL data the
+</I>&gt;<i> client won't understand it
+</I>&gt;<i>
+</I>&gt;<i>     s.seek(0)
+</I>&gt;<i>     req.content_type = 'image/jpeg'  #Or whatever matches what we save
+</I>&gt;<i> it as above
+</I>&gt;<i>
+</I>&gt;<i>     #Would be nice to set the content length, too...
+</I>&gt;<i>
+</I>&gt;<i>     req.write(s.getvalue()) #Send the encoded image data as our body
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> A good place to start might be setting this up so you can enter a url
+</I>&gt;<i> like /myimagehanlder?id=foo and have it display just the image in your
+</I>&gt;<i> browser.  Then integrating it into your page may make more sense.  I
+</I>&gt;<i> would also recommend implementing some kind of caching mechanism, as
+</I>&gt;<i> the above code will be a lot of work for your server.
+</I>&gt;<i>
+</I>&gt;<i> HTH,
+</I>&gt;<i>
+</I>&gt;<i> Colin
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On 5/18/07, Robert Norman &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">tfcrobert at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; I'm trying to create graphs on the fly with mod-python.  Using PIL I can
+</I>&gt;<i> get
+</I>&gt;<i> &gt; a &quot;jpeg&quot; image as a string. Is there some way to wrap this information
+</I>&gt;<i> in an
+</I>&gt;<i> &gt; IMG tag?  I gather that  src parameter in IMG is required so anythink
+</I>&gt;<i> like:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; req.write(&quot;&lt;IMG %s&gt;&quot;  % myString)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; is not going to work.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; One suggestion was to:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;  &lt;img src=&quot; get-graph.py?graphId=xyz&quot; /&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; where:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &quot;get-graph.py is a python script. it sets the header to &quot;image/jpeg&quot; or
+</I>&gt;<i> &gt; whatever format you want to use than you can use some python libraries
+</I>&gt;<i> to
+</I>&gt;<i> &gt; create the image. Instead of saving the image to a file you just write
+</I>&gt;<i> it to
+</I>&gt;<i> &gt; stdout.&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I don't understand the suggestion especially in the context of
+</I>&gt;<i> mod-python
+</I>&gt;<i> &gt; since we want to use req to write the page.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; What is a reasonable method to generate dynamic image graphics?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Robert
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070518/4e58deac/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070518/4e58deac/attachment.html</A>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023649.html">[mod_python] Dynamic &lt;IMG&gt; with PIL
+</A></li>
+	<LI>Next message: <A HREF="023651.html">[mod_python] [SPAM] Hello, (Re) importing module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23650">[ date ]</a>
+              <a href="thread.html#23650">[ thread ]</a>
+              <a href="subject.html#23650">[ subject ]</a>
+              <a href="author.html#23650">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

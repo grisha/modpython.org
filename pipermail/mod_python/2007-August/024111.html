@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session class or Memcache to reduce load?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20class%20or%20Memcache%20to%20reduce%20load%3F&In-Reply-To=00fd01c7d86b%24cd220e90%2467662bb0%24%40com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024110.html">
+   <LINK REL="Next"  HREF="024112.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session class or Memcache to reduce load?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Colin Bean</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20class%20or%20Memcache%20to%20reduce%20load%3F&In-Reply-To=00fd01c7d86b%24cd220e90%2467662bb0%24%40com"
+       TITLE="[mod_python] Session class or Memcache to reduce load?">ccbean at gmail.com
+       </A><BR>
+    <I>Mon Aug  6 17:44:54 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024110.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+        <LI>Next message: <A HREF="024112.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24111">[ date ]</a>
+              <a href="thread.html#24111">[ thread ]</a>
+              <a href="subject.html#24111">[ subject ]</a>
+              <a href="author.html#24111">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hey Alec,
+
+For starters, you should use req.sendfile instead of manually reading
+/ sending the file in Python.
+I believe you'd still have to set the content type manually, so you'd
+still have to determine that.  This looks like it would be an easy
+change to implement, and hopefully will help your performance
+immediately.
+
+Graham described a potentially faster method here (with the warning
+that it's &quot;slightly theoretical&quot; -- I've not tried it, but reading the
+thread might be helpful)
+<A HREF="http://www.modpython.org/pipermail/mod_python/2007-July/024061.html">http://www.modpython.org/pipermail/mod_python/2007-July/024061.html</A>
+
+-Colin
+
+
+On 8/6/07, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at matusis.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; -----Original Message-----
+</I>&gt;<i> &gt; From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;<i> &gt; Sent: Monday, August 06, 2007 2:25 AM
+</I>&gt;<i> &gt; &gt; Hello, I am sorry if my question is too basic. I would like to reduce
+</I>&gt;<i> &gt; the
+</I>&gt;<i> &gt; &gt; load on apache 2.0 (on 2.6.9 linux) that is running with prefork MPM.
+</I>&gt;<i> &gt; &gt; There are two main things that are causing the load:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; How do you know that these two things are causing the load?
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> Because all this apache server (this physical machine) does is serving
+</I>&gt;<i> thumbnails.
+</I>&gt;<i>
+</I>&gt;<i> &gt; &gt; a) Thumbnail images that are requested repeatedly
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Are you serving up the thumbnails from Python code dynamically or
+</I>&gt;<i> &gt; allowing Apache to serve them up form a static file?
+</I>&gt;<i>
+</I>&gt;<i> Dynamically.
+</I>&gt;<i>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt; b) A simple DB query is necessary to locate an image file after the
+</I>&gt;<i> &gt; request.
+</I>&gt;<i> &gt; &gt; The result of the query does not change. DB is located on another
+</I>&gt;<i> &gt; machine.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; My first question, do we need to cache \thumbnail images at all, or
+</I>&gt;<i> &gt; the
+</I>&gt;<i> &gt; &gt; file-caching by the OS is sufficient?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; OS file caching probably will not make much difference. Where one can
+</I>&gt;<i> &gt; waste a lot of cycles though is by using Python code to serve up the
+</I>&gt;<i> &gt; images. Thus, if Python is involved in serving up the images, how is
+</I>&gt;<i> &gt; it being done?
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> The URI in the client's request contains an image code. Python queries the
+</I>&gt;<i> DB (on a separate machine) to convert the URI into the image file location,
+</I>&gt;<i> and then uses
+</I>&gt;<i>
+</I>&gt;<i>         f =  open(file_path)
+</I>&gt;<i>         im_data = f.read()
+</I>&gt;<i>         f.close()
+</I>&gt;<i>
+</I>&gt;<i> then it determines image type using PIL
+</I>&gt;<i>
+</I>&gt;<i>           im = Image.open(file_path)
+</I>&gt;<i>           im_type = im.format.lower()
+</I>&gt;<i>
+</I>&gt;<i> (Image.open() is a lazy operation in PIL, so I think it does not have to do
+</I>&gt;<i> much to determine the image format)
+</I>&gt;<i> Then python writes the data to the client
+</I>&gt;<i>
+</I>&gt;<i>         self.req.content_type = 'image/' + im_type
+</I>&gt;<i>         self.req.headers_out['Content-Length'] = str(len(im_data))
+</I>&gt;<i>         self.dict['bin_data'] = im_data
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; &gt; Second question, to cache the results of the query, should we use
+</I>&gt;<i> &gt; &gt; mod_python's Session class ( wich will use DbmSession since we are
+</I>&gt;<i> &gt; using
+</I>&gt;<i> &gt; &gt; prefork MPM), or memcache?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Traditionally people use memcached for this.
+</I>&gt;<i> &gt;
+</I>&gt;<i> Why? For performance reasons?
+</I>&gt;<i>
+</I>&gt;<i> &gt; &gt; For certain reasons in the application logic we cannot use apache's
+</I>&gt;<i> &gt; &gt; mod_cache.
+</I>&gt;<i> &gt; What reasons?
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> Because sometimes the images are dynamically banned (flagged) by users, and
+</I>&gt;<i> in that case we need to render a special image. The DB query that we use
+</I>&gt;<i> gives None for the image file path when it's banned. So when the image
+</I>&gt;<i> status changes, we will need to dynamically purge the file path of the image
+</I>&gt;<i> that is be cached.
+</I>&gt;<i>
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024110.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+	<LI>Next message: <A HREF="024112.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24111">[ date ]</a>
+              <a href="thread.html#24111">[ thread ]</a>
+              <a href="subject.html#24111">[ subject ]</a>
+              <a href="author.html#24111">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

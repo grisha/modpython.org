@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Transparently using mod_python to handle images
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Transparently%20using%20mod_python%20to%20handle%20images&In-Reply-To=4238EC65.8020508%40rawkin.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017694.html">
+   <LINK REL="Next"  HREF="017696.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Transparently using mod_python to handle images</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Gustavo C&#243;rdova Avila</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Transparently%20using%20mod_python%20to%20handle%20images&In-Reply-To=4238EC65.8020508%40rawkin.net"
+       TITLE="[mod_python] Transparently using mod_python to handle images">gustavo.cordova at q-voz.com
+       </A><BR>
+    <I>Thu Mar 17 09:53:02 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017694.html">[mod_python] Transparently using mod_python to handle images
+</A></li>
+        <LI>Next message: <A HREF="017696.html">[mod_python] Trouble fetching POST arguments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17711">[ date ]</a>
+              <a href="thread.html#17711">[ thread ]</a>
+              <a href="subject.html#17711">[ subject ]</a>
+              <a href="author.html#17711">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Rich McDonough wrote:
+
+&gt;<i> First let me extend my thanks to this group. It is a fountain of 
+</I>&gt;<i> useful information.
+</I>&gt;<i>
+</I>&gt;<i> I am sure that this question will be easily answered by someone here, 
+</I>&gt;<i> in fact there is probably some code snippets around that will do the 
+</I>&gt;<i> deed quickly and easily. I am trying to write a handler that will 
+</I>&gt;<i> server images from a subdirectory. The goal is to have the handler 
+</I>&gt;<i> serve the image and insert a record into a database indicating the 
+</I>&gt;<i> referring page, filename, time, etc... It would ideally be a folder 
+</I>&gt;<i> within a UserDir, so for this to work the user would have to add the 
+</I>&gt;<i> appropriate .htaccess and index.py files added to it. Users would then 
+</I>&gt;<i> just add the images they want served to the folder, the handler would 
+</I>&gt;<i> do the rest.
+</I>&gt;<i>
+</I>&gt;<i> I have been doing this with Zope for a while now but need to move away 
+</I>&gt;<i> from zodb due to size issues. Also, my current approach requires the 
+</I>&gt;<i> URL to be rather ugly and include an argument (i.e. 
+</I>&gt;<i> <A HREF="http://server/folder/image?sparky.jpg">http://server/folder/image?sparky.jpg</A>). I would love to get away from 
+</I>&gt;<i> passing the argument in the URL and simply have users place the real 
+</I>&gt;<i> path to the image, then let the handler do the manipulating for me.
+</I>&gt;<i>
+</I>&gt;<i> Does anyone have any quick pointers or examples of such an application?
+</I>&gt;<i>
+</I>&gt;<i> Thank you in advance,
+</I>&gt;<i> Rich
+</I>
+You're welcome :-)
+
+Something like this, perhaps???
+
+    # Do this for all .../imgsrv/ directories.
+    &lt;DirectoryMatch &quot;/imgsrv/&quot;&gt;
+        SetHandler mod_python
+        PythonPath &quot;['/location/of/your/script']+sys.path&quot;
+        PythonHandler image_server
+    &lt;/DirectoryMatch&gt;
+
+And then, you place somewhere in your PythonPath:
+
+    # image_server.py
+    # This small handler serves images, and records
+    # the information to who it was sent to.
+
+    import os, re, time
+    from mod_python import apache
+
+    rxParts = re.compile(r&quot;(([^/]+)\.([^./]+))$&quot;)
+
+    # The function &quot;record_serving&quot; handles inserting into the
+    # database a record of an image served.
+    # Usage: RecordServing(
+    from DatabaseStuff import RecordServing
+
+    # This is your document root.
+    DOCROOT = &quot;/var/www/htdocs&quot;
+
+    def handler(req):
+        # *IF* the image exists, then record a serving.
+        if os.access(DOCROOT + req.uri, os.F_OK):
+           fullname, name, extension = rxParts.search(req.uri).groups()
+           referer = req.header_in.get(&quot;referer&quot;)
+           timestamp = time.strftime(&quot;%F %T&quot;)
+           RecordServing(timestamp, fullname, referer)
+
+        # Finally, let Apache send the file.
+        return apache.DECLINED
+
+What this handler does, is intercept all fetches for files inside all 
+subdirectories called &quot;imgsrv&quot;; when the file actually exists, it saves 
+a record to the database (v&#237;a the &quot;RecordServing&quot; function). Finally, 
+the request is declined, to let apache handle sending the actual file to 
+the client.
+
+I haven't actually run it, but the basic design should work.  Comments 
+are appreciated.
+
+Hope this helps.
+
+-gus
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: gustavo.cordova.vcf
+Type: text/x-vcard
+Size: 189 bytes
+Desc: not available
+Url : <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20050317/c3abe2c1/gustavo.cordova.vcf">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20050317/c3abe2c1/gustavo.cordova.vcf</A>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017694.html">[mod_python] Transparently using mod_python to handle images
+</A></li>
+	<LI>Next message: <A HREF="017696.html">[mod_python] Trouble fetching POST arguments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17711">[ date ]</a>
+              <a href="thread.html#17711">[ thread ]</a>
+              <a href="subject.html#17711">[ subject ]</a>
+              <a href="author.html#17711">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

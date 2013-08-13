@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Image handling handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Image%20handling%20handler&In-Reply-To=20040923173124.GC28689%40legolas.on.net.mk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016505.html">
+   <LINK REL="Next"  HREF="016511.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Image handling handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Sean Treadway</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Image%20handling%20handler&In-Reply-To=20040923173124.GC28689%40legolas.on.net.mk"
+       TITLE="[mod_python] Image handling handler">seant at superchannel.org
+       </A><BR>
+    <I>Thu Sep 23 22:27:27 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016505.html">[mod_python] Image handling handler
+</A></li>
+        <LI>Next message: <A HREF="016511.html">[mod_python] Image handling handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16506">[ date ]</a>
+              <a href="thread.html#16506">[ thread ]</a>
+              <a href="subject.html#16506">[ subject ]</a>
+              <a href="author.html#16506">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I have written a similar handler, and found that some PIL image formats
+needed as seekable file.  It was a long time ago, so PIL may have lifted
+that requirement.
+
+-Sean 
+
+&gt;<i> -----Original Message-----
+</I>&gt;<i> From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A> [mailto:mod_python-
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bounces at modpython.org</A>] On Behalf Of Damjan
+</I>&gt;<i> Sent: Thursday, September 23, 2004 7:31 PM
+</I>&gt;<i> To: mod_python user mailing list
+</I>&gt;<i> Subject: Re: [mod_python] Image handling handler
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; I'm probably missing something obvious here, but in the 'handle_thumb'
+</I>&gt;<i> &gt;&gt;&gt; and 'handle_size' class methods if the image is not cached (or is
+</I>&gt;<i> older)
+</I>&gt;<i> &gt;&gt;&gt; where is the method sending the image file back to the client?
+</I>&gt;<i> &gt;&gt;&gt; It appears only to resize and cache the image not return it.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; img.save(self.req, format=img.format)
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; I'm &quot;saving&quot; the image to the req object. mod_python's request object
+</I>&gt;<i> is
+</I>&gt;<i> &gt;&gt; fine at emulating a file object.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'm probably having one of those dumb moments (It happens often!) but I
+</I>&gt;<i> &gt; just don't get this.
+</I>&gt;<i> 
+</I>&gt;<i> :)
+</I>&gt;<i> 
+</I>&gt;<i> &gt; How does the request object know its supposed to be a file object and
+</I>&gt;<i> &gt; relay the image to the browser.
+</I>&gt;<i> 
+</I>&gt;<i> The request object is &quot;file object&quot; compatible, that means that any
+</I>&gt;<i> python function that works with file objects can work with the request
+</I>&gt;<i> object too. Like this:
+</I>&gt;<i> 
+</I>&gt;<i> def fill_file_with_zeros(something, howmany):
+</I>&gt;<i> 	buff = '\x0' * howmany
+</I>&gt;<i> 	something.write(buff)
+</I>&gt;<i> 	return
+</I>&gt;<i> 
+</I>&gt;<i> Now I can call that function like this:
+</I>&gt;<i> 
+</I>&gt;<i> fp = file('/tmp/zeroed')
+</I>&gt;<i> fill_file_with_zeros(fp, 100)
+</I>&gt;<i> 
+</I>&gt;<i> or in mod_pytnon like this:
+</I>&gt;<i> 
+</I>&gt;<i> fill_file_with_zeros(req, 100)
+</I>&gt;<i> 
+</I>&gt;<i> The function doesn't care if &quot;something&quot; is really a file. Its enough if
+</I>&gt;<i> &quot;something&quot; has the write method.
+</I>&gt;<i> So in the second case, the function fill_file_with_zeros calls &quot;req&quot;s
+</I>&gt;<i> write method... what happens is that the client receives a file filled
+</I>&gt;<i> with
+</I>&gt;<i> NULLs (well, that's not very usefull ;) ).
+</I>&gt;<i> 
+</I>&gt;<i> &gt; When/where does the req.write get invoked to send the image?
+</I>&gt;<i> 
+</I>&gt;<i> Inside img.save(...), img.save is just like the above
+</I>&gt;<i> fill_file_with_zeros,
+</I>&gt;<i> it doesn't care if you give it a real file, or a file like object (like
+</I>&gt;<i> req)... as long as it supports the write method.
+</I>&gt;<i> 
+</I>&gt;<i> Btw, I could've done it like this:
+</I>&gt;<i> 
+</I>&gt;<i> 	buff = StringIO.StringIO()
+</I>&gt;<i> 	img.save(buff,...)
+</I>&gt;<i> 	req.write(buff.getvalue())
+</I>&gt;<i> 
+</I>&gt;<i> But that would only use twice the memory for no reason.
+</I>&gt;<i> 
+</I>&gt;<i> --
+</I>&gt;<i> damjan | ??????
+</I>&gt;<i> This is my jabber ID --&gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">damjan at bagra.net.mk</A> &lt;-- not my mail address!!!
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016505.html">[mod_python] Image handling handler
+</A></li>
+	<LI>Next message: <A HREF="016511.html">[mod_python] Image handling handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16506">[ date ]</a>
+              <a href="thread.html#16506">[ thread ]</a>
+              <a href="subject.html#16506">[ subject ]</a>
+              <a href="author.html#16506">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

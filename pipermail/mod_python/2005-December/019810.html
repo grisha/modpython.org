@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Can't start Apache with mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Can%27t%20start%20Apache%20with%20mod_python&In-Reply-To=1135039388.15725%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019809.html">
+   <LINK REL="Next"  HREF="019811.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Can't start Apache with mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Can%27t%20start%20Apache%20with%20mod_python&In-Reply-To=1135039388.15725%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Can't start Apache with mod_python">list at joreybump.com
+       </A><BR>
+    <I>Mon Dec 19 20:29:00 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019809.html">[mod_python] Can't start Apache with mod_python
+</A></li>
+        <LI>Next message: <A HREF="019811.html">[mod_python] Bug in 3.2b5?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19810">[ date ]</a>
+              <a href="thread.html#19810">[ thread ]</a>
+              <a href="subject.html#19810">[ subject ]</a>
+              <a href="author.html#19810">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> Apache 2.2 is not yet supported. See:
+</I>&gt;<i> 
+</I>&gt;<i>   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-78">http://issues.apache.org/jira/browse/MODPYTHON-78</A>
+</I>&gt;<i> 
+</I>&gt;<i> Specfically, it links to a mailing list posts\ which suggests changes to make
+</I>&gt;<i> it work, but they need to be checked properly yet to see if they are correct.
+</I>
+I've attached the source tree patch. To apply the patch, move into the 
+source code directory and issue the following command:
+
+   patch -p1 &lt; /path/to/mod_python-3.2.5b.patch
+
+As Graham points out, the patch is not thoroughly tested, but it does 
+indicate where the problems are. Consider it not ready for production 
+use. Note that some of the tests will fail, but Apache will load the 
+module. I've tested it with Publisher, and it seems to work.
+
+
+-------------- next part --------------
+diff -uNr mod_python-3.2.5b/src/connobject.c mod_python-3.2.5b.new/src/connobject.c
+--- mod_python-3.2.5b/src/connobject.c	2005-11-12 13:59:35.000000000 -0500
++++ mod_python-3.2.5b.new/src/connobject.c	2005-12-03 15:26:27.000000000 -0500
+@@ -78,12 +78,6 @@
+     rc = ap_get_brigade(c-&gt;input_filters, bb, mode, APR_BLOCK_READ, bufsize);
+     Py_END_ALLOW_THREADS;
+ 
+-    if (! APR_STATUS_IS_SUCCESS(rc)) {
+-        PyErr_SetObject(PyExc_IOError, 
+-                        PyString_FromString(&quot;Connection read error&quot;));
+-        return NULL;
+-    }
+-
+     /* 
+      * loop through the brigade reading buckets into the string 
+      */
+@@ -312,24 +306,17 @@
+  **
+  *  utility func to make a socket address
+  */
+-
+ static PyObject *makesockaddr(struct apr_sockaddr_t *addr)
+-{
++{   
+     PyObject *addrobj = makeipaddr(addr);
+     PyObject *ret = NULL;
+     if (addrobj) {
+-        apr_port_t port;
+-        if(apr_sockaddr_port_get(&amp;port, addr)==APR_SUCCESS) {
+-            ret = Py_BuildValue(&quot;Oi&quot;, addrobj, port );
+-        }
+-        else {
+-            PyErr_SetString(PyExc_SystemError,&quot;apr_sockaddr_port_get failure&quot;);
+-        }
++        ret = Py_BuildValue(&quot;Oi&quot;, addrobj, ntohs(addr-&gt;sa.sin.sin_port));
+         Py_DECREF(addrobj);
+     }
+     return ret;
+ }
+-
++    
+ /**
+  ** conn_getattr
+  **
+diff -uNr mod_python-3.2.5b/src/filterobject.c mod_python-3.2.5b.new/src/filterobject.c
+--- mod_python-3.2.5b/src/filterobject.c	2004-11-25 17:10:52.000000000 -0500
++++ mod_python-3.2.5b.new/src/filterobject.c	2005-12-03 14:20:29.000000000 -0500
+@@ -178,11 +178,6 @@
+                                   APR_BLOCK_READ, self-&gt;readbytes);
+         Py_END_ALLOW_THREADS;
+ 
+-        if (!APR_STATUS_IS_EAGAIN(self-&gt;rc) &amp;&amp; !APR_STATUS_IS_SUCCESS(self-&gt;rc)) {
+-            PyErr_SetObject(PyExc_IOError, 
+-                            PyString_FromString(&quot;Input filter read error&quot;));
+-            return NULL;
+-        }
+     }
+ 
+     /* 
+diff -uNr mod_python-3.2.5b/test/test.py mod_python-3.2.5b.new/test/test.py
+--- mod_python-3.2.5b/test/test.py	2005-11-14 13:09:49.000000000 -0500
++++ mod_python-3.2.5b.new/test/test.py	2005-12-03 14:23:45.000000000 -0500
+@@ -242,9 +242,9 @@
+             PythonOption('PythonOptionTest sample_value'),
+             DocumentRoot(DOCUMENT_ROOT),
+             LoadModule(&quot;python_module %s&quot; % MOD_PYTHON_SO),
+-            IfModule(&quot;!mod_auth.c&quot;,
+-                     LoadModule(&quot;auth_module %s&quot; %
+-                                quoteIfSpace(os.path.join(modpath, &quot;mod_auth.so&quot;)))))
++            IfModule(&quot;!mod_auth_basic.c&quot;,
++                     LoadModule(&quot;auth_basic_module %s&quot; %
++                                quoteIfSpace(os.path.join(modpath, &quot;mod_auth_basic.so&quot;)))))
+ 
+         f = open(CONFIG, &quot;w&quot;)
+         f.write(str(s))
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019809.html">[mod_python] Can't start Apache with mod_python
+</A></li>
+	<LI>Next message: <A HREF="019811.html">[mod_python] Bug in 3.2b5?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19810">[ date ]</a>
+              <a href="thread.html#19810">[ thread ]</a>
+              <a href="subject.html#19810">[ subject ]</a>
+              <a href="author.html#19810">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

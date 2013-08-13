@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] The DOs and DONTs of mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20DOs%20and%20DONTs%20of%20mod_python&In-Reply-To=43557F9C.6060302%40joreybump.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019328.html">
+   <LINK REL="Next"  HREF="019331.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] The DOs and DONTs of mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20DOs%20and%20DONTs%20of%20mod_python&In-Reply-To=43557F9C.6060302%40joreybump.com"
+       TITLE="[mod_python] The DOs and DONTs of mod_python">jg.lists at sympatico.ca
+       </A><BR>
+    <I>Tue Oct 18 19:27:39 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019328.html">[mod_python] The DOs and DONTs of mod_python
+</A></li>
+        <LI>Next message: <A HREF="019331.html">[mod_python] The DOs and DONTs of mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19329">[ date ]</a>
+              <a href="thread.html#19329">[ thread ]</a>
+              <a href="subject.html#19329">[ subject ]</a>
+              <a href="author.html#19329">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Jorey Bump wrote:
+&gt;<i> Philippe C. Martin wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> Since I just managed to seg fault apache I feel I should explain what 
+</I>&gt;&gt;<i> my goal is with mod_python.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I already have a fairly big library written in python which purpose is 
+</I>&gt;&gt;<i> to discuss with smart cards but also provide &quot;software&quot; enryption 
+</I>&gt;&gt;<i> capabilites: As such, this library uses modules that in turn talk to C 
+</I>&gt;&gt;<i> code.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The ultimate goal is to have users need to authenticate themselves to 
+</I>&gt;&gt;<i> the servers (on smart card on each side) in order to obtain access to 
+</I>&gt;&gt;<i> certain pages.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I must also say that there is a failry large data set that needs to be 
+</I>&gt;&gt;<i> loaded in memory.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Why?
+</I>&gt;<i> 
+</I>&gt;&gt;<i> The code below shows the line that creates the core dump: it 
+</I>&gt;&gt;<i> instantiates that _large_ object and does a lot in the process.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> As I am an application developper more than a web guy, there are 
+</I>&gt;&gt;<i> perhaps some obvious &quot;NO NOs'&quot; I should be aware of that are related 
+</I>&gt;&gt;<i> to the apache environment.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Please note that, although I must have bugs, the code I'm calling 
+</I>&gt;&gt;<i> _seems_ to work flawlessly under Linux and Windows.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> It might, for a single interpreter. But apache might be forking multiple 
+</I>&gt;<i> children on your system. Can your machine handle 5 or more copies of 
+</I>&gt;<i> this object in memory?
+</I>&gt;<i> 
+</I>&gt;&gt;<i> from mod_python import apache
+</I>&gt;&gt;<i> import os
+</I>&gt;&gt;<i> import sys
+</I>&gt;&gt;<i> if os.name == 'nt':
+</I>&gt;&gt;<i>      sys.path.append(&quot;Z:\\dev&quot;)
+</I>&gt;&gt;<i> else:
+</I>&gt;&gt;<i>      sys.path.append('/home/philippe/dev')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> from SC.pilot.SC_Script_Processor import *
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> This may happen multiple times. It will be cached in a prefork 
+</I>&gt;<i> environment, but once for each child. I have no idea how it works on 
+</I>&gt;<i> Windows.
+</I>&gt;<i> 
+</I>&gt;&gt;<i> def world(req):
+</I>&gt;&gt;<i>      ls = SC_Script_Processor() #INSTANTIATE A _BIG_ OBJECT ==&gt; *** 
+</I>&gt;&gt;<i> THIS IS THE KILLER THAT CRASHES APACHE ***
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> How big? If it's a data set, why not use a database?
+</I>&gt;<i> 
+</I>&gt;&gt;<i>      ll = ls.Reader_List() # get the reader list
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>      #Grab ATR from card - assume first reader
+</I>&gt;&gt;<i>      l_appli_conn = ls.Get_Connection(r1)
+</I>&gt;&gt;<i>           req.send_http_header()
+</I>&gt;&gt;<i>      req.write(&quot;RETURN CARD ATR= &quot; +  l_appli_conn.Get_Connection_ATR() )
+</I>&gt;&gt;<i>      return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> We need to see your code in the imported module. It's a black box to us.
+</I>
+Also, make sure that you consider things like permissions, paths and 
+environment variables. These will be different in mod_python vs the 
+command line. The mod_python interpreter will run with same uid and gid 
+as apache, and your path and environment will be much simpler. Try 
+adding req.write('%s' % os.environ) and compare that with os.environ 
+that you see in the python interpreter run from the command line.
+
+Regards,
+Jim
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019328.html">[mod_python] The DOs and DONTs of mod_python
+</A></li>
+	<LI>Next message: <A HREF="019331.html">[mod_python] The DOs and DONTs of mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19329">[ date ]</a>
+              <a href="thread.html#19329">[ thread ]</a>
+              <a href="subject.html#19329">[ subject ]</a>
+              <a href="author.html#19329">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

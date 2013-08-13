@@ -1,0 +1,190 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] intermittent bug with MySQLdb
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20intermittent%20bug%20with%20MySQLdb&In-Reply-To=c70f1ac50808032124v15b4b64ei97ee99ff67e14ae7%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025525.html">
+   <LINK REL="Next"  HREF="025512.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] intermittent bug with MySQLdb</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Alec Matusis</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20intermittent%20bug%20with%20MySQLdb&In-Reply-To=c70f1ac50808032124v15b4b64ei97ee99ff67e14ae7%40mail.gmail.com"
+       TITLE="[mod_python] intermittent bug with MySQLdb">matusis at yahoo.com
+       </A><BR>
+    <I>Tue Aug  5 04:25:03 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025525.html">[mod_python] Re: python exceptions cause Apache to crash
+</A></li>
+        <LI>Next message: <A HREF="025512.html">[mod_python] importing a configuration module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25509">[ date ]</a>
+              <a href="thread.html#25509">[ thread ]</a>
+              <a href="subject.html#25509">[ subject ]</a>
+              <a href="author.html#25509">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>One more interesting piece of evidence: when I connect to the DB on the same
+physical machine were my web scripts are, I can reproduce this only when I
+connect to 127.0.0.1. When I connect to localhost, I do not get the errors
+at all. This is because 
+
+<A HREF="http://dev.mysql.com/doc/refman/5.0/en/connecting.html">http://dev.mysql.com/doc/refman/5.0/en/connecting.html</A>
+
+&#147;For connections to localhost, MySQL programs attempt to connect to the
+local server by using a Unix socket file. This occurs even if a --port or -P
+option is given to specify a port number. To ensure that the client makes a
+TCP/IP connection to the local server, use --host or -h to specify a
+hostname value of 127.0.0.1&#148;
+
+This last thing makes me think it&#146;s a networking problem as you suggest
+?
+
+
+From: Buck Golemon [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">workitharder at gmail.com</A>] 
+Sent: Sunday, August 03, 2008 9:24 PM
+To: Alec Matusis
+Subject: Re: [mod_python] intermittent bug with MySQLdb
+
+Have you considered that this may be just a general problem of networking /
+MySQL? That's my conclusion. I've gotten similar errors in my
+high-concurrency applications (non mod-python) and to solve the problem,
+wrote some code to re-try queryies on that error (among others) and wrapped
+it around all my connections.
+
+As a counter-argument (if you want one), try doing a similar stress test
+using a completely different client (maybe perl?) and show that the error
+does not occur under similar or higher loads.
+
+--Buck
+2008/8/1 Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at yahoo.com</A>&gt;
+I was stress- testing MySQL replication on my development setup and run into
+a particularly nasty case of a hard-to-reproduced bug that I have
+encountered earlier.
+&#160;
+Under high concurrency, I sometimes get
+&#160;
+build/bdist.linux-i686/egg/MySQLdb/connections.py:
+OperationalError: (2003, &quot;Can't connect to MySQL server on ''10.18.0.2 (4)&quot;)
+&#160;
+&#160;
+Here (4) stangs for:
+&#160;
+#perror 4
+OS error code&#160;&#160; 4:&#160; Interrupted system call
+&#160;
+I am using apache 2.2.6 with worker MPM , python 2.4.4 and mod_python 3.3.1.
+&#160;
+10.18.0.2 is a remote DB test server.
+I upgraded MySQLdb adapter from 1.2.0 to 1.2.2 and got the same error with
+both versions. The adapters are compiled with 
+mysqlclient_r , which is supposed to be thread-safe.
+&#160;
+Then, I pointed MySQL connections to &#160;localhost, which runs an identical
+copy of the same database.
+&#160;
+To get errors on localhost, I had to increase the request rate by about 10x
+(no errors at all otherwise), and I got &#160;
+OperationalError: (2003, &quot;Can't connect to MySQL server on '127.0.0.1' (4)&quot;)
+127.0.0.1 is my development machine, and I have never seen these errors
+before, until I ran this stress test today, bringing the machine to load
+average 8.0. 
+&#160;
+127.0.0.1 and 10.18.0.2 are two different machines, with different kernels
+and even different MySQL versions, so it is the &#160;client machine that is a
+problem.
+&#160;
+I have written a single-threaded stand-alone python loop, that simply
+connects to the DB on the remote server 10.18.0.2 and executes &quot;SELECT 1&quot;. I
+have run several of these loops concurrently each doing about 10000
+iterations, and they never gave a connection error.
+&#160;
+MySQLdb README says:
+&#160;&#160;&#160;&#160;&#160;&#160;&#160; MySQLdb is an interface to the popular MySQL_ database server for
+&#160;&#160;&#160;&#160;&#160;&#160;&#160; Python.&#160; The design goals are
+&#160;&#160;&#160;&#160;&#160;&#160;&#160; - Thread-safety
+&#160;&#160;&#160;&#160;&#160;&#160;&#160; - Thread-friendliness (threads will not block each other)
+&#160;
+So my guess is that this is a thread-safety problem having to do with
+mod_python.
+&#160;
+I now recall that I have seen the problem earlier: 
+I have several identically configured production &#160;web servers connected to a
+single DB server. I have seen these errors infrequently on 32bit webservers,
+but extremely rarely or almost never on 64bit webservers. &#160;&#160;I since phased
+out 32bit web servers to serve static files only, so I do not have this data
+anymore.
+
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+
+
+-- 
+Buck Golemon
+AIM: bukzor
+Cell: (480) 272-1153
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025525.html">[mod_python] Re: python exceptions cause Apache to crash
+</A></li>
+	<LI>Next message: <A HREF="025512.html">[mod_python] importing a configuration module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25509">[ date ]</a>
+              <a href="thread.html#25509">[ thread ]</a>
+              <a href="subject.html#25509">[ subject ]</a>
+              <a href="author.html#25509">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

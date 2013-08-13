@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: Specifying GET/POST method for FieldStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Specifying%20GET/POST%20method%20for%20FieldStorage&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020604.html">
+   <LINK REL="Next"  HREF="020606.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: Specifying GET/POST method for FieldStorage</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Specifying%20GET/POST%20method%20for%20FieldStorage&In-Reply-To="
+       TITLE="[mod_python] Re: Specifying GET/POST method for FieldStorage">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Mar 13 18:19:33 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020604.html">[mod_python] AIX - someone must have got it work !
+</A></li>
+        <LI>Next message: <A HREF="020606.html">[mod_python] Re: Specifying GET/POST method for FieldStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20605">[ date ]</a>
+              <a href="thread.html#20605">[ thread ]</a>
+              <a href="subject.html#20605">[ subject ]</a>
+              <a href="author.html#20605">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>=?iso-8859-1?Q?Fr=E9d=E9ric_Jolliton?= wrote ..
+&gt;<i> [Since everyone is top posting, I will don't take the time to
+</I>&gt;<i> copy&amp;paste parts of my previous post for the context..]
+</I>&gt;<i> 
+</I>&gt;<i> To summarize, I'm proposing:
+</I>&gt;<i> 
+</I>&gt;<i> util.FieldStorage()                   # as usual, return all fields
+</I>&gt;<i> util.FieldStorage( source = 'all' )   # same as above
+</I>&gt;<i> util.FieldStorage( source = 'query' ) # only fields from QS
+</I>&gt;<i> util.FieldStorage( source = 'post' )  # only fields from POST method
+</I>
+You do realise you could do this by creating your own class derived
+from FieldStorage? Your derived class would just need to put an
+appropriate wrapper (or not) around the &quot;req&quot; object before passing
+it to the FieldStorage base class constructor.
+
+To get you started, have a look at the following test code:
+
+import types
+
+from mod_python import apache, util
+
+class _Req1:
+  def __init__(self, req):
+    self.__req = req
+    self.__args = None
+  def __getattr__(self, name):
+    if name == &quot;args&quot;:
+      return self.__args
+    else:
+      return getattr(self.__req, name)
+
+class _Req2:
+  def __init__(self, req):
+    self.__req = req
+    self.__method = None
+  def __getattr__(self, name):
+    if name == &quot;method&quot;:
+      return self.__method
+    else:
+      return getattr(self.__req, name)
+
+def dump(req, form):
+  args = {}
+
+  # Merge form data into list of possible
+  # arguments. Convert the single item lists
+  # back into values.
+  
+  for field in form.list:
+    if field.filename:
+      value = field
+    else:
+      value = field.value
+      
+    if args.has_key(field.name):
+      args[field.name].append(value)
+    else:
+      args[field.name] = [value]
+  
+    for arg in args.keys():
+      if type(args[arg]) == types.ListType:
+        if len(args[arg]) == 1:
+          args[arg] = args[arg][0]
+
+    # Some strange forms can result in fields
+    # where the key value is None. Wipe this out
+    # just in case this happens as can cause
+    # problems later.
+
+    if args.has_key(None):
+      del args[None]
+
+  req.write(str(args))
+
+def handler(req):
+  req.content_type = 'text/plain'
+
+  form1 = util.FieldStorage(_Req1(req))
+  req.write(&quot;post=&quot;)
+  dump(req, form1)
+
+  req.write(&quot;\n&quot;)
+
+  form2 = util.FieldStorage(_Req2(req))
+  req.write(&quot;args=&quot;)
+  dump(req, form2)
+
+  return apache.OK
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020604.html">[mod_python] AIX - someone must have got it work !
+</A></li>
+	<LI>Next message: <A HREF="020606.html">[mod_python] Re: Specifying GET/POST method for FieldStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20605">[ date ]</a>
+              <a href="thread.html#20605">[ thread ]</a>
+              <a href="subject.html#20605">[ subject ]</a>
+              <a href="author.html#20605">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

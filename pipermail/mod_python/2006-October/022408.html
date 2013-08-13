@@ -1,0 +1,296 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Building a web application using Cheetah and mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Building%20a%20web%20application%20using%20Cheetah%20and%20mod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022409.html">
+   <LINK REL="Next"  HREF="022414.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Building a web application using Cheetah and mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Sebastian Celis</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Building%20a%20web%20application%20using%20Cheetah%20and%20mod_python&In-Reply-To="
+       TITLE="[mod_python] Building a web application using Cheetah and mod_python">mod_python at turias.net
+       </A><BR>
+    <I>Fri Oct 27 17:44:40 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022409.html">[mod_python] [Off] Can I set some properties from CSS ?
+</A></li>
+        <LI>Next message: <A HREF="022414.html">[mod_python] Building a web application using Cheetah and
+	mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22408">[ date ]</a>
+              <a href="thread.html#22408">[ thread ]</a>
+              <a href="subject.html#22408">[ subject ]</a>
+              <a href="author.html#22408">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello,
+
+I am new to this list and have just recently begun to work on a
+project where I wish to use mod_python.publisher and cheetah to drive
+an entire web application.  I apologize if the following topics have
+been discussed to death recently, but I have read through the
+documentation on both sites and have searched through the mailing-list
+archives and while I have seen similar discussions, I have yet to find
+definitive answers.  I am able to get most things to work, however I
+can't help but feel that there are better ways of approaching some of
+my situations.
+
+First, I'll quickly describe my directory structure:
+
+/var/www/app -- The base directory to the web application.  This will
+directly contain most of the python files that correspond directly to
+URLs.  For example, index.py, login.py, etc.  In this directory.
+/var/www/app/templates -- Contains all of my cheetah templates.
+/var/www/app/include -- Contains the python utility modules I am
+writing specifically for this application.
+
+Now, onto the questions.
+
+
+1) Importing compiled cheetah templates
+
+Assume I have code like the following in /var/www/app/test1.py
+
+######################################
+from mod_python import apache
+from Cheetah.Template import Template
+
+def index(req):
+    req.content_type = &quot;text/html&quot;
+
+    dict = {'title': 'My Title!', 'message': 'Hello world!'}
+    templateModule = apache.import_module(&quot;templates/myTemplate&quot;)
+    t = getattr(templateModule, &quot;myTemplate&quot;)()
+    searchList = t.searchList()
+    searchList.insert(0, dict)
+
+    return(t.respond())
+######################################
+
+Is this the best way to import template modules and then evaluate them?
+
+
+2) Modifying PythonPath prevents modules from being imported
+
+Inside file /var/www/app/test2.py, I have the following code:
+
+import config
+(or)
+config = apache.import_module(&quot;config&quot;)
+
+Both of these commands load /var/www/app/config.py, and seem to work
+fine.  However, if I add
+
+PythonPath &quot;['/var/www/app/templates']+sys.path&quot;
+
+to my apache configuration, I get an error next time I run test2.py.
+
+###
+Mod_python error: &quot;PythonHandler mod_python.publisher&quot;
+
+Traceback (most recent call last):
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/apache.py&quot;, line
+299, in HandlerDispatch
+    result = object(req)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/publisher.py&quot;,
+line 213, in handler
+    published = publish_object(req, object)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/publisher.py&quot;,
+line 412, in publish_object
+    return publish_object(req,util.apply_fs_data(object, req.form, req=req))
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/util.py&quot;, line
+439, in apply_fs_data
+    return object(**args)
+
+  File &quot;/var/www/app/test2.py&quot;, line 8, in index
+    config = apache.import_module(&quot;config&quot;)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/apache.py&quot;, line
+461, in import_module
+    f, p, d = imp.find_module(parts[i], path)
+
+ImportError: No module named config
+###
+
+Why does this initially work but then stop working once I add a
+directory to my path?  I can fix it by adding '/var/www/app' to my
+PythonPath as well, but I don't understand why it didn't work before
+that.
+
+
+3) Cheetah and #include
+
+I have read a lot about why mod_python sets the current working
+directory to '/', but this seems to be causing some larger problems
+when cheetah comes into play.  (3) and (4) discuss two issues that I
+am having trouble with.
+
+Here is /var/www/app/templates/testPage.tmpl:
+###
+#include 'header_include.tmpl'
+&lt;head&gt;
+&lt;title&gt;$title&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;p&gt;$message&lt;/p&gt;
+&lt;/body&gt;
+#include 'footer_include.tmpl'
+###
+
+However, as this actually tries to load /header_include.tmpl and
+/footer_include.tmpl instead of the ones located in my templates
+directory, this will not work.  I came up with two workarounds,
+however I don't really love either:
+
+a)
+
+###
+#include os.path.join(os.path.dirname(__file__), 'header_include.tmpl')
+&lt;head&gt;
+&lt;title&gt;$title&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;p&gt;$message&lt;/p&gt;
+&lt;/body&gt;
+#include os.path.join(os.path.dirname(__file__), 'footer_include.tmpl')
+###
+
+b)
+
+Actually pass $templatesDir into all of my templates and then instead call:
+
+###
+#include os.path.join(templatesDir, 'header_include.tmpl')
+&lt;head&gt;
+&lt;title&gt;$title&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;p&gt;$message&lt;/p&gt;
+&lt;/body&gt;
+#include os.path.join(templatesDir, 'footer_include.tmpl')
+###
+
+I guess I'm leaning toward (a), but both seem cumbersome and slower
+than necessary.  Is there a better way to do this?
+
+
+4) Cheetah and inheritance
+
+Assume these two files:
+
+/var/www/app/templates/overall_base.tmpl
+###
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.1//EN&quot;
+          &quot;<A HREF="http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd&quot;">http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd&quot;</A>&gt;
+&lt;html xmlns=&quot;<A HREF="http://www.w3.org/1999/xhtml&quot;">http://www.w3.org/1999/xhtml&quot;</A> xml:lang=&quot;en&quot;&gt;
+&lt;head&gt;
+    &lt;title&gt;$title&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    $bodyContent
+&lt;/body&gt;
+&lt;/html&gt;
+###
+
+/var/www/app/templates/overall_base_extender.tmpl
+###
+#overall_base = apache.import_module(&quot;overall_base&quot;)
+(or)
+#from overall_base import overall_base
+
+#extends overall_base
+#def title
+Welcome to Foo
+#end def
+#def bodyContent
+Hello world!
+#end def
+
+This second file only works if I add /var/www/app/templates to my
+PythonPath.  And, due to (2) above, I then also have to add
+/var/www/app to PythonPath.  Is this really necessary?
+
+#overall_base = apache.import_module(&quot;overall_base&quot;,
+path=[os.path.dirname(__file__)])
+
+doesn't seem to work inside the cheetah template file.  Even
+
+#sys.path.append(os.path.dirname(__file__))
+#overall_base = apache.import_module(&quot;overall_base&quot;)
+
+doesn't seem to work.  Is there any way to get inheriting templates to
+work without modifying PythonPath to include all the directories where
+my base templates might be located?
+
+
+I apologize for the huge length of this e-mail.  I am still fairly new
+to mod_python and cheetah, but so far I really like what I see.  I
+just feel like there are a few issues I need to wrap my head around
+before I can really dive into developing applications.  Any pointers
+or help with these issues that you can provide would be greatly
+appreciated.
+
+Many thanks,
+Sebastian
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022409.html">[mod_python] [Off] Can I set some properties from CSS ?
+</A></li>
+	<LI>Next message: <A HREF="022414.html">[mod_python] Building a web application using Cheetah and
+	mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22408">[ date ]</a>
+              <a href="thread.html#22408">[ thread ]</a>
+              <a href="subject.html#22408">[ subject ]</a>
+              <a href="author.html#22408">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

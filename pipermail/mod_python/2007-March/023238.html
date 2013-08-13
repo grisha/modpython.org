@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache/mod_python process sizes. Help wanted.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=45EA1366.5070003%40jgassociates.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023237.html">
+   <LINK REL="Next"  HREF="023240.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache/mod_python process sizes. Help wanted.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=45EA1366.5070003%40jgassociates.ca"
+       TITLE="[mod_python] Apache/mod_python process sizes. Help wanted.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Mar  3 19:36:09 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023237.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+        <LI>Next message: <A HREF="023240.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23238">[ date ]</a>
+              <a href="thread.html#23238">[ thread ]</a>
+              <a href="subject.html#23238">[ subject ]</a>
+              <a href="author.html#23238">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 04/03/2007, at 11:31 AM, Jim Gallacher wrote:
+
+&gt;&gt;<i> Part of the jump is the imports in mod_python.apache:
+</I>&gt;&gt;<i> import sys
+</I>&gt;&gt;<i> import traceback
+</I>&gt;&gt;<i> import time
+</I>&gt;&gt;<i> import os
+</I>&gt;&gt;<i> import pdb
+</I>&gt;&gt;<i> import stat
+</I>&gt;&gt;<i> import imp
+</I>&gt;&gt;<i> import types
+</I>&gt;&gt;<i> import cgi
+</I>&gt;&gt;<i> import _apache
+</I>&gt;&gt;<i> import threading
+</I>&gt;&gt;<i> I had been thinking they would have been done when mod_python loaded
+</I>&gt;&gt;<i> for first interpreter, but they aren't done until time of first  
+</I>&gt;&gt;<i> request.
+</I>&gt;&gt;<i> If I import the same modules into mod_wsgi example, then get (pid  
+</I>&gt;&gt;<i> 429):
+</I>&gt;&gt;<i>   432 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;&gt;<i> 904K  30.4M
+</I>&gt;&gt;<i>   430 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;&gt;<i> 776K  30.4M
+</I>&gt;&gt;<i>   429 httpd        0.0%  0:00.18   1    10    67  1.95M  2.88M   
+</I>&gt;&gt;<i> 3.33M  31.5M
+</I>&gt;&gt;<i>   428 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+</I>&gt;&gt;<i> 780K  30.4M
+</I>&gt;&gt;<i>   427 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+</I>&gt;&gt;<i> 780K  30.4M
+</I>&gt;&gt;<i>   426 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;&gt;<i> 780K  30.4M
+</I>&gt;&gt;<i>   425 httpd        0.0%  0:00.07   1    11    39    32K  2.87M   
+</I>&gt;&gt;<i> 1.34M  30.4M
+</I>&gt;&gt;<i> Thus these modules alone causes it to jump up to 1.95M. This works  
+</I>&gt;&gt;<i> out
+</I>&gt;&gt;<i> about an extra 1.4MB. Because mod_wsgi is all in C code aren't  
+</I>&gt;&gt;<i> relying on
+</I>&gt;&gt;<i> any Python modules so base overhead is less.
+</I>&gt;&gt;<i> Interesting. How many of these modules could be avoided in mod_python
+</I>&gt;&gt;<i> if we tried hard?
+</I>&gt;<i>
+</I>&gt;<i> I have no idea, but it's worth a look.
+</I>
+It is quite easy to get rid of 'cgi' as all that is used in it is  
+cgi.escape(). We can
+just duplicate that one function:
+
+def escape(s, quote=None):
+   s = string.replace(s,&quot;&amp;&quot;,&quot;&amp;amp;&quot;)
+   s = string.replace(s,&quot;&lt;&quot;,&quot;&amp;lt;&quot;)
+   s = string.replace(s,&quot;&gt;&quot;,&quot;&amp;gt;&quot;,)
+   if quote:
+     s = string.replace(s,'&quot;',&quot;&amp;quot;&quot;)
+   return s
+
+We also do not need to load 'pdb' at global scope. We can instead do  
+it only
+at point that it is required. Ie., if PythonEnablePdb directive  is  
+enabled.
+
+Those two alone drop my 1.95M figure down to 0.8MB.
+
+   510 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+904K  30.4M
+   509 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+792K  30.4M
+   508 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+796K  30.4M
+   507 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+796K  30.4M
+   506 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+796K  30.4M
+   505 httpd        0.0%  0:00.04   1    10    42   812K  2.80M  2.01M 
++ 30.5M
+   504 httpd        0.0%  0:00.06   1    11    39    32K  2.87M   
+1.39M  30.4M
+
+The rest can't probably be eliminated and gains would be a lot less. The
+'cgi' module is always a big memory hog and slow to load, so if can get
+rid of that, all the better. Would need to go from 'apache',  
+'importer' and
+'psp' mod_python modules.
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023237.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+	<LI>Next message: <A HREF="023240.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23238">[ date ]</a>
+              <a href="thread.html#23238">[ thread ]</a>
+              <a href="subject.html#23238">[ subject ]</a>
+              <a href="author.html#23238">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

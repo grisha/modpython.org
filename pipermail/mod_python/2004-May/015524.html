@@ -1,0 +1,236 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] upload file?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20upload%20file%3F&In-Reply-To=20040506174929.AC4FE35DD5%40jaguar.unilog.fr">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015519.html">
+   <LINK REL="Next"  HREF="015526.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] upload file?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>John Mudd</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20upload%20file%3F&In-Reply-To=20040506174929.AC4FE35DD5%40jaguar.unilog.fr"
+       TITLE="[mod_python] upload file?">JohnMudd at mindspring.com
+       </A><BR>
+    <I>Fri May  7 04:23:33 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015519.html">[mod_python] upload file?
+</A></li>
+        <LI>Next message: <A HREF="015526.html">[mod_python] upload file?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15524">[ date ]</a>
+              <a href="thread.html#15524">[ thread ]</a>
+              <a href="subject.html#15524">[ subject ]</a>
+              <a href="author.html#15524">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I added your patch but it didn't seem to change the results.  I was able
+to check the type of the object though.  Here are the results of my
+debug code.
+
+item=Field('inputJar', 'zopeIntro.txt')
+item.type='text/plain'
+item.type_options={}
+type(item)=&lt;type 'instance'&gt;
+
+It's interesting.  I am able to execute item.read().  But it returns
+'zopeIntro.txt', the name of the file, not the contents.
+
+John
+
+
+On Thu, 2004-05-06 at 13:49, Maxime Yve wrote:
+&gt;<i> Hi,
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> I have the same problem with mod_python 3.1.3 on windows:
+</I>&gt;<i> 
+</I>&gt;<i> This comes from the __getitem__ method of FieldStorage
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> Indeed =&gt; :
+</I>&gt;<i> 
+</I>&gt;<i> On windows
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; import tempfile
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; glop = tempfile.TemporaryFile('w+b')
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; type(glop)
+</I>&gt;<i> 
+</I>&gt;<i>       &lt;type 'instance'&gt;
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> On Unix :
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; import tempfile
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; glop = tempfile.TemporaryFile('w+b')
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;&gt; type(glop)
+</I>&gt;<i> 
+</I>&gt;<i>       &lt;type 'file'&gt;
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> And isinstance(item.file, FileType) return false on Windows, this
+</I>&gt;<i> cause the bug on __getitem__
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> To correct temporary this problem (I'm not active on the community and
+</I>&gt;<i> I can't correct the mistake)
+</I>&gt;<i> 
+</I>&gt;<i> You can do this monkey hook on your own file before using
+</I>&gt;<i> FieldStorage:
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> from types import *
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python.util import StringField
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> # patch bug on windows for mod_python 3.1.3
+</I>&gt;<i> 
+</I>&gt;<i> def patch_getitem(self, key):
+</I>&gt;<i> 
+</I>&gt;<i>       &quot;&quot;&quot;Dictionary style indexing.&quot;&quot;&quot;
+</I>&gt;<i> 
+</I>&gt;<i>       if self.list is None:
+</I>&gt;<i> 
+</I>&gt;<i>             raise TypeError, &quot;not indexable&quot;
+</I>&gt;<i> 
+</I>&gt;<i>       found = []
+</I>&gt;<i> 
+</I>&gt;<i>       for item in self.list:
+</I>&gt;<i> 
+</I>&gt;<i>             if item.name == key:
+</I>&gt;<i> 
+</I>&gt;<i>                   if isinstance(item.file, FileType) or
+</I>&gt;<i> isinstance(item.file, InstanceType):
+</I>&gt;<i> 
+</I>&gt;<i>                         found.append(item)
+</I>&gt;<i> 
+</I>&gt;<i>                   else:
+</I>&gt;<i> 
+</I>&gt;<i>                         found.append(StringField(item.value))
+</I>&gt;<i> 
+</I>&gt;<i>       if not found:
+</I>&gt;<i> 
+</I>&gt;<i>             raise KeyError, key
+</I>&gt;<i> 
+</I>&gt;<i>       if len(found) == 1:
+</I>&gt;<i> 
+</I>&gt;<i>             return found[0]
+</I>&gt;<i> 
+</I>&gt;<i>       else:
+</I>&gt;<i> 
+</I>&gt;<i>             return found
+</I>&gt;<i> 
+</I>&gt;<i> util.FieldStorage.__getitem__ = patch_getitem
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> Max
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> -----Original Message-----
+</I>&gt;<i> From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+</I>&gt;<i> [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] On Behalf Of John Mudd
+</I>&gt;<i> Sent: jeudi 6 mai 2004 19:21
+</I>&gt;<i> To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Subject: [mod_python] upload file?
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> (Sorry if you see this msg twice.  I submitted this earlier today by
+</I>&gt;<i> under a non-member email address.)
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> I'm trying to upload a file.  I specified a &quot;file&quot; type input field in
+</I>&gt;<i> my HTML, it displays as expected with the &quot;Browse...&quot; button, I'm able
+</I>&gt;<i> to select a file but...
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> When I look in the FieldStorage dictionary for the field I only get a
+</I>&gt;<i> String type field that is the file name.  I was expecting a &quot;Field&quot;
+</I>&gt;<i> type object that would provide access to the file name and contents.
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> What am I missing? 
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> John
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> 
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015519.html">[mod_python] upload file?
+</A></li>
+	<LI>Next message: <A HREF="015526.html">[mod_python] upload file?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15524">[ date ]</a>
+              <a href="thread.html#15524">[ thread ]</a>
+              <a href="subject.html#15524">[ subject ]</a>
+              <a href="author.html#15524">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

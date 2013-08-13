@@ -1,0 +1,384 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Import error on multiple interpreters
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Import%20error%20on%20multiple%20interpreters&In-Reply-To=88e286470802041427r3d8766fambc8f121b08c5ffc3%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024811.html">
+   <LINK REL="Next"  HREF="024808.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Import error on multiple interpreters</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Tom Wells</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Import%20error%20on%20multiple%20interpreters&In-Reply-To=88e286470802041427r3d8766fambc8f121b08c5ffc3%40mail.gmail.com"
+       TITLE="[mod_python] Import error on multiple interpreters">drshade at gmail.com
+       </A><BR>
+    <I>Tue Feb  5 08:13:53 EST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024811.html">[mod_python] Import error on multiple interpreters
+</A></li>
+        <LI>Next message: <A HREF="024808.html">[mod_python] compile mod_python on iSeries (AS/400)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24815">[ date ]</a>
+              <a href="thread.html#24815">[ thread ]</a>
+              <a href="subject.html#24815">[ subject ]</a>
+              <a href="author.html#24815">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Graham
+
+I think i've nailed this one down - turns out that the ncrypt package
+doesn't like to be loaded twice into the same process (although under
+different interpreters). Confirmed this by writing a simple
+startup.pyscript which contained the following:
+
+from mod_python import apache
+cipher = apache.import_module('ncrypt.cipher')
+apache.log_error('******** IMPORTED', apache.APLOG_NOTICE)
+
+Then, in my apache config did a:
+PythonImport startup interpreter1
+PythonImport startup interpreter2
+
+Running this, I see in my log file:
+[Tue Feb 05 14:34:23 2008] [notice] SIGUSR1 received.  Doing graceful
+restart
+[Tue Feb 05 14:34:23 2008] [notice] mod_python: Creating 8 session mutexes
+based on 4 max processes and 25 max threads.
+[Tue Feb 05 14:34:23 2008] [notice] mod_python: using mutex_directory /tmp
+[Tue Feb 05 14:34:23 2008] [notice] Apache/2.2.4 (Ubuntu) mod_python/3.3.1
+Python/2.5.1 configured -- resuming normal operations
+[Tue Feb 05 14:34:24 2008] [notice] ******** IMPORTED
+[Tue Feb 05 14:34:24 2008] [notice] ******** IMPORTED
+Traceback (most recent call last):
+  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line 1695,
+in ImportDispatch
+    module = import_module(module_name, log=debug)
+  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line 296,
+in import_module
+    log, import_path)
+  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line 680,
+in import_module
+    execfile(file, module.__dict__)
+  File &quot;/home/tom/dev/auth/ssofilter-apache-2.2/startup.py&quot;, line 4, in
+&lt;module&gt;
+    cipher = apache.import_module('ncrypt.cipher')
+  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line 304,
+in import_module
+    return __import__(module_name, {}, {}, ['*'])
+  File &quot;/var/lib/python-support/python2.5/ncrypt/cipher.py&quot;, line 1, in
+&lt;module&gt;
+    from _ncrypt.cipher import *
+ImportError: No module named cipher
+[Tue Feb 05 14:34:25 2008] [error] directive_PythonImport: error importing
+startup
+Traceback (most recent call last):
+  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line 1695,
+in ImportDispatch
+    module = import_module(module_name, log=debug)
+  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line 296,
+in import_module
+    log, import_path)
+  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line 680,
+in import_module
+    execfile(file, module.__dict__)
+  File &quot;/home/tom/dev/auth/ssofilter-apache-2.2/startup.py&quot;, line 4, in
+&lt;module&gt;
+    cipher = apache.import_module('ncrypt.cipher')
+  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line 304,
+in import_module
+    return __import__(module_name, {}, {}, ['*'])
+  File &quot;/var/lib/python-support/python2.5/ncrypt/cipher.py&quot;, line 1, in
+&lt;module&gt;
+    from _ncrypt.cipher import *
+ImportError: No module named cipher
+[Tue Feb 05 14:34:25 2008] [error] directive_PythonImport: error importing
+startup
+
+The first interpreter imports the module fine (as seen by ******** IMPORTED
+log entry), but the second one fails (two exceptions).
+
+So after some head-scratching came upon a theory - the ncrypt package is a
+binary .so (called _ncrypt), and maybe it doesn't like being loaded twice
+into the same process (not sure about unix, but in the windows environment
+have come across similar dll loading issues). So tried a couple of other
+binary packages such as socket which did work. So i've decided to ditch
+ncrypt as my cryptography package and have opted to use pycrypto instead
+(and which is happy being imported twice).
+
+Guess I should post this off to the ncrypt mailing list too!
+
+Ciao,
+Tom
+
+
+On Feb 5, 2008 12:27 AM, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt;
+wrote:
+
+&gt;<i> What settings do you have in your configuration for:
+</I>&gt;<i>
+</I>&gt;<i>  PythonPath ...
+</I>&gt;<i>  PythonOption mod_python.importer.path ...
+</I>&gt;<i>
+</I>&gt;<i> The module importer doesn't add paths automatically to sys.path and
+</I>&gt;<i> uses its own path which is in part based on the request context. The
+</I>&gt;<i> locations it can look in can therefore vary based on where your
+</I>&gt;<i> handler code is located which the request mapped to. As such, you may
+</I>&gt;<i> need to explicitly set the module importer path option if a specific
+</I>&gt;<i> directory must always be checked.
+</I>&gt;<i>
+</I>&gt;<i> The other option is that if you are relying on being able to import
+</I>&gt;<i> from a module installed on sys.path, ie., standard module, a module
+</I>&gt;<i> which only exists somewhere on mod_python module path. You can't do
+</I>&gt;<i> this, when using 'import' in a standard Python module, it will only
+</I>&gt;<i> look for stuff on sys.path.
+</I>&gt;<i>
+</I>&gt;<i> Answer these questions, but also make sure you have read up on
+</I>&gt;<i> import_module function in:
+</I>&gt;<i>
+</I>&gt;<i>  <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html">http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html</A>
+</I>&gt;<i>
+</I>&gt;<i> if you haven't done so already.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> On 05/02/2008, Tom Wells &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">drshade at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; Hi Everyone
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I have been bumbling along with mod_python for about a month using
+</I>&gt;<i> &gt; mod_python as the apache hooks for integrating into a larger
+</I>&gt;<i> single-sign-on
+</I>&gt;<i> &gt; solution, so far so good. However I'm hitting my head against a weird
+</I>&gt;<i> issue,
+</I>&gt;<i> &gt; and can't seem to find any reference to related issues on this list, nor
+</I>&gt;<i> the
+</I>&gt;<i> &gt; FAQ, so here goes:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'm supporting multiple apache virtual hosts, and separating them by
+</I>&gt;<i> running
+</I>&gt;<i> &gt; each in a different python interpretor (using PythonInterpreter
+</I>&gt;<i> &lt;site_name&gt;
+</I>&gt;<i> &gt; within the VirtualHost configuration for each site.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I hook into apache via PythonAuthenHandler and PythonAuthzHandler (as my
+</I>&gt;<i> app
+</I>&gt;<i> &gt; is only concerned with authentication and authorization) and make web
+</I>&gt;<i> &gt; service calls using ZSI and some cryptographic routines using ncrypt
+</I>&gt;<i> (Python
+</I>&gt;<i> &gt; OpenSSL wrapper) before allowing or disallowing access to the particular
+</I>&gt;<i> &gt; resource.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; So the above works nicely, but while testing I occasionally get the
+</I>&gt;<i> &gt; following error (not on startup, but after a few requests):
+</I>&gt;<i> &gt; [Mon Feb 04 17:41:57 2008] [notice] mod_python (pid=26429,
+</I>&gt;<i> &gt; interpreter='ssofilter_interpreter_mobile'): Importing
+</I>&gt;<i> &gt; module '/home/tom/dev/auth/ssofilter-apache-2.2/ssofilter.py'
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [notice] mod_python (pid=26429,
+</I>&gt;<i> &gt; interpreter='ssofilter_interpreter_mobile'): Importing
+</I>&gt;<i> &gt; module '/home/tom/dev/auth/ssofilter-apache-2.2/webserver.py'
+</I>&gt;<i> &gt; [Mon Feb 04 17:41:57 2008] [notice] mod_python (pid=26429,
+</I>&gt;<i> &gt; interpreter='ssofilter_interpreter_mobile'): Importing
+</I>&gt;<i> &gt; module '/home/tom/dev/auth/ssofilter-apache-2.2/cache.py'
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [notice] mod_python (pid=26429,
+</I>&gt;<i> &gt; interpreter='ssofilter_interpreter_mobile'): Importing
+</I>&gt;<i> &gt; module '/home/tom/dev/auth/ssofilter-apache-2.2/authserver.py'
+</I>&gt;<i> &gt; [Mon Feb 04 17:41:57 2008] [notice] mod_python (pid=26429,
+</I>&gt;<i> &gt; interpreter='ssofilter_interpreter_mobile'): Importing
+</I>&gt;<i> &gt; module '/home/tom/dev/auth/ssofilter-apache-2.2/ausService_services.py'
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [notice] mod_python (pid=26429,
+</I>&gt;<i> &gt; interpreter='ssofilter_interpreter_mobile'): Importing
+</I>&gt;<i> &gt; module
+</I>&gt;<i> &gt; '/home/tom/dev/auth/ssofilter-apache-2.2/ausService_services_types.py'
+</I>&gt;<i> &gt; [Mon Feb 04 17:41:57 2008] [notice] mod_python (pid=26429,
+</I>&gt;<i> &gt; interpreter='ssofilter_interpreter_mobile'): Importing
+</I>&gt;<i> &gt; module '/home/tom/dev/auth/ssofilter-apache-2.2/utils.py'
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [notice] mod_python (pid=26429,
+</I>&gt;<i> &gt; interpreter='ssofilter_interpreter_mobile'): Importing
+</I>&gt;<i> &gt; module '/home/tom/dev/auth/ssofilter-apache-2.2/cryptography.py'
+</I>&gt;<i> &gt; [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42] mod_python
+</I>&gt;<i> &gt; (pid=26429, interpreter='ssofilter_interpreter_mobile',
+</I>&gt;<i> &gt; phase='PythonAuthenHandler', handler='ssofilter'): Application error
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42] ServerName:
+</I>&gt;<i> &gt; 'mobile.domain.co.za'
+</I>&gt;<i> &gt; [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42] DocumentRoot:
+</I>&gt;<i> &gt; '/home/tom/dev/auth/mobileweb'
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42] URI: '/'
+</I>&gt;<i> &gt; [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42] Location: '/'
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42] Directory:
+</I>&gt;<i> None
+</I>&gt;<i> &gt; [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42] Filename:
+</I>&gt;<i> &gt; '/home/tom/dev/auth/mobileweb/'
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42] PathInfo: ''
+</I>&gt;<i> &gt; [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42] Traceback
+</I>&gt;<i> (most
+</I>&gt;<i> &gt; recent call last):
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42]   File
+</I>&gt;<i> &gt; &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+</I>&gt;<i> &gt; line 1537, in HandlerDispatch\n    default=default_handler, arg=req,
+</I>&gt;<i> &gt; ilent=hlist.silent)
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42]   File
+</I>&gt;<i> &gt; &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+</I>&gt;<i> &gt; line 1202, in _process_target\n    module = import_module(module_name,
+</I>&gt;<i> &gt; path=path)
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42]   File
+</I>&gt;<i> &gt; &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+</I>&gt;<i> &gt; line 296, in import_module\n    log, import_path)
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42]   File
+</I>&gt;<i> &gt; &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+</I>&gt;<i> &gt; line 680, in import_module\n    execfile(file, module.__dict__)
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42]   File
+</I>&gt;<i> &gt; &quot;/home/tom/dev/auth/ssofilter-apache-2.2/ssofilter.py&quot;, line 10, in
+</I>&gt;<i> &gt; &lt;module&gt;\n    cryptography = apache.import_module('cryptography')
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42]   File
+</I>&gt;<i> &gt; &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+</I>&gt;<i> &gt; line 296, in import_module\n    log, import_path)
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42]   File
+</I>&gt;<i> &gt; &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+</I>&gt;<i> &gt; line 680, in import_module\n    execfile(file, module.__dict__)
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42]   File
+</I>&gt;<i> &gt; &quot;/home/tom/dev/auth/ssofilter-apache-2.2/cryptography.py&quot;, line 4, in
+</I>&gt;<i> &gt; &lt;module&gt;\n    cipher = apache.import_module('ncrypt.cipher')
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42]   File
+</I>&gt;<i> &gt; &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+</I>&gt;<i> &gt; line 304, in import_module\n    return __import__(module_name, {}, {},
+</I>&gt;<i> &gt; ['*'])
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42]   File
+</I>&gt;<i> &gt; &quot;/var/lib/python-support/python2.5/ncrypt/cipher.py&quot;, line
+</I>&gt;<i> &gt; 1, in &lt;module&gt;\n    from _ncrypt.cipher import *
+</I>&gt;<i> &gt;  [Mon Feb 04 17:41:57 2008] [error] [client 192.168.16.42] ImportError:
+</I>&gt;<i> No
+</I>&gt;<i> &gt; module named cipher
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Now you may think I'm posting this to the wrong list looking at the
+</I>&gt;<i> &gt; stacktrace, but I'm convinced it's mod_python related. While testing the
+</I>&gt;<i> &gt; first few requests go through fine (and ncrypt is imported correctly),
+</I>&gt;<i> but
+</I>&gt;<i> &gt; it seems like the error occurs when apache has decided to create a new
+</I>&gt;<i> &gt; thread (or spawn a new process, difficult to tell) that the error occurs
+</I>&gt;<i> &gt; (the log entries containing &quot;Importing Module&quot; are spat out by
+</I>&gt;<i> mod_python,
+</I>&gt;<i> &gt; as I use the apache.import_module() function for performing all my
+</I>&gt;<i> imports).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; A hint is if I make all my sites run under one single python interpreter
+</I>&gt;<i> (by
+</I>&gt;<i> &gt; giving them the same name) I don't experience the problem, but I'd
+</I>&gt;<i> prefer
+</I>&gt;<i> &gt; not to run under this configuration as I'd need to do a whole lot more
+</I>&gt;<i> work
+</I>&gt;<i> &gt; to ensure that data remains separated per site.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Any comments, suggestions would be greatly appreciated!
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Thanks,
+</I>&gt;<i> &gt; Tom
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; PS&gt; Running mod_python 3.3.1-2, running on ubuntu 7.10 in apache
+</I>&gt;<i> &gt; 2.2.4-3build1. My apache runtime configuration looks something like:
+</I>&gt;<i> &gt;  [Mon Feb 04 17:40:10 2008] [notice] Apache Configuration:
+</I>&gt;<i> &gt; [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_MAX_DAEMON_USED     -&gt; 2
+</I>&gt;<i> [Max #
+</I>&gt;<i> &gt; of daemons used so far]
+</I>&gt;<i> &gt; [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_IS_THREADED         -&gt; 1
+</I>&gt;<i> &gt; [0=Unsupported, 1=Static, 2=Dynamic]
+</I>&gt;<i> &gt;  [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_IS_FORKED           -&gt; 2
+</I>&gt;<i> &gt; [0=Unsupported, 1=Static, 2=Dynamic]
+</I>&gt;<i> &gt; [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_HARD_LIMIT_DAEMONS  -&gt; 16
+</I>&gt;<i> [The
+</I>&gt;<i> &gt; compiled max # daemons]
+</I>&gt;<i> &gt; [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_HARD_LIMIT_THREADS  -&gt; 64
+</I>&gt;<i> [The
+</I>&gt;<i> &gt; compiled max # threads]
+</I>&gt;<i> &gt;  [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_MAX_THREADS         -&gt; 25
+</I>&gt;<i> [#
+</I>&gt;<i> &gt; of threads/child by config]
+</I>&gt;<i> &gt; [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_MIN_SPARE_DAEMONS   -&gt; 0
+</I>&gt;<i> [Min #
+</I>&gt;<i> &gt; of spare daemons]
+</I>&gt;<i> &gt; [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_MIN_SPARE_THREADS   -&gt; 25
+</I>&gt;<i> [Min
+</I>&gt;<i> &gt; # of spare threads]
+</I>&gt;<i> &gt;  [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_MAX_SPARE_DAEMONS   -&gt; 0
+</I>&gt;<i> [Max
+</I>&gt;<i> &gt; # of spare daemons]
+</I>&gt;<i> &gt; [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_MAX_SPARE_THREADS   -&gt; 75
+</I>&gt;<i> [Max
+</I>&gt;<i> &gt; # of spare threads]
+</I>&gt;<i> &gt; [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_MAX_REQUESTS_DAEMON -&gt; 10
+</I>&gt;<i> [Max
+</I>&gt;<i> &gt; # of requests per daemon]
+</I>&gt;<i> &gt;  [Mon Feb 04 17:40:10 2008] [notice]  AP_MPMQ_MAX_DAEMONS         -&gt; 6
+</I>&gt;<i> [Max
+</I>&gt;<i> &gt; # of daemons by config]
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>
+
+
+-- 
+<A HREF="http://www.tomwells.org">http://www.tomwells.org</A>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20080205/ea7cee6d/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20080205/ea7cee6d/attachment-0001.html</A>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024811.html">[mod_python] Import error on multiple interpreters
+</A></li>
+	<LI>Next message: <A HREF="024808.html">[mod_python] compile mod_python on iSeries (AS/400)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24815">[ date ]</a>
+              <a href="thread.html#24815">[ thread ]</a>
+              <a href="subject.html#24815">[ subject ]</a>
+              <a href="author.html#24815">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

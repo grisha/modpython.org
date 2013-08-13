@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How do I troubleshoot a 500 Internal Server Error?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20do%20I%20troubleshoot%20a%20500%20Internal%20Server%20Error%3F&In-Reply-To=A20D2593-B1D4-4411-B08F-558F21DBFBBA%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020730.html">
+   <LINK REL="Next"  HREF="020725.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How do I troubleshoot a 500 Internal Server Error?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20do%20I%20troubleshoot%20a%20500%20Internal%20Server%20Error%3F&In-Reply-To=A20D2593-B1D4-4411-B08F-558F21DBFBBA%40dscpl.com.au"
+       TITLE="[mod_python] How do I troubleshoot a 500 Internal Server Error?">jpg at jgassociates.ca
+       </A><BR>
+    <I>Fri Mar 31 07:44:31 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020730.html">[mod_python] How do I troubleshoot a 500 Internal Server Error?
+</A></li>
+        <LI>Next message: <A HREF="020725.html">[mod_python] How do I troubleshoot a 500 Internal Server Error?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20724">[ date ]</a>
+              <a href="thread.html#20724">[ thread ]</a>
+              <a href="subject.html#20724">[ subject ]</a>
+              <a href="author.html#20724">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>(Oops, let me try that again).
+
+Not directly related to your 500 error, but hopefully you'll find my 
+suggestions useful in improving your code.
+
+&gt;&gt;<i> import time,random,string
+</I>&gt;&gt;<i> global DATEBOX
+</I>&gt;&gt;<i> from mod_python import Cookie
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> def index (req,LLRuser='',LLRpw=''):
+</I>&gt;&gt;<i>     debugfile = open(&quot;/home/john/www/mydomain.com/debug.txt&quot;, &quot;a&quot;)
+</I>&gt;&gt;<i>     debugfile.write(&quot;Begining of index function\n&quot;)
+</I>&gt;&gt;<i>     global R; R=req; R.content_type=&quot;text/html&quot;
+</I>
+Avoid putting multiple statements on one line, as it's not considered 
+good python style. Personally I think it's bad C style as well. In my 
+experience it makes it harder to track down bugs.
+
+&gt;<i> 
+</I>&gt;<i> You should not store the request object in a global variable. If you  
+</I>&gt;<i> ever move
+</I>&gt;<i> to mod_python 3.X and use a multithreaded MPM it will break as multiple
+</I>&gt;<i> threads may execute within the same module as the same time.
+</I>&gt;<i> 
+</I>&gt;&gt;<i>     cur=DBconnectpropman.DB.cursor()
+</I>&gt;&gt;<i>     sidrefreshing=0
+</I>&gt;&gt;<i>     ZWF.R=R
+</I>&gt;&gt;<i>     global SID;SID=''
+</I>&gt;&gt;<i>     global UID;UID=''
+</I>&gt;&gt;<i>     cookies = Cookie.get_cookies(R, Cookie.MarshalCookie,
+</I>&gt;&gt;<i> secret='LLR14222222')
+</I>&gt;&gt;<i>     if LLRuser!='' and LLRpw!='':  # login attempt
+</I>&gt;&gt;<i>         if string.find(LLRuser,&quot;@&quot;)!=-1: #client login attempt
+</I>&gt;&gt;<i>             cur.execute(&quot;select clientid,name,password from client where
+</I>&gt;&gt;<i> email='&quot;+LLRuser+&quot;'&quot;)
+</I>
+WARING! Potential sql injection attack.
+
+You are leaving yourself open to a sql injection attack. Never trust 
+user provided data. You can avoid this problem by letting the python DBI 
+do the work for you. This will properly escape the content of LLRuser:
+
+cur.execute(&quot;select clientid,name,password from client where email=%s&quot; 
+,LLRuser)
+
+Note that you don't need to enclose the %s in single quotes here. The 
+DBI takes care of it for you.
+
+&gt;&gt;<i>                 x=random.randint(48,108)
+</I>&gt;&gt;<i>                 if x&gt;57:x+=8
+</I>&gt;&gt;<i>                 if x&gt;90:x+=6
+</I>&gt;&gt;<i>                 SID+=chr(x)
+</I>&gt;&gt;<i>             cookie = Cookie.Cookie('sid', SID); cookie.expires = 
+</I>&gt;&gt;<i> time.time() +
+</I>&gt;&gt;<i> 36000; Cookie.add_cookie(R, cookie)
+</I>&gt;&gt;<i>             q=&quot;update &quot;+usertable+&quot; set SID='&quot;+SID+&quot;' where 
+</I>&gt;&gt;<i> name='&quot;+LLRuser+&quot;'
+</I>&gt;&gt;<i> and password='&quot;+LLRpw+&quot;'&quot;
+</I>
+This gets hard to read (and debug) with all the single and double quotes 
+mixed together. At a quick glance it's hard to differentiate the strings 
+from the variables. Try something like this:
+
+q = &quot;update %s set SID = '%s' where name = '%s' and password = '%s'&quot; % 
+(usertable, SID, LLRuser, LLRpw)
+
+Using &quot;+&quot; to concatenate strings is inefficient in python and generally 
+avoid. For short strings it's not likely an issue, but I just want to 
+make sure you are aware.
+
+Of course *using* q in a sql query still leaves you open to a sql 
+injection attack ;).
+
+Jim
+
+
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020730.html">[mod_python] How do I troubleshoot a 500 Internal Server Error?
+</A></li>
+	<LI>Next message: <A HREF="020725.html">[mod_python] How do I troubleshoot a 500 Internal Server Error?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20724">[ date ]</a>
+              <a href="thread.html#20724">[ thread ]</a>
+              <a href="subject.html#20724">[ subject ]</a>
+              <a href="author.html#20724">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

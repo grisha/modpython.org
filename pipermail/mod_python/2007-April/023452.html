@@ -1,0 +1,454 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Global Interpreter Lock problem with Berkeley DB XML
+	and mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Global%20Interpreter%20Lock%20problem%20with%20Berkeley%20DB%20XML%0A%09and%20mod_python&In-Reply-To=3770C111-687D-4A51-AB0B-8C4DA3DB0C04%40oracle.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023450.html">
+   <LINK REL="Next"  HREF="023453.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Global Interpreter Lock problem with Berkeley DB XML
+	and mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Global%20Interpreter%20Lock%20problem%20with%20Berkeley%20DB%20XML%0A%09and%20mod_python&In-Reply-To=3770C111-687D-4A51-AB0B-8C4DA3DB0C04%40oracle.com"
+       TITLE="[mod_python] Global Interpreter Lock problem with Berkeley DB XML
+	and mod_python">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Wed Apr 11 18:16:42 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023450.html">[mod_python] Problems with inpufilter &amp; mod_proxy
+</A></li>
+        <LI>Next message: <A HREF="023453.html">[mod_python] Mod_Python and RewriteRule
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23452">[ date ]</a>
+              <a href="thread.html#23452">[ thread ]</a>
+              <a href="subject.html#23452">[ subject ]</a>
+              <a href="author.html#23452">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Can you point me to the relevant files and sections of files where the
+callback from C code where no GIL is held, is made into Python code.
+If I can see how that is being done and understand it, may be able to
+suggest something.
+
+Graham
+
+On 12/04/07, George Feinberg &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">george.feinberg at oracle.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Graham,
+</I>&gt;<i>
+</I>&gt;<i> This is George Feinberg, and I am responsible for BDB XML development,
+</I>&gt;<i> and I happened to make the change to use -threads in SWIG generation.
+</I>&gt;<i>
+</I>&gt;<i> Perhaps you can help -- you seem to know more about it than I do.
+</I>&gt;<i> Here's
+</I>&gt;<i> the history:
+</I>&gt;<i>
+</I>&gt;<i> David's using release 2.3.10, where -threads was added.
+</I>&gt;<i> In release 2.2.13 (the previous one), it was not used, but there was
+</I>&gt;<i> a problem.
+</I>&gt;<i> Multi-threaded Python programs, they would deadlock themselves on
+</I>&gt;<i> a combination of BDB XML locking and the GIL.  One of the threads's
+</I>&gt;<i> stacks
+</I>&gt;<i> looked a bit like this:
+</I>&gt;<i>
+</I>&gt;<i> #6  0x080dd045 in PyThread_acquire_lock ()
+</I>&gt;<i> #7  0x080b1141 in PyEval_EvalFrame ()
+</I>&gt;<i> #8  0x080b726d in PyEval_EvalCodeEx ()
+</I>&gt;<i> #9  0x080b5719 in PyEval_EvalFrame ()
+</I>&gt;<i> #10 0x080b580c in PyEval_EvalFrame ()
+</I>&gt;<i> #11 0x080b726d in PyEval_EvalCodeEx ()
+</I>&gt;<i> #12 0x080fb6fd in PyFunction_SetClosure ()
+</I>&gt;<i> #13 0x0805950c in PyObject_Call ()
+</I>&gt;<i> #14 0x0805eac5 in PyMethod_New ()
+</I>&gt;<i> #15 0x0805950c in PyObject_Call ()
+</I>&gt;<i> #16 0x0808a965 in _PyType_Lookup ()
+</I>&gt;<i> #17 0x0808ca88 in _PyObject_SlotCompare ()
+</I>&gt;<i> #18 0x0805950c in PyObject_Call ()
+</I>&gt;<i> #19 0x080afed7 in PyEval_CallObjectWithKeywords ()
+</I>&gt;<i> #20 0x080594e3 in PyObject_CallObject ()
+</I>&gt;<i> #21 0xb7b0b360 in SWIG_Python_NewPointerObj (ptr=Variable &quot;ptr&quot; is not
+</I>&gt;<i> available.
+</I>&gt;<i> ) at dbxml_python_wrap.cpp:1266
+</I>&gt;<i> #22 0xb7b32df6 in _wrap_XmlManager_query__SWIG_3 (args=Variable
+</I>&gt;<i> &quot;args&quot; is not
+</I>&gt;<i> available.
+</I>&gt;<i> ) at dbxml_python_wrap.cpp:6675
+</I>&gt;<i> #23 0xb7b3332a in _wrap_XmlManager_query (self=0x0, args=0xb6baeb1c) at
+</I>&gt;<i>
+</I>&gt;<i> There was another thread involved, and it was blocked inside BDB XML
+</I>&gt;<i> waiting
+</I>&gt;<i> for a page lock held by the thread above.  Presumably it also held
+</I>&gt;<i> the lock
+</I>&gt;<i> (GIL) that caused this thread to block.
+</I>&gt;<i>
+</I>&gt;<i> So... I tried a bunch of things to fix this, but the fact that python
+</I>&gt;<i> 2.3 and 2.4 have
+</I>&gt;<i> different lock-related APIs and you crash in 2.3 if you use the wrong
+</I>&gt;<i> one didn't help.
+</I>&gt;<i> Turning on -threads, plus some other custom code did the trick.
+</I>&gt;<i>
+</I>&gt;<i> I'm perfectly happy with another solution if there is one.
+</I>&gt;<i> Eliminating Python 2.3
+</I>&gt;<i> support, or at least making it conditional it might help.
+</I>&gt;<i> Perhaps you have a suggestion.  I'm not a Python expert by any
+</I>&gt;<i> stretch of the imagination.
+</I>&gt;<i> I ended up here via hacking.
+</I>&gt;<i>
+</I>&gt;<i> There are a couple of things that I'm *trying* to accomplish in the
+</I>&gt;<i> module:
+</I>&gt;<i> 1.  release the GIL while in BDB XML to allow other threads to run in
+</I>&gt;<i> Python.
+</I>&gt;<i> 2.  the module uses SWIG Directors, so calls back into those (from C+
+</I>&gt;<i> +) need to
+</I>&gt;<i> reacquire the lock, or things go badly.
+</I>&gt;<i>
+</I>&gt;<i> What is the best way to do this?  Just eliminating -threads will
+</I>&gt;<i> cause things
+</I>&gt;<i> to appear to be working until they deadlock in the non-mod_python
+</I>&gt;<i> environment.   I'm guessing that using your
+</I>&gt;<i> active state threads may deadlock too, but I'm not certain.
+</I>&gt;<i>
+</I>&gt;<i> Thanks for any advice,
+</I>&gt;<i>
+</I>&gt;<i> George
+</I>&gt;<i>
+</I>&gt;<i> On Apr 10, 2007, at 11:06 PM, Graham Dumpleton wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; FWIW, am not sure why the -threads option is used as I can't see that
+</I>&gt;<i> &gt; it would be required when the package is used exclusively from Python
+</I>&gt;<i> &gt; code. The only time one would potentially need the GIL wrappers that
+</I>&gt;<i> &gt; SWIG puts in there is when some C code which doesn't currently have
+</I>&gt;<i> &gt; the Python GIL held or an active thread state makes a call to one of
+</I>&gt;<i> &gt; the generated SWIG wrapper functions.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Unless the dbxml package has been specially designed to be used in
+</I>&gt;<i> &gt; embedded systems where C code is calling out of C code into
+</I>&gt;<i> &gt; dbxml/Python code and the calling C code hasn't performed any prior
+</I>&gt;<i> &gt; Python initialisation steps, this is unlikely to occur. Only other
+</I>&gt;<i> &gt; possibility is that dbxml specifically has sections where it releases
+</I>&gt;<i> &gt; the GIL but then wants to be able to perform a callback into Python
+</I>&gt;<i> &gt; code, but I can't see any instances of Py_BEGIN_ALLOW_THREADS and
+</I>&gt;<i> &gt; Py_END_ALLOW_THREADS being used in the code.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The reason the GIL wrappers cause a problem for mod_python is that
+</I>&gt;<i> &gt; mod_python has already correctly acquired the GIL and created an
+</I>&gt;<i> &gt; active thread state, but such thread states are not registered with
+</I>&gt;<i> &gt; Python's simplified GIL API system because one is not meant to use the
+</I>&gt;<i> &gt; Python simplified GIL API system when multiple Python sub interpreters
+</I>&gt;<i> &gt; are used for various reasons. It says as much in the Python code and
+</I>&gt;<i> &gt; also I think the documentation.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Not sure how much joy you will get with getting dbxml changed. Really
+</I>&gt;<i> &gt; need to find out exactly why dbxml authors think the -threads option
+</I>&gt;<i> &gt; is required.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;&gt; Graham Dumpleton wrote:
+</I>&gt;<i> &gt;&gt; &gt; Looking a bit further, the GIL macros are in my own stuff, but I
+</I>&gt;<i> &gt;&gt; &gt; suspect it doesn't get enabled because I don't use the -threads
+</I>&gt;<i> &gt;&gt; option
+</I>&gt;<i> &gt;&gt; &gt; to SWIG. I don't understand the consequences of the option, but
+</I>&gt;<i> &gt;&gt; &gt; changing:
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;  dbxml/dist/s_swig
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; so that '-threads' isn't in swig_args for Python would probably get
+</I>&gt;<i> &gt;&gt; &gt; rid of the stuff.
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; Would need to work out why they use the option in the first
+</I>&gt;<i> &gt;&gt; place as
+</I>&gt;<i> &gt;&gt; &gt; turning it off could break things if dbxml is dependent on it in
+</I>&gt;<i> &gt;&gt; some
+</I>&gt;<i> &gt;&gt; &gt; way.
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; Graham
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; On 11/04/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt; &gt;&gt; Try rebuilding dbxml but ensure that compiler option:
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt;   -DSWIG_PYTHON_NO_USE_GIL
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; is used.
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; I don't know when SWIG changed, it certainly didn't generate these
+</I>&gt;<i> &gt;&gt; &gt;&gt; PyGILState calls the last time I played with it, which wasn't that
+</I>&gt;<i> &gt;&gt; &gt;&gt; long ago, but it isn't going to work under mod_python the way
+</I>&gt;<i> &gt;&gt; they now
+</I>&gt;<i> &gt;&gt; &gt;&gt; do it as the default.
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; I'll have to look into this further when I get a chance as this
+</I>&gt;<i> &gt;&gt; new
+</I>&gt;<i> &gt;&gt; &gt;&gt; behaviour of SWIG is going to cause all my Apache API SWIG
+</I>&gt;<i> &gt;&gt; bindings to
+</I>&gt;<i> &gt;&gt; &gt;&gt; break. :-(
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; Graham
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; On 11/04/07, David Schachter &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ds at bittorrent.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  Folks--
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  I'm having a problem embedding Berkeley DB XML into Apache with
+</I>&gt;<i> &gt;&gt; &gt;&gt; mod_python.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; The first attempt to create an XmlManager causes a lockup in
+</I>&gt;<i> &gt;&gt; &gt;&gt; Python--the
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Global Interpreter Lock is deadlocked, I think. (Stack trace
+</I>&gt;<i> &gt;&gt; &gt;&gt; below.) Any
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; ideas of how to debug? Is there a BDB XML Python expert? I
+</I>&gt;<i> &gt;&gt; checked
+</I>&gt;<i> &gt;&gt; &gt;&gt; Google
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; without success.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  The code to demonstrate the problem is simple and shown below.
+</I>&gt;<i> &gt;&gt; &gt;&gt; When the
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; line &quot;xmlManager = dbxml.XmlManager()&quot; is commented out, the
+</I>&gt;<i> &gt;&gt; code
+</I>&gt;<i> &gt;&gt; &gt;&gt; runs ok.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Commented in, Apache locks up.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  The most recent mod_python has this comment at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; <A HREF="http://www.modpython.org/live/mod_python-3.3.1/doc-html/app-">http://www.modpython.org/live/mod_python-3.3.1/doc-html/app-</A>
+</I>&gt;<i> &gt;&gt; changes.html:
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Third party C modules that use the simplified API for the Global
+</I>&gt;<i> &gt;&gt; &gt;&gt; Interpreter
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Lock (GIL), as described in PEP 311, can now be used. The only
+</I>&gt;<i> &gt;&gt; &gt;&gt; requirement
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; is that such modules can only be used in the context of the
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; &quot;main_interpreter&quot;. (More info at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-77.">http://issues.apache.org/jira/browse/MODPYTHON-77.</A>)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  The documentation for mod_python at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-">http://www.modpython.org/live/current/doc-html/pyapi-</A>
+</I>&gt;<i> &gt;&gt; interps.html
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; says:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Note that if any third party module is being used which has a
+</I>&gt;<i> &gt;&gt; C code
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; component that uses the simplified API for access to the Global
+</I>&gt;<i> &gt;&gt; &gt;&gt; Interpreter
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Lock (GIL) for Python extension modules, then the interpreter
+</I>&gt;<i> &gt;&gt; name
+</I>&gt;<i> &gt;&gt; &gt;&gt; must be
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; forcibly set to be &quot;main_interpreter&quot;. This is necessary as
+</I>&gt;<i> &gt;&gt; such a
+</I>&gt;<i> &gt;&gt; &gt;&gt; module
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; will only work correctly if run within the context of the
+</I>&gt;<i> &gt;&gt; first Python
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; interpreter created by the process.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  Conforming to this, I set the interpreter name in the
+</I>&gt;<i> &gt;&gt; httpd.conf
+</I>&gt;<i> &gt;&gt; &gt;&gt; file using
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; the directive &quot;PythonInterpreter main_interpreter&quot; and I
+</I>&gt;<i> &gt;&gt; verified
+</I>&gt;<i> &gt;&gt; &gt;&gt; this by
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; printing the interpreter name from my Python code.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  In dbxml-2.3.10/dbxml/src/python, there's some code relating to
+</I>&gt;<i> &gt;&gt; &gt;&gt; the GIL in
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; dbxml_python_wrap.cpp. If someone else has already beaten this
+</I>&gt;<i> &gt;&gt; &gt;&gt; problem into
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; submission, I'd rather not duplicate the effort.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;                           -- David Schachter
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #! /usr/bin/python
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  import dbxml
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  from mod_python import apache
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  import os
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  def handler(req):
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;    id = &quot;pid %d, interpreter '%s'&quot; % (os.getpid(),
+</I>&gt;<i> &gt;&gt; req.interpreter)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;    apache.log_error(&quot;About to start BDB XML from %s.&quot; % id)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;    xmlManager = dbxml.XmlManager()
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;    apache.log_error(&quot;Started BDB XML.&quot;)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;    req.write(&quot;Hi from %s.&quot; % id)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;    return apache.OK
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  STACK TRACE IS:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  (gdb) bt
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #0  0xffffe410 in __kernel_vsyscall ()
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #1  0xb7e97af0 in <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">sem_wait at GLIBC_2.0</A> () from
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; /lib/tls/i686/cmov/libpthread.so.0
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #2  0x00000004 in ?? ()
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #3  0xb7ce7a00 in PyThread_acquire_lock (lock=0x0,
+</I>&gt;<i> &gt;&gt; waitflag=1) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; thread_pthread.h:298
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #4  0xb7cb5689 in PyEval_RestoreThread (tstate=0x810f888) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Python/ceval.c:305
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #5  0xb7ce16e7 in PyGILState_Ensure () at Python/pystate.c:512
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #6  0xb78282f9 in _wrap_new_XmlManager (self=0x0,
+</I>&gt;<i> &gt;&gt; args=0xb7b9102c) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; dbxml_python_wrap.cpp:898
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;       (The reference to line 898 is correct but surprising, the
+</I>&gt;<i> &gt;&gt; &gt;&gt; result of a
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; macro expansion at line 4195. --D.S.)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #7  0xb7c65967 in PyObject_Call (func=0x0, arg=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; kw=0xfffffffc)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; at Objects/abstract.c:1795
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #8  0xb7cb9e1d in PyEval_EvalFrame (f=0x822cdbc) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; Python/ceval.c:3845
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #9  0xb7cbd719 in PyEval_EvalCodeEx (co=0xb6b12e20,
+</I>&gt;<i> &gt;&gt; &gt;&gt; globals=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; locals=0x0, args=0x0, argcount=1,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;      kws=0x0, kwcount=0, defs=0x0, defcount=0, closure=0x0) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Python/ceval.c:2741
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #10 0xb7d0d6be in function_call (func=0xb6b0902c,
+</I>&gt;<i> &gt;&gt; arg=0xb6b892ac,
+</I>&gt;<i> &gt;&gt; &gt;&gt; kw=0x0)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; at Objects/funcobject.c:548
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #11 0xb7c65967 in PyObject_Call (func=0x0, arg=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; kw=0xfffffffc)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; at Objects/abstract.c:1795
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #12 0xb7c6e389 in instancemethod_call (func=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; arg=0xb6b892ac,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; kw=0xfffffffc)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;      at Objects/classobject.c:2532
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #13 0xb7c65967 in PyObject_Call (func=0x0, arg=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; kw=0xfffffffc)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; at Objects/abstract.c:1795
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #14 0xb7c99728 in slot_tp_init (self=0xb6af1fac,
+</I>&gt;<i> &gt;&gt; args=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; kwds=0xfffffffc)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;      at Objects/typeobject.c:4774
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #15 0xb7c91ad4 in type_call (type=0xb7c99675, args=0xb7b9102c,
+</I>&gt;<i> &gt;&gt; &gt;&gt; kwds=0x0) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Objects/typeobject.c:435
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #16 0xb7c65967 in PyObject_Call (func=0x0, arg=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; kw=0xfffffffc)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; at Objects/abstract.c:1795
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #17 0xb7cba239 in PyEval_EvalFrame (f=0x820f224) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; Python/ceval.c:3776
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #18 0xb7cbd0eb in PyEval_EvalFrame (f=0x8195854) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; Python/ceval.c:3651
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #19 0xb7cbd0eb in PyEval_EvalFrame (f=0x81c9ac4) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; Python/ceval.c:3651
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #20 0xb7cbd719 in PyEval_EvalCodeEx (co=0xb6b87e20,
+</I>&gt;<i> &gt;&gt; &gt;&gt; globals=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; locals=0x0, args=0x7, argcount=0,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;      kws=0x8282440, kwcount=7, defs=0x0, defcount=0,
+</I>&gt;<i> &gt;&gt; closure=0x0) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Python/ceval.c:2741
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #21 0xb7cbb46a in PyEval_EvalFrame (f=0x82822a4) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; Python/ceval.c:3660
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #22 0xb7cbd719 in PyEval_EvalCodeEx (co=0xb6b87ee0,
+</I>&gt;<i> &gt;&gt; &gt;&gt; globals=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; locals=0x0, args=0x0, argcount=2,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;      kws=0x0, kwcount=0, defs=0x0, defcount=0, closure=0x0) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Python/ceval.c:2741
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #23 0xb7d0d6be in function_call (func=0xb6af3a74,
+</I>&gt;<i> &gt;&gt; arg=0xb6b7c78c,
+</I>&gt;<i> &gt;&gt; &gt;&gt; kw=0x0)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; at Objects/funcobject.c:548
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #24 0xb7c65967 in PyObject_Call (func=0x0, arg=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; kw=0xfffffffc)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; at Objects/abstract.c:1795
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #25 0xb7c6e389 in instancemethod_call (func=0xfffffffc,
+</I>&gt;<i> &gt;&gt; &gt;&gt; arg=0xb6b7c78c,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; kw=0xfffffffc)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;      at Objects/classobject.c:2532
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #26 0xb7c65bf6 in PyObject_CallMethod (o=0x0,
+</I>&gt;<i> &gt;&gt; name=0xb6b891ec &quot;\001&quot;,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; format=0xb6b891ec &quot;\001&quot;)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;      at Objects/abstract.c:1795
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #27 0xb7c5f505 in python_handler (req=0x828a7b8,
+</I>&gt;<i> &gt;&gt; phase=0xb7d16e59
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; &quot;PythonHandler&quot;) at mod_python.c:1652
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #28 0x08073daf in ap_run_handler (r=0x828a7b8) at config.c:157
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #29 0x080741b1 in ap_invoke_handler (r=0x828a7b8) at
+</I>&gt;<i> &gt;&gt; config.c:372
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  ---Type &lt;return&gt; to continue, or q &lt;return&gt; to quit---
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #30 0x0808ba77 in ap_process_request (r=0x828a7b8) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; http_request.c:258
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #31 0x0808929b in ap_process_http_connection (c=0x8185638) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; http_core.c:184
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #32 0x0807a599 in ap_run_process_connection (c=0x8185638) at
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; connection.c:43
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #33 0x0809e55a in child_main (child_num_arg=-4) at prefork.c:
+</I>&gt;<i> &gt;&gt; 640
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #34 0x0809e7a8 in make_child (s=0x80c9c80, slot=0) at
+</I>&gt;<i> &gt;&gt; prefork.c:680
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #35 0x0809ee53 in ap_mpm_run (_pconf=0xbf86d6f0,
+</I>&gt;<i> &gt;&gt; plog=0x81031a0,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; s=0xbf86d6f4) at prefork.c:956
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  #36 0x080622c8 in main (argc=2, argv=0xbf86d8b4) at main.c:717
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;  (gdb)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; _______________________________________________
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023450.html">[mod_python] Problems with inpufilter &amp; mod_proxy
+</A></li>
+	<LI>Next message: <A HREF="023453.html">[mod_python] Mod_Python and RewriteRule
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23452">[ date ]</a>
+              <a href="thread.html#23452">[ thread ]</a>
+              <a href="subject.html#23452">[ subject ]</a>
+              <a href="author.html#23452">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

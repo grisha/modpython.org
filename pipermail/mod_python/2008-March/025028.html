@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Sessions &amp; user management
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20%26%20user%20management&In-Reply-To=88e286470803190303y36cfe7e3kdedcce50a18d0d36%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025027.html">
+   <LINK REL="Next"  HREF="025040.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Sessions &amp; user management</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Dominique.Holzwarth at ch.delarue.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20%26%20user%20management&In-Reply-To=88e286470803190303y36cfe7e3kdedcce50a18d0d36%40mail.gmail.com"
+       TITLE="[mod_python] Sessions &amp; user management">Dominique.Holzwarth at ch.delarue.com
+       </A><BR>
+    <I>Wed Mar 19 09:18:24 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025027.html">[mod_python] Sessions &amp; user management
+</A></li>
+        <LI>Next message: <A HREF="025040.html">AW: [mod_python] Sessions &amp; user management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25028">[ date ]</a>
+              <a href="thread.html#25028">[ thread ]</a>
+              <a href="subject.html#25028">[ subject ]</a>
+              <a href="author.html#25028">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Thank you Graham for that information
+
+I will test the approach with the apache auth-modules and see if I can make it work... I'll post the results (probably some more questions...) here again :-) 
+
+-----Original Message-----
+From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>] 
+Sent: Mittwoch, 19. M&#228;rz 2008 11:04
+To: Holzwarth, Dominique (Berne Bauhaus)
+Cc: mod_python
+Subject: Re: [mod_python] Sessions &amp; user management
+
+Please use reply-all and keep discussion on the list.
+
+See comments below.
+
+On 19/03/2008, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Dominique.Holzwarth at ch.delarue.com</A>
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Dominique.Holzwarth at ch.delarue.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  Hello Grahamn
+</I>&gt;<i>
+</I>&gt;<i>  I've seen this section but there are several problems to me with it:
+</I>&gt;<i>
+</I>&gt;<i>  In the example:
+</I>&gt;<i>  __auth_realm__ = &quot;Members only&quot;
+</I>&gt;<i>
+</I>&gt;<i>   def __auth__(req, user, passwd):
+</I>&gt;<i>
+</I>&gt;<i>       if user == &quot;eggs&quot; and passwd == &quot;spam&quot; or \
+</I>&gt;<i>           user == &quot;joe&quot; and passwd == &quot;eoj&quot;:
+</I>&gt;<i>           return 1
+</I>&gt;<i>       else:
+</I>&gt;<i>           return 0
+</I>&gt;<i>
+</I>&gt;<i>   def __access__(req, user):
+</I>&gt;<i>       if user == &quot;eggs&quot;:
+</I>&gt;<i>           return 1
+</I>&gt;<i>       else:
+</I>&gt;<i>           return 0
+</I>&gt;<i>
+</I>&gt;<i>   def hello(req):
+</I>&gt;<i>       return &quot;hello&quot;
+</I>&gt;<i>
+</I>&gt;<i>  1. where does the data in the param's &quot;user&quot; and &quot;passwd&quot; come from?
+</I>
+The publisher handler internally implements HTTP basic authentication, so comes from the WWW-Authenticate header passed by the browser.
+
+&gt;<i>  2. I don't want to &quot;hard-code&quot; the user-id and password in my code. They rather should be stored in a file or so which would best be encoded (at least the password).
+</I>&gt;<i> Similar to the AuthFile-mechanism apache provides. But then again, I 
+</I>&gt;<i> don't know how I would need to get that encoded data into my code... 
+</I>&gt;<i> (to do the actual authentification...)
+</I>
+There is nothing to stop you doing that. When implementing __auth__ and __access__ as functions they could do quite complex things, like consult external files. Thus it is up to you.
+
+&gt;<i>  3. its written on that page, that for a &quot;real&quot; auth-mechanism &quot;PythonAuthenHandler&quot; should be used... So that's why I was asking for example on how to combine a &quot;PythonAuthenHandler&quot; with &quot;PublisherHandler&quot; and an AuthFile...
+</I>
+That comment is only in relation to the problem of code at global scope in a module being executed even if a user doesn't strictly have access. In other words, a non authenticated user can trigger side affects. This is because the module has to be imported to be able to consult the authentication and access information within it. It is not generally a big issue.
+
+Personally I would avoid both the publisher auth hooks and PythonAuthenHandler. You would be better off using other Apache authnz modules as they are more robust as they are better tested and give you the option of using lots of different auth providers.
+
+The bit that isn't obvious is how to apply them to mod_python and publisher since publisher resources are not exclusively file based due to a file handling multiple URLs.
+
+Imagine though mod_python application is rooted at /myapp, then have:
+
+&lt;Location /myapp&gt;
+
+AuthType Basic
+AuthName &quot;Restricted Files&quot;
+AuthBasicProvider file
+AuthUserFile /usr/local/apache/passwd/passwords
+AuthGroupFile /usr/local/apache/passwd/groups
+
+Require valid-user
+
+&lt;/Location&gt;
+
+If specific URLs require more constrained access requirements based on group member ship, then use:
+
+&lt;Location /myapp/admin&gt;
+Require group admin
+&lt;/Location&gt;
+
+If you need access to who the user is in Python code, access req.user.
+
+So, there is actually no need to do any in Python and standard Apache mechanisms can be used. I don't generally suggest this though as people are usually hell bent on doing everything in Python even though Apache provides better stuff in other modules for doing it.
+
+Graham
+
+&gt;<i>  Greetings
+</I>&gt;<i>  Dominique
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  -----Original Message-----
+</I>&gt;<i>  From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;<i>  Sent: Mittwoch, 19. M&#228;rz 2008 10:28
+</I>&gt;<i>  To: Holzwarth, Dominique (Berne Bauhaus)
+</I>&gt;<i>  Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i>  Subject: Re: [mod_python] Sessions &amp; user management
+</I>&gt;<i>
+</I>&gt;<i>  In relation to authentication, have you read:
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>&gt;<i> <A HREF="http://www.modpython.org/live/current/doc-html/hand-pub-alg-auth.html">http://www.modpython.org/live/current/doc-html/hand-pub-alg-auth.html</A>
+</I>&gt;<i>
+</I>&gt;<i>  Graham
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> *********************************
+</I>&gt;<i>  This e-mail and any files attached are strictly confidential, may be 
+</I>&gt;<i> legally privileged and are intended solely for the addressee. If you 
+</I>&gt;<i> are not the intended recipient please notify the sender immediately by return email and then delete the e-mail and any attachments immediately. The views and or opinions expressed in this e-mail are not necessarily the views of De La Rue plc or any of its subsidiaries and the De La Rue Group of companies, their directors, officers and employees make no representation about and accept no liability for its accuracy or completeness. You should ensure that you have adequate virus protection as the De La Rue Group of companies do not accept liability for any viruses  De La Rue plc Registered No.3834125, De La Rue Holdings plc Registered No 58025 and De La Rue International Limited Registered No 720284 are all registered in England with their registered office at: De La Rue House, Jays Close, Viables, Hampshire RG22 4BS
+</I>&gt;<i>
+</I>
+
+*********************************
+This e-mail and any files attached are strictly confidential, may be legally privileged and are intended solely for the addressee. If you are not the intended recipient please notify the sender immediately by return email and then delete the e-mail and any attachments immediately. The views and or opinions expressed in this e-mail are not necessarily the views of De La Rue plc or any of its subsidiaries and the De La Rue Group of companies, their directors, officers and employees make no representation about and accept no liability for its accuracy or completeness. You should ensure that you have adequate virus protection as the De La Rue Group of companies do not accept liability for any viruses 
+De La Rue plc Registered No.3834125, De La Rue Holdings plc Registered No 58025 and De La Rue International Limited Registered No 720284 are all registered in England with their registered office at: De La Rue House, Jays Close, Viables, Hampshire RG22 4BS
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025027.html">[mod_python] Sessions &amp; user management
+</A></li>
+	<LI>Next message: <A HREF="025040.html">AW: [mod_python] Sessions &amp; user management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25028">[ date ]</a>
+              <a href="thread.html#25028">[ thread ]</a>
+              <a href="subject.html#25028">[ subject ]</a>
+              <a href="author.html#25028">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

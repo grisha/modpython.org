@@ -1,0 +1,197 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Bizarre error wiping globals() under mod_python ...
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Bizarre%20error%20wiping%20globals%28%29%20under%20mod_python%20...&In-Reply-To=88e286470901281804wb1e7955h7fd0ca30894fd289%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025975.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Bizarre error wiping globals() under mod_python ...</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Monsyne Dragon</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Bizarre%20error%20wiping%20globals%28%29%20under%20mod_python%20...&In-Reply-To=88e286470901281804wb1e7955h7fd0ca30894fd289%40mail.gmail.com"
+       TITLE="[mod_python] Bizarre error wiping globals() under mod_python ...">mdragon at rackspace.com
+       </A><BR>
+    <I>Thu Jan 29 02:14:02 EST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025975.html">[mod_python] Bizarre error wiping globals() under mod_python ...
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25976">[ date ]</a>
+              <a href="thread.html#25976">[ thread ]</a>
+              <a href="subject.html#25976">[ subject ]</a>
+              <a href="author.html#25976">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> 2009/1/29 Monsyne Dragon &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mdragon at rackspace.com</A>&gt;:
+</I>&gt;<i>   
+</I>&gt;&gt;<i> Ok, this is an odd one, any clues we can get would help.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Environment mod_python 3.1.4 w/  python 2.4 on Ubuntu dapper
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> Upgrade to mod_python 3.3.1. That version is old and buggy. See:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/ModuleImportingIsBroken">http://www.dscpl.com.au/wiki/ModPython/Articles/ModuleImportingIsBroken</A>
+</I>&gt;<i>
+</I>&gt;<i> for one possible source of your problems.
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>Ah.  Well, we'll check that out.  Would you happen to know of a 3.3.1 
+backported package for Ubuntu Dapper (6.06) ?  It would be rather helpful.
+If not we'll have to roll one ourselves.
+
+(This is probably Yet Another reason we should be moving to Hardy (which 
+has 3.3.1),  but this is a mission-critical app that basically runs a 
+half-billion dollar a year company, and arranging  an OS upgrade on a 
+system with two dozen servers between production, cert and dev 
+environments in that kind of corporate environment is kindof like 
+conducting a herd of wild African elephants in a tap-dance routine. It's 
+pretty impressive when you pull it off, but there's alot of time and 
+broken furniture involved in getting there. )
+
+&gt;<i> Secondly, remember that Apache is a multi process web server. Don't
+</I>&gt;<i> expect globals you set in one process to be visible in another. See:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/TheProcessInterpreterModel">http://www.dscpl.com.au/wiki/ModPython/Articles/TheProcessInterpreterModel</A>
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>Yah, I'm aware of that.  This isn't doing anything funky with global 
+variables, it's just doing an import at the top of a module and then 
+trying to access the module it imported in a classes __init__  method a 
+few lines down, and getting None instead of the module object (some of 
+the time).
+
+I'll see if upgrading mod_python helps here.
+&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>&gt;&gt;<i> We have a web app running under mod_python (it uses an obscure templating
+</I>&gt;&gt;<i> language/framework called PSE <A HREF="http://nick.borko.org/pse/">http://nick.borko.org/pse/</A>)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> We are having an intermittent glitch which is truely bizarre.
+</I>&gt;&gt;<i> Periodically, one module deep in this large webapp is losing it's global
+</I>&gt;&gt;<i> namespace. On our production servers, this happens on random occasional
+</I>&gt;&gt;<i> basis, but we have replicated it on another machine. On that machine it was
+</I>&gt;&gt;<i> happening every other pagehit,
+</I>&gt;&gt;<i> and is now happening every pagehit except the first one after restarting
+</I>&gt;&gt;<i> apache (we don't know why this changed).
+</I>&gt;&gt;<i> This manifests in mindbenders like: we will import a module, (like 'sys')
+</I>&gt;&gt;<i> like so:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> import sys
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> class SomeClass()
+</I>&gt;&gt;<i>   def __init__(self, args, go, here):
+</I>&gt;&gt;<i>         sys.stderr.write('Some message')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This will run fine on the first hit, then subsequently will produce an
+</I>&gt;&gt;<i> exception saying that &quot;'NoneType' object has no attribute 'stderr'&quot; !!
+</I>&gt;&gt;<i> And it's not just 'sys' that that happens to. if we catch the exception and
+</I>&gt;&gt;<i> print the contents of globals() at that point, ALL of the modules imported,
+</I>&gt;&gt;<i> and any global variables  have their values  set to None!
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> As far as we can tell, it is only happening to this one module in our
+</I>&gt;&gt;<i> (large,  hundreds of modules) codebase.  The module itself  is actually
+</I>&gt;&gt;<i> generated code, generated by the ZSI-2.0 SOAP library, and we've exercised
+</I>&gt;&gt;<i> this code from the command line hundreds of times without fail, running it
+</I>&gt;&gt;<i> in a loop.  It only fails like this in the mod_python environment, and then,
+</I>&gt;&gt;<i> not every time.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Does anyone have an idea of where to even begin to figure this out?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> --
+</I>&gt;&gt;<i> --M. Dragon
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Confidentiality Notice: This e-mail message (including any attached or
+</I>&gt;&gt;<i> embedded documents) is intended for the exclusive and confidential use of
+</I>&gt;&gt;<i> the
+</I>&gt;&gt;<i> individual or entity to which this message is addressed, and unless
+</I>&gt;&gt;<i> otherwise
+</I>&gt;&gt;<i> expressly indicated, is confidential and privileged information of
+</I>&gt;&gt;<i> Rackspace.
+</I>&gt;&gt;<i> Any dissemination, distribution or copying of the enclosed material is
+</I>&gt;&gt;<i> prohibited.
+</I>&gt;&gt;<i> If you receive this transmission in error, please notify us immediately by
+</I>&gt;&gt;<i> e-mail
+</I>&gt;&gt;<i> at <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">abuse at rackspace.com</A>, and delete the original message.
+</I>&gt;&gt;<i> Your cooperation is appreciated.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     
+</I>
+
+-- 
+--M. Dragon
+
+
+
+Confidentiality Notice: This e-mail message (including any attached or
+embedded documents) is intended for the exclusive and confidential use of the
+individual or entity to which this message is addressed, and unless otherwise
+expressly indicated, is confidential and privileged information of Rackspace.
+Any dissemination, distribution or copying of the enclosed material is prohibited.
+If you receive this transmission in error, please notify us immediately by e-mail
+at <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">abuse at rackspace.com</A>, and delete the original message.
+Your cooperation is appreciated.
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090129/27cc3a0f/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090129/27cc3a0f/attachment.html</A>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025975.html">[mod_python] Bizarre error wiping globals() under mod_python ...
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25976">[ date ]</a>
+              <a href="thread.html#25976">[ thread ]</a>
+              <a href="subject.html#25976">[ subject ]</a>
+              <a href="author.html#25976">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

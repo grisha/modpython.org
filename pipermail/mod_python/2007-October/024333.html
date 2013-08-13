@@ -1,0 +1,240 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re:mod_python and connection to database.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3Amod_python%20and%20connection%20to%20database.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024331.html">
+   <LINK REL="Next"  HREF="024334.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re:mod_python and connection to database.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Thimios Katsoulis</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3Amod_python%20and%20connection%20to%20database.&In-Reply-To="
+       TITLE="[mod_python] Re:mod_python and connection to database.">thkatsou at yahoo.gr
+       </A><BR>
+    <I>Mon Oct 15 05:03:23 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024331.html">[mod_python] Re:mod_python and connection to database. (Rodion)
+</A></li>
+        <LI>Next message: <A HREF="024334.html">[mod_python] Re:mod_python and connection to database.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24333">[ date ]</a>
+              <a href="thread.html#24333">[ thread ]</a>
+              <a href="subject.html#24333">[ subject ]</a>
+              <a href="author.html#24333">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+&gt;<i>Hmm, I not sure if this is an answer to your own question or you are
+</I>&gt;<i>replying to a really old post, as I don't remember the question.
+</I>
+&gt;<i>Either way, the code being presented as an example on the way to solve
+</I>&gt;<i>this is unsafe for a number of reasons.
+</I>
+&gt;<i>The first reason is that it isn't thread protected and thus isn't safe
+</I>&gt;<i>in a multithread process such as when Apache UNIX worker MPM or
+</I>&gt;<i>Windows winnt MPM is used. This is because multiple handlers could be
+</I>&gt;<i>executing concurrently and both decide the global database handle
+</I>&gt;<i>needs to be created. 
+</I>
+
+What you mean by multiple handlers ? Multithreaded apache that has multiple threads 
+in each process? So in this case global variables are shared 
+ between different threads in the same process
+right?
+
+
+&gt;<i>This could result in wasted resources.
+</I>
+Wasted resources? Pls explain.
+
+
+&gt;<i>A second possible problem which can occur is where the global database
+</I>&gt;<i>handle and the code for creating it, is placed in a code module which
+</I>&gt;<i>is the subject of automatic reloading.
+</I>
+I have now realized that in every reload of the file even if the global variable
+ was created in previous invocation  it is re-created.
+But why ? Once it's created as global shouldn't it exist after first invocation of the module
+ and thus not be recreated ?
+
+&gt;<i> So, once threading issues are
+</I>&gt;<i>dealt with then okay, but do not go putting it in the same code file
+</I>&gt;<i>as your mod_python handlers, or in general anywhere in the document
+</I>&gt;<i>tree. Instead put it in a module somewhere else on sys.path outside of
+</I>&gt;<i>the document tree. For an example of why this can be a problem see:
+</I>
+&gt;<i>  <A HREF="http://groups.google.com/group/sqlalchemy/browse_thread/thread/5193bc7598f045fb#">http://groups.google.com/group/sqlalchemy/browse_thread/thread/5193bc7598f045fb#</A>
+</I>
+&gt;<i>Also ensure you read documentation for import_module() in:
+</I>
+ &gt; <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html">http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html</A>
+
+&gt;<i>It mentions a bit about resource leakage and transferring data from
+</I>&gt;<i>old module to new module. Ensure you are using mod_python 3.3.1
+</I>&gt;<i>though, as older versions were a bit less predictable.
+</I>
+&gt;<i>  <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/ModuleImportingIsBroken">http://www.dscpl.com.au/wiki/ModPython/Articles/ModuleImportingIsBroken</A>
+</I>
+Graham
+
+On 14/10/2007, Thimios Katsoulis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">thkatsou at yahoo.gr</A>&gt; wrote:
+&gt;<i> Hello.
+</I>&gt;<i>
+</I>&gt;<i> Sorry for my poor english. Here is my mod_python code. This is a simple
+</I>&gt;<i> URL shorter:
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import apache, util
+</I>&gt;<i> import psycopg2 as psycopg
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>      req.content_type = &quot;text/plain&quot;
+</I>&gt;<i>      url_id = req.args
+</I>&gt;<i>      connection = psycopg.connect(&quot;dbname=my_db&quot;)
+</I>&gt;<i>      cursor = connection.cursor()
+</I>&gt;<i>      cursor.execute(&quot;&quot;&quot;SELECT myurl FROM urls WHERE myid=%s&quot;&quot;&quot;,(url_id))
+</I>&gt;<i>      original_url = cursor.fetchone()[0]
+</I>&gt;<i>      connection.close()
+</I>&gt;<i>      util.redirect(req,original_url)
+</I>&gt;<i>      req.status = apache.DONE
+</I>&gt;<i>      return apache.DONE
+</I>&gt;<i>
+</I>&gt;<i> This programme connects database everytime, but I want(need) force him
+</I>&gt;<i> to connect it continously
+</I>&gt;<i>
+</I>&gt;<i> This script connects database everytime (psycopg.connect(&quot;dbname=my_db&quot;)
+</I>&gt;<i> , but I nedd force to stay conneceted with it continously. It is
+</I>&gt;<i> possible to make that in mod_python ? I have mod_python 3.2.10
+</I>&gt;<i>
+</I>&gt;<i> Thanks in advance.
+</I>&gt;<i> rdn
+</I>&gt;<i> ---------------
+</I>&gt;<i>
+</I>&gt;<i> Yes mod_python can maintain global variables per interpreter, so you can open once the connection
+</I>&gt;<i> and all subsequent requests will use the opened connection.
+</I>&gt;<i> You have to declare your connection variable as global e.g. :
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>     def getConn(self):
+</I>&gt;<i>
+</I>&gt;<i>         try:
+</I>&gt;<i>             if _conn == None:
+</I>&gt;<i>                 self.openConn()
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>         except NameError:
+</I>&gt;<i>             self.openConn()
+</I>&gt;<i>         return _conn
+</I>&gt;<i>
+</I>&gt;<i>     def openConn(self):
+</I>&gt;<i>
+</I>&gt;<i>         global _conn
+</I>&gt;<i>         _conn = connect(self.ConnStr)
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> So when you want to access it you call self.getConn().
+</I>&gt;<i> The _conn global variable will instantiate once for each mod_python apache process.
+</I>&gt;<i> You can include some apache.log_error calls in the code above to watch
+</I>&gt;<i> for yourself when the  _conn varible gets instantiated and when it is retreived as global.
+</I>&gt;<i> Please take notice from what I have observed that while you maintain open connections to DB (postgresql too in my case)
+</I>&gt;<i> you cannot change structure of the tables etc in the DB..
+</I>&gt;<i> Of course if you are using modules and not objects you have to alter  the code to  support (removing self ..) modules.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> ___________________________________________________________
+</I>&gt;<i> &#935;&#961;&#951;&#963;&#953;&#956;&#959;&#960;&#959;&#953;&#949;&#943;&#964;&#949; Yahoo!;
+</I>&gt;<i> &#914;&#945;&#961;&#949;&#952;&#942;&#954;&#945;&#964;&#949; &#964;&#945; &#949;&#957;&#959;&#967;&#955;&#951;&#964;&#953;&#954;&#940; &#956;&#951;&#957;&#973;&#956;&#945;&#964;&#945; (spam); &#932;&#959; Yahoo! Mail
+</I>&gt;<i> &#948;&#953;&#945;&#952;&#941;&#964;&#949;&#953; &#964;&#951;&#957; &#954;&#945;&#955;&#973;&#964;&#949;&#961;&#951; &#948;&#965;&#957;&#945;&#964;&#942; &#960;&#961;&#959;&#963;&#964;&#945;&#963;&#943;&#945; &#954;&#945;&#964;&#940; &#964;&#969;&#957; &#949;&#957;&#959;&#967;&#955;&#951;&#964;&#953;&#954;&#974;&#957;
+</I>&gt;<i> &#956;&#951;&#957;&#965;&#956;&#940;&#964;&#969;&#957; <A HREF="http://login.yahoo.com/config/mail?.intl=gr">http://login.yahoo.com/config/mail?.intl=gr</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+
+
+------------------------------
+
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+
+End of Mod_python Digest, Vol 55, Issue 18
+******************************************
+
+
+
+
+
+      
+___________________________________________________________ 
+&#935;&#961;&#951;&#963;&#953;&#956;&#959;&#960;&#959;&#953;&#949;&#943;&#964;&#949; Yahoo!; 
+&#914;&#945;&#961;&#949;&#952;&#942;&#954;&#945;&#964;&#949; &#964;&#945; &#949;&#957;&#959;&#967;&#955;&#951;&#964;&#953;&#954;&#940; &#956;&#951;&#957;&#973;&#956;&#945;&#964;&#945; (spam); &#932;&#959; Yahoo! Mail 
+&#948;&#953;&#945;&#952;&#941;&#964;&#949;&#953; &#964;&#951;&#957; &#954;&#945;&#955;&#973;&#964;&#949;&#961;&#951; &#948;&#965;&#957;&#945;&#964;&#942; &#960;&#961;&#959;&#963;&#964;&#945;&#963;&#943;&#945; &#954;&#945;&#964;&#940; &#964;&#969;&#957; &#949;&#957;&#959;&#967;&#955;&#951;&#964;&#953;&#954;&#974;&#957; 
+&#956;&#951;&#957;&#965;&#956;&#940;&#964;&#969;&#957; <A HREF="http://login.yahoo.com/config/mail?.intl=gr">http://login.yahoo.com/config/mail?.intl=gr</A> 
+
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024331.html">[mod_python] Re:mod_python and connection to database. (Rodion)
+</A></li>
+	<LI>Next message: <A HREF="024334.html">[mod_python] Re:mod_python and connection to database.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24333">[ date ]</a>
+              <a href="thread.html#24333">[ thread ]</a>
+              <a href="subject.html#24333">[ subject ]</a>
+              <a href="author.html#24333">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

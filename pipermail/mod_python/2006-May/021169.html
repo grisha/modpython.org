@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Custom Login with redirection back to referer
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Custom%20Login%20with%20redirection%20back%20to%20referer&In-Reply-To=5c06fa770605191249h4f496066v77f85114d3602dd4%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021166.html">
+   <LINK REL="Next"  HREF="021170.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Custom Login with redirection back to referer</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Custom%20Login%20with%20redirection%20back%20to%20referer&In-Reply-To=5c06fa770605191249h4f496066v77f85114d3602dd4%40mail.gmail.com"
+       TITLE="[mod_python] Custom Login with redirection back to referer">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat May 20 01:40:01 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021166.html">[mod_python] Custom Login with redirection back to referer
+</A></li>
+        <LI>Next message: <A HREF="021170.html">[mod_python] Custom Login with redirection back to referer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21169">[ date ]</a>
+              <a href="thread.html#21169">[ thread ]</a>
+              <a href="subject.html#21169">[ subject ]</a>
+              <a href="author.html#21169">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 20/05/2006, at 5:49 AM, Deron Meranda wrote:
+
+&gt;<i> On 5/19/06, Geoff Skerrett &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">geoff at teammsa.com</A>&gt; wrote:
+</I>&gt;&gt;<i> I am hoping someone can get me back on track and point me in thr  
+</I>&gt;&gt;<i> right
+</I>&gt;&gt;<i> direction.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I want to create a process where if the user requests a page they  
+</I>&gt;&gt;<i> are not
+</I>&gt;&gt;<i> authorized for then;
+</I>&gt;&gt;<i> 1) a custom logon form is displayed
+</I>&gt;&gt;<i> 2) the users submits and it is processed verifying against a  
+</I>&gt;&gt;<i> database if the
+</I>&gt;&gt;<i> user is valid
+</I>&gt;&gt;<i> 3) as part of the processing a session is created
+</I>&gt;&gt;<i> 4) the session stores the some data  (userid, name, lastip, etc)
+</I>&gt;&gt;<i> 5) when complete the system redirects the user to the original  
+</I>&gt;&gt;<i> page (ie the
+</I>&gt;&gt;<i> referrer for the login)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I have a test case working and using the util.redirect function.   
+</I>&gt;&gt;<i> Everything
+</I>&gt;&gt;<i> works fine, but the referred page is processed, it gets a new  
+</I>&gt;&gt;<i> session so the
+</I>&gt;&gt;<i> variables I have stored during the login page process aren't  
+</I>&gt;&gt;<i> available to
+</I>&gt;&gt;<i> the refered page.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> What am I missing? What is the best strategy for storing the session
+</I>&gt;&gt;<i> variables and dealing with this type of process ?
+</I>&gt;<i>
+</I>&gt;<i> First of all, be cautious using redirection for that purpose.  Proxy
+</I>&gt;<i> servers, caching, and the like may decide to just cache the
+</I>&gt;<i> redirects too.  And then you'd have cross-user contamination.
+</I>
+The HTTP specification actually says for 307 (Temporary Redirection),  
+which
+is what one would want to use:
+
+   The requested resource resides temporarily under a different URI.  
+Since the
+   redirection MAY be altered on occasion, the client SHOULD continue  
+to use
+   the Request-URI for future requests. This response is only  
+cacheable if
+   indicated by a Cache-Control or Expires header field.
+
+In other words, any cache should by default not cache such a  
+response. In
+order for it to be cached, it would require the handler to have  
+explicitly set
+appropriate Cache-Control and/or Expires headers to tell it to cache it.
+
+So, as far as the response redirecting a request to a login page is  
+concerned,
+that shouldn't be a problem in respect of any caching mechanism.
+
+Where caching is more of an issue is where the login page presents  
+the form
+and does a request against some other URL to perform the  
+authentication. If
+this is a POST, then it should be okay as a cache shouldn't remember  
+POST
+requests. If someone wanted to mimic the POST and used a GET,  
+supplying the
+form parameters in the URL as part of the query string, then a cache may
+remember the result of the authentication request if the handler for  
+it didn't
+explicitly prohibit caching. Thus, always a good idea for the handler  
+in this
+case to explicitly prohibit caching of the response.
+
+But then, the handler doing the authentication should be returning  
+yet another
+redirect under normal circumstances to get back to the original page,  
+thus
+shouldn't be cached after all as per specification for 307 responses.  
+Still good
+idea to explicitly deny caching, and may be even better for the login  
+handler to
+only work with POST requests and disallow GET requests. Same for any  
+logout
+handler.
+
+All in all, it can be a bit tricky. Since there has been a couple of  
+queries about
+session based form login lately, I'll try and post some code of my  
+own that I
+was playing with. The code though only works with mod_python 3.3  
+development
+version, but still may be good for a laugh, ... I mean, may be useful  
+for ideas. The
+code may well be adapted back to mod_python 3.2.8, but don't have  
+time right
+now to do that.
+
+PS. This is my understanding of things. I could also be wrong. ;-)
+
+Graham
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021166.html">[mod_python] Custom Login with redirection back to referer
+</A></li>
+	<LI>Next message: <A HREF="021170.html">[mod_python] Custom Login with redirection back to referer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21169">[ date ]</a>
+              <a href="thread.html#21169">[ thread ]</a>
+              <a href="subject.html#21169">[ subject ]</a>
+              <a href="author.html#21169">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,291 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] requests are blocking when using req.sendfile
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20requests%20are%20blocking%20when%20using%20req.sendfile&In-Reply-To=62971.98.210.193.72.1222480736.squirrel%40webmail.wageslavery.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025657.html">
+   <LINK REL="Next"  HREF="025659.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] requests are blocking when using req.sendfile</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20requests%20are%20blocking%20when%20using%20req.sendfile&In-Reply-To=62971.98.210.193.72.1222480736.squirrel%40webmail.wageslavery.org"
+       TITLE="[mod_python] requests are blocking when using req.sendfile">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat Sep 27 00:26:01 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025657.html">[mod_python] requests are blocking when using req.sendfile
+</A></li>
+        <LI>Next message: <A HREF="025659.html">[mod_python] requests are blocking when using req.sendfile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25658">[ date ]</a>
+              <a href="thread.html#25658">[ thread ]</a>
+              <a href="subject.html#25658">[ subject ]</a>
+              <a href="author.html#25658">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I ask again what I asked before and which you didn't answer.
+
+How many concurrent requests for these files are you receiving and how
+long does it take to download a file?
+
+In respect of your original comment
+
+&gt;<i> it works..  but the problem is, requests start backing up whenever a
+</I>&gt;<i> download is being sent.  it looks like new requests are being sent
+</I>&gt;<i> to the apache process that is tied up sending the download file.  i
+</I>&gt;<i> don't understand why this is happening though.  i would think that
+</I>&gt;<i> while it's sending the file, no new requests would be queued in that
+</I>&gt;<i> process.
+</I>
+If you are truly using prefork MPM, then new requests cant be sent to
+the busy process as requests are effectively accepted by a process
+only when it is ready to handle a request.
+
+Please verify which MPM is being used by running:
+
+  httpd -V
+
+How many httpd processes are running at the time you are making
+requests that appear to be blocked?
+
+What happens if you make requests at same time from a different web
+browser or from another box, are they also stalled?
+
+Are you using any AJAX stuff on client side for handling the download?
+
+Graham
+
+2008/9/27 Matt Barnicle &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mattb at wageslavery.org</A>&gt;:
+&gt;<i> sorry maybe i wasn't being clear..  i did get your code suggestions
+</I>&gt;<i> working, so that i've replaced the req.sendfile code with the
+</I>&gt;<i> apache.DECLINED code.  and it is sending the file ok and i'm
+</I>&gt;<i> downloading it ok, but it doesn't fix the problem as i originally
+</I>&gt;<i> posted, that the downloading is causing apache to block me when i
+</I>&gt;<i> click on links while the download is happening.
+</I>&gt;<i>
+</I>&gt;<i> - m@
+</I>&gt;<i>
+</I>&gt;&gt;<i> What does your handler actually do? The following works for me no
+</I>&gt;&gt;<i> problems.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> from mod_python import apache
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> def handler(req):
+</I>&gt;&gt;<i>     req.filename = '/etc/services'
+</I>&gt;&gt;<i>     req.finfo = apache.stat(req.filename, apache.APR_FINFO_MIN)
+</I>&gt;&gt;<i>     return apache.DECLINED
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Does the file exist prior to calling apr.stat()?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Apache even sets the output headers okay:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> HTTP/1.1 200 OK
+</I>&gt;&gt;<i> Date: Fri, 26 Sep 2008 09:50:33 GMT
+</I>&gt;&gt;<i> Server: Apache/2.2.8 (Unix) mod_python/3.3.2-dev-20080311
+</I>&gt;&gt;<i> Python/2.5.1
+</I>&gt;&gt;<i> mod_ssl/2.2.8 OpenSSL/0.9.7l DAV/2 mod_wsgi/3.0-TRUNK
+</I>&gt;&gt;<i> Last-Modified: Sun, 23 Sep 2007 21:37:31 GMT
+</I>&gt;&gt;<i> ETag: &quot;535d-a5847-43ad44fac1cc0&quot;
+</I>&gt;&gt;<i> Accept-Ranges: bytes
+</I>&gt;&gt;<i> Content-Length: 677959
+</I>&gt;&gt;<i> Connection: close
+</I>&gt;&gt;<i> Content-Type: text/plain
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Ie., ETag and length etc.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 2008/9/26 Matt Barnicle &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mattb at wageslavery.org</A>&gt;:
+</I>&gt;&gt;&gt;<i> nope  :-(
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> One last thing to add then. If this doesn't work, I'll have to
+</I>&gt;&gt;&gt;&gt;<i> just
+</I>&gt;&gt;&gt;&gt;<i> try it myself. :-)
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>   req.handler = 'default-handler'
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> 2008/9/26 Matt Barnicle &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mattb at wageslavery.org</A>&gt;:
+</I>&gt;&gt;&gt;&gt;&gt;<i> ok, that worked..  but unfortunately the blocking issue is still
+</I>&gt;&gt;&gt;&gt;&gt;<i> happening.  i've verified that the download controller is
+</I>&gt;&gt;&gt;&gt;&gt;<i> returning
+</I>&gt;&gt;&gt;&gt;&gt;<i> apache.DECLINED and the file downloads ok.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> - m@
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> Try adding:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>   req.path_info = ''
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> 2008/9/26 Matt Barnicle &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mattb at wageslavery.org</A>&gt;:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> 2008/9/25 Matt Barnicle &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mattb at wageslavery.org</A>&gt;:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> 2008/9/24 Matt Barnicle &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mattb at wageslavery.org</A>&gt;:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Are you setting a content length on the response before
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> calling
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> req.sendfile()?
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> How many concurrent requests for these files are you
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> receiving
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> and
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> how long does it take to download a file?
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> yes, i believe so..  now that you mention it, i haven't
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> verified
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> the file size from the code below, i will do that to be
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> sure.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> here
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> is the code:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> file_path = self.conf.run.app_folder + 'public' +
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> download.path
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> file_stat = os.stat(file_path)
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> file_size = str(file_stat.st_size)
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> self.req.headers_out['Content-Length'] = file_size
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> self.req.headers_out['Content-Disposition'] = 'attachment;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> filename=%s' % os.path.basename(file_path)
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> bytes_sent = self.req.sendfile(file_path)
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> BTW, now that you are using mod_python 3.3.1, instead of
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> using
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> req.sendfile(), you could possibly delegate serving of the
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> static file
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> back to Apache. From memory this can be done using:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   req.filename = self.conf.run.app_folder + 'public' +
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> download.path
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   req.finfo = apache.stat(req.filename,
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> apache.APR_FINFO_MIN)
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   return apache.DECLINED
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> By returning apache.DECLINED you say mod_python handler
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> will
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> not
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> actually handle it, and by having updated req.filename and
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> req.fileinfo updated to new file, when it falls through to
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> default-handler it should serve it as static file.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Doing it this way should bypass prior Apache access control
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> checks.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Thus file doesn't need to be in Apache document tree or
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> anywhere
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> else
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> that is accessible.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> I believe doing it this way also has benefit that Apache
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> will
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> automatically set various headers that you probably
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> wouldn't
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> be.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Please let us know if this alternate method works.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> i tried the following but it doesn't seem to do what i want:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> DocumentRoot /var/www/my/application/public
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> &lt;Directory /var/www/my/application/public&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  AddHandler python-program .py
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  PythonHandler myhandler
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> &lt;/Directory&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Use SetHandler instead of AddHandler.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   DocumentRoot /var/www/my/application/public
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   &lt;Directory /var/www/my/application/public&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>    SetHandler python-program
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>    PythonHandler myhandler
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   &lt;/Directory&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> ok, getting closer..  now i get a 404 error in the browser
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> saying
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> 'The requested URL /download/file/3 was not found on this
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> server.'
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> and in the apache logs:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> File does not exist:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> /var/www/application/public/downloads/music/music.zip/file/3
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> so it looks like it's taking the last part of the URI and
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> appending
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> it to the physical filename and looking for that...  the
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> request
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> URI
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> is '<A HREF="http://example.com/download/file/3'.">http://example.com/download/file/3'.</A>  the 'download'
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> controller
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> is what manages the music downloads.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> - m@
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025657.html">[mod_python] requests are blocking when using req.sendfile
+</A></li>
+	<LI>Next message: <A HREF="025659.html">[mod_python] requests are blocking when using req.sendfile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25658">[ date ]</a>
+              <a href="thread.html#25658">[ thread ]</a>
+              <a href="subject.html#25658">[ subject ]</a>
+              <a href="author.html#25658">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

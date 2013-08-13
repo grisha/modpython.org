@@ -1,0 +1,404 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Articles on module importing.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Articles%20on%20module%20importing.&In-Reply-To=42CE9265.7040308%40joreybump.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018641.html">
+   <LINK REL="Next"  HREF="018637.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Articles on module importing.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Articles%20on%20module%20importing.&In-Reply-To=42CE9265.7040308%40joreybump.com"
+       TITLE="[mod_python] Articles on module importing.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Jul  9 02:40:40 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018641.html">[mod_python] Articles on module importing.
+</A></li>
+        <LI>Next message: <A HREF="018637.html">[mod_python] searching for publisher example
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18642">[ date ]</a>
+              <a href="thread.html#18642">[ thread ]</a>
+              <a href="subject.html#18642">[ subject ]</a>
+              <a href="author.html#18642">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Note that this has been pushed to the mod_python developers list. It is
+suggested that if you are interested in following this discussion that
+you subscribe to that list instead. Anyone replying to this email please
+remove the standard mod_python list from the cc to keep it just on the
+developers list.
+
+Sorry, it is long email. I was probably deluded in thinking I could
+defer discussions on implementation, but then I guess it isn't strictly
+as it is still more at the level of how it could work. You might want to
+digest the email for some time before replying. :-)
+
+On 09/07/2005, at 12:49 AM, Jorey Bump wrote:
+
+&gt;<i> dharana wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Oh, ok. I feel better now. But I think I should comment that then, 
+</I>&gt;&gt;<i> for me, the new mechanism  won't make a difference in the &quot;apachectl 
+</I>&gt;&gt;<i> restart&quot; routine. I will continue to do restart apache if the new 
+</I>&gt;&gt;<i> mechanism doesn't supports packages. I've abstracted a lot of things 
+</I>&gt;&gt;<i> in my custom handler/webapp so the only thing I'm changing nowadays 
+</I>&gt;&gt;<i> are inside packages (99% of the time).
+</I>&gt;<i>
+</I>&gt;<i> Same here. My published modules typically have only a few functions in 
+</I>&gt;<i> them, and they are usually interfaces to code from package imports. 
+</I>&gt;<i> The reload mechanism would have to support packages to avoid being 
+</I>&gt;<i> another pandora's box.
+</I>
+I'll try and expand on some of the issues about Python packages and why
+it becomes so complicated and provide direction on how it all can work.
+I know it can work as I already have an implementation similar to what
+is described. :-)
+
+The import_module() currently allows you to import the top level of a 
+Python
+package, or a sub module/package within a Python package. Its current 
+support
+for importing a sub module/package at the moment is broken in various 
+ways,
+as I documented in my article.
+
+You probably would not notice these issues if your use of Python 
+packages is
+simplistic, ie., merely to have a bunch of modules kept within a 
+specific
+namespace for convenience. For example, an empty __init__.py in the top 
+level
+directory and a series of file based modules contained within that 
+directory.
+Also, the fact that modules are currently reloaded on top of the 
+existing
+instance does lesson the possibility of problems.
+
+Once a Python package starts to get more complicated and you have
+internal dependencies between different parts of the package itself, you
+will more easily start to encounter problems. This is because dependency
+cycles can develop between the different parts of the Python package. 
+The
+consequence of this is that even if only one part of the Python package
+changes, the only sane thing to do is to reload the complete package. As
+such, at the moment the only reliable way to reload a Python package
+properly is to restart Apache.
+
+If an updated import_module() function attempted to try and support 
+automatic
+reloading of packages properly, it would have to take a similar approach
+whereby where if even a single part of the Python package is changed, 
+it would
+have to ensure that the whole Python package was reloaded.
+
+I haven't quite worked out whether this is even totally possible yet. 
+Even
+to get to the point where I have has exceedingly complicated the design 
+of
+the module importing system.
+
+The reasons for the extra complexity, is that in order to support 
+different
+named modules/packages in different directories, you cannot store 
+modules
+in sys.modules as they are keyed based on the module/package name.
+
+The problem now is that due to how Python internally supports the 
+&quot;import&quot;
+statement internal to a Python package, whereby it will first look for a
+module within in the package itself, requires that the component modules
+of the Python package be stored in sys.modules. I don't know why, but it
+doesn't work if it isn't.
+
+Thus you have a contradiction. The parts of a Python package must be
+present in sys.modules for imports internal to the Python package to
+work, but to put it in sys.modules runs up against the goal of being
+able to use the same name for a module/package in different directories.
+
+To achieve both goals entails still storing the Python package parts
+in sys.modules, but they aren't internally assigned its true name.
+Instead they are given a unique name derived from the path name of
+the file containing the code for that component. Ie., __name__ within
+the module and the key used to store it in sys.modules use this magic
+generated name.
+
+Problem now is that when an import hook is asked to find the sub part
+of a Python package, rather than use the true name of the package in
+the dotted path, eg., &quot;a.b&quot;, it will sometimes use the magic name for
+the parent parts of the path, eg., &quot;magic_name.b&quot;. Therefore you have to
+do some translation of the magic names back and forth.
+
+This all gets even worse when one looks at the issue of modules 
+reloading
+on top of the existing instance, which can cause loss of access to 
+resources
+without them being closed off properly and other problems in a 
+multithreaded
+MPM. To get around the issues, you keep around the old instance of a
+module/package while importing it again into a separate object space.
+For packages where it has to be in sys.modules, it means that magic name
+therefore has to incorporate an instance count such that the name
+changes for each revision of the package.
+
+I don't expect most to understand all this, I just hope you believe me
+when I say that trying to provide support for reloading of Python 
+packages
+is hard. My worry is that the addition of all this extra complexity will
+make the code fragile as it may unknowingly include too many 
+dependencies
+on subtle nuances of how the Python module import system works. Thus,
+it may work fine now (if it can be made to work in the first place),
+but the next major version of Python may break it and we may not always
+be able to work out how to tweak it to work with a newer version of 
+Python.
+
+What does this all mean?
+
+First is that I really don't see it as practical that import_module()
+be able to support Python packages, whether that means importing from
+the root of the package or a sub part of the package, as part of a
+scheme to handle automatic module reloading. To do so adds too much
+complexity, with the code being much more fragile as a result.
+
+I will point out now that this would not affect the ability to specify
+a Python package or sub part of a package in a handler directive such
+as PythonHandler. This is because the dispatch callback for a handler
+is more complicated than it being just a call to import_module(). As
+such, within the dispatch callback, it can do some checks to ascertain
+how it should import a module.
+
+For example, if the module specified by the directive is located in
+the directory the handler pertains to, it would use import_module(),
+specifying the exact directory the module should be loaded from.
+
+As a fallback, it would then use the standard Python module import
+mechanism to otherwise import the module. This would cause sys.path
+to be consulted and the handler could be a Python package as a result.
+No automatic module reloading would be available for a handler module
+found along sys.path in this way.
+
+Because the dispatch callback would explicitly check the directory for
+which the directive is defined to find the module and tell the
+import_module() explicitly this directory, there would not actually
+be a need for that directory to be put in sys.path. This means there
+would be no overlap of directories for which import_module() is being
+used and those in sys.path. The &quot;import&quot; statement within a handler
+in the directory would be made to work without use of sys.path using
+import hooks and other means so that it transparently flows through
+and uses import_module() instead.
+
+For those cases where someone does not want to put a handler in the
+directory the directive applies to, but still make use of automatic
+module reloading, there could be an alternate path definition. For
+example PythonImportModulePath. This path would be searched for the
+file based module and if found, import_module() used to explicitly
+load it from that directory.
+
+Thus, for a handler directive, steps would be:
+
+1. Look in directory directive is defined for and if handler module
+is there, load it using import_module(). It can only be a file based
+module. The name of the module doesn't have to be unique.
+
+2. Look in directories defined by PythonImportModulePath and if found
+there, load it using import_module(). It again can only be a file based
+module. The name of the module doesn't have to be unique (but should 
+it).
+
+3. If still not found, use inbuilt Python __import__ mechanism to try
+and find handler module. In this case, could be a file based module or
+package, but it must be on sys.path. The PythonPath setting can still
+be used to extend sys.path as to alternate places to look. The name of
+the module/package must be unique within the set of all modules and
+packages available by searching sys.path.
+
+Next issue is how import_module() would work when called explicitly
+within a handler.
+
+Up till now if no path has been supplied to import_module() it would
+search sys.path. This I believe needs to change.
+
+Instead of searching sys.path, it should instead search
+PythonImportModulePath. The reason for this is that it retains the
+clear separation between directories where the standard Python
+builtin import mechanism is used and those where import_module()
+is used. Doing this avoids the problems caused by a module being
+imported from different places using the different mechanisms.
+
+The trick here is how does import_module() get access to the value
+of PythonImportModulePath as it is generally only accessible via the
+req object and a user may not have that available to supply to the
+import_module() method. There is a similar problem here with how the
+log and autoreload options have to be passed to import_module().
+
+The solution here is that mod_python itself, which already holds the
+req object when it calls the handler, should provide a means to
+access the current request object from code where it doesn't otherwise
+have it. This could be as _apache.current_request(). In general it
+would be the intention that this only be used for Python code within
+mod_python itself, like import_module(), but it may also be useful
+to implementors of other handlers extending on mod_python.
+
+With this function, import_module() can internally derive the value
+of PythonImportModulePath as well as PythonDebug and PythonAutoReload.
+Knowing the latter makes the log and autoreload options redundant and
+addresses other issues I raised in my article.
+
+As to when a path is explicitly supplied to import_module(), this
+would still behave the same way, with that path being searched for
+the module.
+
+Note though that when import_module() is used, it would only look
+for file based modules. It would not pick up Python packages even
+if located in the directories where it was told to look.
+
+Because this would break backward compatibility, what one might
+instead do then, is provide a new apache.import_file() function.
+This function would strictly enforce only being able to load file
+based modules. The import_module() method then could implement the
+steps:
+
+1. If no explicit search path provided, set the search path to the
+value of PythonImportModulePath.
+
+2. Look in directories defined by search path and if found
+there, load it using import_file(). It can only be a file based
+module. The name of the module doesn't have to be unique.
+
+3. If still not found, use inbuilt Python __import__ mechanism to try
+and find handler module. In this case, could be a file based module or
+package, but it must be on sys.path. The PythonPath setting can still
+be used to extend sys.path as to alternate places to look. The name of
+the module/package must be unique within the set of all modules and
+packages available by searching sys.path.  No automatic reloading
+would apply to modules/packages found this way.
+
+The import_file() function would though have to raise some unique
+exception type so that the import_module() knows that the module could
+not be found and thus move on to trying __import__ instead.
+
+If import_module() is implemented like this, then the existing code
+to find the handler probably wouldn't need to be changed and neither
+would any user code. Whereas before any modules found on sys.path
+using import_module() would have automatic module reloading applied
+to them, this would no longer occur and thus user would need to
+shift any additional search directories added using PythonPath
+into PythonImportModulePath instead. That way module reloading would
+work on them. Because of the multiple levels of functions, a name
+other than PythonImportModulePath may be more appropriate.
+
+Next is what happens when the &quot;import&quot; statement is used within
+a handler. At the moment it will allow importing of modules from
+directories specified by handler directive and sys.path.
+
+In this case, import hooks as per PEP 302 would be used to customise
+how the &quot;import&quot; statement works. It would work similar to the steps
+above except that the search path would be the combination of the
+directory in which the importers code is located, the handler root
+directory and the value of PythonImportModulePath. If it isn't in
+those locations it would fall through to using standard import from
+sys.path. Obviously if found on sys.path, no automatic module reloading
+and because Python packages aren't supported by import_module(), they
+have to be on sys.path.
+
+Note that this would always add a search of local directory where
+the Python code is located first. This is different to now for the
+case of a subdirectory, but I really feel that this makes more sense
+when you consider that for the nearest parallel, ie., that of packages,
+it will always find a module in the same directory first. I know this
+isn't a true Python package, but that modules can be spread over
+a directory hierarchy when dispatchers such as mod_python.publisher
+are used yet there is still only one handler root, makes it similar
+in some ways.
+
+It also must be noted that &quot;import&quot; would only try and use the 
+mod_python
+module importing system if the module in which it was used was itself
+loaded using the mod_python module importing system in the first place.
+Thus, the use of &quot;import&quot; in a module/package anywhere along sys.path
+would not be impacted and would not start using the mod_python module
+importing system.
+
+As a final summary:
+
+1. Existing code wouldn't need to be changed if two levels of
+import_module()/import_file() are implemented as described. Ie.,
+where import_module() gives appearance of providing same features
+as before.
+
+2. Python packages would have to be on sys.path though. This
+would only be an issue though for where someone had put the Python
+package in the handler root directory, rather than elsewhere and
+hadn't extended the PythonPath setting explicitly.
+
+3. Python packages would not be candidates for automatic module
+reloading.
+
+4. Simple file based modules outside of the handler directories
+which were previously identified by setting PythonPath would not
+be candidates for automatic module reloading unless those
+directories are moved from PythonPath to PythonImportModulePath.
+
+5. The import statement would now transparently make use of the
+mod_python module importing system in modules to import file based
+modules not on sys.path as appropriate. These modules would be
+candidates for automatic module reloading. This bit of magic would
+only occur for modules imported using the mod_python module importing
+system in the first place.
+
+Hmmm, rambled on more than I should have there. Gotta rush out for
+a dinner date now. :-)
+
+Graham
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018641.html">[mod_python] Articles on module importing.
+</A></li>
+	<LI>Next message: <A HREF="018637.html">[mod_python] searching for publisher example
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18642">[ date ]</a>
+              <a href="thread.html#18642">[ thread ]</a>
+              <a href="subject.html#18642">[ subject ]</a>
+              <a href="author.html#18642">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

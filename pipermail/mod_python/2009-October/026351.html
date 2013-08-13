@@ -1,0 +1,275 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problem to migrate one server to another one.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20to%20migrate%20one%20server%20to%20another%20one.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026349.html">
+   <LINK REL="Next"  HREF="026352.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Problem to migrate one server to another one.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Frederic Lambotte</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20to%20migrate%20one%20server%20to%20another%20one.&In-Reply-To="
+       TITLE="[mod_python] Problem to migrate one server to another one.">fla at tinyerp.com
+       </A><BR>
+    <I>Mon Oct 12 10:31:42 EDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026349.html">[mod_python] How to run python scripts on apache?
+</A></li>
+        <LI>Next message: <A HREF="026352.html">[mod_python] Problem to migrate one server to another one.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26351">[ date ]</a>
+              <a href="thread.html#26351">[ thread ]</a>
+              <a href="subject.html#26351">[ subject ]</a>
+              <a href="author.html#26351">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello,
+
+I experienced a problem with mod_python to migrate one server to another 
+one.
+
+You can check the configuration here:
+
+<A HREF="http://auction.tinyerp.org/auction-in-europe.com/aie">http://auction.tinyerp.org/auction-in-europe.com/aie</A>
+There are even some logs available.
+
+It seems the problem is coming from this instruction:
+
+PythonHandler mod_python.publisher
+
+which is the good one. I replace it with testhandler to get more 
+informations about the configuration problems.
+
+This is the index.py:
+
+#!/usr/bin/python
+import os, sys
+
+base_dir = &quot;/home/www/auction-in-europe.com/aie/&quot;
+
+sys.path.insert(0, base_dir)
+
+import albatross
+
+import sql_db
+
+from albatross.apacheapp import Request
+
+from albatross import apacheapp
+from albatross.template import Content, EmptyTag, EnclosingTag
+import string
+import common
+
+
+class AppContext(albatross.SessionFileAppContext):
+    def __init__(self, app):
+        albatross.SessionFileAppContext.__init__(self, app)
+#        path = os.environ.get('PATH_INFO','').split('/')
+#        path = filter(lambda x: x, path)
+#        self.module = path.pop(0)
+#        self.path = {}
+#        while path:
+#            val = path.pop()
+#            self.path[ path.pop() ] = val
+
+    def load_template_once(self, template):
+        new_template = os.path.join(self.lang_get(),template)
+        return 
+albatross.SessionFileAppContext.load_template_once(new_template)
+
+    def load_template(self, template):
+       
+        new_template = os.path.join(self.lang_get(),template)
+        return 
+albatross.SessionFileAppContext.load_template(self,new_template)
+
+    def run_template_once(self, template):
+        new_template = os.path.join(self.lang_get(), template)
+        return 
+albatross.SessionFileAppContext.run_template_once(self,new_template)
+
+    def run_template(self, template):
+        new_template = os.path.join(self.lang_get(), template)
+        return 
+albatross.SessionFileAppContext.run_template(self,new_template)
+
+    def req_get(self):
+        return self.current_url()[len(self.base_url())+1:]
+
+    def args_calc(self):
+        path = self.current_url()[len(self.base_url())+1:].split('/')
+        path = filter(lambda x: x, path)
+        if not len(path):
+            path=['index']
+        self.module = path.pop(0)
+        self.path = {}
+        while path:
+            val = path.pop()
+            self.path[ path.pop() ] = val
+
+    def lang_get(self):
+        if self.request.get_header('host')[:3] in ('fr.','en.'):
+            return self.request.get_header('host')[:2]
+        try:
+            language = self.request.get_header('Accept-Language')
+            if language:
+                new_lang = language[:2]
+                if new_lang in ('fr','en'):
+                    return new_lang
+        except:
+            return 'en'
+        return 'en'
+
+    def hostname_get(self):
+        if self.request.get_header('host')[-17:]=='art-in-europe.com':
+            return 'art'
+        elif self.request.get_header('host')[-21:]=='antique-in-europe.com':
+            return 'antique'
+        else:
+            return 'auction'
+
+    def module_get(self):
+        self.args_calc()
+        return self.module
+    def path_get(self, key):
+        self.args_calc()
+        return self.path[key]
+
+class App(albatross.ModularSessionFileApp):
+    def __init__(self):
+        albatross.ModularSessionFileApp.__init__(self,
+            base_url = '/index.py',
+            module_path = os.path.join(base_dir, 'modules'),
+            template_path = os.path.join(base_dir, 'template'),
+            start_page = 'index',
+            secret = '(=-AiE-)',
+            session_appid='A-i-E',
+            session_dir='/var/tmp/albatross/')
+
+    def create_context(self):
+        return AppContext(self)
+
+class alx_a(albatross.EnclosingTag):
+    name = 'alx-a'
+    def to_html(self, ctx):
+        ctx.write_content('&lt;a')
+        self.write_attribs_except(ctx, 'expr')
+        expr = self.get_attrib('expr')
+        if expr is not None:
+            expr = ctx.eval_expr(expr)
+        ctx.write_content(' href=&quot;%s&quot;' % expr )
+        ctx.write_content('&gt;')
+        albatross.EnclosingTag.to_html(self, ctx)
+        ctx.write_content('&lt;/a&gt;')
+
+# Escape text for attribute values
+def escape_br(text):
+    text = str(text)
+    text = string.replace(text, '&amp;', '&amp;amp;')
+    text = string.replace(text, '&lt;', '&amp;lt;')
+    text = string.replace(text, '&gt;', '&amp;gt;',)
+    text = string.replace(text, '&quot;', '&amp;quot;')
+    text = string.replace(text, &quot;'&quot;, '&amp;#39;')
+    text = string.replace(text, &quot;\n&quot;, '&lt;br&gt;')
+    return text
+
+
+class alx_value(EmptyTag):
+    name = 'alx-value'
+
+    def __init__(self, ctx, filename, line_num, attribs):
+        EmptyTag.__init__(self, ctx, filename, line_num, attribs)
+        #self.compile_expr()
+
+    def to_html(self, ctx):
+        value = ctx.eval_expr(self.get_attrib('expr'))
+        format = self.get_attrib('date')
+        if format:
+            value = time.strftime(format, time.localtime(value))
+            ctx.write_content(value)
+            return
+        lookup_name = self.get_attrib('lookup')
+        if lookup_name:
+            lookup = ctx.get_lookup(lookup_name)
+            if not lookup:
+                self.raise_error('undefined lookup &quot;%s&quot;' % lookup_name)
+            lookup.lookup_html(ctx, value)
+            return
+        if self.has_attrib('noescape'):
+            ctx.write_content(str(value))
+        else:
+            ctx.write_content(escape_br(value))
+
+app = App()
+app.register_tagclasses(alx_a)
+app.register_tagclasses(alx_value)
+
+def handler(req):
+    return app.run(apacheapp.Request(req))
+
+Have any ideas where the problem should come from ?
+
+-- 
+Fr&#233;d&#233;ric Lambotte
+Administrator System
+
+OpenERP - Tiny sprl
+Chauss&#233;e de Namur, 40
+B-1367 Grand-Rosi&#232;re
+Tel: +32.81.81.37.00
+
+Product-Web: <A HREF="http://www.openerp.com">http://www.openerp.com</A>
+On Demand-Web: <A HREF="http://ondemand.openerp.com">http://ondemand.openerp.com</A>
+Corporate-Web: <A HREF="http://www.tiny.be">http://www.tiny.be</A>
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026349.html">[mod_python] How to run python scripts on apache?
+</A></li>
+	<LI>Next message: <A HREF="026352.html">[mod_python] Problem to migrate one server to another one.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26351">[ date ]</a>
+              <a href="thread.html#26351">[ thread ]</a>
+              <a href="subject.html#26351">[ subject ]</a>
+              <a href="author.html#26351">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

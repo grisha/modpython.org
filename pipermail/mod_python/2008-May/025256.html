@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] just authenhandler SOLVED
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20just%20authenhandler%20SOLVED&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025255.html">
+   <LINK REL="Next"  HREF="025257.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] just authenhandler SOLVED</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>John Calixto</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20just%20authenhandler%20SOLVED&In-Reply-To="
+       TITLE="[mod_python] just authenhandler SOLVED">John.Calixto at watchguard.com
+       </A><BR>
+    <I>Tue May  6 15:36:15 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025255.html">[mod_python] just authenhandler
+</A></li>
+        <LI>Next message: <A HREF="025257.html">[mod_python] just authenhandler SOLVED
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25256">[ date ]</a>
+              <a href="thread.html#25256">[ thread ]</a>
+              <a href="subject.html#25256">[ subject ]</a>
+              <a href="author.html#25256">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> &gt; This works for me:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;         &lt;Location /pyauthtest &gt;
+</I>&gt;<i> &gt;                 AuthType                Py
+</I>&gt;<i> &gt;                 Options                 Indexes ExecCGI
+</I>&gt;<i> &gt;                 PythonAuthenHandler     pyauthhandler
+</I>&gt;<i> &gt;                 PythonDebug             On
+</I>&gt;<i> &gt;                 PythonOption            Groups Foo,Bar,Baz
+</I>&gt;<i> &gt;                 PythonOption            ServerRoot  
+</I>&gt;<i> /var/www/instance
+</I>&gt;<i> &gt;                 require                 valid-user
+</I>&gt;<i> &gt;         &lt;/Location&gt;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> 
+</I>&gt;<i> Thanks Ari.
+</I>&gt;<i> 
+</I>&gt;<i> Do you also have a &lt;Directory&gt; stanza in your apache config?  
+</I>&gt;<i> Or are you doing some magic with the ServerRoot value to 
+</I>&gt;<i> effectively build up an index yourself?
+</I>&gt;<i> 
+</I>&gt;<i> John
+</I>
+
+OK, I found something that works for me.  Ari's configuration prompted
+me to try removing the SetHandler directive.  By using just the
+PythonAuthenHandler and PythonAuthzHandler directives, I got the desired
+effect.  It makes sense - I just didn't understand how Set/AddHandler
+interacted with the rest of mod_python.
+
+Here's my final, working configuration:
+
+
+&lt;VirtualHost *&gt;
+	ServerAdmin <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">webmaster at localhost</A>
+	
+	DocumentRoot /var/www/
+	&lt;Directory /&gt;
+		Options FollowSymLinks
+		AllowOverride None
+	&lt;/Directory&gt;
+	&lt;Directory /var/www/&gt;
+		Options Indexes FollowSymLinks MultiViews
+		AllowOverride None
+		Order allow,deny
+		allow from all
+
+            # Notice no SetHandler directive!
+		AuthType customauth
+		PythonAuthenHandler apacheauth
+		PythonAuthzHandler apacheauth
+		PythonPath &quot;sys.path+['/home/user/customauth']&quot;
+		PythonDebug On
+		Require customauth::valid-user
+	&lt;/Directory&gt;
+
+	ErrorLog /var/log/apache2/error.log
+	LogLevel debug
+
+	CustomLog /var/log/apache2/access.log combined
+	ServerSignature On
+
+&lt;/VirtualHost&gt;
+
+
+=================================================================
+
+
+from mod_python import apache
+import authenticators
+import base64
+
+AUTHTYPE = 'customauth'
+AUTHNAME = 'Custom Auth'
+authen = authenticators.authen_shadow
+
+def authenhandler(req):
+    req.ap_auth_type = AUTHTYPE
+    auth_header = req.headers_in.get('Authorization')
+    if auth_header:
+        decoded = base64.b64decode(auth_header.split()[-1])
+        username, password = decoded.split(':')
+        if authen(username, password):
+            req.log_error(&quot;authenticated!&quot;, apache.APLOG_DEBUG)
+            req.user = username
+            return apache.OK
+    req.log_error(&quot;not authenticated!&quot;, apache.APLOG_DEBUG)
+    req.err_headers_out['WWW-Authenticate'] = 'Basic realm=&quot;%s&quot;' %
+AUTHNAME
+    return apache.HTTP_UNAUTHORIZED
+
+def authzhandler(req):
+    if req.user:
+        # do any extra checking against groups, requires, etc.
+        req.log_error(&quot;authorized user %s&quot; % req.user,
+apache.APLOG_DEBUG)
+        return apache.OK
+    return apache.HTTP_UNAUTHORIZED
+
+
+=================================================================
+
+Maybe I missed it in the documentation, but it would be really nice to
+have something stating the interaction between AddHandler/SetHandler,
+and mod_python.
+
+Thanks for reading,
+
+John
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025255.html">[mod_python] just authenhandler
+</A></li>
+	<LI>Next message: <A HREF="025257.html">[mod_python] just authenhandler SOLVED
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25256">[ date ]</a>
+              <a href="thread.html#25256">[ thread ]</a>
+              <a href="subject.html#25256">[ subject ]</a>
+              <a href="author.html#25256">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

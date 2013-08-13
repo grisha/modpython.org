@@ -1,0 +1,394 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python session/form based user authentication
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20session/form%20based%20user%20authentication&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026155.html">
+   <LINK REL="Next"  HREF="026118.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python session/form based user authentication</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>bruce bushby</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20session/form%20based%20user%20authentication&In-Reply-To="
+       TITLE="[mod_python] mod_python session/form based user authentication">bruce.bushby at googlemail.com
+       </A><BR>
+    <I>Sun Mar 29 07:17:58 EDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026155.html">[mod_python] multiple processing of the same python script by the
+	handler
+</A></li>
+        <LI>Next message: <A HREF="026118.html">[mod_python] mod_python session/form based user authentication
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26117">[ date ]</a>
+              <a href="thread.html#26117">[ thread ]</a>
+              <a href="subject.html#26117">[ subject ]</a>
+              <a href="author.html#26117">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi
+
+I've been struggling to implement form based user authentication for some
+time now so I'm posting my progress in the hope that
+more experienced members will comment and any new starters will save
+themselves some time.
+
+A big thanks to John Calixto for getting back to me and suggesting &quot;AuthType
+wgtiauth&quot; and &quot;Require wgti-user&quot;
+
+
+The example works as follows:
+- Attempt to access the protected area gets intercepted by authenhandler, if
+not authorized redirect to login, if login successful, continue to original
+url.
+- Uses DbmSessions (nice when used with a load balancer and RedHat GFS)
+
+
+
+Cheers
+Bruce
+
+
+
+
+My setup:
+
+              OS: Linux Fedora Core 8
+       Apache: Apache/2.2.6 (Fedora)
+mod_python: 3.3.1
+
+
+
+*** add an entry in your hosts file:*
+127.0.0.1       www.mysite.com  mysite.com mysite
+
+
+
+*/etc/httpd/conf/httpd.conf setup (virtual host):
+*NameVirtualHost *:80
+&lt;VirtualHost *:80&gt;
+        ServerName www.mysite.com
+        ServerAlias mysite
+        ServerAdmin <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">webmaster at mysite</A>
+        DocumentRoot /var/www/html/mysite
+
+        &lt;Directory /&gt;
+                SetHandler mod_python
+                AddHandler mod_python.publisher .py
+                PythonHandler mod_python.publisher
+                PythonOption mod_python.dbm_session.database_filename
+&quot;/var/www/html/mysite/dbm/mp_sess.dbm&quot;
+                PythonOption ApplicationPath &quot;/&quot;
+                PythonPath &quot;sys.path+['/var/www/html/mysite/modules']&quot;
+                PythonDebug On
+        &lt;/Directory&gt;
+
+        &lt;Directory /var/www/html/mysite/members&gt;
+                AuthType wgtiauth
+                AuthName &quot;members&quot;
+                Require wgti-user
+                PythonAuthenHandler authsession
+                PythonAuthzHandler authsession
+        &lt;/Directory&gt;
+
+        ErrorLog /var/log/httpd/error.log
+        CustomLog /var/log/httpd/access.log combined
+
+        LogLevel debug
+        ServerSignature On
+
+&lt;/VirtualHost&gt;
+
+
+
+[<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">root at core</A> mysite]# pwd
+/var/www/html/mysite
+[<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">root at core</A> mysite]# find . -ls
+6069239    4 drwxr-x---   6 apache   apache       4096 Mar 29 00:37 .
+6069464    4 drwxr-x---   2 apache   apache       4096 Mar 29 11:43 ./html
+6069466    4 -rwxr-x---   1 apache   apache        236 Mar 26 22:35
+./html/login.html
+6069467    4 -rwxr-x---   1 apache   apache        213 Mar 28 10:40
+./html/indexWelcome.html
+6069478    4 -rwxr-x---   1 apache   apache        448 Mar 29 00:37
+./index.py
+6069469    4 drwxr-x---   2 apache   apache       4096 Mar 29 11:43 ./dbm
+6069195   12 -rw-r-----   1 apache   apache      12288 Mar 29 11:44
+./dbm/mp_sess.dbm
+6069471    4 drwxr-x---   3 apache   apache       4096 Mar 28 10:57
+./members
+6069472    4 drwxr-x---   2 apache   apache       4096 Mar 28 10:56
+./members/html
+6069473    4 -rwxr-x---   1 apache   apache        159 Mar 28 10:17
+./members/html/membersWelcome.html
+6069474    4 -rwxr-x---   1 apache   apache        158 Mar 28 10:56
+./members/html/membersForum.html
+6069475    4 -rwxr-x---   1 apache   apache        569 Mar 28 10:57
+./members/index.py
+6069476    4 drwxr-x---   2 apache   apache       4096 Mar 29 11:40
+./modules
+6069194    4 -rwxr-x---   1 apache   apache       1173 Mar 29 03:10
+./modules/funcs.pyc
+6069196    4 -rwxr-x---   1 apache   apache       1019 Mar 29 03:10
+./modules/authsession.pyc
+6069497    4 -rwxr-x---   1 apache   apache        588 Mar 29 03:09
+./modules/authsession.py
+6069498    4 -rwxr-x---   1 apache   apache        804 Mar 29 03:09
+./modules/funcs.py
+
+
+
+-------------------------------------
+./html/login.html
+-------------------------------------
+&lt;html&gt;
+&lt;body&gt;
+        Login &lt;br&gt;
+        &lt;form action=authenticate method=post&gt;
+        &lt;input name=user type=text&gt;&lt;br&gt;
+        &lt;input name=password type=password&gt;&lt;br&gt;
+        &lt;input name=submit type=submit value=Login&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+
+
+-------------------------------------
+./html/indexWelcome.html
+-------------------------------------
+&lt;html&gt;
+&lt;body&gt;
+        index
+                &lt;br&gt;
+        source address: %s
+                &lt;br&gt;
+                &lt;br&gt;
+                &lt;a href=<A HREF="http://mysite/members">http://mysite/members</A>&gt;members&lt;/a&gt;
+                &lt;br&gt;
+                &lt;br&gt;
+                &lt;a href=/login&gt;login&lt;/a&gt;
+                &lt;br&gt;
+                &lt;a href=logout&gt;logout&lt;/a&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+
+
+-------------------------------------
+./index.py
+-------------------------------------
+from funcs import *
+from mod_python import util
+from mod_python import Cookie
+from mod_python import apache
+from mod_python import Session
+
+def index(req):
+        util.redirect(req,&quot;<A HREF="http://mysite/welcome&quot;">http://mysite/welcome&quot;</A>)
+
+def welcome(req):
+        f = open(&quot;/var/www/html/mysite/html/indexWelcome.html&quot;)
+        indexWelcome = f.read()
+        return indexWelcome % req.connection.remote_ip
+
+def login(req):
+        f = open(&quot;/var/www/html/mysite/html/login.html&quot;)
+        login = f.read()
+        return login
+
+
+-------------------------------------
+./members/html/membersWelcome.html
+-------------------------------------
+&lt;html&gt;
+&lt;body&gt;
+        members
+                &lt;br&gt;
+        source address: %s
+                &lt;br&gt;
+                &lt;br&gt;
+                &lt;a href=/welcome&gt;Home&lt;/a&gt;
+                &lt;br&gt;
+                &lt;a href=/logout&gt;Logout&lt;/a&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+
+
+-------------------------------------
+./members/html/membersForum.html
+-------------------------------------
+&lt;html&gt;
+&lt;body&gt;
+        forum:
+                &lt;br&gt;
+        source address: %s
+                &lt;br&gt;
+                &lt;br&gt;
+                &lt;a href=/welcome&gt;Home&lt;/a&gt;
+                &lt;br&gt;
+                &lt;a href=/logout&gt;Logout&lt;/a&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+
+
+-------------------------------------
+./members/index.py
+-------------------------------------
+from funcs import *
+from mod_python import util
+from mod_python import apache
+from mod_python import Cookie
+from mod_python import Session
+
+def index(req):
+        util.redirect(req,&quot;<A HREF="http://mysite/members/welcome&quot;">http://mysite/members/welcome&quot;</A>)
+
+
+def welcome(req):
+        f = open(&quot;/var/www/html/mysite/members/html/membersWelcome.html&quot;)
+        membersWelcome = f.read()
+        return membersWelcome % req.connection.remote_ip
+
+def forum(req):
+        f = open(&quot;/var/www/html/mysite/members/html/membersForum.html&quot;)
+        membersForum = f.read()
+        return membersForum % req.connection.remote_ip
+
+
+-------------------------------------
+./modules/authsession.py
+-------------------------------------
+from mod_python import util
+from mod_python import apache
+from mod_python import Session
+
+
+def authenhandler(req):
+        req.user = &quot;nobody&quot;
+        req.session = Session.DbmSession(req)
+
+        if req.session.is_new():
+                req.session['referer'] = &quot;<A HREF="http://mysite&quot;">http://mysite&quot;</A> + req.unparsed_uri
+                req.session.save()
+                util.redirect(req,&quot;<A HREF="http://mysite/login&quot;">http://mysite/login&quot;</A>)
+
+        if req.session.has_key('authstatus') and req.session['authstatus']
+== &quot;authenticated&quot;:
+                return apache.OK
+
+        return apache.HTTP_UNAUTHORIZED
+
+
+def authzhandler(req):
+        if req.user:
+                return apache.OK
+
+        return apache.HTTP_UNAUTHORIZED
+
+
+-------------------------------------
+./modules/funcs.py
+-------------------------------------
+from mod_python import util
+from mod_python import apache
+from mod_python import Session
+
+def authenticate(req):
+
+        req.session = Session.DbmSession(req)
+        if req.session.is_new():
+                req.session['referer'] = &quot;<A HREF="http://mysite/welcome&quot;">http://mysite/welcome&quot;</A>
+
+        referer = req.session['referer']
+
+        user = req.form['user']
+        password = req.form['password']
+
+        if user == &quot;demo&quot; and password == &quot;demo&quot;:
+                req.user = user
+                req.session['user'] = user
+                req.session['authstatus'] = 'authenticated'
+                req.session.save()
+                util.redirect(req,referer)
+        else:
+                req.session.delete()
+                req.session = Session.DbmSession(req)
+                referer = req.session['referer']
+                req.session.save()
+                util.redirect(req,&quot;<A HREF="http://mysite/login&quot;">http://mysite/login&quot;</A>)
+
+def logout(req):
+        req.session = Session.DbmSession(req)
+        req.session.delete()
+        util.redirect(req,&quot;<A HREF="http://mysite/welcome&quot;">http://mysite/welcome&quot;</A>)
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090329/8916c798/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090329/8916c798/attachment-0001.html</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026155.html">[mod_python] multiple processing of the same python script by the
+	handler
+</A></li>
+	<LI>Next message: <A HREF="026118.html">[mod_python] mod_python session/form based user authentication
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26117">[ date ]</a>
+              <a href="thread.html#26117">[ thread ]</a>
+              <a href="subject.html#26117">[ subject ]</a>
+              <a href="author.html#26117">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

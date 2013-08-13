@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] quick code review
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20quick%20code%20review&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="011116.html">
+   <LINK REL="Next"  HREF="011115.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] quick code review</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Greg Stein</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20quick%20code%20review&In-Reply-To="
+       TITLE="[mod_python] quick code review">gstein at lyra.org
+       </A><BR>
+    <I>Thu May 25 19:12:10 EST 2000</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="011116.html">[mod_python] reload problem
+</A></li>
+        <LI>Next message: <A HREF="011115.html">[mod_python] quick code review
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7425">[ date ]</a>
+              <a href="thread.html#7425">[ thread ]</a>
+              <a href="subject.html#7425">[ subject ]</a>
+              <a href="author.html#7425">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>There are a number of issues that I see with mod_python.c. I'll try to
+address a good number of them here, but I'm invariably going to miss some.
+After some changes are made, then another pass can be done at that point.
+
+Please try to take this constructively... the goal is to improve the
+code... :-)
+
+*) when storing the tstate into obcallback, use a PyCObject rather than an
+   integer. That will avoid the (int) casting (a no-no)
+
+*) noop is not needed; use ap_null_cleanup() (I think that's the name;
+   close to it, at least)
+
+*) simplify make_obcallback(): the two params are always NULL
+
+*) I don't understand why the PyTypeObject's are init'd/copied in
+   python_init, rather than just doing that at the module level. For
+   example:
+     static PyTypeObject serverobjecttype = { ... };
+
+*) use PyImport_Import() rather than PyRun_SimpleString to get the
+   module imported. This returns the &quot;mod_python&quot; or &quot;mod_python.apache&quot;
+   module (I forget which; probably the former).
+
+*) use PyObject_CallMethod() to call the &quot;init&quot; method in the module
+   retrieved from above. Use the *return* value for obCallBack, rather
+   than the SetCallback nastiness.
+
+*) in python_directive, just use a cast to (py_dir_config *) rather than
+   all the offset stuff. Also, there is no need to dup() the string since
+   it is a constant.
+
+*) unused: python_dict_merge, table2dict, print_table, print_array
+
+*) exit(1) should not be used; use ap_log_rerror() and return failure
+   codes to Apache
+
+*) rather than storing the &quot;request object&quot; into r-&gt;notes, place it into
+   tstate-&gt;dict. you won't have to do the atoi() stuff (which is Bad
+   anyways)
+
+*) use ap_log_rerror() instead of ap_log_error(). the former is better
+   from a logging standpoint (it has more info)
+
+
+That's all for now!
+
+Cheers,
+-g
+
+-- 
+Greg Stein, <A HREF="http://www.lyra.org/">http://www.lyra.org/</A>
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="011116.html">[mod_python] reload problem
+</A></li>
+	<LI>Next message: <A HREF="011115.html">[mod_python] quick code review
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7425">[ date ]</a>
+              <a href="thread.html#7425">[ thread ]</a>
+              <a href="subject.html#7425">[ subject ]</a>
+              <a href="author.html#7425">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

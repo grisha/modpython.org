@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] script_name bug?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20script_name%20bug%3F&In-Reply-To=bh32ej%24m9l%241%40main.gmane.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006628.html">
+   <LINK REL="Next"  HREF="006632.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] script_name bug?</H1>
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20script_name%20bug%3F&In-Reply-To=bh32ej%24m9l%241%40main.gmane.org"
+       TITLE="[mod_python] script_name bug?">grisha at modpython.org
+       </A><BR>
+    <I>Sat Aug  9 13:13:09 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006628.html">[mod_python] script_name bug?
+</A></li>
+        <LI>Next message: <A HREF="006632.html">[mod_python] Re: script_name bug?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6630">[ date ]</a>
+              <a href="thread.html#6630">[ thread ]</a>
+              <a href="subject.html#6630">[ subject ]</a>
+              <a href="author.html#6630">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>
+Russel -
+
+Since mod_python isn't a CGI environment (and doesn't care to be one
+either), the definition of SCRIPT_NAME is rather blurry.
+
+In CGI it is meant to refer to the script which is executed as a separate
+process - in mod_python there is no separate process, and the file
+containing the code isn't located by the web server, but rather follows
+the Python sys.path search rules.
+
+I don't think it would be right to tinker with what req.subprocess_env
+contains - it should return whatever apache put there, uncensored, so to
+that degree it's not a bug as far as I am concerned.
+
+P.S. If you look at build_cgi_env() in apache.py, it seems to adress this
+issue.
+
+Grisha
+
+On Sat, 9 Aug 2003, Russell Yanofsky wrote:
+
+&gt;<i> I've noticed that req.subprocess_env['SCRIPT_NAME'] seems to have the wrong
+</I>&gt;<i> value whenever the requested URL ends in a forward slash. This happens with
+</I>&gt;<i> mod_python 3.0.3 and apache 2.0.47. Here are some examples:
+</I>&gt;<i>
+</I>&gt;<i>   Requested URL: /mptest/mptest.py/
+</I>&gt;<i>     Actual SCRIPT_NAME = /mptest/mptest.py/
+</I>&gt;<i>     Expected SCRIPT_NAME = /mptest/mptest.py
+</I>&gt;<i>     PATH_INFO = /
+</I>&gt;<i>
+</I>&gt;<i>   Requested URL: /mptest/mptest.py/abc/
+</I>&gt;<i>     Actual SCRIPT_NAME = /mptest/mptest.py/abc
+</I>&gt;<i>     Expected SCRIPT_NAME = /mptest/mptest.py
+</I>&gt;<i>     PATH_INFO = /abc/
+</I>&gt;<i>
+</I>&gt;<i>   Requested URL: /mptest/mptest.py/abc/123/
+</I>&gt;<i>     Actual SCRIPT_NAME = /mptest/mptest.py/abc/123
+</I>&gt;<i>     Expected SCRIPT_NAME = /mptest/mptest.py
+</I>&gt;<i>     PATH_INFO = /abc/123/
+</I>&gt;<i>
+</I>&gt;<i> When the request doesn't end with a forward slash there's no problem:
+</I>&gt;<i>
+</I>&gt;<i>   Requested URL: /mptest/mptest.py
+</I>&gt;<i>     Actual SCRIPT_NAME = /mptest/mptest.py
+</I>&gt;<i>     Expected SCRIPT_NAME = /mptest/mptest.py
+</I>&gt;<i>     PATH_INFO =
+</I>&gt;<i>
+</I>&gt;<i>   Requested URL: /mptest/mptest.py/abc
+</I>&gt;<i>     Actual SCRIPT_NAME = /mptest/mptest.py
+</I>&gt;<i>     Expected SCRIPT_NAME = /mptest/mptest.py
+</I>&gt;<i>     PATH_INFO = /abc
+</I>&gt;<i>
+</I>&gt;<i>   Requested URL: /mptest/mptest.py/abc/123
+</I>&gt;<i>     Actual SCRIPT_NAME = /mptest/mptest.py
+</I>&gt;<i>     Expected SCRIPT_NAME = /mptest/mptest.py
+</I>&gt;<i>     PATH_INFO = /abc/123
+</I>&gt;<i>
+</I>&gt;<i> Here's the code I used to produce the above output:
+</I>&gt;<i>
+</I>&gt;<i> -- begin .htaccess listing --
+</I>&gt;<i> AddHandler python-program .py
+</I>&gt;<i> PythonHandler mptest
+</I>&gt;<i> PythonDebug On
+</I>&gt;<i> -- end .htaccess listing --
+</I>&gt;<i>
+</I>&gt;<i> -- begin mptest.py listing --
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>   req.content_type = 'text/plain'
+</I>&gt;<i>   env = req.subprocess_env
+</I>&gt;<i>   req.write('Requested URL: %s\n' % env['REQUEST_URI'])
+</I>&gt;<i>   req.write('  Actual SCRIPT_NAME = %s\n' % env['SCRIPT_NAME'])
+</I>&gt;<i>   fixenv(env)
+</I>&gt;<i>   req.write('  Expected SCRIPT_NAME = %s\n' % env['SCRIPT_NAME'])
+</I>&gt;<i>   req.write('  PATH_INFO = %s\n' % env.get('PATH_INFO', ''))
+</I>&gt;<i>   return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> # This is only a partial fix, does not work in the presence
+</I>&gt;<i> # of double slashes in the PATH_INFO segment
+</I>&gt;<i> def fixenv(env):
+</I>&gt;<i>   path_info = env.get('PATH_INFO', '')
+</I>&gt;<i>   if path_info and path_info[-1] == '/':
+</I>&gt;<i>     script_name = env['SCRIPT_NAME']
+</I>&gt;<i>     path_len = len(path_info) - 1
+</I>&gt;<i>     if path_len:
+</I>&gt;<i>       assert script_name[-path_len:] == path_info[:-1]
+</I>&gt;<i>       env['SCRIPT_NAME'] = script_name[:-path_len]
+</I>&gt;<i>     else:
+</I>&gt;<i>       assert script_name[-1] == '/'
+</I>&gt;<i>       env['SCRIPT_NAME'] = script_name[:-1]
+</I>&gt;<i> -- end mptest.py listing --
+</I>&gt;<i>
+</I>&gt;<i> This behavior only seems to occur in mod_python. SCRIPT_NAME does seem to
+</I>&gt;<i> have the right value in CGI scripts.
+</I>&gt;<i>
+</I>&gt;<i> - Russ
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006628.html">[mod_python] script_name bug?
+</A></li>
+	<LI>Next message: <A HREF="006632.html">[mod_python] Re: script_name bug?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6630">[ date ]</a>
+              <a href="thread.html#6630">[ thread ]</a>
+              <a href="subject.html#6630">[ subject ]</a>
+              <a href="author.html#6630">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

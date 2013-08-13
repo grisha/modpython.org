@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python adapter for mod_wsgi in the make
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20adapter%20for%20mod_wsgi%20in%20the%20make&In-Reply-To=88e286470911270346i23c69831v4fadf2b6fb09acb8%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026388.html">
+   <LINK REL="Next"  HREF="026384.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python adapter for mod_wsgi in the make</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martijn Moeling</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20adapter%20for%20mod_wsgi%20in%20the%20make&In-Reply-To=88e286470911270346i23c69831v4fadf2b6fb09acb8%40mail.gmail.com"
+       TITLE="[mod_python] mod_python adapter for mod_wsgi in the make">martijn at xs4us.nu
+       </A><BR>
+    <I>Fri Nov 27 16:25:22 EST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026388.html">[mod_python] mod_python adapter for mod_wsgi in the make
+</A></li>
+        <LI>Next message: <A HREF="026384.html">[mod_python] errors in apache log 
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26389">[ date ]</a>
+              <a href="thread.html#26389">[ thread ]</a>
+              <a href="subject.html#26389">[ subject ]</a>
+              <a href="author.html#26389">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+For my personal use I am looking for programmatic compatibility (only), simply to run existing code without MP and on top of WSGI.
+Sole reason: end of development MP
+
+Since I do not use all of the functionality of MP I do not need but am willing to extend MODPYTHON_WSGI to help others. Basically most of the MP users relying on passing the Request Object around would be happy with my work pretty soon.
+For full code compatibility I have set up a web server on linux with python 2.6.[don't remember] and mod_wsgi. For testing purposes I have simply created a &quot;mod_python&quot; directory in the side-packages. 
+In there are the __init__.py, Cookie.py util.py and apache.py (Session.py is something special in my case). In these modules I have commented out all references to _apache to see what happens.
+
+next I have made an index.wsgi
+
+There I have &quot;made&quot; the definition of the Request, Connection and Server objects, these might be moved somewhere else (apache.py might be the place).
+
+my original module containing the handlers is imported like:   import index as app
+and:
+app.handler(Request(environ)) 
+
+does the job (without any change to my application, no upload with body possible yet).
+
+The register_cleanup is handled like the example in the wiki of mod_wsgi. For now I keep the references and data in an Array.
+
+So for now I have a working mod_python application running on mod_wsgi.
+
+ToDo shortlist:
+Make req.read() (and similair functions) work
+Solve headers_in. Without that CalDav, WebDav are surely broken (No solution yet, headers_out is done)
+implement request members (Like Req.parsed_uri)
+review util and make things like fieldstorage work
+implement some _apache functionality (log error being the most important for now)
+change Session.py (Random generator is hooked to _apache functionality, workaround works for now)
+
+&gt;<i> 
+</I>&gt;<i> A few questions.
+</I>&gt;<i> 
+</I>&gt;<i> If you don't use publisher, what parts do you use?
+</I>&gt;<i> 
+</I>&gt;<i> 1. PSP?
+</I>No.... I hope I can fix _psp easily.....
+&gt;<i> 2. cgihandler?
+</I>No, Will make that work if really needed and possible
+&gt;<i> 3. FieldStorage?
+</I>Not anymore (My current production version does, will not be ran on MOD_WSGI )
+&gt;<i> 4. Session?
+</I>YES! but I heavily modified the original Session.py, remember my modifications to store in MySQL? Now I rely on SQLAlchemy
+&gt;<i> 5. Cookie?
+</I>See Session, although I am planning to implement Cookieless sessions, somehow, someday
+&gt;<i> 6. import_module() and import overlay?
+</I>Not yet, and not sure I will. This I something I would like to talk to you about for best practice in my highly complex situation, currently way out of topic to discuss here....
+&gt;<i> 7. request_rec, server_rec, conn_rec wrappers?
+</I>Do not really understand the &quot;wrapper&quot; part of your question, I think though my story above does answer it, if not tell me..
+&gt;<i> 8. ap_internal_redirect() wrappers?
+</I>Do not use this since my system basically only uses apache and mod_python as a communication layer and a way to use the python language
+&gt;<i> 
+</I>&gt;<i> Overall, what is it about mod_python that you are doing would make it
+</I>&gt;<i> a better platform that WSGI?
+</I>req, req, req and req again.
+
+I pass req (the request_req) around, add stuff to it etc etc. My code relies on this so mutch that I need it or rebuild the the entire thing. I am developing a kind of a multi user Operating System with a web based desktop. Tho whole thing is developed so it can be scaleable and I am close to start working on the IDE for application development which will run in the web desktop. I have implemented email, calendaring (CalDAV), fileIO (WebDav), MessageQue (Client to Client, Client to server, Server to Server) etc. etc. So you can even sync your Iphone, Mac, Microsoft Exchange etc. so I need low level stuf... over 5 years of research and development has gone into this.
+
+&gt;<i> 
+</I>&gt;<i> Are you aiming for 100% compatibility or more just the style of
+</I>&gt;<i> writing applications?
+</I>Must be clear by now
+
+&gt;<i> 
+</I>&gt;<i> Some stuff like Cookie and FieldStorage could be switched to more
+</I>&gt;<i> modern Python standard library equivalents, but obviously they would
+</I>&gt;<i> not be wholly interface compatible.
+</I>&gt;<i> 
+</I>I See your point, Interface compatibility is the most important point, If someone wants to pick that up....
+
+&gt;<i> The mod_python interfaces are also quite arbitrary and not well
+</I>&gt;<i> thought out in places due to egregious growth over time and could do
+</I>&gt;<i> with some cleanup to make things more uniform.
+</I>
+True. I think though that due to the way the mod_python documentation turned out I think programmers messed around until they all got a way to work with mod_python, one found its answer with PSP the other with different handlers. I recognize my need for protocol level programming and the &quot;event&quot; driven handler model. So after using mod_python for a long time I must confess I am still confused about PSP, publisher etc. sorry if I confuse things.
+
+&gt;<i> 
+</I>&gt;<i> Graham
+</I>
+
+Martijn
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20091127/b1f4bb20/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20091127/b1f4bb20/attachment.html</A>
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026388.html">[mod_python] mod_python adapter for mod_wsgi in the make
+</A></li>
+	<LI>Next message: <A HREF="026384.html">[mod_python] errors in apache log 
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26389">[ date ]</a>
+              <a href="thread.html#26389">[ thread ]</a>
+              <a href="subject.html#26389">[ subject ]</a>
+              <a href="author.html#26389">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

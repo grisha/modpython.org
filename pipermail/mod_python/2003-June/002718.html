@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python weirdness, maybe related to importing?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20weirdness%2C%20maybe%20related%20to%20importing%3F&In-Reply-To=20030610055927.GB28085%40tummy.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002716.html">
+   <LINK REL="Next"  HREF="002719.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python weirdness, maybe related to importing?</H1>
+    <B>David Fraser</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20weirdness%2C%20maybe%20related%20to%20importing%3F&In-Reply-To=20030610055927.GB28085%40tummy.com"
+       TITLE="[mod_python] mod_python weirdness, maybe related to importing?">davidf at sjsoft.com
+       </A><BR>
+    <I>Tue Jun 10 09:12:46 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002716.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+        <LI>Next message: <A HREF="002719.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2718">[ date ]</a>
+              <a href="thread.html#2718">[ thread ]</a>
+              <a href="subject.html#2718">[ subject ]</a>
+              <a href="author.html#2718">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Sean Reifschneider wrote:
+
+&gt;<i>I've been trying to build a web application system using mod_python, and
+</I>&gt;<i>I've been running into some weirdness.  Some of it is just sporadic
+</I>&gt;<i>behavior, some of it seems to be pretty consistent.  Before I get
+</I>&gt;<i>started, my main development system is running Red Hat 9 with Python
+</I>&gt;<i>2.2.2 and I've been trying mod_python 3.0.1 (shipped with RH9) and
+</I>&gt;<i>3.0.3.
+</I>&gt;<i>
+</I>&gt;<i>Basically, I'm building up a package that contains my system.  In it I
+</I>&gt;<i>have a module which contains my handler:
+</I>&gt;<i>
+</I>&gt;<i>   AddHandler python-program .html
+</I>&gt;<i>   PythonHandler jotweb.jotweb_mod_python::handler
+</I>&gt;<i>
+</I>&gt;<i>Basically, my handler is using SimpleTAL to parse some HTML, which will
+</I>&gt;<i>result in my code getting called, which will import things from the
+</I>&gt;<i>jotweb package:
+</I>&gt;<i>
+</I>&gt;<i>   fileName = path + '.py'
+</I>&gt;<i>   fp = open(fileName, 'r')
+</I>&gt;<i>   module = imp.load_source(path, fileName, fp)
+</I>&gt;<i>
+</I>&gt;<i>So, basically, I am trying to load a module from a specific file.
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>Do you mean you're using this import mechanism when you have the problem 
+with jotweb.input.Request below?
+
+&gt;<i>The first problem I'm seeing is that imports are just weird.  For
+</I>&gt;<i>example, if I have code which does &quot;import jotweb.input.Request&quot;,
+</I>&gt;<i>unless my __init__.py in jotweb/input includes:
+</I>&gt;<i>
+</I>&gt;<i>   import Request
+</I>&gt;<i>
+</I>Have you tried using __all__ = [Request, ...] in __init__.py ?
+
+&gt;<i>I will get an error to the effect that the module object contains no
+</I>&gt;<i>element &quot;Request&quot;.  Of course, from a regular Python program, I can do
+</I>&gt;<i>&quot;import jotweb.input.Request&quot; just fine either way.
+</I>&gt;<i>
+</I>&gt;<i>Basically, because of the above, my entire code-base has to be imported
+</I>&gt;<i>when you do an &quot;import jotweb&quot;.
+</I>&gt;<i>
+</I>mod_python does have some import hooks to handle things specially, but 
+I'm not an expect here, someone else will have to comment...
+
+&gt;<i>Further, I'm running into weird issues with headers_out.  If from my
+</I>&gt;<i>jotweb_mod_python.handler code I do:
+</I>&gt;<i>
+</I>&gt;<i>   req.headers_out.add('key', 'value')
+</I>&gt;<i>
+</I>&gt;<i>it will properly add the specified header.  And if this code is executed
+</I>&gt;<i>from the module that is imported as above, it seems to work.  If,
+</I>&gt;<i>however, in this imported module I do:
+</I>&gt;<i>
+</I>&gt;<i>   import jotweb
+</I>&gt;<i>   jotweb.auth.Sessions.processLogin()
+</I>&gt;<i>
+</I>&gt;<i>where &quot;processLogin()&quot; gets a handle to the request object and does
+</I>&gt;<i>req.headers_out.add(), the headers aren't showing up in my browser.
+</I>&gt;<i>HOWEVER, if I telnet to port 80 and issue a GET request to exactly the
+</I>&gt;<i>same URL that I issued in the GET request, the headers are *NOT* getting
+</I>&gt;<i>return as far as I can tell (no cookie is getting set, doing &quot;View
+</I>&gt;<i>Documenat Information&quot; shows not those headers, but if I set headers in
+</I>&gt;<i>my main mod_python handler, it WILL show it.
+</I>&gt;<i>
+</I>&gt;<i>I've verified that the call to headers_out.add() is happening by adding
+</I>&gt;<i>a syslog before it, it's definitely calling that code.
+</I>&gt;<i>
+</I>How do you pass the request object into processLogin (it doesn't seem to 
+be part of the call)?
+It seems like you may be trying to use an old request object or something...
+
+&gt;<i>It seems like at some point something is making it so that
+</I>&gt;<i>headers_out.add() doesn't work any more.  Would pulling the form data
+</I>&gt;<i>out of the request cause that?  Any thoughts on why the imports seem to
+</I>&gt;<i>work quite differently on a name-space basis from how they happen from
+</I>&gt;<i>the interpreter:
+</I>&gt;<i>
+</I>Pulling the form data won't cause it, but writing anything to the 
+request will (it automatically outputs the headers as soon as any 
+content is written).
+
+&gt;<i>
+</I>&gt;<i>   AttributeError: 'module' object has no attribute 'input'
+</I>&gt;<i>
+</I>&gt;<i>Is there something about being in mod_python that makes it a &quot;toy&quot;
+</I>&gt;<i>interpreter in some ways, that mean I'm constantly going to be bumping
+</I>&gt;<i>into weird things?
+</I>&gt;<i>
+</I>No. But it is a bit more complex running a python interpreter inside 
+Apache than standalone.
+
+&gt;<i>Thoughts?
+</I>&gt;<i>
+</I>Hope that helps,
+
+David
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002716.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+	<LI>Next message: <A HREF="002719.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2718">[ date ]</a>
+              <a href="thread.html#2718">[ thread ]</a>
+              <a href="subject.html#2718">[ subject ]</a>
+              <a href="author.html#2718">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

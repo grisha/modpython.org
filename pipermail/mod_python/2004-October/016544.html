@@ -1,0 +1,187 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] using callable classes instead of plain functions in
+	handlers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20using%20callable%20classes%20instead%20of%20plain%20functions%20in%0A%09handlers&In-Reply-To=20040929122830.GA5220%40barbucha.martin.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="016545.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] using callable classes instead of plain functions in
+	handlers</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Daniel Popowich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20using%20callable%20classes%20instead%20of%20plain%20functions%20in%0A%09handlers&In-Reply-To=20040929122830.GA5220%40barbucha.martin.net"
+       TITLE="[mod_python] using callable classes instead of plain functions in
+	handlers">dpopowich at comcast.net
+       </A><BR>
+    <I>Fri Oct  1 11:14:41 EDT 2004</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="016545.html">[mod_python] using callable classes instead of plain functions
+	in	handlers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16544">[ date ]</a>
+              <a href="thread.html#16544">[ thread ]</a>
+              <a href="subject.html#16544">[ subject ]</a>
+              <a href="author.html#16544">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Martin Slouf writes:
+&gt;<i> first of all, thanks for the answer.
+</I>&gt;<i> ...
+</I>&gt;<i> 1. im bound to use PSP -- graphics and gui features are done by
+</I>&gt;<i> another guy, we just cooperate on form fields, i think that it is no
+</I>&gt;<i> problem with mod_python.servlet (i agree, that code generated HTML
+</I>&gt;<i> definitely has its advances, but i cant use it now.)
+</I>
+&lt;soapbox&gt;
+I Understand, but disagree.  If you take the point of view that a
+designer of an interface is just that, a designer, not a coder, then
+you do not have to work in PSP-like systems.  If you were writing a
+Tkinter app, what would you do if you wanted the services of a graphic
+designer to create a usable interface?  Design != Code.
+&lt;/soapbox&gt;
+
+&gt;<i> to use PSP properly i would just call return the psp page from the
+</I>&gt;<i> 'write_content' method, right?
+</I>
+Depends on your PSP.  If your psp files are partial pages or page
+fragments and you want to use HTMLPage to generate the page proper,
+then yes, you can make calls to PSP from within write_content.  BTW,
+I would make your calls to run() like this:
+
+    def write_content(self):
+	template = psp.PSP(self.req, filename='template.html')
+	template.run({'servlet':self})
+
+
+then you can reference servlet inside your psp files and get all the
+goodies from form processing (and even make method calls on your
+servlet).  I think you want to avoid making any references to &quot;form&quot;
+or &quot;session&quot; inside your psp code if using it from mpservlets --
+haven't done any testing, but there might be a collision of effort,
+since both systems encapsulate those objects -- instead, reference
+servlet.form and servlet.session.
+
+If your psp files are complete pages, then you don't want to use
+HTMLPage, but rather subclass Servlet directly.  Something like:
+
+    class PSPServlet(Servlet):
+	def respond(self):
+	   if not Servlet.respond(self):
+	      template = psp.PSP(self.req, filename='template.html')
+	      template.run({'servlet':self})
+	      return True
+       
+&gt;<i> now, finally, the question for you:
+</I>&gt;<i> 
+</I>&gt;<i> with mod_python.servlet it seems like just one class is involved in
+</I>&gt;<i> request processing and im probably unable to &quot;call&quot; another class in
+</I>&gt;<i> case of an error, am i right? or can i just instantiate a new class
+</I>&gt;<i> (new servlet) to handle the request in 'write_content' method,
+</I>&gt;<i> initialize it somehow (how?) and proccess it 'write_content' method?
+</I>
+Don't forget that you're working with pure python inside servlets; you
+can instantiate any class (except other servlets) or call any method
+or function you want to assist in processing a request.  If it's in
+your PYTHONPATH, you can access it.
+
+Also, if you truly want to pass control on to another servlet you can
+always call internal_redirect() and the subrequest can get access to
+the parent request.
+
+Lastly, don't overlook the power of subclassing and python's ability
+to manage methods as first-class objects.  I posted this not too long
+ago for someone asking about managing authentication with mpservlets:
+
+Originally posted 9/3/2004:
+
+&gt;<i> Let's assume you have a servlet for your site that all servlets
+</I>&gt;<i> inherit from:
+</I>&gt;<i> 
+</I>&gt;<i>   class MySitePage(HTMLPage):
+</I>&gt;<i>      ...
+</I>&gt;<i> 
+</I>&gt;<i> and let's also assume that certain pages (not all) need
+</I>&gt;<i> authentication, then I would create another servlet:
+</I>&gt;<i> 
+</I>&gt;<i>   class MySiteAuthPage(MySitePage):
+</I>&gt;<i>     ...
+</I>&gt;<i> 
+</I>&gt;<i> Notice how it subclasses MySitePage.  In MySiteAuthPage.prep() I
+</I>&gt;<i> check the session for proper authentication and set a boolean, say,
+</I>&gt;<i> authenticated.  Then I override write_html() in MySiteAuthPage:
+</I>&gt;<i> 
+</I>&gt;<i>     def write_html(self):
+</I>&gt;<i>         if not self.authenticated:
+</I>&gt;<i>             save, self.write_content = self.write_content, self.genloginform
+</I>&gt;<i>             MySitePage.write_html(self)
+</I>&gt;<i>             self.write_content = save
+</I>&gt;<i>         else:
+</I>&gt;<i>             MySitePage.write_html(self)
+</I>&gt;<i> 
+</I>&gt;<i> where genloginform() makes calls to self.writeln() writing the login
+</I>&gt;<i> form to the browser.  What this does is, if not authenticated,
+</I>&gt;<i> momentarily replaces the write_content method of the servlet with the
+</I>&gt;<i> login form, otherwise, if authenticated, just writes out the page.
+</I>&gt;<i> 
+</I>&gt;<i> Then all my pages for my app either subclass MySitePage or
+</I>&gt;<i> MySiteAuthPage depending on whether or not the page needs
+</I>&gt;<i> authentication.  No calls to internal_redirect are necessary!
+</I>
+Good luck,
+
+Daniel Popowich
+-----------------------------------------------
+<A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="016545.html">[mod_python] using callable classes instead of plain functions
+	in	handlers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16544">[ date ]</a>
+              <a href="thread.html#16544">[ thread ]</a>
+              <a href="subject.html#16544">[ subject ]</a>
+              <a href="author.html#16544">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

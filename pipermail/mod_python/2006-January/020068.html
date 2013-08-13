@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] 3.2.5b - Questions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%203.2.5b%20-%20Questions&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020067.html">
+   <LINK REL="Next"  HREF="020069.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] 3.2.5b - Questions</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%203.2.5b%20-%20Questions&In-Reply-To="
+       TITLE="[mod_python] 3.2.5b - Questions">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Jan 23 17:02:37 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020067.html">[mod_python] 3.2.5b - Questions
+</A></li>
+        <LI>Next message: <A HREF="020069.html">[mod_python] reg editor
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20068">[ date ]</a>
+              <a href="thread.html#20068">[ thread ]</a>
+              <a href="subject.html#20068">[ subject ]</a>
+              <a href="author.html#20068">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Peter Sanchez wrote ..
+&gt;<i> First, I upgraded from 3.2.2b to 3.2.5b last night, and immediately  
+</I>&gt;<i> started getting the following:
+</I>&gt;<i> 
+</I>&gt;<i> [Sun Jan 22 21:33:53 2006] [error] make_obcallback: could not import  
+</I>&gt;<i> mod_python.apache.\n
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i>    File &quot;/usr/local/lib/python2.4/site-packages/mod_python/ 
+</I>&gt;<i> apache.py&quot;, line 765, in ?
+</I>&gt;<i>      exists_config_define = _apache.exists_config_define
+</I>&gt;<i> AttributeError: 'module' object has no attribute 'exists_config_define'
+</I>&gt;<i> 
+</I>&gt;<i> So I edited apache.py and commented out that line, as I didn't see it 
+</I>&gt;<i> referenced anywhere else in the source. Seems to be fine so far, I  
+</I>&gt;<i> hope I am not gonna be needing that :) Any ideas on this one?
+</I>
+My guess is that you did an:
+
+  apachectl restart
+
+rather than:
+
+  apachectl stop
+  apachectl start
+
+The old _apache module was still loaded into the parent Apache process
+and when it forked to create the child processes, the newer Python code
+couldn't find the function in _apache module it was expecting.
+
+When upgrading mod_python it is always a good idea to properly stop
+and start Apache. If you did, then check that the mod_python.so
+module in the Apache modules directory is actually the newer one.
+
+&gt;<i> Second, I switched our website, finally, to the new back end using  
+</I>&gt;<i> mod_python late last night. One thing I hadn't thought of though, was 
+</I>&gt;<i> all the subdirectories using mod_python as the default handler as  
+</I>&gt;<i> well (for images, etc.) So I ended up having to do the following to  
+</I>&gt;<i> my config (in a panic heh)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i>      &lt;Directory /home/ahcabron/public_html&gt;
+</I>&gt;<i>          Options FollowSymLinks
+</I>&gt;<i>          AllowOverride All
+</I>&gt;<i>          Options -MultiViews
+</I>&gt;<i>          SetHandler python-program
+</I>&gt;<i>          PythonHandler mod_python.publisher
+</I>&gt;<i>          PythonAutoReload Off
+</I>
+PythonAutoReload option is actually broken in 3.2.5b. Finally fixed in
+3.2.6. It looks like it was broken for some time.
+
+&gt;<i>          #PythonDebug On
+</I>&gt;<i>      &lt;/Directory&gt;
+</I>&gt;<i> 
+</I>&gt;<i>      &lt;Location /main&gt;
+</I>&gt;<i>          SetHandler default-handler
+</I>&gt;<i>      &lt;/Location&gt;
+</I>&gt;<i> 
+</I>&gt;<i>      &lt;Location /albums&gt;
+</I>&gt;<i>          SetHandler default-handler
+</I>&gt;<i>      &lt;/Location&gt;
+</I>&gt;<i> 
+</I>&gt;<i>      &lt;Location /stats&gt;
+</I>&gt;<i>          SetHandler default-handler
+</I>&gt;<i>      &lt;/Location&gt;
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Is there a better way to do this other than a bunch of &lt;Location&gt;  
+</I>&gt;<i> directives?
+</I>
+Only by using a bunch of Directory directives instead. :-)
+
+If you are not using extensions for URLs mapping to the
+mod_python.publisher code, you could also use some of the tricks
+discussed recently of disabling mod_python for any URL which
+uses an extension in it or vice versa. See:
+
+  <A HREF="http://www.modpython.org/pipermail/mod_python/2006-January/019918.html">http://www.modpython.org/pipermail/mod_python/2006-January/019918.html</A>
+  <A HREF="http://www.modpython.org/pipermail/mod_python/2006-January/020064.html">http://www.modpython.org/pipermail/mod_python/2006-January/020064.html</A>
+
+Look back and forth for issues discussed related to doing this.
+
+Graham
+  
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020067.html">[mod_python] 3.2.5b - Questions
+</A></li>
+	<LI>Next message: <A HREF="020069.html">[mod_python] reg editor
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20068">[ date ]</a>
+              <a href="thread.html#20068">[ thread ]</a>
+              <a href="subject.html#20068">[ subject ]</a>
+              <a href="author.html#20068">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

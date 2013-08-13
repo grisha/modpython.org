@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session management
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20management&In-Reply-To=4d11484d050113133563aacc01%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017103.html">
+   <LINK REL="Next"  HREF="017110.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session management</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Hiroaki KAWAI</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20management&In-Reply-To=4d11484d050113133563aacc01%40mail.gmail.com"
+       TITLE="[mod_python] Session management">kawai at iij.ad.jp
+       </A><BR>
+    <I>Fri Jan 14 00:22:50 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017103.html">[mod_python] Session management
+</A></li>
+        <LI>Next message: <A HREF="017110.html">[mod_python] Session management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17105">[ date ]</a>
+              <a href="thread.html#17105">[ thread ]</a>
+              <a href="subject.html#17105">[ subject ]</a>
+              <a href="author.html#17105">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Please don't put sess in global scope as Manfred Stienstra mentioned 
+previously. That scope is module scope, one in one interpreter.
+
+Every function that use session would be like this:
+
+def func(req):
+	sess=Session(req) # you always need this line.
+	sess.load()
+	# do something
+	sess.save()
+	return &quot;something&quot;
+
+The problem you encountered was:
+- send request to httpd
+- new python interpreter is created (httpd child process 
+  is creatated)
+- your python module for Publisher Handler loaded.
+- call otherFunc at the first time.
+- if you drop &quot;sess=Session(req)&quot;, sess.load() is passed, which means
+  NoneType type ojbect method call.
+
+
+&gt;<i> Hmm... the session object is still dropping (being lost) , the
+</I>&gt;<i> recovered (being remember) from time to time.
+</I>&gt;<i> 
+</I>&gt;<i> Brief view of the Publisher Handler setup.
+</I>&gt;<i> *Note the sess variable is not visible to other functions unless
+</I>&gt;<i> declared globally.
+</I>&gt;<i> 
+</I>&gt;<i> [Global Space]
+</I>&gt;<i> sess = None
+</I>&gt;<i> 
+</I>&gt;<i> def login(req):
+</I>&gt;<i>    global sess
+</I>&gt;<i>    sess = Session(req)
+</I>&gt;<i>    sess['this']  = 'that'
+</I>&gt;<i>    ...&lt;more code&gt;...
+</I>&gt;<i>    sess.save()
+</I>&gt;<i>    return
+</I>&gt;<i> 
+</I>&gt;<i> def otherFunc(req):
+</I>&gt;<i>     global sess
+</I>&gt;<i>     sess = Session(req)  # tested with and without this line (correct?)
+</I>&gt;<i>     sess.load()
+</I>&gt;<i>     ...&lt;more code&gt;...
+</I>&gt;<i>     sess.save()
+</I>&gt;<i>     return
+</I>&gt;<i> 
+</I>&gt;<i> I can see the session being written to a file in a serialized way in /tmp
+</I>&gt;<i>     mp_sess.dbm.bak
+</I>&gt;<i>     mp_sess.dbm.dat
+</I>&gt;<i>     mp_sess.dbm.dir
+</I>&gt;<i> 
+</I>&gt;<i> I've also executed a:
+</I>&gt;<i> 
+</I>&gt;<i>     watch -d 'ls -l /tmp/mp*'
+</I>&gt;<i> 
+</I>&gt;<i> And upon creating new sessions...via separate browsers... I have seen the file
+</I>&gt;<i> size fo the above files grow in real-time, which means that data is in
+</I>&gt;<i> fact being added to the sessions which are partly human-readable.
+</I>&gt;<i> 
+</I>&gt;<i> However, the problem I'm having is that occasionally when
+</I>&gt;<i> transitioning to other pages such as <A HREF="http://mysite.com/otherFunc,">http://mysite.com/otherFunc,</A>
+</I>&gt;<i> 
+</I>&gt;<i> will return 'NoneType' object has no attribute 'load'  # referring to
+</I>&gt;<i> the sess object.
+</I>&gt;<i> 
+</I>&gt;<i> So I click the [BACK] button in the browser and re-submit the data. 
+</I>&gt;<i> After about 7 times, the script all of a sudden recognizes the sess
+</I>&gt;<i> object.  Sometimes this error does not happend and loads on the first
+</I>&gt;<i> try. How can I prevent this behavior?
+</I>&gt;<i> 
+</I>&gt;<i> ~= Chris =~
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On Wed, 12 Jan 2005 23:48:39 +0900, Hiroaki KAWAI &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">kawai at iij.ad.jp</A>&gt; wrote:
+</I>&gt;<i> &gt; Of cource, most popular and easiest way is to use Session module.
+</I>&gt;<i> &gt; Session will store the information somewhere in 'session storage' that
+</I>&gt;<i> &gt; the module knows how to get it, and the actual mechanism is hidden.
+</I>&gt;<i> &gt; # i.e., inter-process communication via file or database.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; So, make sure that you save the session information to the session
+</I>&gt;<i> &gt; storage in each request processing as Ron says. ;-)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Chris Jackson &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">christopher.jackson at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; Ah, that makes sense...Now I just need to find which &quot;inter-process&quot;
+</I>&gt;<i> &gt; &gt; technique I should be using in order to maintain consistency ;)
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; ~= Chris =~
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; On Wed, 12 Jan 2005 12:55:47 +0900, Hiroaki KAWAI &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">kawai at iij.ad.jp</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; Depending on what type of apache configuration you run, one or more
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; interpreters will be used. Sometimes interpreters die and new ones get
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; created.
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; Hmm...it's interesting you say that somtimes the interpreters die and
+</I>&gt;<i> &gt; &gt; &gt; &gt; new ones get created because I'm running into a &quot;problem&quot; where I will
+</I>&gt;<i> &gt; &gt; &gt; &gt; test a mod_python page and it will works perfectly several times again
+</I>&gt;<i> &gt; &gt; &gt; &gt; and again, but then i'll test it out again, and the interpreter seems
+</I>&gt;<i> &gt; &gt; &gt; &gt; to &quot;forget&quot; the values.  I'll keep testing the page with the same
+</I>&gt;<i> &gt; &gt; &gt; &gt; values, and then the page will work again.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; One interpreter is created per one apache child process. If you're running
+</I>&gt;<i> &gt; &gt; &gt; prefork MPM (and set MaxRequestsPerChild or have multiple spare child
+</I>&gt;<i> &gt; &gt; &gt; servers), you're posting a HTTP request sometimes to the same interpreter,
+</I>&gt;<i> &gt; &gt; &gt; sometimes to other interpreter.
+</I>&gt;<i> &gt; &gt; &gt; I think one of 'inter-process' techniques is useful for what you're
+</I>&gt;<i> &gt; &gt; &gt; trying.
+</I>&gt;<i> &gt; &gt; &gt; # If I'm saying wrong, someone please correct. :-)
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; ---Hiroaki Kawai
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; _______________________________________________
+</I>&gt;<i> &gt; &gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt; &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; ---Hiroaki Kawai
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017103.html">[mod_python] Session management
+</A></li>
+	<LI>Next message: <A HREF="017110.html">[mod_python] Session management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17105">[ date ]</a>
+              <a href="thread.html#17105">[ thread ]</a>
+              <a href="subject.html#17105">[ subject ]</a>
+              <a href="author.html#17105">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

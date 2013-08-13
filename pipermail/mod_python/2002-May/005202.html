@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] questions/ideas
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20questions/ideas&In-Reply-To=20020513170000.A18394%40diana.mobil.cz">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005201.html">
+   <LINK REL="Next"  HREF="005203.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] questions/ideas</H1>
+    <B>Johannes Erdfelt</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20questions/ideas&In-Reply-To=20020513170000.A18394%40diana.mobil.cz"
+       TITLE="[mod_python] questions/ideas">johannes at erdfelt.com
+       </A><BR>
+    <I>Mon May 13 14:12:24 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005201.html">[mod_python] questions/ideas
+</A></li>
+        <LI>Next message: <A HREF="005203.html">[mod_python] questions/ideas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5202">[ date ]</a>
+              <a href="thread.html#5202">[ thread ]</a>
+              <a href="subject.html#5202">[ subject ]</a>
+              <a href="author.html#5202">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>On Mon, May 13, 2002, Michal Vitecek &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">fuf at mobil.cz</A>&gt; wrote:
+&gt;<i>  i'm taking a decision whether to use python or php in my next project.
+</I>&gt;<i>  i'm leaning towards python and mod_python, but i found some
+</I>&gt;<i>  problems/questions/ideas that i'd like to know answers to first.
+</I>
+I've made the switch from PHP to mod_python successfully.
+
+&gt;<i>     a) as i did my previous projects in php i now find it quite strange
+</I>&gt;<i>        that i need to call a certain function of a script. this makes it a
+</I>&gt;<i>        bit more difficult to use the few global variables that i plan to
+</I>&gt;<i>        use and from time to time makes the whole program into a single
+</I>&gt;<i>        function (one tab is taken)
+</I>
+That's just how python works. It's a different style of programming, but
+I think it's better.
+
+I got into too many problems with global variables in PHP that caused me
+headaches.
+
+&gt;<i>     b) the publisher submodule needs to know the name of the function to
+</I>&gt;<i>        run - would it be possible to change it so that it doesn't need it
+</I>&gt;<i>        ie. run the whole script instead?
+</I>
+Use the attached patch to mod_python. It'll call the function named
+&quot;handler&quot; if there is no name passed. The patch is relative to 2.7.6.
+
+&gt;<i>     c) the publisher submodule reads the whole output of a function to a
+</I>&gt;<i>        variable - for a sites with large html pages this could be 100s of
+</I>&gt;<i>        KBs. this could mean a noticeable performance slowdown - also
+</I>&gt;<i>        because the output must be prepared first. how about if the
+</I>&gt;<i>        function output the resulting html code to a stream?
+</I>
+Have you measured a decrease in performance?
+
+&gt;<i>     d) i noticed that the python interpreter is not the same even for a
+</I>&gt;<i>        single virtualhost (even when i explicitly define its name with
+</I>&gt;<i>        PythonInterpreter) =&gt; the persistence is kept only withing every
+</I>&gt;<i>        apache child. with increase of the number of children a new
+</I>&gt;<i>        interpreter is created that doesn't inherit from the main one (i'm
+</I>&gt;<i>        using python 2.2.1 and apache 1.3.20).
+</I>
+That's because of the multiple process approach to apache. Since each
+child is a different process, they don't share memory.
+
+You can play tricks with shared memory if you really need that
+functionality.
+
+&gt;<i>     e) in php it's possible to have the php code mixed with the html one -
+</I>&gt;<i>        ie. there are special marks, that mark the start and end of php
+</I>&gt;<i>        code. i think it would be a nice option to have in mod_python
+</I>&gt;<i>        because it helps imho to create scripts the allow for easy to
+</I>&gt;<i>        review code.
+</I>
+There are add on packages like that. I've been using a package called
+Cheetah that provides something similar.
+
+Do some searching.
+
+JE
+
+-------------- next part --------------
+--- mod_python/publisher.py.orig	Tue Apr 16 20:31:06 2002
++++ mod_python/publisher.py	Tue Apr 16 20:34:45 2002
+@@ -80,17 +80,17 @@
+     args = {}
+ 
+     # get the path PATH_INFO (everthing after script)
+-    if not _req.subprocess_env.has_key(&quot;PATH_INFO&quot;):
+-        raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+-    
+-    func_path = _req.subprocess_env[&quot;PATH_INFO&quot;][1:] # skip fist /
+-    func_path = string.replace(func_path, &quot;/&quot;, &quot;.&quot;)
+-    if func_path[-1] == &quot;.&quot;:
+-        func_path = func_path[:-1] 
++    if _req.subprocess_env.has_key(&quot;PATH_INFO&quot;):
++        func_path = _req.subprocess_env[&quot;PATH_INFO&quot;][1:] # skip fist /
++        func_path = string.replace(func_path, &quot;/&quot;, &quot;.&quot;)
++        if func_path[-1] == &quot;.&quot;:
++            func_path = func_path[:-1] 
+ 
+-    # if any part of the path begins with &quot;_&quot;, abort
+-    if func_path[0] == '_' or string.count(func_path, &quot;._&quot;):
+-        raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
++        # if any part of the path begins with &quot;_&quot;, abort
++        if func_path[0] == '_' or string.count(func_path, &quot;._&quot;):
++            raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
++    else:
++        func_path = &quot;handler&quot;
+ 
+     # process input, if any
+     fs = util.FieldStorage(req, keep_blank_values=1)
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005201.html">[mod_python] questions/ideas
+</A></li>
+	<LI>Next message: <A HREF="005203.html">[mod_python] questions/ideas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5202">[ date ]</a>
+              <a href="thread.html#5202">[ thread ]</a>
+              <a href="subject.html#5202">[ subject ]</a>
+              <a href="author.html#5202">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

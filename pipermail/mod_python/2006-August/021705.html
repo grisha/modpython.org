@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Setting req-&gt;user for mod_dav_svn
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Setting%20req-%3Euser%20for%20mod_dav_svn&In-Reply-To=44CF7EF9.1020208%40jgassociates.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021704.html">
+   <LINK REL="Next"  HREF="021706.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Setting req-&gt;user for mod_dav_svn</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Deron Meranda</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Setting%20req-%3Euser%20for%20mod_dav_svn&In-Reply-To=44CF7EF9.1020208%40jgassociates.ca"
+       TITLE="[mod_python] Setting req-&gt;user for mod_dav_svn">deron.meranda at gmail.com
+       </A><BR>
+    <I>Tue Aug  1 13:11:19 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021704.html">[mod_python] Setting req-&gt;user for mod_dav_svn
+</A></li>
+        <LI>Next message: <A HREF="021706.html">[mod_python] Setting req-&gt;user for mod_dav_svn (SOLVED)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21705">[ date ]</a>
+              <a href="thread.html#21705">[ thread ]</a>
+              <a href="subject.html#21705">[ subject ]</a>
+              <a href="author.html#21705">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 8/1/06, Jim Gallacher &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jpg at jgassociates.ca</A>&gt; wrote:
+&gt;<i> Deron Meranda wrote:
+</I>&gt;<i> &gt; When you say req.user is writable, is that just for the member of the
+</I>&gt;<i> &gt; Python &quot;req&quot; object, or does a write also modify the underlying
+</I>&gt;<i> &gt; Apache C structure's request_rec-&gt;user  (char*) member?
+</I>&gt;<i>
+</I>&gt;<i> request_rec-&gt;user is set.
+</I>&gt;<i>
+</I>&gt;<i> Here is the relavent bit from requestobject.c (3.2.10) in the
+</I>&gt;<i> setreq_recmbr function (line 1279):
+</I>&gt;<i>     ...
+</I>&gt;<i>     ...
+</I>&gt;<i>
+</I>&gt;<i>     else if (strcmp(name, &quot;user&quot;) == 0) {
+</I>&gt;<i>         if (! PyString_Check(val)) {
+</I>&gt;<i>             PyErr_SetString(PyExc_TypeError, &quot;user must be a string&quot;);
+</I>&gt;<i>             return -1;
+</I>&gt;<i>         }
+</I>&gt;<i>         self-&gt;request_rec-&gt;user =
+</I>&gt;<i>             apr_pstrdup(self-&gt;request_rec-&gt;pool, PyString_AsString(val));
+</I>&gt;<i>         return 0;
+</I>&gt;<i>
+</I>&gt;<i> Jim
+</I>
+Thanks Jim.  That's what I was hoping it did.
+
+I'm now down to thinking this must be a DAV or SVN thing.  I can use
+the builtin CGI handler along with my mod_python access handler and
+can see that the request_rec-&gt;user is getting set (which shows up
+as the REMOTE_USER environment variable in the CGI script).
+
+   # .htaccess
+   PythonAccessHandler setmyuser::accesshandler
+   SetHandler cgi-script
+
+   # setmyuser.py
+   from mod_python import apache
+   def accesshandler(req):
+       req.user = 'foobar'
+       return apache.OK
+
+   #!/bin/sh
+   # dump.cgi
+   echo &quot;Content-Type: text/plain&quot;
+   echo
+   echo &quot;User is&quot; $REMOTE_USER
+   exit 0
+
+   $ wget -O - http:..../dump.cgi
+   User is foobar
+
+So somehow either mod_dav or mod_dav_svn must not be getting
+this or need something more.  More code diving....
+-- 
+Deron Meranda
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021704.html">[mod_python] Setting req-&gt;user for mod_dav_svn
+</A></li>
+	<LI>Next message: <A HREF="021706.html">[mod_python] Setting req-&gt;user for mod_dav_svn (SOLVED)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21705">[ date ]</a>
+              <a href="thread.html#21705">[ thread ]</a>
+              <a href="subject.html#21705">[ subject ]</a>
+              <a href="author.html#21705">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

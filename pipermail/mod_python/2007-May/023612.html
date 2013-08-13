@@ -1,0 +1,255 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] lookup_uri
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20lookup_uri&In-Reply-To=46455AAB.7080708%40rogerbinns.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023623.html">
+   <LINK REL="Next"  HREF="023619.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] lookup_uri</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20lookup_uri&In-Reply-To=46455AAB.7080708%40rogerbinns.com"
+       TITLE="[mod_python] lookup_uri">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat May 12 02:47:32 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023623.html">[mod_python] dot dot in the url
+</A></li>
+        <LI>Next message: <A HREF="023619.html">[mod_python] lookup_uri
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23612">[ date ]</a>
+              <a href="thread.html#23612">[ thread ]</a>
+              <a href="subject.html#23612">[ subject ]</a>
+              <a href="author.html#23612">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>See comments below.
+
+On 12/05/07, Roger Binns &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rogerb at rogerbinns.com</A>&gt; wrote:
+&gt;<i> -----BEGIN PGP SIGNED MESSAGE-----
+</I>&gt;<i> Hash: SHA1
+</I>&gt;<i>
+</I>&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i> &gt; You basically didn't want to agree and said:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &quot;&quot;&quot;That is the easy bit :-)  Just copying the authentication response
+</I>&gt;<i> &gt; headers from /api will do the trick.&quot;&quot;&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I still believe that you don't quite understand what would happen. Let
+</I>&gt;<i> &gt; me see if I can explain it again in a way you can understand.
+</I>&gt;<i>
+</I>&gt;<i> I really do understand what I am talking about :-)  How about some
+</I>&gt;<i> config and code.
+</I>&gt;<i>
+</I>&gt;<i> &lt;Location /api/v1/widget/&gt;
+</I>&gt;<i>   &lt;Limit GET&gt;
+</I>&gt;<i>   Require group reader
+</I>&gt;<i>   &lt;/Limit&gt;
+</I>&gt;<i> &lt;/Location&gt;
+</I>&gt;<i>
+</I>&gt;<i> That ensures that Apache requires authentication for the rest service.
+</I>&gt;<i> Now this is my code in the handler for /admin which has no directive
+</I>&gt;<i> such as the above requiring authentication.
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>    name=&quot;foo&quot;
+</I>&gt;<i>    # Before generating this page, check they can get info widget
+</I>&gt;<i>    sub=req.lookup_method_uri(&quot;GET&quot;, &quot;/api/v1/widget/&quot;+name)
+</I>&gt;<i>    # Copy any authentication to subrequest
+</I>&gt;<i>    sub.headers_in[&quot;Authorization&quot;]=req.headers_in[&quot;Authorization&quot;]
+</I>&gt;<i>    # Run the subrequest
+</I>&gt;<i>    sub.run()
+</I>&gt;<i>    # Was authentication required?
+</I>&gt;<i>    if sub.status==401:
+</I>&gt;<i>       req.status=401
+</I>&gt;<i>
+</I>&gt;<i> req.headers_out[&quot;WWW-Authenticate&quot;]=sub.headers_out[&quot;WWW-Authenticate&quot;]
+</I>&gt;<i>       return apache.OK
+</I>&gt;<i>    if sub.status!=200:
+</I>&gt;<i>       req.status=sub.status
+</I>&gt;<i>       ... copy error message or something similar ...
+</I>&gt;<i>       return apache.OK
+</I>
+Note though that if using Apache properly, none of the above should be
+in handler() in the first place and should be in the authenhandler or
+authzhandlers phases instead.
+
+&gt;<i>    # At this point we know that there is permission to read widget
+</I>&gt;<i>    ... generate page etc ...
+</I>&gt;<i>
+</I>&gt;<i> &gt; First off, you said that /admin would have no AuthType/AuthName
+</I>&gt;<i> &gt; directives covering that URL in the Apache configuration. Because of
+</I>&gt;<i> &gt; this fact, the browser isn't going to be sending any authentication
+</I>&gt;<i> &gt; information for that URL. Ie., there will be no Authorization header
+</I>&gt;<i> &gt; available to the request handler for the /admin URL.
+</I>&gt;<i>
+</I>&gt;<i> That is correct.  But the subrequest would return 401 if authentication
+</I>&gt;<i> was required and that can be copied into the response for the request so
+</I>&gt;<i> the browser will then retry with credentials.
+</I>&gt;<i>
+</I>&gt;<i> &gt; Your problem as you see it how to check those credentials. The real
+</I>&gt;<i> &gt; problem at this point is where are you getting the credentials from if
+</I>&gt;<i> &gt; the browser isn't going to send them.
+</I>&gt;<i>
+</I>&gt;<i> Well it would since I'd send them back from the subrequest as shown above.
+</I>&gt;<i>
+</I>&gt;<i> &gt; You are skipping this important challenge step by
+</I>&gt;<i> &gt; assuming the credentials will be there and simply moving to try and
+</I>&gt;<i> &gt; validate them.
+</I>&gt;<i>
+</I>&gt;<i> Err no, the challenge step is there due to sending 401 and
+</I>&gt;<i> WWW-Authenticate header back to the original request.
+</I>
+And I did appreciate you might be doing that, but for the most obvious
+cases, at that time I couldn't see the point. If you are going to do
+that why not let Apache do all the authentication without this fiddle
+and have the AuthType/AuthName/Require directives on /admin in the
+first place since it is achieving exactly the same thing.
+
+This is where what you were doing seemed to be getting messy for my
+personal tastes in what simply appeared to be an attempt to avoid
+duplicating some auth configuration in the Apache configuration files.
+
+&gt;<i> &gt; Where web applications, such as Trac, use a /login URL as a single
+</I>&gt;<i> &gt; login point, once they have successfully logged in the user they then
+</I>&gt;<i> &gt; use cookies to track the fact that the user is logged in.
+</I>&gt;<i>
+</I>&gt;<i> Yes.  But those applications also have to implement their own
+</I>&gt;<i> authorization system.  I intend to let apache do all that.  For example
+</I>&gt;<i> the administrator can do this in the configuration:
+</I>&gt;<i>
+</I>&gt;<i> &lt;Location /api/v1/widget/&gt;
+</I>&gt;<i>   &lt;Limit GET&gt;
+</I>&gt;<i>   Require group anyone
+</I>&gt;<i>   &lt;/Limit&gt;
+</I>&gt;<i> &lt;/Location&gt;
+</I>&gt;<i>
+</I>&gt;<i> &lt;Location /api/v1/widget/&gt;
+</I>&gt;<i>   &lt;Limit DELETE&gt;
+</I>&gt;<i>   Require group admins
+</I>&gt;<i>   &lt;/Limit&gt;
+</I>&gt;<i> &lt;/Location&gt;
+</I>&gt;<i>
+</I>&gt;<i> But then they can be more specific as well:
+</I>&gt;<i>
+</I>&gt;<i> &lt;Location /api/v1/widget/thelab&gt;
+</I>&gt;<i>   &lt;Limit DELETE&gt;
+</I>&gt;<i>   Require group labadmins
+</I>&gt;<i>   &lt;/Limit&gt;
+</I>&gt;<i> &lt;/Location&gt;
+</I>
+Which is all fine for your separate scripts which access just these
+URLs. If your /admin URL needs to only access one of them just
+duplicate the Apache auth configuration. If your /admin page needs to
+check more than one then you are simply probably getting beyond what
+the authorization directives of Apache are good for. You can only go
+so far with what Apache directives give you. You may be better off
+just doing it all in your own authenhandler and authzhandlers for
+mod_python, you certainly shouldn't be trying to put authentication
+and authorisation into the response handler phase as you are.
+
+&gt;<i> &gt; If you still disagree, and maybe I am missing something, by what
+</I>&gt;<i> &gt; mechanism do you think the credentials will be available in the first
+</I>&gt;<i> &gt; place?
+</I>&gt;<i>
+</I>&gt;<i> The bit you missed is that it is one line of code to copy a status and
+</I>&gt;<i> another to copy an Authorization or WWW-Authenticate header :-)
+</I>&gt;<i>
+</I>&gt;<i> &gt; and dictates various approaches to how one might go about extending
+</I>&gt;<i> &gt; mod_python features without actually modifying mod_python.
+</I>&gt;<i>
+</I>&gt;<i> I guess this looks the closest:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-165">http://issues.apache.org/jira/browse/MODPYTHON-165</A>
+</I>&gt;<i>
+</I>&gt;<i> However if I am having to go to the trouble of writing an Apache module
+</I>&gt;<i> I may as well just write one that meets my needs exactly and ignore
+</I>&gt;<i> mod_python :-(
+</I>
+And I'd probably agree on that last point as mod_python falls quite
+short of being a true way of writing Apache modules but using Python
+instead of C code and personally I don't see that it will ever be able
+to do that. The problem is the way the code base is hand coded is in
+the long term going to make it impractical to keep adhoc adding more
+and more of the Apache and APR C interfaces especially as the mapping
+is a direct mapping but a slight Pythonisation of it. Continually
+extending mod_python in this way is certainly not something I am
+interested in doing as it would be waste of time and too hard to look
+after.
+
+The only practical way of getting a complete Python binding for Apache
+and APR C interfaces is to completely start over and use SWIG. At
+least that way the bulk of the work is automated and it actually
+becomes maintainable. I know SWIGing the interfaces isn't that hard as
+I have done it to see what would be involved, just needed to go
+through and deal with the special exceptions that require special
+handling. Even then it is mostly useless in the context of mod_python
+anyway and a whole new base level module for doing Python in Apache is
+needed to support it. At this point there hasn't really been anyone
+else seriously interested in going that path, at least not to extent
+they appeared to be prepared to spend a great deal of time themselves
+working on it.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023623.html">[mod_python] dot dot in the url
+</A></li>
+	<LI>Next message: <A HREF="023619.html">[mod_python] lookup_uri
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23612">[ date ]</a>
+              <a href="thread.html#23612">[ thread ]</a>
+              <a href="subject.html#23612">[ subject ]</a>
+              <a href="author.html#23612">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

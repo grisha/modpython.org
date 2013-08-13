@@ -1,0 +1,233 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Udate python modules without restarting Apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=680bcd9504100414037857fc73%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016565.html">
+   <LINK REL="Next"  HREF="016566.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Udate python modules without restarting Apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=680bcd9504100414037857fc73%40mail.gmail.com"
+       TITLE="[mod_python] Udate python modules without restarting Apache">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Oct  4 18:22:35 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016565.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+        <LI>Next message: <A HREF="016566.html">[mod_python] Installation error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16567">[ date ]</a>
+              <a href="thread.html#16567">[ thread ]</a>
+              <a href="subject.html#16567">[ subject ]</a>
+              <a href="author.html#16567">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Oct 04 23:03, berry groenendijk &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">berry.groenendijk at gmail.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Subject: Re: [mod_python] Udate python modules without restarting Apache
+</I>&gt;<i>
+</I>&gt;<i> Indeed when I change .py modules in my developement environment, I
+</I>&gt;<i> need to restart Apache to get the changes to work. So, I was also
+</I>&gt;<i> wondering how to update .py modules on a server at a hosting provider
+</I>&gt;<i> that does not allow you to restart the Apache server proces.
+</I>&gt;<i> 
+</I>&gt;<i> On Mon, 4 Oct 2004 15:06:34 +0100, MJR &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">pynode at centrum.cz</A>&gt; wrote:
+</I>&gt;<i> &gt; Hi,
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I'm running mp servlets on Apache server I don't have control over, i.e. I
+</I>&gt;<i> &gt; cannot restart it when I change my .py modules imported by my .mps scripts.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I'm just wondering whether there is any hack for this. How people deal with
+</I>&gt;<i> &gt; it in a production environment.
+</I>
+I made a few comments on this at the bottom of a recent message, but I'll
+try and cover the choices and some of the issues. One of these days I'll
+write a proper little discussion piece about module reloading issues and
+put it on my web site. There is a lot to it which isn't obvious nor documented
+anywhere. ;-)
+
+The basic problem is that when you use the &quot;import&quot; statement in Python to
+bring a module into code executing under Python, if you later what to change
+and reinstall that module, about the only thing you can do is to restart Apache.
+In an environment where you don't have control over Apache to do that, that
+becomes a problem.
+
+The first and quickest thing you can do is a mega hack and may not be a
+good thing to do in a production environment, but if you are desperate it
+can be a life saver.
+
+What you can do here is to explicitly delete the modules out of sys.modules
+and touch all handler code files which import the modules so that they will
+get reloaded by mod_python the next time they are accessed. You will need
+to ensure that PythonAutoReload is On.
+
+To do this, create a separate directory somewhere which is setup for using
+mod_python.publisher. Ie.,
+
+  SetHandler python-program
+  PythonHandler mod_python.publisher
+
+In that directory create a file &quot;purge.py&quot; which deletes all the modules
+you need to delete. Ie., contains something like:
+
+  def doit():
+    try: del sys.modules[&quot;HTMLTemplate&quot;]
+    except: pass
+
+    try: del sys.modules[&quot;vampire&quot;]
+    except: pass
+
+    for key in sys.modules.keys():
+      if string.find(key,&quot;vampire.&quot;) == 0:
+        del sys.modules[key]
+
+  modules = sys.modules.keys()
+  modules.sort()
+
+  return modules
+
+Then access the page &quot;purge/doit&quot;. Note that if Apache is running in prefork
+mode, you will have to keep reloading the page until you think you have
+managed to invoked the code in all separate forked Apache processes.
+Not sure about threaded servers or where separate interpreters are used.
+
+As I said it is a mega hack, but if you are desperate... Be warned that It is
+entirely feasible that it may cause everything to stuff up completely. Thus,
+if you are talking high volume production site where the pages are being
+accessed constantly and you are not the only one with mod_python hosted
+code then don't do it. If it is a production web server where your mod_python
+code is the only such code and hardly anyone uses it anyway, can be used
+with caution.
+
+Note that I would only suggest this be done for code modules which are
+specifically intended to be imported as part of your mod_python application.
+Ie., don't do it for modules which are used by other mod_python applications.
+That way you limit damage to your own stuff and you only have yourself
+to blame for the problems. :-)
+
+Moving towards a proper solution, simply don't use &quot;import&quot; at all for your
+common code modules in your mod_python application. To achieve this,
+you can use mod_python.apache.import_module() method. Thus, instead
+of using:
+
+  from mymodules import mymodules
+
+use:
+
+  from mod_python import apache
+  module1 = apache.import_module(&quot;mymodules.module1&quot;)
+
+There are a few issues with the import_module() method though that you
+have to be mindful of and you may still have to poke at things a bit to get
+it to work.
+
+The first is that even though &quot;mymodules.module1&quot; will now be reloaded,
+it will only be done so if this loading of the module is down from inside a
+method defined within the content handler and called as part of request
+handling.
+
+That is, if you stick this at global scope in your content handler code file,
+it will only be called once when the content handler code file is imported.
+If you still want it at global scope, you would also need to touch the content
+handler code file so that its modification time is updated. That way the
+content handler will be reloaded and the module reloaded as well.
+
+Note that the import_module() method will though only reload a module
+when the modification time is newer than what it was before. This means
+that if you restored an old copy of a module such that its modification time
+was actually older, it will not reload. You will need to touch the file to make
+its modification time newer.
+
+The next issue is that this is probably useless if &quot;module1&quot; uses &quot;import&quot; to
+bring in &quot;modules2&quot; from your &quot;mymodules&quot; directory. That is, any change
+to &quot;modules2&quot; will not be reloaded. Thus, any imports amongst your own
+modules should also use &quot;import_module()&quot;. To find &quot;module2&quot; in this case,
+I am not sure if &quot;module1&quot; would need to load it as &quot;mymodules.module2&quot;
+or just &quot;module2&quot;. I would suggest that &quot;mymodules.module2&quot; would be
+preferred and may actually be necessary.
+
+Now if &quot;module2&quot; was imported at global scope in &quot;module1&quot;, you end up
+with the same problem that even if it is modified it will not be reloaded.
+You basically end up with a whole chaining problem and if you do this you
+end up still having to touch higher up files in the chain to update the
+modification times so that they are reloaded.
+
+So, although extra poking is required in the way of touching some files to
+update modification times, you can at least trick mod_python into reloading
+things without restarting Apache.
+
+Now, some of the above is based on theory only, so if I am wrong, people
+please correct me.
+
+BTW, if you want to see my attempt at an alternate module loading system
+which tries to deal with the chaining issue. I have developed a package
+for mod_python called Vampire. When used properly, you can change
+&quot;module2&quot; and without having to touch the timestamp on any files,
+&quot;module1&quot; and any content handlers which use &quot;module1&quot; or &quot;module2&quot;
+would be automatically reloaded the next time they are accessed.
+Obviously there will be a performance hit with the extra checking, but
+if you want maximum flexibility in the way of making changes...
+
+Version 1.0 of Vampire, lacking any documentation on the module loading
+system, can be found at:
+
+  <A HREF="http://www.dscpl.com.au/projects/vampire">http://www.dscpl.com.au/projects/vampire</A>
+
+I have the code for Vampire 1.1 ready, which adds more nice features, but
+am still fiddling with the slightly better documentation and examples. I have
+not tried integrating it with mpservlets yet, but 1.1 does show at a high level
+how it can be used in conjunction with psp. Note that it doesn't try and address
+some of the chaining issues of making changes in psp code itself though.
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016565.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+	<LI>Next message: <A HREF="016566.html">[mod_python] Installation error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16567">[ date ]</a>
+              <a href="thread.html#16567">[ thread ]</a>
+              <a href="subject.html#16567">[ subject ]</a>
+              <a href="author.html#16567">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

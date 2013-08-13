@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: Mike's psp upload
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Mike%27s%20psp%20upload&In-Reply-To=026e01c68f90%244c432810%24c7010a0a%40SANDIP">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021390.html">
+   <LINK REL="Next"  HREF="021397.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: Mike's psp upload</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Mike%27s%20psp%20upload&In-Reply-To=026e01c68f90%244c432810%24c7010a0a%40SANDIP"
+       TITLE="[mod_python] Re: Mike's psp upload">jpg at jgassociates.ca
+       </A><BR>
+    <I>Wed Jun 14 09:01:58 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021390.html">[mod_python] Re: Mike's psp upload
+</A></li>
+        <LI>Next message: <A HREF="021397.html">[mod_python] Re: Mike's psp upload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21394">[ date ]</a>
+              <a href="thread.html#21394">[ thread ]</a>
+              <a href="subject.html#21394">[ subject ]</a>
+              <a href="author.html#21394">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>sandip more wrote:
+&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> ----- Original Message ----- From: &quot;Mike Looijmans&quot; 
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nlv11281 at natlab.research.philips.com</A>&gt;
+</I>&gt;<i> To: &quot;sandip more&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">sandipm at talentica.com</A>&gt;
+</I>&gt;<i> Cc: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>&gt;
+</I>&gt;<i> Sent: Tuesday, June 13, 2006 7:27 PM
+</I>&gt;<i> Subject: Re: [mod_python] Re: Mike's psp upload
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i> The default behaviour of FieldStorage is to place the uploaded file in 
+</I>&gt;&gt;<i> some temp location. By providing the callback, you can prevent the 
+</I>&gt;&gt;<i> file being stored twice (once on temp, once on the final location). 
+</I>&gt;&gt;<i> This allows uploading files of many gigabytes without consuming 
+</I>&gt;&gt;<i> diskspace or memory.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Note that by doing:
+</I>&gt;&gt;<i>    filedata = afile.file.read()
+</I>&gt;&gt;<i> you read the entire file into system memory. If a user sends you a 1GB 
+</I>&gt;&gt;<i> file, your server is likely to &quot;die&quot; there. Use one of the
+</I>&gt;&gt;<i> shutil.copyfile functions to copy the file to where you want, without 
+</I>&gt;&gt;<i> (potentially) consuming megabytes of memory.
+</I>&gt;<i> 
+</I>&gt;<i> Thanks Mike for explaination, I got the point. but i didn't got the 
+</I>&gt;<i> callback function's implementation..
+</I>&gt;<i> can you give me some link to it?
+</I>
+The following examples will be included in version 3.3.
+
+
+Simple file control using class constructor
+
+     This example uses the FieldStorage class constructor to create the 
+file object, allowing simple control. It is not advisable to add class 
+variables to this if serving multiple sites from apache. In that case 
+use the factory method instead.
+
+     class Storage(file):
+
+         def __init__(self, advisory_filename):
+             self.advisory_filename = advisory_filename
+             self.delete_on_close = True
+             self.already_deleted = False
+             self.real_filename = '/someTempDir/thingy-unique-thingy'
+             super(Storage, self).__init__(self.real_filename, 'w+b')
+
+         def close(self):
+             if self.already_deleted:
+                 return
+             super(Storage, self).close()
+             if self.delete_on_close:
+                 self.already_deleted = True
+                 os.remove(self.real_filename)
+
+     request_data = util.FieldStorage(request, keep_blank_values=True, 
+file_callback=Storage)
+
+Advanced file control using object factory
+
+     Using a object factory can provide greater control over the 
+constructor parameters.
+
+     import os
+
+     class Storage(file):
+
+         def __init__(self, directory, advisory_filename):
+             self.advisory_filename = advisory_filename
+             self.delete_on_close = True
+             self.already_deleted = False
+             self.real_filename = directory + '/thingy-unique-thingy'
+             super(Storage, self).__init__(self.real_filename, 'w+b')
+
+         def close(self):
+             if self.already_deleted:
+                 return
+             super(Storage, self).close()
+             if self.delete_on_close:
+                 self.already_deleted = True
+                 os.remove(self.real_filename)
+
+     class StorageFactory:
+
+         def __init__(self, directory):
+             self.dir = directory
+
+         def create(self, advisory_filename):
+             return Storage(self.dir, advisory_filename)
+
+     file_factory = StorageFactory(someDirectory)
+     [...sometime later...]
+     request_data = util.FieldStorage(request, keep_blank_values=True,
+                                     file_callback=file_factory.create)
+
+
+
+&gt;<i> and for memory thing, I am not clear about role of apache in this.
+</I>&gt;<i> I think Apache should handle basic http request protocol.
+</I>&gt;<i> it should store data in some file on disc rather than in-memory and
+</I>&gt;<i> then should give mod_python handler a pointer to that file location.?
+</I>
+Except that is not the way it works. Apache accepts the connection and 
+dispatches the request to the appropriate handlers for each phase of the 
+request. It's up to the handlers to decide what to do in each phase. 
+There may be default modules that will handle a particular phase, but 
+you can also register other handlers for a given phase. That is what the 
+Python*Handler directives do.
+
+Apache gives your handler a pointer to the incoming file stream and it 
+then becomes the responsibility of the handler to deal with it. If no 
+handlers consume the stream it gets discarded (I assume). This is the 
+nature of handlers.
+
+&gt;<i> because anyway in the case of multiple requests, apache might fall short 
+</I>&gt;<i> of memory
+</I>&gt;<i> and might crash? 
+</I>
+Pretty much. This is why the handler should not hold a copy of a large 
+file in-memory.
+
+Jim
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021390.html">[mod_python] Re: Mike's psp upload
+</A></li>
+	<LI>Next message: <A HREF="021397.html">[mod_python] Re: Mike's psp upload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21394">[ date ]</a>
+              <a href="thread.html#21394">[ thread ]</a>
+              <a href="subject.html#21394">[ subject ]</a>
+              <a href="author.html#21394">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Cookie vs. Session
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookie%20vs.%20Session&In-Reply-To=20050209205600.12309.qmail%40web31008.mail.mud.yahoo.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017369.html">
+   <LINK REL="Next"  HREF="017371.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Cookie vs. Session</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Shawn Harrison</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookie%20vs.%20Session&In-Reply-To=20050209205600.12309.qmail%40web31008.mail.mud.yahoo.com"
+       TITLE="[mod_python] Cookie vs. Session">harrison at tbc.net
+       </A><BR>
+    <I>Wed Feb  9 16:32:15 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017369.html">[mod_python] Cookie problem
+</A></li>
+        <LI>Next message: <A HREF="017371.html">[mod_python] Re: Photo Album Viewer and req.path_into.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17370">[ date ]</a>
+              <a href="thread.html#17370">[ thread ]</a>
+              <a href="subject.html#17370">[ subject ]</a>
+              <a href="author.html#17370">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Jef Dodson wrote [02/09/05 2:56 PM]:
+&gt;<i> Great, thanks.  So, I was able  to get cookies working but I would like to experiment with using
+</I>&gt;<i> Session objects.  Does anyone have some simple example code showing how to do basic stuff with a
+</I>&gt;<i> Session object like: Get the sessionid from a request to identify a particular user and if no
+</I>&gt;<i> session is found, create a  session object and send it back to the browser.  The documentation
+</I>&gt;<i> seems a little sparse in this area and I'm a little confused about how exactly session objects
+</I>&gt;<i> work in general.  Thanks again!
+</I>
+Yes, the documentation isn't as helpful as it could be. Maybe we should 
+submit some patches.
+
+First, I set the session after login. I put in a list of the groups that 
+the user is a member of, as well as the user name, so that I can do 
+group-based access control without querying the DB all the time:
+
+     # This code is after login and the user has been verified.
+     # The details are specific to my environment -- in particular, the
+     # 'db' object. But you can get the idea. --SAH
+
+     from mod_python import Session
+     session = Session.Session(req)
+
+     # Set the username and groups that this user belongs to
+     grouplist = []
+
+     # The following line would depend on your DB access method.
+     # I have my own Database() class which provides select()
+     # You'll probably use &quot;cursor.execute(...)&quot; and &quot;cursor.fetchall()&quot;.
+     groups = db.select('groups_memberships_users',
+                        'groupname',
+                        &quot;username = '%s'&quot; % user.name)
+     for i in range(len(groups)):
+         grouplist.append(groups[i].groupname)
+     session['groups'] = &quot;|&quot;.join(grouplist)
+     session['user'] = user.name
+
+     # save the session for next time.
+     session.save()
+
+Then, I have a function that my authen_handler uses for restricted areas 
+of the site:
+
+     from mod_python import apache, Session
+     def require_group(req, group):
+         # Check to see if the user has access to this group's resources.
+         # returns an apache error status
+
+         # see if the user has a session
+
+         sess = Session.Session(req)
+         sess.load()
+
+         if sess.is_new():
+             util.redirect(req, '/login?refpage=%s' % req.uri)
+             return apache.OK
+         else:
+             # check out the user's login and group membership
+             if sess.has_key('groups'): groups = sess['groups']
+             else: groups=&quot;&quot;
+             groups = groups.split(&quot;|&quot;)
+             if group in groups:
+                 return apache.OK
+             else:
+                 return apache.HTTP_FORBIDDEN
+
+-- 
+________________
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">harrison at tbc.net</A>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017369.html">[mod_python] Cookie problem
+</A></li>
+	<LI>Next message: <A HREF="017371.html">[mod_python] Re: Photo Album Viewer and req.path_into.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17370">[ date ]</a>
+              <a href="thread.html#17370">[ thread ]</a>
+              <a href="subject.html#17370">[ subject ]</a>
+              <a href="author.html#17370">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

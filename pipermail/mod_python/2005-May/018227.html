@@ -1,0 +1,256 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] apache 2.0.54 and SSLUserName
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20apache%202.0.54%20and%20SSLUserName&In-Reply-To=1116983346.20687%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018176.html">
+   <LINK REL="Next"  HREF="018177.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] apache 2.0.54 and SSLUserName</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Bud P. Bruegger</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20apache%202.0.54%20and%20SSLUserName&In-Reply-To=1116983346.20687%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] apache 2.0.54 and SSLUserName">bud at comune.grosseto.it
+       </A><BR>
+    <I>Tue May 31 06:53:45 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018176.html">[mod_python] apache 2.0.54 and SSLUserName
+</A></li>
+        <LI>Next message: <A HREF="018177.html">[mod_python] psp module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18227">[ date ]</a>
+              <a href="thread.html#18227">[ thread ]</a>
+              <a href="subject.html#18227">[ subject ]</a>
+              <a href="author.html#18227">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Sorry for the late reaction on this--I'm just catching up on things after a 
+trip.
+
+SSLUserName with +fakeBasicAuth may actually be a solution to my 
+problem.  Haven't had a chance to try this yet--but here is what my 
+intuition says:
+
+Since I didn't use SSLUserName in my test and since I set SSLVerifyClient 
+to optional_no_ca (for demonstration with any eID), mod-ssl seems not to 
+set req.user.  I believe taht adding SSLUserName and requiring client cert 
+verification would possibly set req.user sometime in the access stage such 
+that it would be accessible (via req.user, not via env vars) from 
+mod-python in later stages (authen, authz, of fixup).
+
+Will try it out and let you know whether it works.
+
+best cheers
+-b
+
+
+At 21.09 24/05/2005 -0400, Graham Dumpleton wrote:
+&gt;<i>Eric Jonas wrote ..
+</I>&gt;<i> &gt; &gt; Not a solution, but try a handler:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; def handler(req):
+</I>&gt;<i> &gt; &gt;   req.add_common_vars()
+</I>&gt;<i> &gt; &gt;   req.content_type = &quot;text/plain&quot;
+</I>&gt;<i> &gt; &gt;   req.send_http_header()
+</I>&gt;<i> &gt; &gt;   for name in req.subprocess_env.keys():
+</I>&gt;<i> &gt; &gt;     print &gt;&gt; req, name, req.subprocess_env[name]
+</I>&gt;<i> &gt; &gt;   return apache.OK
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; You might find that the specific bit of information you are after is
+</I>&gt;<i> &gt; in one of
+</I>&gt;<i> &gt; &gt; the SSL variables which are populated into the req.subprocess_env table
+</I>&gt;<i> &gt; &gt; thus giving you an alternate way of finding it.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Alas, I still get:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; REMOTE_PORT 33059
+</I>&gt;<i> &gt; REMOTE_USER /C=US/ST=Massachusetts/O=Massachusetts Institute of
+</I>&gt;<i> &gt; Technology/OU=Client CA v1/CN=Eric M Jonas/emailAddress=<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jonas at MIT.EDU</A>
+</I>&gt;<i> &gt; AUTH_TYPE Basic
+</I>&gt;<i>
+</I>&gt;<i>These aren't the variables I am thinking of. If the handler is executed as
+</I>&gt;<i>a content handler (not earlier phases) and mod_ssl is being used, there
+</I>&gt;<i>should be a host of &quot;SSL_*&quot; variables available. The list is at the end of
+</I>&gt;<i>this email. It is these variables I was suggesting may have just the specific
+</I>&gt;<i>bit you want as a separate item.
+</I>&gt;<i>
+</I>&gt;<i>Unfortunately, if you are trying to get the information in a authhandler
+</I>&gt;<i>you will not have access to them as they are only populated by the SSL
+</I>&gt;<i>fixup handler. There is also no gaurantee that the SSL fixuphandler is
+</I>&gt;<i>run before a mod_python fixuphandler, so you can't even attempt to
+</I>&gt;<i>access it from the mod_python fixuphandler.
+</I>&gt;<i>
+</I>&gt;<i>This issue was recently talked about on the mailing list so you may want
+</I>&gt;<i>to review the discussion in the mailing list archive, starting with:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="http://www.modpython.org/pipermail/mod_python/2005-May/018157.html">http://www.modpython.org/pipermail/mod_python/2005-May/018157.html</A>
+</I>&gt;<i>   <A HREF="http://www.modpython.org/pipermail/mod_python/2005-May/018163.html">http://www.modpython.org/pipermail/mod_python/2005-May/018163.html</A>
+</I>&gt;<i>   <A HREF="http://www.modpython.org/pipermail/mod_python/2005-May/018163.html">http://www.modpython.org/pipermail/mod_python/2005-May/018163.html</A>
+</I>&gt;<i>
+</I>&gt;<i>In the last quoted message I posted code (untested), that may allow you
+</I>&gt;<i>to access all these SSL variables from an earlier handler than the content
+</I>&gt;<i>handler. if you needed to do it from the authhandler. The URLs for the
+</I>&gt;<i>attachments are broken though. I think those which will work are:
+</I>&gt;<i>
+</I>&gt;<i> 
+</I>&gt;<i><A HREF="http://www.modpython.org/pipermail/mod_python/attachments/20050523/9fa0275b/_mp_mod_ssl.obj">http://www.modpython.org/pipermail/mod_python/attachments/20050523/9fa0275b/_mp_mod_ssl.obj</A>
+</I>&gt;<i> 
+</I>&gt;<i><A HREF="http://www.modpython.org/pipermail/mod_python/attachments/20050523/9fa0275b/setup.obj">http://www.modpython.org/pipermail/mod_python/attachments/20050523/9fa0275b/setup.obj</A>
+</I>&gt;<i>
+</I>&gt;<i>If they don't, let me know and will send files to you.
+</I>&gt;<i>
+</I>&gt;<i>Anyway, this is on the basis that you are in fact relying on mod_ssl.
+</I>&gt;<i>
+</I>&gt;<i>Below are all the SSL variables.
+</I>&gt;<i>
+</I>&gt;<i>static const char *ssl_hook_Fixup_vars[] = {
+</I>&gt;<i>     &quot;SSL_VERSION_INTERFACE&quot;,
+</I>&gt;<i>     &quot;SSL_VERSION_LIBRARY&quot;,
+</I>&gt;<i>     &quot;SSL_PROTOCOL&quot;,
+</I>&gt;<i>     &quot;SSL_CIPHER&quot;,
+</I>&gt;<i>     &quot;SSL_CIPHER_EXPORT&quot;,
+</I>&gt;<i>     &quot;SSL_CIPHER_USEKEYSIZE&quot;,
+</I>&gt;<i>     &quot;SSL_CIPHER_ALGKEYSIZE&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_VERIFY&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_M_VERSION&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_M_SERIAL&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_V_START&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_V_END&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_C&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_ST&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_L&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_O&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_OU&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_CN&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_T&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_I&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_G&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_S&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_D&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_UID&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_S_DN_Email&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_C&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_ST&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_L&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_O&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_OU&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_CN&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_T&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_I&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_G&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_S&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_D&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_UID&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_I_DN_Email&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_A_KEY&quot;,
+</I>&gt;<i>     &quot;SSL_CLIENT_A_SIG&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_M_VERSION&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_M_SERIAL&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_V_START&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_V_END&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_C&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_ST&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_L&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_O&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_OU&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_CN&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_T&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_I&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_G&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_S&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_D&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_UID&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_S_DN_Email&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_C&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_ST&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_L&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_O&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_OU&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_CN&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_T&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_I&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_G&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_S&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_D&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_UID&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_I_DN_Email&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_A_KEY&quot;,
+</I>&gt;<i>     &quot;SSL_SERVER_A_SIG&quot;,
+</I>&gt;<i>     &quot;SSL_SESSION_ID&quot;,
+</I>&gt;<i>     NULL
+</I>&gt;<i>};
+</I>&gt;<i>_______________________________________________
+</I>&gt;<i>Mod_python mailing list
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+
+-------------------------------------------------------------------------------------------------
+Ing. Bud P. Bruegger, Ph.D.                 +39-0564-488577 
+(voice),  -21139 (fax)
+Servizio Elaborazione Dati                    e-mail:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at comune.grosseto.it</A>
+Comune di 
+Grosseto                            <A HREF="http://www.comune.grosseto.it/cie/">http://www.comune.grosseto.it/cie/</A>
+Via Ginori, 
+43                                      <A HREF="http://OpenPortalGuard.sf.net">http://OpenPortalGuard.sf.net</A>
+58100 Grosseto (Tuscany, Italy)           jabber:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at amessage.info</A>
+
+Free Software in Public Administration:  not just a good idea, but a necessity
+
+Perfection is attained, not when there is nothing more to be added, but 
+when there is nothing more to be taken away -- Antoine de Saint-Exupery 
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018176.html">[mod_python] apache 2.0.54 and SSLUserName
+</A></li>
+	<LI>Next message: <A HREF="018177.html">[mod_python] psp module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18227">[ date ]</a>
+              <a href="thread.html#18227">[ thread ]</a>
+              <a href="subject.html#18227">[ subject ]</a>
+              <a href="author.html#18227">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

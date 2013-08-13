@@ -1,0 +1,314 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Passing information through req.internal_redirect().
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Passing%20information%20through%20req.internal_redirect%28%29.&In-Reply-To=c298f2d705042400291ab66ad2%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017923.html">
+   <LINK REL="Next"  HREF="017925.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Passing information through req.internal_redirect().</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Passing%20information%20through%20req.internal_redirect%28%29.&In-Reply-To=c298f2d705042400291ab66ad2%40mail.gmail.com"
+       TITLE="[mod_python] Passing information through req.internal_redirect().">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Apr 24 03:36:17 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017923.html">[mod_python] Passing information through req.internal_redirect().
+</A></li>
+        <LI>Next message: <A HREF="017925.html">[mod_python] Passing information through req.internal_redirect().
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17924">[ date ]</a>
+              <a href="thread.html#17924">[ thread ]</a>
+              <a href="subject.html#17924">[ subject ]</a>
+              <a href="author.html#17924">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I'll check in a while, but suspect that that still isn't going to give
+access to any Python specific stuff that has been stashed in the &quot;req&quot;
+object. I remember that one of the past mailing list messages was about
+someone having tried this and found it wasn't possible. I would imagine
+though that &quot;req.prev.notes&quot; would give you access to the table object
+of previous request object, since the table object is stored in Apache.
+
+Graham
+
+On 24/04/2005, at 5:29 PM, Nicolas Lehuen wrote:
+
+&gt;<i> I didn't test it, but it seems the 'prev' member field could help you
+</I>&gt;<i> get the initial request object after an internal redirect. Quoting
+</I>&gt;<i> from the documentation :
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-mprequest-mem.html">http://www.modpython.org/live/current/doc-html/pyapi-mprequest-mem.html</A>
+</I>&gt;<i>
+</I>&gt;<i> next
+</I>&gt;<i>     If this is an internal redirect, the request object we redirect
+</I>&gt;<i> to. (Read-Only)
+</I>&gt;<i>
+</I>&gt;<i> prev
+</I>&gt;<i>     If this is an internal redirect, the request object we redirect
+</I>&gt;<i> from. (Read-Only)
+</I>&gt;<i>
+</I>&gt;<i> Regards,
+</I>&gt;<i> Nicolas
+</I>&gt;<i>
+</I>&gt;<i> On 4/24/05, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> How about req.notes - does that work? That may be a more appropriate
+</I>&gt;&gt;&gt;<i> table to use than subprocess_env.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Grisha
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Nothing I put in &quot;req.notes&quot; survives the redirect.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> There is some stuff in there:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    python_init_ran = 1
+</I>&gt;&gt;<i>    mod_userdir_user = grahamd
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The &quot;python_init_ran&quot; is put there by either of:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    PythonHeaderParserHandler
+</I>&gt;&gt;<i>    PythonPostReadRequestHandler
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> code in mod_python.c and seems to be a bookkeeping flag to ensure 
+</I>&gt;&gt;<i> that:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    PythonInitHandler
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> is only run once.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The &quot;moduserdir_user&quot; setting seems to be inherited from Apache.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Thus, &quot;req.notes&quot; appears to be created for each invocation of request
+</I>&gt;&gt;<i> handler phases.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> However, if one instead uses &quot;req.connection.notes&quot;, ie., notes object
+</I>&gt;&gt;<i> which
+</I>&gt;&gt;<i> exists in the connection object, then they are preserved.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> So therefore have two ways of passing information, either in the table
+</I>&gt;&gt;<i> object
+</I>&gt;&gt;<i> &quot;req.subprocess_env&quot; or in table object &quot;req.connection.notes&quot;. In the
+</I>&gt;&gt;<i> latter,
+</I>&gt;&gt;<i> the key names are preserved as they were whereas in
+</I>&gt;&gt;<i> &quot;req.subprocess_env&quot; they
+</I>&gt;&gt;<i> get &quot;REDIRECT_&quot; prefixed.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Because it is a table object in both cases, value can still only be a
+</I>&gt;&gt;<i> string.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Information in &quot;req.subprocess_env&quot; is still useful in its own right 
+</I>&gt;&gt;<i> if
+</I>&gt;&gt;<i> the
+</I>&gt;&gt;<i> original URI was required.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Anyway, useful stuff to know even though I am not sure I have a use 
+</I>&gt;&gt;<i> for
+</I>&gt;&gt;<i> it
+</I>&gt;&gt;<i> at the moment.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On 24/04/2005, at 12:47 PM, Gregory (Grisha) Trubetskoy wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> On Sat, 23 Apr 2005, Graham Dumpleton wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> There has been a few times on the list where questions have been
+</I>&gt;&gt;&gt;&gt;<i> asked about
+</I>&gt;&gt;&gt;&gt;<i> how to pass information through a &quot;req.internal_redirect()&quot; call. 
+</I>&gt;&gt;&gt;&gt;<i> The
+</I>&gt;&gt;&gt;&gt;<i> problem
+</I>&gt;&gt;&gt;&gt;<i> is that any data which is stashed in the &quot;req&quot; object isn't 
+</I>&gt;&gt;&gt;&gt;<i> available
+</I>&gt;&gt;&gt;&gt;<i> to the
+</I>&gt;&gt;&gt;&gt;<i> target of the internal redirect because Apache/mod_python constructs
+</I>&gt;&gt;&gt;&gt;<i> a new
+</I>&gt;&gt;&gt;&gt;<i> &quot;req&quot; object for the subsequent handler invocation.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Turns out there is actually a way of passing at least some
+</I>&gt;&gt;&gt;&gt;<i> information. This
+</I>&gt;&gt;&gt;&gt;<i> is done by adding new key/values to the &quot;req.subprocess_env&quot; table.
+</I>&gt;&gt;&gt;&gt;<i> This table
+</I>&gt;&gt;&gt;&gt;<i> is held within Apache data structures associated with the request 
+</I>&gt;&gt;&gt;&gt;<i> and
+</I>&gt;&gt;&gt;&gt;<i> contents
+</I>&gt;&gt;&gt;&gt;<i> of it are propagated through to the target of the internal redirect.
+</I>&gt;&gt;&gt;&gt;<i> The only
+</I>&gt;&gt;&gt;&gt;<i> trick is that the key names get modified when the redirect occurs.
+</I>&gt;&gt;&gt;&gt;<i> You also
+</I>&gt;&gt;&gt;&gt;<i> can only store string values.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Take for example a handler which contains:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  from mod_python import apache
+</I>&gt;&gt;&gt;&gt;<i>  import os
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  def handler(req):
+</I>&gt;&gt;&gt;&gt;<i>    req.subprocess_env.add(&quot;XXX&quot;,&quot;YYY&quot;)
+</I>&gt;&gt;&gt;&gt;<i>    req.internal_redirect(os.path.split(req.uri)[0]+'/page')
+</I>&gt;&gt;&gt;&gt;<i>    return apache.OK
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> and is accessed as:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  /~grahamd/redirect/redirect
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> And a second handler which is triggered as the target of the 
+</I>&gt;&gt;&gt;&gt;<i> redirect
+</I>&gt;&gt;&gt;&gt;<i> which
+</I>&gt;&gt;&gt;&gt;<i> contains:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  from mod_python import apache
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  def handler(req):
+</I>&gt;&gt;&gt;&gt;<i>    req.content_type = &quot;text/plain&quot;
+</I>&gt;&gt;&gt;&gt;<i>    for key in req.subprocess_env.keys():
+</I>&gt;&gt;&gt;&gt;<i>      print &gt;&gt; req, key, &quot;=&quot;, req.subprocess_env[key]
+</I>&gt;&gt;&gt;&gt;<i>    return apache.OK
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> That is, URL for this is:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  /~grahamd/redirect/page
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> The result of making a request against the first URL is that
+</I>&gt;&gt;&gt;&gt;<i> redirection to
+</I>&gt;&gt;&gt;&gt;<i> the second occurs, with the output being:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  REDIRECT_GATEWAY_INTERFACE = CGI/1.1
+</I>&gt;&gt;&gt;&gt;<i>  REDIRECT_SERVER_PROTOCOL = HTTP/1.1
+</I>&gt;&gt;&gt;&gt;<i>  REDIRECT_REQUEST_METHOD = GET
+</I>&gt;&gt;&gt;&gt;<i>  REDIRECT_QUERY_STRING =
+</I>&gt;&gt;&gt;&gt;<i>  REDIRECT_REQUEST_URI = /~grahamd/redirect/redirect
+</I>&gt;&gt;&gt;&gt;<i>  REDIRECT_SCRIPT_NAME = /~grahamd/redirect/redirect
+</I>&gt;&gt;&gt;&gt;<i>  REDIRECT_XXX = YYY
+</I>&gt;&gt;&gt;&gt;<i>  REDIRECT_STATUS = 200
+</I>&gt;&gt;&gt;&gt;<i>  GATEWAY_INTERFACE = CGI/1.1
+</I>&gt;&gt;&gt;&gt;<i>  SERVER_PROTOCOL = HTTP/1.1
+</I>&gt;&gt;&gt;&gt;<i>  REQUEST_METHOD = GET
+</I>&gt;&gt;&gt;&gt;<i>  QUERY_STRING =
+</I>&gt;&gt;&gt;&gt;<i>  REQUEST_URI = /~grahamd/redirect/redirect
+</I>&gt;&gt;&gt;&gt;<i>  SCRIPT_NAME = /~grahamd/redirect/page
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> As can be seen, the key/value pair of &quot;XXX&quot; and &quot;YYY&quot; have 
+</I>&gt;&gt;&gt;&gt;<i> persisted,
+</I>&gt;&gt;&gt;&gt;<i> although
+</I>&gt;&gt;&gt;&gt;<i> the key name is now &quot;REDIRECT_XXX&quot;. One can also see that other
+</I>&gt;&gt;&gt;&gt;<i> preexisting
+</I>&gt;&gt;&gt;&gt;<i> variables set by Apache for the original request are also propagated
+</I>&gt;&gt;&gt;&gt;<i> as well,
+</I>&gt;&gt;&gt;&gt;<i> with similar key name change.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> That one can pass a newly created value would be useful where for
+</I>&gt;&gt;&gt;&gt;<i> example a
+</I>&gt;&gt;&gt;&gt;<i> initial handler had created a new session object as it could store
+</I>&gt;&gt;&gt;&gt;<i> the session
+</I>&gt;&gt;&gt;&gt;<i> ID in this table such that it is accessible to the second handler. 
+</I>&gt;&gt;&gt;&gt;<i> In
+</I>&gt;&gt;&gt;&gt;<i> the past
+</I>&gt;&gt;&gt;&gt;<i> people have noticed how in redirects both handlers end up creating
+</I>&gt;&gt;&gt;&gt;<i> separate
+</I>&gt;&gt;&gt;&gt;<i> new session IDs if the first handler had to create one, because the
+</I>&gt;&gt;&gt;&gt;<i> new session
+</I>&gt;&gt;&gt;&gt;<i> ID is lost and not usable by the second handler.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> The information propagated about the initial request is useful as
+</I>&gt;&gt;&gt;&gt;<i> well for the
+</I>&gt;&gt;&gt;&gt;<i> fact that the original URI is present. This could be used by the
+</I>&gt;&gt;&gt;&gt;<i> second handler
+</I>&gt;&gt;&gt;&gt;<i> in some way.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> As an example, when using the ErrorDocument directive, Apache uses 
+</I>&gt;&gt;&gt;&gt;<i> an
+</I>&gt;&gt;&gt;&gt;<i> internal
+</I>&gt;&gt;&gt;&gt;<i> redirect to redirect to the page when it is a local URI. As
+</I>&gt;&gt;&gt;&gt;<i> documented in:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  <A HREF="http://httpd.apache.org/docs-2.0/custom-error.html">http://httpd.apache.org/docs-2.0/custom-error.html</A>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> the req.subprocess_env would contain the &quot;REDIRECT_*&quot; values shown
+</I>&gt;&gt;&gt;&gt;<i> above. In
+</I>&gt;&gt;&gt;&gt;<i> this case the internal redirect is being done in Apache itself, but
+</I>&gt;&gt;&gt;&gt;<i> there is
+</I>&gt;&gt;&gt;&gt;<i> no reason that you couldn't implement your own version of the
+</I>&gt;&gt;&gt;&gt;<i> ErrorDocument
+</I>&gt;&gt;&gt;&gt;<i> functionality in your own custom handler code.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Anyway, thought I would put together this ramble about this stuff
+</I>&gt;&gt;&gt;&gt;<i> when I found
+</I>&gt;&gt;&gt;&gt;<i> that this could be done since it may have been a solution to 
+</I>&gt;&gt;&gt;&gt;<i> problems
+</I>&gt;&gt;&gt;&gt;<i> a few
+</I>&gt;&gt;&gt;&gt;<i> people had faced before, but that it could be done doesn't seem to
+</I>&gt;&gt;&gt;&gt;<i> have ever
+</I>&gt;&gt;&gt;&gt;<i> been mentioned on the mailing list before. At least now anyone
+</I>&gt;&gt;&gt;&gt;<i> searching the
+</I>&gt;&gt;&gt;&gt;<i> archives may find this. :-)
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Enjoy.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017923.html">[mod_python] Passing information through req.internal_redirect().
+</A></li>
+	<LI>Next message: <A HREF="017925.html">[mod_python] Passing information through req.internal_redirect().
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17924">[ date ]</a>
+              <a href="thread.html#17924">[ thread ]</a>
+              <a href="subject.html#17924">[ subject ]</a>
+              <a href="author.html#17924">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

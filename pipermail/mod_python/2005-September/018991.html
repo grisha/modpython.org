@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Co-ordinating ccess to a single-use resource
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Co-ordinating%20ccess%20to%20a%20single-use%20resource&In-Reply-To=c298f2d705090810456ca40b00%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018981.html">
+   <LINK REL="Next"  HREF="018992.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Co-ordinating ccess to a single-use resource</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>John Simeone</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Co-ordinating%20ccess%20to%20a%20single-use%20resource&In-Reply-To=c298f2d705090810456ca40b00%40mail.gmail.com"
+       TITLE="[mod_python] Co-ordinating ccess to a single-use resource">jsimeone at inplex.com
+       </A><BR>
+    <I>Fri Sep  9 10:27:53 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018981.html">[mod_python] Co-ordinating ccess to a single-use resource
+</A></li>
+        <LI>Next message: <A HREF="018992.html">[mod_python] Co-ordinating ccess to a single-use resource
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18991">[ date ]</a>
+              <a href="thread.html#18991">[ thread ]</a>
+              <a href="subject.html#18991">[ subject ]</a>
+              <a href="author.html#18991">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Nicolas Lehuen wrote:
+
+&gt;<i>2005/9/8, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>&gt;&gt;<i>On 09/09/2005, at 2:23 AM, John Simeone wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Hello to everyone.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>I am responsible for a project using Apache 2.0 with mod_python in a
+</I>&gt;&gt;&gt;<i>Win2k environment, the choice of OS being dictated by the fact that
+</I>&gt;&gt;&gt;<i>the purpose of the server is to supply access to a proprietary,
+</I>&gt;&gt;&gt;<i>supplier written Windows program to our user base via the web.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>That program is single threaded and provides for only 1 user at a
+</I>&gt;&gt;&gt;<i>time. Access to the program in Python is through  win32com.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>I am using a mod_python.publisher handler.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>All the http requests come through a single proxy server with a static
+</I>&gt;&gt;&gt;<i>address but not all are from browser clients. Some are originating
+</I>&gt;&gt;&gt;<i>from perl programs but all requests are directed to a single request
+</I>&gt;&gt;&gt;<i>handler.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Can anyone suggest a method to control access to this single user
+</I>&gt;&gt;&gt;<i>resource. In a non-web programming environment, I'd just use a mutex
+</I>&gt;&gt;&gt;<i>semaphore to co-ordinate access among the threads but I am too much of
+</I>&gt;&gt;&gt;<i>newbie with mod_python and Apache to implement a workable solution so
+</I>&gt;&gt;&gt;<i>far.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>What mechanism can I use to create a shared resource that I can lock
+</I>&gt;&gt;&gt;<i>and have other requests wait until the resource is unlocked?
+</I>&gt;&gt;&gt;<i>      
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>When using mod_python under Win32 platform, there is effectively only
+</I>&gt;&gt;<i>one process and requests are handled in separate threads. Because of
+</I>&gt;&gt;<i>this, you should be able to mediate access to the shared resource
+</I>&gt;&gt;<i>through a normal thread mutual exclusion locking mechanism just as
+</I>&gt;&gt;<i>easily as you would in a non web environment.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Graham
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>That is to say :
+</I>&gt;<i>
+</I>&gt;<i>import threading
+</I>&gt;<i>
+</I>&gt;<i># &quot;R&quot; stand for Re-entrant, i.e. a thread can acquire the lock multiple times
+</I>&gt;<i># make sure that the lock is instantiated only once, for example by
+</I>&gt;<i>putting it in
+</I>&gt;<i># a module which your published code imports.
+</I>&gt;<i>lock = threading.RLock() 
+</I>&gt;<i>
+</I>&gt;<i>lock.acquire()
+</I>&gt;<i>try:
+</I>&gt;<i>    # access the shared resource
+</I>&gt;<i>finally:
+</I>&gt;<i>    lock.release()
+</I>&gt;<i>
+</I>&gt;<i>See the documentation of the threading module for more information.
+</I>&gt;<i>
+</I>&gt;<i>Regards,
+</I>&gt;<i>Nicolas
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>Thanks to Graham and Nicolas for their prompt responses.
+
+I followed Nicolas' counsel and created a file 'tconstants.py' :
+
+import threading
+mutex = threading.RLock()
+
+included an 'import' into my publisher handler and wrapped the access to 
+the single resource with 'mutex.acquire()' and mutex.release(). When I 
+got an error regarding the unavailability of the mutex global, I ran the 
+following test in IDLE:
+
+import threading
+import tconstants
+def setmutex():
+    mutex.acquire()
+    return
+setmutex()
+
+and received the same error:  &quot;global name 'mutex' is not defined.&quot;
+
+I ran the threading demo to verify there wasn't a problem with the 
+thread module in my copy of Python 2.3. It ran fine.
+
+The only way I could get this test to work was to alter the code to 
+define the mutex not in the imported tconstants but in the code directly:
+
+import threading
+mutex = threading.RLock()
+def setmutex():
+    mutex.acquire()
+    return
+setmutex()
+mutex.release()
+
+Will defining the mutex this way cause problems in proper threading 
+control for mod_python in its interaction with Apache?
+
+Regards,
+
+John
+
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20050909/8b698254/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20050909/8b698254/attachment.html</A>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018981.html">[mod_python] Co-ordinating ccess to a single-use resource
+</A></li>
+	<LI>Next message: <A HREF="018992.html">[mod_python] Co-ordinating ccess to a single-use resource
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18991">[ date ]</a>
+              <a href="thread.html#18991">[ thread ]</a>
+              <a href="subject.html#18991">[ subject ]</a>
+              <a href="author.html#18991">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

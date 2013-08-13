@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] apache 1.3.14 + mod_python 2.7.2 + python 2.0/2.1b1 + PyGreSQL 3.
+ 1 + mxdatetime 2.0
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20apache%201.3.14%20%2B%20mod_python%202.7.2%20%2B%20python%202.0/2.1b1%20%2B%20PyGreSQL%203.%0A%201%20%2B%20mxdatetime%202.0&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000638.html">
+   <LINK REL="Next"  HREF="000640.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] apache 1.3.14 + mod_python 2.7.2 + python 2.0/2.1b1 + PyGreSQL 3.
+ 1 + mxdatetime 2.0</H1>
+    <B>Ensim-Newsgroups.Mailing-Lists.Mod_Python-List</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20apache%201.3.14%20%2B%20mod_python%202.7.2%20%2B%20python%202.0/2.1b1%20%2B%20PyGreSQL%203.%0A%201%20%2B%20mxdatetime%202.0&In-Reply-To="
+       TITLE="[mod_python] apache 1.3.14 + mod_python 2.7.2 + python 2.0/2.1b1 + PyGreSQL 3.
+ 1 + mxdatetime 2.0">ensim.ml.mod_python at ensim.com
+       </A><BR>
+    <I>Tue Mar 20 16:37:59 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000638.html">[mod_python] setup of python2.1 with and without mod_python
+</A></li>
+        <LI>Next message: <A HREF="000640.html">[mod_python] problem with publisher.py File class w/ possible fix
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#639">[ date ]</a>
+              <a href="thread.html#639">[ thread ]</a>
+              <a href="subject.html#639">[ subject ]</a>
+              <a href="author.html#639">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>thought you guys might interested on my experience with getting this up and
+running.
+
+- ensured python 1.5.2 wasn't installed (or you could set your path to
+something like export PATH=/usr/local/python2.1/bin:$PATH, so the py2.x had
+preference).  the python binary gets invoked by various build scripts
+(disutils and makefiles), so its important the right version is being
+invoked.
+- had to compile python without thread support (mod_python requirement)
+- needed to change mod_python's configure script in order to compile with
+2.1b1 (had no problems with 2.0).  there was a line grep xxx
+Modules/Makefile.  i changed it to grep xxx Makefile.
+- set OPT=-DEAPI in src/Makefile in mod_python (from a posting to modpython
+mailist list).
+- changed pgdb.py and removed &quot;import exceptions&quot;...it was giving my
+mod_python scripts weird errors.  it seems python 2.x moved the exceptions
+module into built-ins.
+- changed pgdb.py from &quot;import DateTime&quot; to &quot;from mx import DateTime&quot;.  (i
+used egenix's mxdatetime and compiled from source). DateTime is required by
+pgdb.
+
+i did a simple query from a mod_pythonscript and things seem to work.
+
+btw, i wrote 2 scripts to do a simple query in php and mod_python and i got
+these amazing results from httperf (server = pentium3-550/rh62/ide, client =
+pentium3-300/rh70/ide):
+
+MODPYTHON ============================================
+dbtest.py:
+from mod_python import apache
+import pgdb
+import sys
+ 
+db = pgdb.connect(user='naris', database='perftest')
+ 
+def handler(req):
+    req.content_type = &quot;text/html&quot;
+    req.send_http_header()
+    cursor = db.cursor()
+    cursor.execute(&quot;SELECT * FROM perftable&quot;)
+    retval = cursor.fetchall()
+    req.write(retval[0][0])
+    req.write(retval[1][0])
+    return apache.OK
+
+./httperf --server=blueberry.wh.ensim.com --port=19638
+--uri=/modpython/dbtest.py --num-conns=1 --num-calls=100
+httperf --client=0/1 --server=blueberry.wh.ensim.com --port=19638
+--uri=/modpython/dbtest.py --send-buffer=4096 --recv-buffer=16384
+--num-conns=1 --num-calls=100
+Maximum connect burst length: 0
+
+Total: connections 1 requests 100 replies 100 test-duration 0.333 s
+
+Connection rate: 3.0 conn/s (333.1 ms/conn, &lt;=1 concurrent connections)
+Connection time [ms]: min 333.1 avg 333.1 max 333.1 median 333.5 stddev 0.0
+Connection time [ms]: connect 0.4
+Connection length [replies/conn]: 100.000
+
+Request rate: 300.2 req/s (3.3 ms/req)
+Request size [B]: 92.0
+
+Reply rate [replies/s]: min 0.0 avg 0.0 max 0.0 stddev 0.0 (0 samples)
+Reply time [ms]: response 3.2 transfer 0.1
+Reply size [B]: header 182.0 content 30.0 footer 2.0 (total 214.0)
+Reply status: 1xx=0 2xx=100 3xx=0 4xx=0 5xx=0
+
+CPU time [s]: user 0.07 system 0.22 (user 21.0% system 66.0% total 87.1%)
+Net I/O: 89.1 KB/s (0.7*10^6 bps)
+
+Errors: total 0 client-timo 0 socket-timo 0 connrefused 0 connreset 0
+Errors: fd-unavail 0 addrunavail 0 ftab-full 0 other 0
+
+PHP ============================================
+dbtest.php:
+&lt;?php
+   $database = pg_Connect (&quot;dbname=perftest user=naris&quot;);
+   $result = pg_Exec ($database, &quot;select * from perftable&quot;);
+   $arr = pg_fetch_array($result, 0);
+   echo $arr[0];
+   $arr = pg_fetch_array($result, 1);
+   echo $arr[0];
+?&gt;
+./httperf --server=blueberry.wh.ensim.com --port=19638 --uri=/php/dbtest.php
+--num-conns=1 --num-calls=100
+httperf --client=0/1 --server=blueberry.wh.ensim.com --port=19638
+--uri=/php/dbtest.php --send-buffer=4096 --recv-buffer=16384 --num-conns=1
+--num-calls=100
+Maximum connect burst length: 0
+
+Total: connections 1 requests 100 replies 100 test-duration 2.031 s
+
+Connection rate: 0.5 conn/s (2031.0 ms/conn, &lt;=1 concurrent connections)
+Connection time [ms]: min 2031.0 avg 2031.0 max 2031.0 median 2031.5 stddev
+0.0 Connection time [ms]: connect 0.5
+Connection length [replies/conn]: 100.000
+
+Request rate: 49.2 req/s (20.3 ms/req)
+Request size [B]: 87.0
+
+Reply rate [replies/s]: min 0.0 avg 0.0 max 0.0 stddev 0.0 (0 samples)
+Reply time [ms]: response 20.3 transfer 0.0
+Reply size [B]: header 208.0 content 30.0 footer 2.0 (total 240.0)
+Reply status: 1xx=0 2xx=100 3xx=0 4xx=0 5xx=0
+
+CPU time [s]: user 0.49 system 1.50 (user 24.1% system 73.9% total 98.0%)
+Net I/O: 15.6 KB/s (0.1*10^6 bps)
+
+Errors: total 0 client-timo 0 socket-timo 0 connrefused 0 connreset 0
+Errors: fd-unavail 0 addrunavail 0 ftab-full 0 other 0
+
+---
+Naris Siamwalla
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">naris at ensim.com</A>
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000638.html">[mod_python] setup of python2.1 with and without mod_python
+</A></li>
+	<LI>Next message: <A HREF="000640.html">[mod_python] problem with publisher.py File class w/ possible fix
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#639">[ date ]</a>
+              <a href="thread.html#639">[ thread ]</a>
+              <a href="subject.html#639">[ subject ]</a>
+              <a href="author.html#639">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

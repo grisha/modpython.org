@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python weirdness, maybe related to importing?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20weirdness%2C%20maybe%20related%20to%20importing%3F&In-Reply-To=3EE584EE.9090503%40sjsoft.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="013809.html">
+   <LINK REL="Next"  HREF="013811.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python weirdness, maybe related to importing?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Sean Reifschneider</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20weirdness%2C%20maybe%20related%20to%20importing%3F&In-Reply-To=3EE584EE.9090503%40sjsoft.com"
+       TITLE="[mod_python] mod_python weirdness, maybe related to importing?">jafo at tummy.com
+       </A><BR>
+    <I>Tue Jun 10 02:14:22 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="013809.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+        <LI>Next message: <A HREF="013811.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13810">[ date ]</a>
+              <a href="thread.html#13810">[ thread ]</a>
+              <a href="subject.html#13810">[ subject ]</a>
+              <a href="author.html#13810">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Tue, Jun 10, 2003 at 09:12:46AM +0200, David Fraser wrote:
+&gt;<i>Do you mean you're using this import mechanism when you have the problem 
+</I>&gt;<i>with jotweb.input.Request below?
+</I>
+I mean that the imp module call is loading a module which then does an
+&quot;import jotweb.input&quot;.  If in the jotweb I don't have the __init__.py
+import all sub-packages or sub-modules, I will get an AttributeError
+such as:
+
+  AttributeError: 'module' object has no attribute 'input'
+
+&gt;&gt;<i>  import Request
+</I>&gt;<i>Have you tried using __all__ = [Request, ...] in __init__.py ?
+</I>
+I believe I did try that at one point, but it's my understanding that
+setting &quot;__all__&quot; only has an impact if you do &quot;from jotweb import *&quot;,
+which I don't do anywhere.  Also, as I said before, I can import the
+code fine outside of mod_python.  &quot;python -c 'import jotweb.input'&quot;, for
+example...
+
+&gt;<i>mod_python does have some import hooks to handle things specially, but 
+</I>&gt;<i>I'm not an expect here, someone else will have to comment...
+</I>
+I wonder if I'm running into something there.  I've tried simplifying it
+to:
+
+   include current directory in path
+   module = __import__(basename, globals(), locals(), [])
+   return sys.path to old layout
+
+that doesn't really seem to help the problem with imports though...
+
+&gt;<i>How do you pass the request object into processLogin (it doesn't seem to 
+</I>&gt;<i>be part of the call)?
+</I>&gt;<i>It seems like you may be trying to use an old request object or something...
+</I>
+The request object is stored into a module, where other parts of my
+system will pick it up when they need either the headers or the request.
+
+I've verified that the id() of the header_out object is the same in the
+higher-level and lower-level code.  I'm not calling request.write()
+anywhere except at the end of my top-level code, nor am I doing a print
+anywhere.  I guess it might be a problem with SimpleTAL?  It's not going
+to access the Apache request object, but maybe it's doing a print?
+
+&gt;<i>No. But it is a bit more complex running a python interpreter inside 
+</I>&gt;<i>Apache than standalone.
+</I>
+Sure, I understand that, and I'm ok with it being more complicated.  I'm
+just not happy about running into sporadic problems where sometimes
+things work, sometimes they don't.
+
+For example, *ANY* time I submit a request for a URL via a telnet
+connection, I get the headers back:
+
+   guin:jafo$ telnet 127.0.0.1 80
+   Trying 127.0.0.1...
+   Connected to 127.0.0.1.
+   Escape character is '^]'.
+   GET <A HREF="http://127.0.0.1/jotweb/sessionex.html?Username=jafo&amp;Password=abc123&amp;loginbutton=1">http://127.0.0.1/jotweb/sessionex.html?Username=jafo&amp;Password=abc123&amp;loginbutton=1</A> HTTP/1.0
+
+   HTTP/1.0 200 OK
+   Date: Tue, 10 Jun 2003 08:10:44 GMT
+   Server: Apache/2.0.40 (Red Hat Linux)
+   Set-cookie: sessionid=20d315c26c8c395e61730ceb27d0faa98fd; Comment=&quot;User Login Cookie&quot;; Path=/; Version=1;
+   Cache-control: max-age=0
+   Expires: Thu, 01 Dec 1994 16:00:00 GMT
+   Content-Length: 405
+   Connection: close
+   Content-Type: text/html; charset=ISO-8859-1
+
+   [...]
+
+If I paste the URL:
+
+   <A HREF="http://127.0.0.1/jotweb/sessionex.html?Username=jafo&amp;Password=abc123&amp;loginbutton=1">http://127.0.0.1/jotweb/sessionex.html?Username=jafo&amp;Password=abc123&amp;loginbutton=1</A>
+
+into Konqueror, the headers I'm getting back are:
+
+   Date: Tue, 10 Jun 2003 08:10:44 GMT
+   Server: Apache/2.0.40 (Red Hat Linux)
+   Connection: close
+   Content-Type: text/html; charset=ISO-8859-1
+
+(according to Konqueror).  I've tried Mozilla and galeon as well, all
+with similar results.  Yes, I have cookies enabled from localhost.  If I
+put the headers_out.add() at the top of my handler, it showes up in
+Konqueror's &quot;View Page Info&quot; output...
+
+Sean
+-- 
+ Do you think reading about cowboys is sufficient to ride a horse?
+ Like horses, real programs tend to throw you.  -- John Shipman, 1997
+Sean Reifschneider, Inimitably Superfluous &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jafo at tummy.com</A>&gt;
+tummy.com, ltd. - Linux Consulting since 1995.  Qmail, Python, SysAdmin
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="013809.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+	<LI>Next message: <A HREF="013811.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13810">[ date ]</a>
+              <a href="thread.html#13810">[ thread ]</a>
+              <a href="subject.html#13810">[ subject ]</a>
+              <a href="author.html#13810">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

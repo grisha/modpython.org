@@ -1,0 +1,906 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] req.connection.user generates AttributeError
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20req.connection.user%20generates%20AttributeError&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014340.html">
+   <LINK REL="Next"  HREF="014342.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] req.connection.user generates AttributeError</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>perry.tew at cibavision.novartis.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20req.connection.user%20generates%20AttributeError&In-Reply-To="
+       TITLE="[mod_python] req.connection.user generates AttributeError">perry.tew at cibavision.novartis.com
+       </A><BR>
+    <I>Mon Oct 20 08:52:15 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014340.html">[mod_python] req.connection.user generates AttributeError
+</A></li>
+        <LI>Next message: <A HREF="014342.html">[mod_python] req.user always returns None?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14341">[ date ]</a>
+              <a href="thread.html#14341">[ thread ]</a>
+              <a href="subject.html#14341">[ subject ]</a>
+              <a href="author.html#14341">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>David,
+   I just wrote some code for ticket based authentication.  It's not 
+completely where I want it, but it may provide you a framework to get 
+started.  It works for me, but I'm using client certificates for 
+authentication.   You'd need to change the TicketMaster.py script to check 
+for basic authentication.  Here's the code, along with my httpd.conf 
+settings.  If you do use it, I would appreciate criticism and suggestions 
+for improvement as I'm new to python and may be doing some Java-ish things 
+that have better solutions in Python.  Also, it's still a work in progress 
+concerning documentation.  FYI, I basically ported the TicketMaster 
+example in the &quot;Writing Apache modules in Perl and C&quot; book.
+
+Inside of my TicketAccessHandler.py is also some authorization stuff going 
+against an RDBMS.  It's pretty sweet.  It's set for an intranet to allow 
+managers of content to handle adding and deleting users from roles rather 
+than bogging down a site admin with such mundane tasks.  It can run 
+completely in memory and updates are event driven and take place in a 
+cleanup handler.  If you're interested in that, I can sent you the code 
+for it as well (sql, front end, etc), but I suspect your first priority is 
+the md5 ticket cookie, so at least the TicketTool.py should be an pretty 
+exact match of what you may need.
+
+Hope this helps,
+-Perry Tew
+
+
+
+
+# ===========================================================
+# ===========================================================
+# ===========================================================
+# TicketAuthenHandler.py ======================================
+from mod_python import apache
+import TicketTool
+
+from ApachePool import ApachePool
+dbpool = ApachePool()
+
+
+def accesshandler(req):
+        #apache.log_error(&quot;[TicketAuthenHandler] in handler() method&quot;)
+
+# ===========================================================
+# Authenication secition.  This handler contains both authen
+# and authz.  This is because it doesn't use the default
+# Basic authentication.  Without using Basic, I can't get the
+# authz handler to be called.  So, I have them together here
+# ===========================================================
+
+        # the NameError should only happen once in the life of the apache 
+child process 
+        global ticketTool
+        try:
+                result, msg, user = ticketTool.verify_ticket(req)
+        except NameError:
+                # if the ticketTool hasn't been created yet, then do so.
+                ticketTool = TicketTool.TicketTool(req)
+                result, msg, user = ticketTool.verify_ticket(req)
+
+
+        #apache.log_error(&quot;[TicketAuthenHandler] verify_ticket result was 
+&quot; + str(result))
+        #apache.log_error(&quot;[TicketAuthenHandler] verify_ticket msg was &quot; + 
+msg)
+
+        # ditch the call if something wasn't correct
+        if result == 0:
+                #apache.log_error(msg, apache.APLOG_WARNING)
+                cookie = ticketTool.make_return_address(req)
+                cout = cookie.output(header=&quot;&quot;)
+                #apache.log_error( &quot;cookie going out:&quot; + cout)
+                req.err_headers_out['Set-Cookie'] = cout
+                req.err_headers_out['Pragma'] = 'no-cache'
+                req.err_headers_out['Cache-Control'] = 'no-cache'
+                req.err_headers_out['Expires'] = '-1'
+                return apache.HTTP_FORBIDDEN
+
+
+
+# ===========================================================
+# Authorization section
+# Make sure user's roles are sufficient to access uri
+# ===========================================================
+
+        #apache.log_error(&quot;[TicketAuthzHandler] in handler() method&quot;)
+
+        uri_roles = get_uri_roles(req)
+        #apache.log_error(&quot;URI ROLES:&quot; + str(uri_roles)) 
+
+        user_roles = get_user_roles(req, user)
+        #apache.log_error(&quot;USER ROLES:&quot; + &quot;,&quot;.join(user_roles.keys())) 
+
+        for a_uri, some_roles in uri_roles.items():
+                #apache.log_error( &quot;AUTHZ: checking &quot; + a_uri )
+                unauthorized = 1
+                if some_roles is not None:
+                        for a_role in some_roles:
+                                #apache.log_error(&quot;AUTHZ: examining role:&quot; 
++ a_role)
+                                if user_roles.has_key(a_role):
+                                        #apache.log_error(&quot;AUTHZ: MATCH 
+&gt;&gt;<i>&quot; + a_role)
+</I>                                        unauthorized = 0
+                else:
+                        #apache.log_error( &quot;AUTHZ: &quot; + a_uri + &quot; is not 
+protected&quot; )
+                        unauthorized = 0
+
+
+                if unauthorized:
+                        #apache.log_error(&quot;AUTHZ: FAILED&quot;)
+                        # can't return FORBIDDEN, since that may be used
+                        # by the TicketAuthenHandler to redirect to the 
+ticket
+                        # master, and I sure don't want to do that for a 
+missing
+                        # role.
+                        return apache.HTTP_PAYMENT_REQUIRED
+
+        return apache.OK
+
+# ===========================================================
+# End of main handler
+# ===========================================================
+
+
+def get_user_roles(req, user):
+
+
+        global userCache
+        global dbpool
+        try:
+                if userCache.has_key(user):
+                        #apache.log_error(&quot;found user roles in cache&quot;) 
+                        return userCache[user]
+        except NameError:
+                #apache.log_error(&quot;userCache doesn't exist, creating it&quot;) 
+                userCache = {}
+
+        #apache.log_error(&quot;userCache: &quot; + str(userCache.keys()))
+
+
+        #apache.log_error(&quot;DB: retrieving user roles from database&quot;) 
+        db = dbpool.get_connection()
+        c = db.cursor()
+        c.execute( &quot;SELECT ROLE_NAME FROM AUTH_USER_ROLES WHERE DN ='%s'&quot; 
+% (user,))
+        rset = c.fetchall()
+        roles = {}
+        for row in rset:
+                roles[row[0]] = None
+
+        userCache[user] = roles
+        return roles
+        c.close()
+        db.commit()
+        db.close()
+
+
+
+def get_uri_roles(req):
+        &quot;&quot;&quot;
+                break up the uri, make sure each part or substring of the 
+uri is cached, then
+                retrieve the roles from the uriCache
+        &quot;&quot;&quot;
+        global uriCache
+        global dbpool
+
+        paths = get_paths(req)
+        uri_roles = []   # list of dicts 
+
+        try:
+                uncached_paths = [a_path for a_path in paths if 
+uriCache.has_key(a_path) == 0]
+        except NameError:
+                #apache.log_error(&quot;uriCache doesn't exist, creating it&quot;) 
+                init_uri_cache(req)
+                uncached_paths = [a_path for a_path in paths if 
+uriCache.has_key(a_path) == 0]
+ 
+
+        if len(uncached_paths) &gt; 0:
+                #apache.log_error(&quot;DB: retrieving uncached uri roles from 
+database: &quot; + str(uncached_paths)) 
+                path_str = &quot;,&quot;.join(map(add_quotes, uncached_paths))
+
+                db = dbpool.get_connection()
+                c = db.cursor()
+                sql = &quot;SELECT URI, ROLE_NAME FROM AUTH_URI WHERE URI IN 
+(%s)&quot; % path_str
+                c.execute( sql )
+                rset = c.fetchall()
+                for row in rset:
+                        if not uriCache.has_key(row[0]):
+                                uriCache[row[0]] = []
+                        uriCache[row[0]].append(row[1])
+                c.close()
+                db.commit()
+                db.close()
+ 
+
+                # once all of the request_uri have been updated in the 
+database, there
+                # may be more that need updating.  For this, assign an 
+empty hash for those
+                # uris
+
+                uncached_paths = [a_path for a_path in paths if 
+uriCache.has_key(a_path) == 0]
+                for i in uncached_paths:
+                        uriCache[i] = None
+
+
+        uri_roles = {}
+        for i in paths:
+                uri_roles[i] = uriCache[i] 
+
+        return uri_roles
+ 
+
+
+def init_user_cache(req):
+        global userCache
+        global dbpool
+ 
+        opts = req.get_options()
+        fully_load = 'no'
+        try:
+                fully_load = opts['fullyLoadCache'].lower()
+        except KeyError:
+                pass
+
+
+        if fully_load == 'yes':
+                #apache.log_error(&quot;USER CACHE: fully loading from 
+database&quot;)
+                db = dbpool.get_connection()
+                c = db.cursor()
+                c.execute( &quot;SELECT DN, ROLE_NAME FROM AUTH_USER_ROLES&quot;)
+                rset = c.fetchall()
+                tmp = {}
+                roles = {}
+                for row in rset:
+                        if tmp.has_key(row[0]) == 0:
+                                tmp[row[0]] = {}
+
+                        tmp[row[0]][row[1]] = None
+
+                c.close()
+                db.commit()
+                db.close()
+                userCache = tmp
+        else:
+                userCache = {}
+
+
+
+
+def init_uri_cache(req):
+        global uriCache
+        global dbpool
+ 
+        opts = req.get_options()
+        fully_load = 'no'
+        try:
+                fully_load = opts['fullyLoadCache'].lower()
+        except KeyError:
+                pass
+
+
+        if fully_load == 'yes':
+                #apache.log_error(&quot;USER CACHE: fully loading from 
+database&quot;)
+                db = dbpool.get_connection()
+                c = db.cursor()
+                sql = &quot;SELECT URI, ROLE_NAME FROM AUTH_URI&quot;
+                c.execute( sql )
+                rset = c.fetchall()
+                tmp = {}
+                for row in rset:
+                        if not tmp.has_key(row[0]):
+                                tmp[row[0]] = []
+                        tmp[row[0]].append(row[1])
+
+                uriCache = tmp
+                c.close()
+                db.commit()
+                db.close()
+
+        else:
+                uriCache = {}
+
+
+
+
+def add_quotes(val):
+        return &quot;'&quot; + val + &quot;'&quot;
+ 
+
+
+def get_paths(req):
+
+        uri_path = req.parsed_uri[apache.URI_PATH]
+        #apache.log_error(&quot;URI PATH:&quot; + uri_path)
+        dirs = uri_path.split(&quot;/&quot;)
+        current_path = ''
+        paths = []
+        i = 0
+        while i &lt; len(dirs) - 1:
+                if dirs[i] == '':
+                        paths.append('/')
+                else:
+                #current_path = current_path + dirs[i] + '/'
+                        current_path = current_path + '/' +  dirs[i]
+                        paths.append(current_path)
+                ##apache.log_error(&quot;URI PATH current path:&quot; + 
+current_path)
+                i = i + 1
+
+        paths.append(uri_path)
+        #apache.log_error(&quot;URI PATH current path:&quot; + str(paths))
+        return paths
+
+
+def update_cache(req, userParm=None, uriParm=None):
+        &quot;&quot;&quot;
+        If user = None, do nothing for the userCache.
+        If user = 'ALL', recreate the entire cache
+        If user = other, then delete just that user from the cache
+        The same applies to the uri.
+
+        All of this crap should be moved to the Authz handler, eh?
+        &quot;&quot;&quot;
+
+        global userCache
+        global uriCache
+
+
+        if userParm is not None:
+                if userParm == 'ALL':
+                        apache.log_error(&quot;[TicketAuthenHandler] CLEARING 
+ENTIRE USER CACHE&quot;)
+                        init_user_cache(req)
+                else:
+                        if userCache.has_key(userParm):
+                                apache.log_error(&quot;[TicketAuthenHandler] 
+Clearing %s from userCache&quot; % userParm)
+                                del(userCache[userParm])
+                        else:
+                                pass
+                                #apache.log_error(&quot;[TicketAuthenHandler] 
+Invalid request to clearCache. %s was not found in userCache&quot; % userParm)
+ 
+
+        if uriParm is not None:
+                if uriParm == 'ALL':
+                        apache.log_error(&quot;[TicketAuthenHandler] CLEARING 
+ENTIRE URI CACHE&quot;)
+                        uriCache = {}
+                else:
+                        if uriCache.has_key(uriParm):
+                                apache.log_error(&quot;[TicketAuthenHandler] 
+Clearing %s from uriCache&quot; % uriParm)
+                                del(uriCache[uriParm])
+                        else:
+                                pass
+                                #apache.log_error(&quot;[TicketAuthenHandler] 
+Invalid request to clearCache. %s was not found in uriCache&quot; % uriParm)
+ 
+
+# ===========================================================
+# ===========================================================
+# ===========================================================
+# ===========================================================
+# ===========================================================
+# ===========================================================
+# TicketMaster.py =============================================
+
+#TODO - this method should verify that the user indeed exists in the user
+#table of the auth system
+
+import TicketTool
+import Cookie
+from mod_python import apache
+from mod_python.util import FieldStorage
+
+ticketTool = None
+
+def handler(req):
+        apache.log_error( &quot;[TicketMaster] calling handler() method&quot; )
+
+        # this will only need doing once during the life of the apache 
+child process
+        global ticketTool
+        if ticketTool == None:
+                ticketTool = TicketTool.TicketTool(req)
+ 
+
+        req.add_common_vars()
+
+        request_uri = None
+
+        # 1. check for a paramater named request_uri
+        # 2. check for a cookie named request_uri
+        # 3. check for a req.prev uri
+
+        fields = FieldStorage(req)
+        if fields.has_key('request_uri'):
+                request_uri = fields['request_uri']
+        else:
+                apache.log_error( &quot;[TicketMaster] no request_uri param&quot; )
+
+                if req.prev:
+                        request_uri = req.prev.unparsed_uri
+                        apache.log_error( &quot;[TicketMaster] have a prev 
+request_uri:&quot; + request_uri )
+                else:
+                        cookies = Cookie.SimpleCookie()
+                        try:
+                                apache.log_error( &quot;[TicketMaster] cookie 
+headers_in:&quot; + req.headers_in['Cookie'] )
+                                cookies.load(req.headers_in['Cookie'])
+                                request_uri = cookies['request_uri'].value
+                                #request_uri = cookies['request_uri']
+                                apache.log_error( &quot;[TicketMaster] have a 
+cookie request_uri:&quot; + str(request_uri) )
+                        except KeyError:
+                                apache.log_error( &quot;[TicketMaster] no 
+cookies were found, what now?&quot; )
+ 
+
+        # if nothing by here, display and error and move on with life.
+        # it's too short 
+        if request_uri == None:
+                apache.log_error( &quot;[TicketMaster] no request_uri could be 
+found&quot; )
+                no_cookie_error(req)
+                return apache.OK
+
+
+
+        user = ''
+        try:
+                user = req.subprocess_env['SSL_CLIENT_S_DN']
+                apache.log_error(&quot;[TicketMaster] user dn:&quot; + user)
+        except KeyError:
+                apache.log_error(&quot;[TicketMaster] no SSL DN env variable!&quot; 
+)
+                display_missing_cert_screen(req, request_uri)
+                return apache.OK
+
+
+        result = 0
+        msg = ''
+
+        if user:
+                # I don't authenticate here, since the SSL layer does that
+                # for me
+
+                try:
+                        ticket = ticketTool.make_ticket(req, user)
+                        go_to_uri(req, request_uri, ticket)
+                        return apache.OK
+
+                except:
+                        apache.log_error( 'could not create ticket, 
+missing secret key?', apache.APLOG_ERR)
+                        raise
+                        #return apache.HTTP_INTERNAL_SERVER_ERROR
+
+        apache.log_error( &quot;[TicketMaster] no req.user, so cannot make 
+ticket&quot; )
+        display_missing_cert_screen(req, request_uri)
+        return apache.OK
+
+
+def go_to_uri(req, request_uri, ticket):
+        apache.log_error( &quot;[TicketMaster] sending refresh to browser to go 
+here:&quot; + request_uri)
+        apache.log_error( &quot;[TicketMaster] setting the following cookie:&quot; + 
+ticket.output(header=&quot;&quot;))
+        req.content_type = 'text/html'
+        req.headers_out['Set-Cookie'] = ticket.output(header=&quot;&quot;)
+        # the following line causes MSIE to wig out, so don't uncomment 
+it.
+        #req.headers_out['Refresh'] = '1;' + request_uri
+        req.headers_out['Pragma'] = 'no-cache'
+        req.headers_out['Cache-Control'] = 'no-cache'
+        req.headers_out['Expires'] = '-1'
+        #req.send_http_header()
+        req.write(&quot;&quot;&quot;
+                &lt;html&gt;
+                        &lt;head&gt;
+                                &lt;title&gt;Successfully Authenticated&lt;/title&gt;
+                        &lt;/head&gt;
+                        &lt;body&gt;
+                                &lt;h4&gt;Congratulations, you have successfully 
+authenticated&lt;/h4&gt;
+                                &lt;p&gt;Click &lt;a href=&quot;%s&quot;&gt;here&lt;/a&gt; to 
+continue&lt;/p&gt;
+                                &lt;p&gt;A nice explanation about the cookie I 
+just set would be swell&lt;/p&gt;
+                        &lt;/body&gt;
+                &lt;/html&gt;
+
+        &quot;&quot;&quot; % request_uri)
+        return apache.OK
+ 
+
+
+def display_missing_cert_screen(req,request_uri):
+        req.content_type = 'text/html'
+        req.write(&quot;&quot;&quot;
+                &lt;html&gt;
+                        &lt;head&gt;
+                                &lt;title&gt;Missing Entrust PKI 
+Certificate&lt;/title&gt;
+                        &lt;/head&gt;
+                        &lt;body&gt;
+                                &lt;p&gt;The page you attempted to view (%s) was 
+protected.&lt;/p&gt;
+                                &lt;p&gt;Protection for this web site is based 
+on Digital Certificate technology.
+                                You need a PKI certificate to access this 
+portion of the website.
+                                Contact Human Resources.&lt;/p&gt;
+                        &lt;/body&gt;
+                &lt;/html&gt;&quot;&quot;&quot; % request_uri)
+
+def no_cookie_error(req):
+        req.content_type = 'text/html'
+        req.write(&quot;&quot;&quot;
+                &lt;html&gt;
+                        &lt;head&gt;
+                                &lt;title&gt;Unable to Log In&lt;/title&gt;
+                        &lt;/head&gt;
+                        &lt;body&gt;
+                                &lt;h4&gt;Unable to Log In&lt;/h4&gt;
+                                &lt;p&gt;This site uses cookies for security. 
+Your browser must be capable
+                        of processing cookies &lt;em&gt;and&lt;/em&gt; cookies must be 
+activated. 
+                                Please set your browser to accept cookies, 
+then press the
+                        &lt;strong&gt;reload&lt;/strong&gt; button.&lt;/p&gt;
+                                &lt;hr&gt;
+                        &lt;/body&gt;
+                &lt;/html&gt;&quot;&quot;&quot;)
+
+
+
+# ===========================================================
+# ===========================================================
+# ===========================================================
+# ===========================================================
+# ===========================================================
+# ===========================================================
+# TicketTool.py==============================================
+import md5
+import Cookie
+import time
+from mod_python import apache
+
+defaults = {
+        'TicketExpires':60000,
+        'TicketSecret':'/home/webadmin/.secretkey',
+        'TicketDomain':'.cv.usat'
+}
+
+
+class TicketTool(dict):
+        serverName = ''
+
+        def __init__(self, req):
+                &quot;&quot;&quot;
+                args: self
+                          req: mod_python request object
+                &quot;&quot;&quot;
+
+                # set up the config items
+                opts = req.get_options()
+                for key,value in defaults.items():
+                        try:
+                                avalue = opts[key]
+                        except KeyError:
+                                avalue = value
+                        self[key] = avalue
+
+ 
+        def authenticate(self,user,passwd):
+                # since this is going to run behind SSL client
+                # cert authtication, just return true 
+                return 1
+
+
+
+        def fetch_secret(self):
+                secret = &quot;&quot;
+                try:
+                        secret = self['SECRET_KEY']
+                except KeyError:
+                        secret = open(self['TicketSecret']).read()
+                        self['SECRET_KEY'] = secret
+
+                return secret
+
+
+
+        def invalidate_secret(self):
+                del(self['SECRET_KEY'])
+
+
+        def make_ticket(self, req, username):
+                &quot;&quot;&quot;
+                usage: cookie = ticketTool.make_ticket(req, username)
+                Creates a cookie containing the secure user information
+                &quot;&quot;&quot; 
+ 
+                ip_address = req.connection.remote_ip
+                expires = str(self['TicketExpires'])
+                now = str(time.time())
+                secret = self.fetch_secret()
+                m = md5.new()
+                m.update(secret+ip_address+now+expires+username)
+                hash = m.hexdigest()
+
+                cookie = Cookie.SimpleCookie()
+                cookie[&quot;Ticket&quot;] = 
+ip_address+&quot;,&quot;+expires+&quot;,&quot;+username+&quot;,&quot;+now+&quot;,&quot;+hash
+                cookie[&quot;Ticket&quot;]['path'] = '/'
+                cookie[&quot;Ticket&quot;]['domain'] = self['TicketDomain']
+                cookie[&quot;Ticket&quot;]['max-age'] = self['TicketExpires'] * 3600 
+
+                # TODO - is the expires in seconds?  If so, jack this up!
+ 
+                return cookie
+
+ 
+
+        def verify_ticket(self,req):
+                &quot;&quot;&quot;
+                usage: result, msg, user = ticketTool.verify_ticket(req)
+                &quot;&quot;&quot;
+
+                ticket = None 
+                cookie = Cookie.SimpleCookie()
+
+                # could get KeyError in two places.
+                # 1. if there are no cookies
+                # 2. if there isn't a cookie named 'Ticket'
+                try:
+                        cookie.load(req.headers_in['Cookie'])
+                except KeyError:
+                        return 0, &quot;user has no cookies&quot;, 'noone'
+
+                try:
+                        ticket = cookie['Ticket'].value
+                        apache.log_error(&quot;Ticket Cookie value:&quot; + 
+str(ticket))
+                except KeyError:
+                        return 0, &quot;user has no ticket cookie&quot;, 'noone'
+
+
+                ip, expires_s, user, timestamp_s, hash = ticket.split(&quot;,&quot;)
+ 
+                apache.log_error(&quot;[Ticket Cookie] hash:&quot; + hash)
+                apache.log_error(&quot;[Ticket Cookie] user:&quot; + user)
+                apache.log_error(&quot;[Ticket Cookie] time:&quot; + timestamp_s)
+                apache.log_error(&quot;[Ticket Cookie] expires:&quot; + expires_s)
+                apache.log_error(&quot;[Ticket Cookie] ip:&quot; + ip)
+
+                timestamp = float(timestamp_s)
+                expires = int(expires_s)
+
+                if ip != req.connection.remote_ip:
+                        return 0, &quot;IP address mismatch in ticket&quot;, 'noone'
+
+                if time.time() - timestamp / 60 &lt; expires:
+                        return 0, &quot;ticket has expired&quot;, 'noone'
+
+                secret = self.fetch_secret()
+
+ 
+                m = md5.new()
+                m.update(secret+ip+timestamp_s+expires_s+user)
+                new_hash = m.hexdigest()
+
+                if hash != new_hash:
+                        self.invalidate_secret()
+                        return 0, 'ticket mismatch', 'noone'
+
+
+                req.user = user
+                return 1, 'ok', user
+ 
+ 
+
+        def make_return_address(self, req):
+                &quot;&quot;&quot;
+                usage: cookie = ticketTool.make_return_address(req)
+                &quot;&quot;&quot;
+
+                protocol = '<A HREF="http://'">http://'</A>
+                if req.get_options().has_key('is_ssl'):
+                        protocol = '<A HREF="https://'">https://'</A>
+ 
+                request_uri = protocol + req.server.server_hostname + ':' 
++ str(req.server.port) + req.unparsed_uri
+
+                cookie = Cookie.SimpleCookie()
+                cookie['request_uri'] = request_uri
+                cookie['request_uri']['domain'] = self['TicketDomain']
+                cookie['request_uri']['path'] = '/'
+
+                return cookie
+
+
+# ===========================================================
+# ===========================================================
+# ===========================================================
+# HTTPD.CONF: ==============================================
+
+&lt;Macro CertSecurity&gt;
+        PythonAccessHandler TicketAuthenHandler
+        PythonCleanupHandler TicketCleanupHandler
+        ErrorDocument 403 <A HREF="https://usatux29.cv.usat:22221/ticketMaster">https://usatux29.cv.usat:22221/ticketMaster</A>
+        #ErrorDocument 402 /unauthorized.html
+        ErrorDocument 402 /manager?_action=error_doc_unauth
+        PythonOption TicketSecret /home/tewpe1/.secretkey
+
+ #==================================================================
+        # PythonOption fullyLoadCache ::= no|yes (default is no)
+        # This option directs the Authen handler whether to fully load the
+        # cache upon child startup or cache refresh
+        PythonOption fullyLoadCache yes
+ #==================================================================
+
+ #==================================================================
+        # PythonOption is_ssl ::= any value you wish
+        # only set is_ssl to something if this url is under ssl.  It 
+doesn't
+        # matter what it's set to, only that it exists.  It is used to 
+help
+        # construct the redirect_url correctly
+
+        #PythonOption is_ssl yes
+ #==================================================================
+
+&lt;/Macro&gt;
+
+&lt;Directory &quot;/web/devel/tewpe1/py/apache2/htdocs/secure&quot;&gt;
+        Use CertSecurity
+&lt;/Directory&gt;
+
+&lt;Location /ticketMaster&gt;
+        SSLRequireSSL
+        SSLOptions +StdEnvVars +ExportCertData
+
+        SetHandler python-program
+        PythonHandler TicketMaster
+        PythonDebug On
+        Order allow,deny
+        Allow from all
+        PythonOption TicketSecret /home/tewpe1/.secretkey
+
+&lt;/Location&gt;
+
+
+
+
+
+
+
+
+
+&quot;Hancock, David (DHANCOCK)&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">DHANCOCK at arinc.com</A>&gt;
+Sent by: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+10/19/2003 12:27 AM
+
+ 
+        To:     &quot;'<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>'&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>&gt;
+        cc: 
+        Subject:        [mod_python] req.connection.user generates AttributeError
+
+
+I'm new to mod_python, and I'm stuck already.  I'm working through the 
+examples in the documentation, and even after careful typing (and cutting 
+and pasting from the manual), I can't get the authentication example to 
+work.  The line:
+        user = req.connection.user 
+Gives an attribute error ('user').  As shown in the manual, I'm calling 
+req.get_basic_auth_pw() first, but still no joy.
+If I try/except to trap the attribute error, I avoid the 500 Server Error 
+message, but the authentication still doesn't work.
+Any ideas?  I'm running Windows 2000, Apache 2.0.47, Python 2.2, and 
+mod_python 3.0.3.  (My other computer is a Linux box, but this is what 
+I've got right going right now).  The mod_python is a precompiled binary.
+I'll be grateful for any assistance I can get.  I'm trying to recreate a 
+mod_perl module (AuthCookie) which implements a ticket-based 
+authentication mechanism.  It works well in Perl, but my group 
+standardized on Python and we'd like to keep using Python for Apache 
+modules, too.
+Cheers! 
+-- 
+David Hancock | <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">dhancock at arinc.com</A> | 410-266-4384 _______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: TicketTool.py
+Type: application/octet-stream
+Size: 3650 bytes
+Desc: not available
+Url : <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20031020/f88d2166/TicketTool-0003.obj">http://mailman.modpython.org/pipermail/mod_python/attachments/20031020/f88d2166/TicketTool-0003.obj</A>
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: TicketAuthenHandler.py
+Type: application/octet-stream
+Size: 8256 bytes
+Desc: not available
+Url : <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20031020/f88d2166/TicketAuthenHandler-0003.obj">http://mailman.modpython.org/pipermail/mod_python/attachments/20031020/f88d2166/TicketAuthenHandler-0003.obj</A>
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: TicketMaster.py
+Type: application/octet-stream
+Size: 4425 bytes
+Desc: not available
+Url : <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20031020/f88d2166/TicketMaster-0003.obj">http://mailman.modpython.org/pipermail/mod_python/attachments/20031020/f88d2166/TicketMaster-0003.obj</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014340.html">[mod_python] req.connection.user generates AttributeError
+</A></li>
+	<LI>Next message: <A HREF="014342.html">[mod_python] req.user always returns None?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14341">[ date ]</a>
+              <a href="thread.html#14341">[ thread ]</a>
+              <a href="subject.html#14341">[ subject ]</a>
+              <a href="author.html#14341">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

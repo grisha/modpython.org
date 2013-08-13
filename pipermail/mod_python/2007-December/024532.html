@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session Hanging Problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Hanging%20Problems&In-Reply-To=A71D6DDB-13D5-4DFB-94C4-8C07E3CE5058%40octopart.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024531.html">
+   <LINK REL="Next"  HREF="024533.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session Hanging Problems</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Hanging%20Problems&In-Reply-To=A71D6DDB-13D5-4DFB-94C4-8C07E3CE5058%40octopart.com"
+       TITLE="[mod_python] Session Hanging Problems">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Tue Dec  4 00:52:45 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024531.html">[mod_python] Session Hanging Problems
+</A></li>
+        <LI>Next message: <A HREF="024533.html">[mod_python] Session Hanging Problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24532">[ date ]</a>
+              <a href="thread.html#24532">[ thread ]</a>
+              <a href="subject.html#24532">[ subject ]</a>
+              <a href="author.html#24532">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>When you call req.write(), it defaults to flushing the data. Therefore
+if you have a slow client or network issues then it may block waiting
+to be able to flush out the data.
+
+If your responses are not large, then use req.write(data, 0), ie.,
+second argument of 0, to disable flushing. This will result in
+response being buffered up in memory and only being flushed when the
+whole request has completed.
+
+Because it buffers in memory, you need to be careful with large
+responses as can blow out memory usage.
+
+Other alternative is to buffer all output yourself in StringIO and
+then join it back together and send it all in one go when whole
+response ready, and potentially after having released session locks.
+This is actually more efficient, memory wise and potentially speed
+wise, than allowing req.write() to buffer it because Apache output
+filter buckets have more overhead than Python list for buffering.
+
+Graham
+
+On 04/12/2007, Harish Agarwal &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">harish at octopart.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> On Nov 26, 2007, at 1:38 PM, Graham Dumpleton wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; On 27/11/2007, Harish Agarwal &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">harish at octopart.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt; I'm using session handling with ModPython 3.3.1.  Originally I was
+</I>&gt;<i> &gt;&gt; using DbmSession and have since transitioned to a custom MySQL
+</I>&gt;<i> &gt;&gt; Session
+</I>&gt;<i> &gt;&gt; handler.  With both session types, however, I've noticed that session
+</I>&gt;<i> &gt;&gt; initialization intermittently hangs (not forever, but takes as long
+</I>&gt;<i> &gt;&gt; as
+</I>&gt;<i> &gt;&gt; four minutes to complete), at a low-ish (a handful of times every
+</I>&gt;<i> &gt;&gt; hour, while receiving, say, on order of a thousand or so requests
+</I>&gt;<i> &gt;&gt; every hour) frequency which seems to scale with the amount of traffic
+</I>&gt;<i> &gt;&gt; we're receiving.  I had read that long DbmSession cleanups can cause
+</I>&gt;<i> &gt;&gt; problems, which is why I transitioned to the MySQL system, which
+</I>&gt;<i> &gt;&gt; takes
+</I>&gt;<i> &gt;&gt; &lt; 1 second to complete, but I'm still noticing the long session init
+</I>&gt;<i> &gt;&gt; times.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; I put some debugging statements into the code and it seems to be
+</I>&gt;<i> &gt;&gt; related to session locking.  In particular, it is this function call
+</I>&gt;<i> &gt;&gt; in the lock method of the BaseSession class:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; _apache._global_lock(self._req.server, self._sid)
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; which is taking some time to complete. I'm not familiar with
+</I>&gt;<i> &gt;&gt; _apache._global_lock (is it used to apply a mutex lock to the
+</I>&gt;<i> &gt;&gt; session?) and am having trouble finding information describing its
+</I>&gt;<i> &gt;&gt; usage - but it seems likely that this is the root cause.  In the past
+</I>&gt;<i> &gt;&gt; I've had problems with session locking but have since transitioned
+</I>&gt;<i> &gt;&gt; the
+</I>&gt;<i> &gt;&gt; code to ensure that only one session is created per request, as such:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; if not hasattr(req,'session'):
+</I>&gt;<i> &gt;&gt;             req.session = Session.MySQLSession(req)
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Can anyone tell me if this kind of behavior is normal or is
+</I>&gt;<i> &gt;&gt; indicative
+</I>&gt;<i> &gt;&gt; of some common configuration or coding error?  Any help would be
+</I>&gt;<i> &gt;&gt; greatly appreciated.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Ignoring hangs, how long does your longest request normally take to
+</I>&gt;<i> &gt; execute? Are you perhaps performing file uploads that take a
+</I>&gt;<i> &gt; significant amount of time and are holding a session locked for the
+</I>&gt;<i> &gt; whole period of the request?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; To at least allow some level of concurrency, from memory mod_python
+</I>&gt;<i> &gt; holds a small pool of cross process mutex locks. Based on the session
+</I>&gt;<i> &gt; ID (I think) it should consistently pick the same mutex lock each
+</I>&gt;<i> &gt; time. Thus, if a request comes in with the same session ID it would be
+</I>&gt;<i> &gt; blocked while the existing request for that session runs. If however
+</I>&gt;<i> &gt; another request comes in with a different session ID, but where it
+</I>&gt;<i> &gt; maps to the same mutex lock from the pool, it will also be blocked
+</I>&gt;<i> &gt; until the request holding that lock has completed.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; What this means is that the number of mutex locks in the pool
+</I>&gt;<i> &gt; effectively dictates how many parallel session based requests you can
+</I>&gt;<i> &gt; have executed across the whole of the Apache server. Thus, if you have
+</I>&gt;<i> &gt; requests that take a long time while still holding the session lock,
+</I>&gt;<i> &gt; it can lock out other requests until it completes.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; One can makes things a bit better by increasing the number of mutex
+</I>&gt;<i> &gt; locks in the pool, but you have to be careful not to create too many
+</I>&gt;<i> &gt; in case it is using sysvsem and your OS doesn't allocate enough.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The only other thing to do is to release the lock explicitly as soon
+</I>&gt;<i> &gt; as you no longer need it and don't rely on the cleanup handler for the
+</I>&gt;<i> &gt; request to unlock it.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; In other words, what your application is doing, your own code and how
+</I>&gt;<i> &gt; you have written it could be the problem, and not necessarily
+</I>&gt;<i> &gt; mod_python itself.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; If my memory has totally faded and my description is wrong, someone
+</I>&gt;<i> &gt; please correct me. :-)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I put in some more debugging statements and I'm finding, very oddly,
+</I>&gt;<i> that the hanging is most likely due to a req.write taking quite a bit
+</I>&gt;<i> of time to complete.  I'm able to view the exact same webpage without
+</I>&gt;<i> experiencing a hang, so the hang seems to be fairly sporadic.
+</I>&gt;<i>
+</I>&gt;<i> Any ideas?
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024531.html">[mod_python] Session Hanging Problems
+</A></li>
+	<LI>Next message: <A HREF="024533.html">[mod_python] Session Hanging Problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24532">[ date ]</a>
+              <a href="thread.html#24532">[ thread ]</a>
+              <a href="subject.html#24532">[ subject ]</a>
+              <a href="author.html#24532">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

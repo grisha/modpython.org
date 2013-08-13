@@ -1,0 +1,323 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache/mod_python process sizes. Help wanted.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=99C69BF9-B599-4BBD-9018-174FC9884492%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023231.html">
+   <LINK REL="Next"  HREF="023234.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache/mod_python process sizes. Help wanted.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=99C69BF9-B599-4BBD-9018-174FC9884492%40dscpl.com.au"
+       TITLE="[mod_python] Apache/mod_python process sizes. Help wanted.">jpg at jgassociates.ca
+       </A><BR>
+    <I>Sat Mar  3 11:46:43 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023231.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+        <LI>Next message: <A HREF="023234.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23232">[ date ]</a>
+              <a href="thread.html#23232">[ thread ]</a>
+              <a href="subject.html#23232">[ subject ]</a>
+              <a href="author.html#23232">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> This email is to enlist the help of mod_python users out there to hopefully
+</I>&gt;<i> disprove a possible misconception that exists and which is often used
+</I>&gt;<i> to malign mod_python and label it a bad solution to the problem of hosting
+</I>&gt;<i> web applications. If intrigued, keep reading, especially as the results may
+</I>&gt;<i> end up showing that you might be able to improve the memory use profile
+</I>&gt;<i> of your own Apache installation.
+</I>&gt;<i> 
+</I>&gt;<i> The actual claim which would be nice to disprove is that mod_python
+</I>&gt;<i> consumes huge amounts of memory.
+</I>
+&gt;<i> Is there a better way of analysing memory use than this?
+</I>
+I don't have much time to play around today, but I will should tomorrow.
+
+pmap is a great tool for getting really detailed information on memory 
+use. As a quick example with worker mpm:
+
+$ top -b -u www-data -n 1 -d 1
+
+   PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+  5558 www-data  18   0 10100 2232  792 S  0.0  0.2   0:00.00 apache2
+  5596 www-data  19   0  227m 3652 1412 S  0.0  0.4   0:00.00 apache2
+  5598 www-data  18   0  227m 4112 1804 S  0.0  0.4   0:00.01 apache2
+
+$ ldd /usr/lib/apache2/modules/mod_python.so
+
+         linux-gate.so.1 =&gt;  (0xffffe000)
+         libpython2.4.so.1.0 =&gt; /usr/lib/libpython2.4.so.1.0 (0xb7eb9000)
+         libpthread.so.0 =&gt; /lib/tls/i686/cmov/libpthread.so.0 (0xb7ea7000)
+         libdl.so.2 =&gt; /lib/tls/i686/cmov/libdl.so.2 (0xb7ea4000)
+         libutil.so.1 =&gt; /lib/tls/i686/cmov/libutil.so.1 (0xb7ea1000)
+         libm.so.6 =&gt; /lib/tls/i686/cmov/libm.so.6 (0xb7e7e000)
+         libc.so.6 =&gt; /lib/tls/i686/cmov/libc.so.6 (0xb7d4f000)
+         /lib/ld-linux.so.2 (0x80000000)
+
+
+$ pmap -d 5558 | grep &quot;^Address\|python&quot;
+
+Address   Kbytes Mode  Offset           Device    Mapping
+b771f000     888 r-x-- 0000000000000000 003:00004 libpython2.4.so.1.0
+b77fd000     156 rwx-- 00000000000de000 003:00004 libpython2.4.so.1.0
+b7835000      92 r-x-- 0000000000000000 003:00004 mod_python.so
+b784c000      12 rwx-- 0000000000017000 003:00004 mod_python.so
+
+$ pmap -d 5596 | grep &quot;^Address\|python&quot;
+
+Address   Kbytes Mode  Offset           Device    Mapping
+b771f000     888 r-x-- 0000000000000000 003:00004 libpython2.4.so.1.0
+b77fd000     156 rwx-- 00000000000de000 003:00004 libpython2.4.so.1.0
+b7835000      92 r-x-- 0000000000000000 003:00004 mod_python.so
+b784c000      12 rwx-- 0000000000017000 003:00004 mod_python.so
+
+$ pmap -d 5598|grep python
+
+b771f000     888 r-x-- 0000000000000000 003:00004 libpython2.4.so.1.0
+b77fd000     156 rwx-- 00000000000de000 003:00004 libpython2.4.so.1.0
+b7835000      92 r-x-- 0000000000000000 003:00004 mod_python.so
+b784c000      12 rwx-- 0000000000017000 003:00004 mod_python.so
+
+To properly profile the memory usage we'd really need to look at which 
+libraries are pulled in for libpython2.4.so exclusively.
+
+I'm not accounting for the memory usage attributable to the python stack 
+here either. I still need to figure out the best way to get that info, 
+which I'll defer to tomorrow.
+
+Just in case someone doesn't have pmap available but is curious about 
+the complete output:
+
+$ pmap -d 5598
+5598:   /usr/sbin/apache2 -k start -DSSL
+Address   Kbytes Mode  Offset           Device    Mapping
+08048000     364 r-x-- 0000000000000000 003:00004 apache2
+080a3000      12 rwx-- 000000000005a000 003:00004 apache2
+080a6000    1924 rwx-- 00000000080a6000 000:00000   [ anon ]
+a9e28000      36 r-x-- 0000000000000000 003:00004 libgcc_s.so.1
+a9e31000       4 rwx-- 0000000000009000 003:00004 libgcc_s.so.1
+a9e32000       4 ----- 00000000a9e32000 000:00000   [ anon ]
+a9e33000    8192 rwx-- 00000000a9e33000 000:00000   [ anon ]
+aa633000       4 ----- 00000000aa633000 000:00000   [ anon ]
+aa634000    8192 rwx-- 00000000aa634000 000:00000   [ anon ]
+aae34000       4 ----- 00000000aae34000 000:00000   [ anon ]
+aae35000    8192 rwx-- 00000000aae35000 000:00000   [ anon ]
+ab635000       4 ----- 00000000ab635000 000:00000   [ anon ]
+ab636000    8192 rwx-- 00000000ab636000 000:00000   [ anon ]
+abe36000       4 ----- 00000000abe36000 000:00000   [ anon ]
+abe37000    8192 rwx-- 00000000abe37000 000:00000   [ anon ]
+ac637000       4 ----- 00000000ac637000 000:00000   [ anon ]
+ac638000    8192 rwx-- 00000000ac638000 000:00000   [ anon ]
+ace38000       4 ----- 00000000ace38000 000:00000   [ anon ]
+ace39000    8192 rwx-- 00000000ace39000 000:00000   [ anon ]
+ad639000       4 ----- 00000000ad639000 000:00000   [ anon ]
+ad63a000    8192 rwx-- 00000000ad63a000 000:00000   [ anon ]
+ade3a000       4 ----- 00000000ade3a000 000:00000   [ anon ]
+ade3b000    8192 rwx-- 00000000ade3b000 000:00000   [ anon ]
+ae63b000       4 ----- 00000000ae63b000 000:00000   [ anon ]
+ae63c000    8192 rwx-- 00000000ae63c000 000:00000   [ anon ]
+aee3c000       4 ----- 00000000aee3c000 000:00000   [ anon ]
+aee3d000    8192 rwx-- 00000000aee3d000 000:00000   [ anon ]
+af63d000       4 ----- 00000000af63d000 000:00000   [ anon ]
+af63e000    8192 rwx-- 00000000af63e000 000:00000   [ anon ]
+afe3e000       4 ----- 00000000afe3e000 000:00000   [ anon ]
+afe3f000    8192 rwx-- 00000000afe3f000 000:00000   [ anon ]
+b063f000       4 ----- 00000000b063f000 000:00000   [ anon ]
+b0640000    8192 rwx-- 00000000b0640000 000:00000   [ anon ]
+b0e40000       4 ----- 00000000b0e40000 000:00000   [ anon ]
+b0e41000    8192 rwx-- 00000000b0e41000 000:00000   [ anon ]
+b1641000       4 ----- 00000000b1641000 000:00000   [ anon ]
+b1642000    8192 rwx-- 00000000b1642000 000:00000   [ anon ]
+b1e42000       4 ----- 00000000b1e42000 000:00000   [ anon ]
+b1e43000    8192 rwx-- 00000000b1e43000 000:00000   [ anon ]
+b2643000       4 ----- 00000000b2643000 000:00000   [ anon ]
+b2644000    8192 rwx-- 00000000b2644000 000:00000   [ anon ]
+b2e44000       4 ----- 00000000b2e44000 000:00000   [ anon ]
+b2e45000    8192 rwx-- 00000000b2e45000 000:00000   [ anon ]
+b3645000       4 ----- 00000000b3645000 000:00000   [ anon ]
+b3646000    8192 rwx-- 00000000b3646000 000:00000   [ anon ]
+b3e46000       4 ----- 00000000b3e46000 000:00000   [ anon ]
+b3e47000    8192 rwx-- 00000000b3e47000 000:00000   [ anon ]
+b4647000       4 ----- 00000000b4647000 000:00000   [ anon ]
+b4648000    8192 rwx-- 00000000b4648000 000:00000   [ anon ]
+b4e48000       4 ----- 00000000b4e48000 000:00000   [ anon ]
+b4e49000    8192 rwx-- 00000000b4e49000 000:00000   [ anon ]
+b5649000       4 ----- 00000000b5649000 000:00000   [ anon ]
+b564a000    8192 rwx-- 00000000b564a000 000:00000   [ anon ]
+b5e4a000       4 ----- 00000000b5e4a000 000:00000   [ anon ]
+b5e4b000    8192 rwx-- 00000000b5e4b000 000:00000   [ anon ]
+b664b000       4 ----- 00000000b664b000 000:00000   [ anon ]
+b664c000    8192 rwx-- 00000000b664c000 000:00000   [ anon ]
+b6e4c000       4 ----- 00000000b6e4c000 000:00000   [ anon ]
+b6e4d000    8192 rwx-- 00000000b6e4d000 000:00000   [ anon ]
+b764d000     208 rwxs- 0000000000000000 000:00007 zero (deleted)
+b7681000     520 rwx-- 00000000b7681000 000:00000   [ anon ]
+b7703000      36 r-x-- 0000000000000000 003:00004 libnss_files-2.3.6.so
+b770c000       4 rwx-- 0000000000008000 003:00004 libnss_files-2.3.6.so
+b770d000      32 r-x-- 0000000000000000 003:00004 libnss_nis-2.3.6.so
+b7715000       4 rwx-- 0000000000007000 003:00004 libnss_nis-2.3.6.so
+b7716000      32 r-x-- 0000000000000000 003:00004 libnss_compat-2.3.6.so
+b771e000       4 rwx-- 0000000000007000 003:00004 libnss_compat-2.3.6.so
+b771f000     888 r-x-- 0000000000000000 003:00004 libpython2.4.so.1.0
+b77fd000     156 rwx-- 00000000000de000 003:00004 libpython2.4.so.1.0
+b7824000      16 rwx-- 00000000b7824000 000:00000   [ anon ]
+b7835000      92 r-x-- 0000000000000000 003:00004 mod_python.so
+b784c000      12 rwx-- 0000000000017000 003:00004 mod_python.so
+b784f000     136 r-x-- 0000000000000000 003:00004 libsvn_fs_base-1.so.0.0.0
+b7871000       4 rwx-- 0000000000022000 003:00004 libsvn_fs_base-1.so.0.0.0
+b7872000      96 r-x-- 0000000000000000 003:00004 libsvn_fs_fs-1.so.0.0.0
+b788a000       4 rwx-- 0000000000017000 003:00004 libsvn_fs_fs-1.so.0.0.0
+b788b000     148 r-x-- 0000000000000000 003:00004 libsvn_subr-1.so.0.0.0
+b78b0000       4 rwx-- 0000000000025000 003:00004 libsvn_subr-1.so.0.0.0
+b78b1000      28 r-x-- 0000000000000000 003:00004 libsvn_delta-1.so.0.0.0
+b78b8000       4 rwx-- 0000000000006000 003:00004 libsvn_delta-1.so.0.0.0
+b78b9000     112 r-x-- 0000000000000000 003:00004 libsvn_repos-1.so.0.0.0
+b78d5000       4 rwx-- 000000000001b000 003:00004 libsvn_repos-1.so.0.0.0
+b78da000       8 r-x-- 0000000000000000 003:00004 mod_userdir.so
+b78dc000       4 rwx-- 0000000000001000 003:00004 mod_userdir.so
+b78dd000       8 r-x-- 0000000000000000 003:00004 libutil-2.3.6.so
+b78df000       4 rwx-- 0000000000001000 003:00004 libutil-2.3.6.so
+b78e0000       8 r-x-- 0000000000000000 003:00004 mod_authz_svn.so
+b78e2000       4 rwx-- 0000000000001000 003:00004 mod_authz_svn.so
+b78e3000     104 r-x-- 0000000000000000 003:00004 mod_dav_svn.so
+b78fd000       4 rwx-- 000000000001a000 003:00004 mod_dav_svn.so
+b78fe000      36 r-x-- 0000000000000000 003:00004 mod_dav_fs.so
+b7907000       4 rwx-- 0000000000009000 003:00004 mod_dav_fs.so
+b7908000      80 r-x-- 0000000000000000 003:00004 mod_dav.so
+b791c000       4 rwx-- 0000000000013000 003:00004 mod_dav.so
+b791d000       8 rwx-- 00000000b791d000 000:00000   [ anon ]
+b791f000      12 r-x-- 0000000000000000 003:00004 libgpg-error.so.0.1.4
+b7922000       4 rwx-- 0000000000002000 003:00004 libgpg-error.so.0.1.4
+b7923000       4 rwx-- 00000000b7923000 000:00000   [ anon ]
+b7924000     284 r-x-- 0000000000000000 003:00004 libgcrypt.so.11.2.1
+b796b000      20 rwx-- 0000000000047000 003:00004 libgcrypt.so.11.2.1
+b7970000      60 r-x-- 0000000000000000 003:00004 libtasn1.so.2.0.17
+b797f000       4 rwx-- 000000000000f000 003:00004 libtasn1.so.2.0.17
+b7980000     396 r-x-- 0000000000000000 003:00004 libgnutls.so.12.3.6
+b79e3000      24 rwx-- 0000000000062000 003:00004 libgnutls.so.12.3.6
+b79e9000      76 r-x-- 0000000000000000 003:00004 libsasl2.so.2.0.19
+b79fc000       4 rwx-- 0000000000013000 003:00004 libsasl2.so.2.0.19
+b79fd000      64 r-x-- 0000000000000000 003:00004 libresolv-2.3.6.so
+b7a0d000       4 rwx-- 0000000000010000 003:00004 libresolv-2.3.6.so
+b7a0e000      12 rwx-- 00000000b7a0e000 000:00000   [ anon ]
+b7a11000    1172 r-x-- 0000000000000000 003:00004 libc-2.3.6.so
+b7b36000      28 rwx-- 0000000000125000 003:00004 libc-2.3.6.so
+b7b3d000      12 rwx-- 00000000b7b3d000 000:00000   [ anon ]
+b7b40000       8 r-x-- 0000000000000000 003:00004 libdl-2.3.6.so
+b7b42000       4 rwx-- 0000000000001000 003:00004 libdl-2.3.6.so
+b7b43000      60 r-x-- 0000000000000000 003:00004 libpthread-2.3.6.so
+b7b52000       4 rwx-- 000000000000e000 003:00004 libpthread-2.3.6.so
+b7b53000       8 rwx-- 00000000b7b53000 000:00000   [ anon ]
+b7b55000      72 r-x-- 0000000000000000 003:00004 libnsl-2.3.6.so
+b7b67000       4 rwx-- 0000000000012000 003:00004 libnsl-2.3.6.so
+b7b68000       8 rwx-- 00000000b7b68000 000:00000   [ anon ]
+b7b6a000      20 r-x-- 0000000000000000 003:00004 libcrypt-2.3.6.so
+b7b6f000       4 rwx-- 0000000000004000 003:00004 libcrypt-2.3.6.so
+b7b70000     156 rwx-- 00000000b7b70000 000:00000   [ anon ]
+b7b97000     132 r-x-- 0000000000000000 003:00004 libm-2.3.6.so
+b7bb8000       4 rwx-- 0000000000020000 003:00004 libm-2.3.6.so
+b7bb9000       4 rwx-- 00000000b7bb9000 000:00000   [ anon ]
+b7bba000      28 r-x-- 0000000000000000 003:00004 librt-2.3.6.so
+b7bc1000       4 rwx-- 0000000000006000 003:00004 librt-2.3.6.so
+b7bc2000     120 r-x-- 0000000000000000 003:00004 libapr-0.so.0.9.7
+b7be0000       4 rwx-- 000000000001d000 003:00004 libapr-0.so.0.9.7
+b7be1000       4 rwx-- 00000000b7be1000 000:00000   [ anon ]
+b7be2000     112 r-x-- 0000000000000000 003:00004 libexpat.so.1.0.0
+b7bfe000      12 rwx-- 000000000001c000 003:00004 libexpat.so.1.0.0
+b7c01000     868 r-x-- 0000000000000000 003:00004 libdb-4.3.so
+b7cda000      12 rwx-- 00000000000d8000 003:00004 libdb-4.3.so
+b7cdd000      44 r-x-- 0000000000000000 003:00004 liblber.so.2.0.130
+b7ce8000       4 rwx-- 000000000000a000 003:00004 liblber.so.2.0.130
+b7ce9000     204 r-x-- 0000000000000000 003:00004 libldap_r.so.2.0.130
+b7d1c000       4 rwx-- 0000000000033000 003:00004 libldap_r.so.2.0.130
+b7d1d000       4 rwx-- 00000000b7d1d000 000:00000   [ anon ]
+b7d1e000      76 r-x-- 0000000000000000 003:00004 libaprutil-0.so.0.9.7
+b7d31000       4 rwx-- 0000000000013000 003:00004 libaprutil-0.so.0.9.7
+b7d32000    1116 r-x-- 0000000000000000 003:00004 libcrypto.so.0.9.8
+b7e49000      84 rwx-- 0000000000116000 003:00004 libcrypto.so.0.9.8
+b7e5e000      12 rwx-- 00000000b7e5e000 000:00000   [ anon ]
+b7e61000     228 r-x-- 0000000000000000 003:00004 libssl.so.0.9.8
+b7e9a000      16 rwx-- 0000000000039000 003:00004 libssl.so.0.9.8
+b7e9e000      76 r-x-- 0000000000000000 003:00004 libz.so.1.2.3
+b7eb1000       4 rwx-- 0000000000012000 003:00004 libz.so.1.2.3
+b7eb2000      92 r-x-- 0000000000000000 003:00004 libpcre.so.3.12.0
+b7ec9000      92 rwx-- 0000000000016000 003:00004 libpcre.so.3.12.0
+b7ee1000      16 r-x-- 0000000000000000 003:00004 libsvn_fs-1.so.0.0.0
+b7ee5000       4 rwx-- 0000000000003000 003:00004 libsvn_fs-1.so.0.0.0
+b7ee6000      24 r-x-- 0000000000000000 003:00004 mod_cgid.so
+b7eec000       4 rwx-- 0000000000006000 003:00004 mod_cgid.so
+b7eed000      12 rwx-- 00000000b7eed000 000:00000   [ anon ]
+b7ef0000      84 r-x-- 0000000000000000 003:00004 ld-2.3.6.so
+b7f05000       4 rwx-- 0000000000014000 003:00004 ld-2.3.6.so
+bfaef000      84 rwx-- 00000000bfaef000 000:00000   [ stack ]
+bfb04000       4 rw--- 00000000bfb04000 000:00000   [ anon ]
+ffffe000       4 ----- 0000000000000000 000:00000   [ anon ]
+mapped: 232584K    writeable/private: 224576K    shared: 208K
+
+
+Interestingly, on another apache instance (prefork, with php4):
+$ pmap -d 895 | grep &quot;^Address\|php&quot;
+Address   Kbytes Mode  Offset           Device    Mapping
+405d6000    2936 r-x-- 0000000000000000 008:00001 libphp4.so
+408b4000     120 rw--- 00000000002de000 008:00001 libphp4.so
+
+Oh...my...God... php4 is HUGE. ;)
+
+Jim
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023231.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+	<LI>Next message: <A HREF="023234.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23232">[ date ]</a>
+              <a href="thread.html#23232">[ thread ]</a>
+              <a href="subject.html#23232">[ subject ]</a>
+              <a href="author.html#23232">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

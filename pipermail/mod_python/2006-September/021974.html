@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Using mod_python to customise subversion repository
+	access.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20mod_python%20to%20customise%20subversion%20repository%0A%09access.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="021975.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Using mod_python to customise subversion repository
+	access.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20mod_python%20to%20customise%20subversion%20repository%0A%09access.&In-Reply-To="
+       TITLE="[mod_python] Using mod_python to customise subversion repository
+	access.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Sep  1 00:04:36 EDT 2006</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="021975.html">[mod_python] Using mod_python to customise subversion repository
+	access.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21974">[ date ]</a>
+              <a href="thread.html#21974">[ thread ]</a>
+              <a href="subject.html#21974">[ subject ]</a>
+              <a href="author.html#21974">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>In my real job, we are finally converting to using subversion. Now
+although subversion when used through Apache still supports a
+level of user authorisation, whereby one can see if a user has read
+or read/write to different parts of a repository, the paths have to
+be listed in full, with no support for wildcarding. Also, you can't
+use its authorisation mechanism to implement a fine grained level
+of authorisation.
+
+For example, we want to allow users to be able to copy the trunk
+to a tags directory to effectively mark a specific version, and we
+want to be able to users to check out a copy of a tagged version,
+but we do not want to allow users to make changes to and commit
+back in changes into a tagged version of a package.
+
+So, mod_python to the rescue.
+
+  from mod_python import apache
+  import fnmatch
+
+  BLOCK_URI = '/svn/drives/!svn/*/*/packages/tags/*/*/*'
+
+  BLOCK_METHOD = [ 'MKCOL', 'PUT', 'PROPPATCH', 'CHECKOUT',
+          'MERGE', 'MKACTIVITY', 'LOCK', 'UNLOCK' ]
+
+  def authzhandler(req):
+      if fnmatch.fnmatch(req.uri, BLOCK_URI):
+          if req.method in BLOCK_METHOD:
+              return apache.HTTP_FORBIDDEN
+      return apache.OK
+
+The associated Apache configuration is something like:
+
+  &lt;Location /svn&gt;
+
+    DAV svn
+    SVNParentPath /usr/local/repository/subversion
+
+    Require valid-user
+
+    AuthzSVNAccessFile /usr/local/repository/svnserve.conf
+
+    PythonInterpreter subversion_authz
+    PythonPath 'sys.path + [&quot;/usr/local/repository/handlers&quot;]'
+    PythonFixupHandler drives_authz::authzhandler
+    PythonDebug On
+
+  &lt;/Location&gt;
+
+In the pattern being matched, '/svn/drives' identifies the actual repository
+root path in the URI. The '/packages/tags/*/*/*' is identifying the directories
+where we keep our tagged versions. The structure we use is:
+
+  /packages/tags/package-name/package-version
+
+When creating a tag, subversion client uses &quot;COPY&quot; method, so making the
+copy still works. When doing commits, it needs to at least use 'CHECKOUT',
+and 'PUT'. Depending on what else it does, it could use the others in the
+block list.
+
+Anyway, end result is that people can't write over tagged versions.
+
+Gotta run now, so enjoy.
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="021975.html">[mod_python] Using mod_python to customise subversion repository
+	access.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21974">[ date ]</a>
+              <a href="thread.html#21974">[ thread ]</a>
+              <a href="subject.html#21974">[ subject ]</a>
+              <a href="author.html#21974">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

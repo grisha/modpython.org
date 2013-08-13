@@ -1,0 +1,542 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Multiple loading of same module with winnt MPM
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20loading%20of%20same%20module%20with%20winnt%20MPM&In-Reply-To=46431DDE.9040602%40gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023590.html">
+   <LINK REL="Next"  HREF="023591.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Multiple loading of same module with winnt MPM</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20loading%20of%20same%20module%20with%20winnt%20MPM&In-Reply-To=46431DDE.9040602%40gmail.com"
+       TITLE="[mod_python] Multiple loading of same module with winnt MPM">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Thu May 10 20:46:14 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023590.html">[mod_python] Multiple loading of same module with winnt MPM
+</A></li>
+        <LI>Next message: <A HREF="023591.html">[mod_python] Cookies not persisting 
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23597">[ date ]</a>
+              <a href="thread.html#23597">[ thread ]</a>
+              <a href="subject.html#23597">[ subject ]</a>
+              <a href="author.html#23597">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Your change narrows the chance of the problem happening but does not
+eliminate it completely. Also, it circumvents the whole two level
+locking scheme designed to avoid slow downs in a multithreaded system.
+In other words, when a module has to be imported you block all other
+threads being able to load modules which don't require an actual
+import. Also, I suspect the change will also cause a deadlock when a
+module being imported in turn tries to use apache.import_module() as
+the locks aren't reentrant by the same thread.
+
+More later.
+
+Graham
+
+On 10/05/07, Michael Sanders &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">m.r.sanders at gmail.com</A>&gt; wrote:
+&gt;<i> Michael Sanders wrote:
+</I>&gt;<i> &gt; Further to this, one of my colleagues has made some other changes to
+</I>&gt;<i> &gt; 'importer.py' that appear to fix the problem (please find a diff attached).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The modification is a change to the locking in the import_module()
+</I>&gt;<i> &gt; method of the _ModuleCache class:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The 'self._lock1' lock is now used to lock out the actual 'loading' code
+</I>&gt;<i> &gt; as well as the check-for-cache code: _reload_required().
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; See line 554 ish (Code up to line 769 indented)
+</I>&gt;<i>
+</I>&gt;<i> Apologies, I sent the whole file and not a diff. I've (hopefully)
+</I>&gt;<i> attached the diff this time!
+</I>&gt;<i>
+</I>&gt;<i> Thanks,
+</I>&gt;<i> Michael
+</I>&gt;<i>
+</I>&gt;<i> --- importer.py 2007-05-10 13:57:01.157138700 +0100
+</I>&gt;<i> +++ importer.py.new     2007-05-10 14:18:22.976417100 +0100
+</I>&gt;<i> @@ -551,218 +551,222 @@
+</I>&gt;<i>              # Import module or obtain it from cache as is
+</I>&gt;<i>              # appropriate.
+</I>&gt;<i>
+</I>&gt;<i> -            if load:
+</I>&gt;<i> -
+</I>&gt;<i> -                # Setup a new empty module to load the code for
+</I>&gt;<i> -                # the module into. Increment the instance count
+</I>&gt;<i> -                # and set the reload flag to force a reload if
+</I>&gt;<i> -                # the import fails.
+</I>&gt;<i> -
+</I>&gt;<i> -                cache.instance = cache.instance + 1
+</I>&gt;<i> -                cache.reload = 1
+</I>&gt;<i> -
+</I>&gt;<i> -                module = imp.new_module(label)
+</I>&gt;<i> -
+</I>&gt;<i> -                # If the module was previously loaded we need to
+</I>&gt;<i> -                # manage the transition to the new instance of
+</I>&gt;<i> -                # the module that is being loaded to replace it.
+</I>&gt;<i> -                # This entails calling the special clone method,
+</I>&gt;<i> -                # if provided within the existing module. Using
+</I>&gt;<i> -                # this method the existing module can then
+</I>&gt;<i> -                # selectively indicate what should be transfered
+</I>&gt;<i> -                # over to the next instance of the module,
+</I>&gt;<i> -                # including thread locks. If this process fails
+</I>&gt;<i> -                # the special purge method is called, if
+</I>&gt;<i> -                # provided, to indicate that the existing module
+</I>&gt;<i> -                # is being forcibly purged out of the system. In
+</I>&gt;<i> -                # that case any existing state will not be
+</I>&gt;<i> -                # transferred.
+</I>&gt;<i> -
+</I>&gt;<i> -                if cache.module != None:
+</I>&gt;<i> -                    if hasattr(cache.module, &quot;__mp_clone__&quot;):
+</I>&gt;<i> -                        try:
+</I>&gt;<i> -                            # Migrate any existing state data from
+</I>&gt;<i> -                            # existing module instance to new module
+</I>&gt;<i> -                            # instance.
+</I>&gt;<i> -
+</I>&gt;<i> -                            if log:
+</I>&gt;<i> -                                msg = &quot;Cloning module '%s'&quot; % file
+</I>&gt;<i> +            try:
+</I>&gt;<i> +                self._lock1.acquire()
+</I>&gt;<i> +                if load:
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Setup a new empty module to load the code for
+</I>&gt;<i> +                    # the module into. Increment the instance count
+</I>&gt;<i> +                    # and set the reload flag to force a reload if
+</I>&gt;<i> +                    # the import fails.
+</I>&gt;<i> +
+</I>&gt;<i> +                    cache.instance = cache.instance + 1
+</I>&gt;<i> +                    cache.reload = 1
+</I>&gt;<i> +
+</I>&gt;<i> +                    module = imp.new_module(label)
+</I>&gt;<i> +
+</I>&gt;<i> +                    # If the module was previously loaded we need to
+</I>&gt;<i> +                    # manage the transition to the new instance of
+</I>&gt;<i> +                    # the module that is being loaded to replace it.
+</I>&gt;<i> +                    # This entails calling the special clone method,
+</I>&gt;<i> +                    # if provided within the existing module. Using
+</I>&gt;<i> +                    # this method the existing module can then
+</I>&gt;<i> +                    # selectively indicate what should be transfered
+</I>&gt;<i> +                    # over to the next instance of the module,
+</I>&gt;<i> +                    # including thread locks. If this process fails
+</I>&gt;<i> +                    # the special purge method is called, if
+</I>&gt;<i> +                    # provided, to indicate that the existing module
+</I>&gt;<i> +                    # is being forcibly purged out of the system. In
+</I>&gt;<i> +                    # that case any existing state will not be
+</I>&gt;<i> +                    # transferred.
+</I>&gt;<i> +
+</I>&gt;<i> +                    if cache.module != None:
+</I>&gt;<i> +                        if hasattr(cache.module, &quot;__mp_clone__&quot;):
+</I>&gt;<i> +                            try:
+</I>&gt;<i> +                                # Migrate any existing state data from
+</I>&gt;<i> +                                # existing module instance to new module
+</I>&gt;<i> +                                # instance.
+</I>&gt;<i> +
+</I>&gt;<i> +                                if log:
+</I>&gt;<i> +                                    msg = &quot;Cloning module '%s'&quot; % file
+</I>&gt;<i> +                                    self._log_notice(msg)
+</I>&gt;<i> +
+</I>&gt;<i> +                                cache.module.__mp_clone__(module)
+</I>&gt;<i> +
+</I>&gt;<i> +                            except:
+</I>&gt;<i> +                                # Forcibly purging module from system.
+</I>&gt;<i> +
+</I>&gt;<i> +                                self._log_exception()
+</I>&gt;<i> +
+</I>&gt;<i> +                                if log:
+</I>&gt;<i> +                                    msg = &quot;Purging module '%s'&quot; % file
+</I>&gt;<i> +                                    self._log_notice(msg)
+</I>&gt;<i> +
+</I>&gt;<i> +                                if hasattr(cache.module, &quot;__mp_purge__&quot;):
+</I>&gt;<i> +                                    try:
+</I>&gt;<i> +                                        cache.module.__mp_purge__()
+</I>&gt;<i> +                                    except:
+</I>&gt;<i> +                                        self._log_exception()
+</I>&gt;<i> +
+</I>&gt;<i> +                                cache.module = None
+</I>&gt;<i> +
+</I>&gt;<i> +                                # Setup a fresh new module yet again.
+</I>&gt;<i> +
+</I>&gt;<i> +                                module = imp.new_module(label)
+</I>&gt;<i> +
+</I>&gt;<i> +                        if log:
+</I>&gt;<i> +                            if cache.module == None:
+</I>&gt;<i> +                                msg = &quot;Importing module '%s'&quot; % file
+</I>&gt;<i>                                  self._log_notice(msg)
+</I>&gt;<i> -
+</I>&gt;<i> -                            cache.module.__mp_clone__(module)
+</I>&gt;<i> -
+</I>&gt;<i> -                        except:
+</I>&gt;<i> -                            # Forcibly purging module from system.
+</I>&gt;<i> -
+</I>&gt;<i> -                            self._log_exception()
+</I>&gt;<i> -
+</I>&gt;<i> -                            if log:
+</I>&gt;<i> -                                msg = &quot;Purging module '%s'&quot; % file
+</I>&gt;<i> +                            else:
+</I>&gt;<i> +                                msg = &quot;Reimporting module '%s'&quot; % file
+</I>&gt;<i>                                  self._log_notice(msg)
+</I>&gt;<i> -
+</I>&gt;<i> -                            if hasattr(cache.module, &quot;__mp_purge__&quot;):
+</I>&gt;<i> -                                try:
+</I>&gt;<i> -                                    cache.module.__mp_purge__()
+</I>&gt;<i> -                                except:
+</I>&gt;<i> -                                    self._log_exception()
+</I>&gt;<i> -
+</I>&gt;<i> -                            cache.module = None
+</I>&gt;<i> -
+</I>&gt;<i> -                            # Setup a fresh new module yet again.
+</I>&gt;<i> -
+</I>&gt;<i> -                            module = imp.new_module(label)
+</I>&gt;<i> -
+</I>&gt;<i> -                    if log:
+</I>&gt;<i> -                        if cache.module == None:
+</I>&gt;<i> +                    else:
+</I>&gt;<i> +                        if log:
+</I>&gt;<i>                              msg = &quot;Importing module '%s'&quot; % file
+</I>&gt;<i>                              self._log_notice(msg)
+</I>&gt;<i> -                        else:
+</I>&gt;<i> -                            msg = &quot;Reimporting module '%s'&quot; % file
+</I>&gt;<i> -                            self._log_notice(msg)
+</I>&gt;<i> -                else:
+</I>&gt;<i> -                    if log:
+</I>&gt;<i> -                        msg = &quot;Importing module '%s'&quot; % file
+</I>&gt;<i> -                        self._log_notice(msg)
+</I>&gt;<i> -
+</I>&gt;<i> -                # Must add to the module the path to the modules
+</I>&gt;<i> -                # file. This ensures that module looks like a
+</I>&gt;<i> -                # normal module and this path will also be used
+</I>&gt;<i> -                # in certain contexts when the import statement
+</I>&gt;<i> -                # is used within the module.
+</I>&gt;<i> -
+</I>&gt;<i> -                module.__file__ = file
+</I>&gt;<i> -
+</I>&gt;<i> -                # Setup a new instance object to store in the
+</I>&gt;<i> -                # module. This will refer back to the actual
+</I>&gt;<i> -                # cache entry and is used to record information
+</I>&gt;<i> -                # which is specific to this incarnation of the
+</I>&gt;<i> -                # module when reloading is occuring.
+</I>&gt;<i> -
+</I>&gt;<i> -                instance = _InstanceInfo(label, file, cache)
+</I>&gt;<i> -
+</I>&gt;<i> -                module.__mp_info__ = instance
+</I>&gt;<i> -
+</I>&gt;<i> -                # Cache any additional module search path which
+</I>&gt;<i> -                # should be used for this instance of the module
+</I>&gt;<i> -                # or package. The path shouldn't be able to be
+</I>&gt;<i> -                # changed during the lifetime of the module to
+</I>&gt;<i> -                # ensure that module imports are always done
+</I>&gt;<i> -                # against the same path.
+</I>&gt;<i> -
+</I>&gt;<i> -                if path is None:
+</I>&gt;<i> -                    path = []
+</I>&gt;<i> -
+</I>&gt;<i> -                module.__mp_path__ = list(path)
+</I>&gt;<i> -
+</I>&gt;<i> -                # Place a reference to the module within the
+</I>&gt;<i> -                # request specific cache of imported modules.
+</I>&gt;<i> -                # This makes module lookup more efficient when
+</I>&gt;<i> -                # the same module is imported more than once
+</I>&gt;<i> -                # within the context of a request. In the case
+</I>&gt;<i> -                # of a cyclical import, avoids a never ending
+</I>&gt;<i> -                # recursive loop.
+</I>&gt;<i> -
+</I>&gt;<i> -                if modules is not None:
+</I>&gt;<i> -                    modules[label] = module
+</I>&gt;<i> -
+</I>&gt;<i> -                # If this is a child import of some parent
+</I>&gt;<i> -                # module, add this module as a child of the
+</I>&gt;<i> -                # parent.
+</I>&gt;<i> -
+</I>&gt;<i> -                atime = time.time()
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Must add to the module the path to the modules
+</I>&gt;<i> +                    # file. This ensures that module looks like a
+</I>&gt;<i> +                    # normal module and this path will also be used
+</I>&gt;<i> +                    # in certain contexts when the import statement
+</I>&gt;<i> +                    # is used within the module.
+</I>&gt;<i> +
+</I>&gt;<i> +                    module.__file__ = file
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Setup a new instance object to store in the
+</I>&gt;<i> +                    # module. This will refer back to the actual
+</I>&gt;<i> +                    # cache entry and is used to record information
+</I>&gt;<i> +                    # which is specific to this incarnation of the
+</I>&gt;<i> +                    # module when reloading is occuring.
+</I>&gt;<i> +
+</I>&gt;<i> +                    instance = _InstanceInfo(label, file, cache)
+</I>&gt;<i> +
+</I>&gt;<i> +                    module.__mp_info__ = instance
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Cache any additional module search path which
+</I>&gt;<i> +                    # should be used for this instance of the module
+</I>&gt;<i> +                    # or package. The path shouldn't be able to be
+</I>&gt;<i> +                    # changed during the lifetime of the module to
+</I>&gt;<i> +                    # ensure that module imports are always done
+</I>&gt;<i> +                    # against the same path.
+</I>&gt;<i> +
+</I>&gt;<i> +                    if path is None:
+</I>&gt;<i> +                        path = []
+</I>&gt;<i> +
+</I>&gt;<i> +                    module.__mp_path__ = list(path)
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Place a reference to the module within the
+</I>&gt;<i> +                    # request specific cache of imported modules.
+</I>&gt;<i> +                    # This makes module lookup more efficient when
+</I>&gt;<i> +                    # the same module is imported more than once
+</I>&gt;<i> +                    # within the context of a request. In the case
+</I>&gt;<i> +                    # of a cyclical import, avoids a never ending
+</I>&gt;<i> +                    # recursive loop.
+</I>&gt;<i> +
+</I>&gt;<i> +                    if modules is not None:
+</I>&gt;<i> +                        modules[label] = module
+</I>&gt;<i> +
+</I>&gt;<i> +                    # If this is a child import of some parent
+</I>&gt;<i> +                    # module, add this module as a child of the
+</I>&gt;<i> +                    # parent.
+</I>&gt;<i> +
+</I>&gt;<i> +                    atime = time.time()
+</I>&gt;<i> +
+</I>&gt;<i> +                    if parent_info:
+</I>&gt;<i> +                        parent_info.children[label] = atime
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Perform actual import of the module.
+</I>&gt;<i> +
+</I>&gt;<i> +                    try:
+</I>&gt;<i> +                        execfile(file, module.__dict__)
+</I>&gt;<i> +
+</I>&gt;<i> +                    except:
+</I>&gt;<i> +
+</I>&gt;<i> +                        # Importation of the module has failed for
+</I>&gt;<i> +                        # some reason. If this is the very first
+</I>&gt;<i> +                        # import of the module, need to discard the
+</I>&gt;<i> +                        # cache entry entirely else a subsequent
+</I>&gt;<i> +                        # attempt to load the module will wrongly
+</I>&gt;<i> +                        # think it was successfully loaded already.
+</I>&gt;<i> +
+</I>&gt;<i> +                        if cache.module is None:
+</I>&gt;<i> +                            del self._cache[label]
+</I>&gt;<i> +
+</I>&gt;<i> +                        raise
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Update the cache and clear the reload flag.
+</I>&gt;<i> +
+</I>&gt;<i> +                    cache.module = module
+</I>&gt;<i> +                    cache.reload = 0
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Need to also update the list of child modules
+</I>&gt;<i> +                    # stored in the cache entry with the actual
+</I>&gt;<i> +                    # children found during the import. A copy is
+</I>&gt;<i> +                    # made, meaning that any future imports
+</I>&gt;<i> +                    # performed within the context of the request
+</I>&gt;<i> +                    # handler don't result in the module later being
+</I>&gt;<i> +                    # reloaded if they change.
+</I>&gt;<i> +
+</I>&gt;<i> +                    cache.children = dict(module.__mp_info__.children)
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Create link to embedded path at end of import.
+</I>&gt;<i> +
+</I>&gt;<i> +                    cache.path = module.__mp_path__
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Increment the generation count of the global
+</I>&gt;<i> +                    # state of all modules. This is used in the
+</I>&gt;<i> +                    # dependency management scheme for reloading to
+</I>&gt;<i> +                    # determine if a module dependency has been
+</I>&gt;<i> +                    # reloaded since it was loaded.
+</I>&gt;<i> +
+</I>&gt;<i> +                    self._lock2.acquire()
+</I>&gt;<i> +                    self._generation = self._generation + 1
+</I>&gt;<i> +                    cache.generation = self._generation
+</I>&gt;<i> +                    self._lock2.release()
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Update access time and reset access counts.
+</I>&gt;<i> +
+</I>&gt;<i> +                    cache.ctime = atime
+</I>&gt;<i> +                    cache.atime = atime
+</I>&gt;<i> +                    cache.direct = 1
+</I>&gt;<i> +                    cache.indirect = 0
+</I>&gt;<i>
+</I>&gt;<i> -                if parent_info:
+</I>&gt;<i> -                    parent_info.children[label] = atime
+</I>&gt;<i> -
+</I>&gt;<i> -                # Perform actual import of the module.
+</I>&gt;<i> -
+</I>&gt;<i> -                try:
+</I>&gt;<i> -                    execfile(file, module.__dict__)
+</I>&gt;<i> -
+</I>&gt;<i> -                except:
+</I>&gt;<i> -
+</I>&gt;<i> -                    # Importation of the module has failed for
+</I>&gt;<i> -                    # some reason. If this is the very first
+</I>&gt;<i> -                    # import of the module, need to discard the
+</I>&gt;<i> -                    # cache entry entirely else a subsequent
+</I>&gt;<i> -                    # attempt to load the module will wrongly
+</I>&gt;<i> -                    # think it was successfully loaded already.
+</I>&gt;<i> -
+</I>&gt;<i> -                    if cache.module is None:
+</I>&gt;<i> -                        del self._cache[label]
+</I>&gt;<i> -
+</I>&gt;<i> -                    raise
+</I>&gt;<i> -
+</I>&gt;<i> -                # Update the cache and clear the reload flag.
+</I>&gt;<i> -
+</I>&gt;<i> -                cache.module = module
+</I>&gt;<i> -                cache.reload = 0
+</I>&gt;<i> -
+</I>&gt;<i> -                # Need to also update the list of child modules
+</I>&gt;<i> -                # stored in the cache entry with the actual
+</I>&gt;<i> -                # children found during the import. A copy is
+</I>&gt;<i> -                # made, meaning that any future imports
+</I>&gt;<i> -                # performed within the context of the request
+</I>&gt;<i> -                # handler don't result in the module later being
+</I>&gt;<i> -                # reloaded if they change.
+</I>&gt;<i> -
+</I>&gt;<i> -                cache.children = dict(module.__mp_info__.children)
+</I>&gt;<i> -
+</I>&gt;<i> -                # Create link to embedded path at end of import.
+</I>&gt;<i> -
+</I>&gt;<i> -                cache.path = module.__mp_path__
+</I>&gt;<i> -
+</I>&gt;<i> -                # Increment the generation count of the global
+</I>&gt;<i> -                # state of all modules. This is used in the
+</I>&gt;<i> -                # dependency management scheme for reloading to
+</I>&gt;<i> -                # determine if a module dependency has been
+</I>&gt;<i> -                # reloaded since it was loaded.
+</I>&gt;<i> -
+</I>&gt;<i> -                self._lock2.acquire()
+</I>&gt;<i> -                self._generation = self._generation + 1
+</I>&gt;<i> -                cache.generation = self._generation
+</I>&gt;<i> -                self._lock2.release()
+</I>&gt;<i> -
+</I>&gt;<i> -                # Update access time and reset access counts.
+</I>&gt;<i> -
+</I>&gt;<i> -                cache.ctime = atime
+</I>&gt;<i> -                cache.atime = atime
+</I>&gt;<i> -                cache.direct = 1
+</I>&gt;<i> -                cache.indirect = 0
+</I>&gt;<i> -
+</I>&gt;<i> -            else:
+</I>&gt;<i> -
+</I>&gt;<i> -                # Update the cache.
+</I>&gt;<i> -
+</I>&gt;<i> -                module = cache.module
+</I>&gt;<i> -
+</I>&gt;<i> -                # Place a reference to the module within the
+</I>&gt;<i> -                # request specific cache of imported modules.
+</I>&gt;<i> -                # This makes module lookup more efficient when
+</I>&gt;<i> -                # the same module is imported more than once
+</I>&gt;<i> -                # within the context of a request. In the case
+</I>&gt;<i> -                # of a cyclical import, avoids a never ending
+</I>&gt;<i> -                # recursive loop.
+</I>&gt;<i> -
+</I>&gt;<i> -                if modules is not None:
+</I>&gt;<i> -                    modules[label] = module
+</I>&gt;<i> -
+</I>&gt;<i> -                # If this is a child import of some parent
+</I>&gt;<i> -                # module, add this module as a child of the
+</I>&gt;<i> -                # parent.
+</I>&gt;<i> -
+</I>&gt;<i> -                atime = time.time()
+</I>&gt;<i> -
+</I>&gt;<i> -                if parent_info:
+</I>&gt;<i> -                    parent_info.children[label] = atime
+</I>&gt;<i> -
+</I>&gt;<i> -                # Didn't need to reload the module so simply
+</I>&gt;<i> -                # increment access counts and last access time.
+</I>&gt;<i> -
+</I>&gt;<i> -                cache.atime = atime
+</I>&gt;<i> -                cache.direct = cache.direct + 1
+</I>&gt;<i> -
+</I>&gt;<i> -            return module
+</I>&gt;<i> +                else:
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Update the cache.
+</I>&gt;<i> +
+</I>&gt;<i> +                    module = cache.module
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Place a reference to the module within the
+</I>&gt;<i> +                    # request specific cache of imported modules.
+</I>&gt;<i> +                    # This makes module lookup more efficient when
+</I>&gt;<i> +                    # the same module is imported more than once
+</I>&gt;<i> +                    # within the context of a request. In the case
+</I>&gt;<i> +                    # of a cyclical import, avoids a never ending
+</I>&gt;<i> +                    # recursive loop.
+</I>&gt;<i> +
+</I>&gt;<i> +                    if modules is not None:
+</I>&gt;<i> +                        modules[label] = module
+</I>&gt;<i> +
+</I>&gt;<i> +                    # If this is a child import of some parent
+</I>&gt;<i> +                    # module, add this module as a child of the
+</I>&gt;<i> +                    # parent.
+</I>&gt;<i> +
+</I>&gt;<i> +                    atime = time.time()
+</I>&gt;<i> +
+</I>&gt;<i> +                    if parent_info:
+</I>&gt;<i> +                        parent_info.children[label] = atime
+</I>&gt;<i> +
+</I>&gt;<i> +                    # Didn't need to reload the module so simply
+</I>&gt;<i> +                    # increment access counts and last access time.
+</I>&gt;<i> +
+</I>&gt;<i> +                    cache.atime = atime
+</I>&gt;<i> +                    cache.direct = cache.direct + 1
+</I>&gt;<i> +
+</I>&gt;<i> +                return module
+</I>&gt;<i> +            finally:
+</I>&gt;<i> +                self._lock1.release() # always unlock
+</I>&gt;<i>
+</I>&gt;<i>          finally:
+</I>&gt;<i>              # Lock on cache object can now be released.
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023590.html">[mod_python] Multiple loading of same module with winnt MPM
+</A></li>
+	<LI>Next message: <A HREF="023591.html">[mod_python] Cookies not persisting 
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23597">[ date ]</a>
+              <a href="thread.html#23597">[ thread ]</a>
+              <a href="subject.html#23597">[ subject ]</a>
+              <a href="author.html#23597">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

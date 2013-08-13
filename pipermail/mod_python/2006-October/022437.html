@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Can%20i%20have%20both%20Marshal%20and%20Signed%0A%09CookieswithPublisher%3F&In-Reply-To=1162244414.20129%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022434.html">
+   <LINK REL="Next"  HREF="022438.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Clodoaldo Pinto Neto</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Can%20i%20have%20both%20Marshal%20and%20Signed%0A%09CookieswithPublisher%3F&In-Reply-To=1162244414.20129%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?">clodoaldo.pinto at gmail.com
+       </A><BR>
+    <I>Tue Oct 31 08:43:21 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022434.html">[mod_python] Can i have both Marshal and
+	Signed	CookieswithPublisher?
+</A></li>
+        <LI>Next message: <A HREF="022438.html">[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22437">[ date ]</a>
+              <a href="thread.html#22437">[ thread ]</a>
+              <a href="subject.html#22437">[ subject ]</a>
+              <a href="author.html#22437">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2006/10/30, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+&gt;<i> Clodoaldo Pinto Neto wrote ..
+</I>&gt;<i> &gt; 2006/10/29, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+</I>&gt;<i> &gt; &gt; Clodoaldo Pinto Neto wrote ..
+</I>&gt;<i> &gt; The problem that is happening is that one exception was not expected
+</I>&gt;<i> &gt; by the original code piece author. The exception is binascii.Error. It
+</I>&gt;<i> &gt; will happen whenever MarshalCookie.parse() tries to parse a Signed
+</I>&gt;<i> &gt; cookie. My proposed fix is just to import binascii and include the
+</I>&gt;<i> &gt; exception:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;             try:
+</I>&gt;<i> &gt;                 c.unmarshal(secret)
+</I>&gt;<i> &gt;             except (CookieError, ValueError, binascii.Error):
+</I>&gt;<i> &gt;                 # downgrade to Cookie
+</I>&gt;<i> &gt;                 dict[k] = Cookie.parse(Cookie.__str__(c))[k]
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; This way MarshalCookie.get_cookies() will behave as per the documentation.
+</I>&gt;<i>
+</I>&gt;<i> Yes and no. Yes one could do it, but after looking at it and thinking about
+</I>&gt;<i> it overnight I would probably do it in a different place. Instead, one would
+</I>&gt;<i> be better of first changing unmarshal() to:
+</I>&gt;<i>
+</I>&gt;<i>     def unmarshal(self, secret):
+</I>&gt;<i>
+</I>&gt;<i>         self.unsign(secret)
+</I>&gt;<i>
+</I>&gt;<i>         try:
+</I>&gt;<i>             data = base64.decodestring(self.value)
+</I>&gt;<i>         except binascii.Error:
+</I>&gt;<i>             raise CookieError, &quot;Incorrectly Encoded Cookie: %s=%s&quot; % (self.name, self.value)
+</I>&gt;<i>
+</I>&gt;<i>         self.value = marshal.loads(data)
+</I>&gt;<i>
+</I>&gt;<i> and leave parse() as is.
+</I>&gt;<i>
+</I>&gt;<i> The difference here is that you have split out the base64 decoding of
+</I>&gt;<i> the value string from the actual unmarshalling of the data.
+</I>&gt;<i>
+</I>&gt;<i> Next one has to contemplate whether one should for the marshal.loads()
+</I>&gt;<i> call separately catch EOFError, ValueError or TypeError exceptions as
+</I>&gt;<i> being indicative of badly formatted marshal data.
+</I>&gt;<i>
+</I>&gt;<i> The reason for doing this would be that I could use a SignedCookie at
+</I>&gt;<i> the same time where I decide to base64 encode the value myself. If I do
+</I>&gt;<i> this and the SignedCookie uses the same secret, the data would get
+</I>&gt;<i> past the signed check and the base64 decoding implemented by the
+</I>&gt;<i> MarshalCookie but then fail on unmarshalling if the data wasn't actually
+</I>&gt;<i> marshal data but some other format.
+</I>&gt;<i>
+</I>&gt;<i> So, to be even more precise:
+</I>&gt;<i>
+</I>&gt;<i>     def unmarshal(self, secret):
+</I>&gt;<i>
+</I>&gt;<i>         self.unsign(secret)
+</I>&gt;<i>
+</I>&gt;<i>         try:
+</I>&gt;<i>             data = base64.decodestring(self.value)
+</I>&gt;<i>         except:
+</I>&gt;<i>             raise CookieError, &quot;Value Not BASE64 Encoded: %s=%s&quot; % (self.name, self.value)
+</I>&gt;<i>
+</I>&gt;<i>         try:
+</I>&gt;<i>             self.value = marshal.loads(data)
+</I>&gt;<i>         except (EOFError, ValueError, TypeError):
+</I>&gt;<i>             raise CookieError, &quot;Cannot Unmarshal Cookie: %s=%s&quot; % (self.name, self.value)
+</I>
+I'm not sure i understand all the implications, but i think it is the
+correct approach to the problem.
+
+Did you forget to specify the binascii.Error exception or am i missing
+something?:
+
+&gt;<i>         try:
+</I>&gt;<i>             data = base64.decodestring(self.value)
+</I>&gt;<i>         except:
+</I>&gt;<i>             raise CookieError, &quot;Value Not BASE64 Encoded: %s=%s&quot; % (self.name, self.value)
+</I>
+&gt;<i> The other thing I believe also should be added is a new keyword
+</I>&gt;<i> parameter called 'strict'. This would default to 0 to preserve existing
+</I>&gt;<i> behaviour. So I could say:
+</I>&gt;<i>
+</I>&gt;<i>   cookies = Cookie.get_cookies(req, Cookie.MarshalCookie, names=['xxx'], strict=1)
+</I>&gt;<i>
+</I>&gt;<i> If 'strict' is set to a truth value, then if a cookie fails to be decoded as
+</I>&gt;<i> the intended type, it would not fallback to returning Cookie, but raise
+</I>&gt;<i> again the original exception that cause the cookie not to be decoded.
+</I>&gt;<i>
+</I>&gt;<i> The Session code would for example always use 'strict' to ensure that
+</I>&gt;<i> SignedCookie doesn't fallback to 'Cookie', thus ensuring the extra
+</I>&gt;<i> security of the 64 character vs 32 character string is used.
+</I>
+Sounds good. It would be still better if i could also tell
+Cookie.get_cookies() to just discard the failed cookies in case i want
+all and only the cookies of a certain class.
+
+If i understand what you mean with the strict parameter then
+MarshalCookie.parse() could be something like this:
+
+    def parse(Class, s, secret, downgrade=False, strict=False):
+
+        dict = _parse_cookie(s, Class)
+
+        del_list = list()
+        for k in dict:
+            c = dict[k]
+            try:
+                c.unmarshal(secret)
+            except (CookieError, ValueError):
+               if downgrade:
+                   del_list.append(k)
+               else:
+                   if strict:
+                       raise
+                   else:
+                       # downgrade to Cookie
+                       dict[k] = Cookie.parse(Cookie.__str__(c))[k]
+
+        for k in del_list:
+            del dict(k)
+        return dict
+
+Regards, Clodoaldo Pinto Neto
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022434.html">[mod_python] Can i have both Marshal and
+	Signed	CookieswithPublisher?
+</A></li>
+	<LI>Next message: <A HREF="022438.html">[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22437">[ date ]</a>
+              <a href="thread.html#22437">[ thread ]</a>
+              <a href="subject.html#22437">[ subject ]</a>
+              <a href="author.html#22437">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

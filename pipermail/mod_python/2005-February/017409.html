@@ -1,0 +1,187 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] pass variables between functions.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20pass%20variables%20between%20functions.&In-Reply-To=ff87600805021111554aba92e5%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017407.html">
+   <LINK REL="Next"  HREF="017411.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] pass variables between functions.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Chris Jackson</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20pass%20variables%20between%20functions.&In-Reply-To=ff87600805021111554aba92e5%40mail.gmail.com"
+       TITLE="[mod_python] pass variables between functions.">christopher.jackson at gmail.com
+       </A><BR>
+    <I>Fri Feb 11 15:36:12 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017407.html">[mod_python] pass variables between functions.
+</A></li>
+        <LI>Next message: <A HREF="017411.html">[mod_python] pass variables between functions.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17409">[ date ]</a>
+              <a href="thread.html#17409">[ thread ]</a>
+              <a href="subject.html#17409">[ subject ]</a>
+              <a href="author.html#17409">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Use the session variable, which serializes the data in /tmp/mp_*.
+
+Here's what you do (or what i did to make it work).
+
+# Create a new session based on sessid passed through the form in a hidden field
+def myhandler(req, sessid=&quot;&quot;):
+  ...
+  sess = Session(req, sessid, None, 36000, 0)  #change sessid for None
+if it's a first-time user
+  sess.load()
+  sess['mydict'] = &lt;some value&gt;
+  .....
+   sess.save()
+
+   myTemplate = psp.PSP(req, filename='test.html')
+   myTemplate = run(vars = {'sessid':sessid})
+
+
+#Now in your html template (PSP) file (test.html)
+&lt;html&gt;
+.....
+&lt;input type=&quot;hidden&quot; name=&quot;sessid&quot; value=&quot;&lt;%=sessid%&gt;&quot;&gt;
+.....
+&lt;/html&gt;
+
+So what you're doing is passing around the sessid to hidden form fields.
+And you get a different sessid for each client connection.
+
+Issue a ( watch -d 'cat /tmp/mp_sess.dbm.dir' ) command to view new
+sessid being created (not at each page, but at each new client
+connection.
+
+~= Chris =~
+
+On Fri, 11 Feb 2005 14:55:11 -0500, donnie jones
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">donniejones18 at gmail.com</A>&gt; wrote:
+&gt;<i> I assume that it would be necessary to pass the session id
+</I>&gt;<i> through a url or value in a form and then use that session id
+</I>&gt;<i> to retrieve the session...
+</I>&gt;<i> 
+</I>&gt;<i> I wonder performance wise if it would be better to use the
+</I>&gt;<i> session or an external database...hmm.
+</I>&gt;<i> 
+</I>&gt;<i> Thanks.
+</I>&gt;<i> __
+</I>&gt;<i> Donnie
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On Fri, 11 Feb 2005 13:41:14 -0600, Nick &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nick at dd.revealed.net</A>&gt; wrote:
+</I>&gt;<i> &gt; Well, essentially that *is* an external database.  I haven't used the one
+</I>&gt;<i> &gt; that comes with mod_python, but is it possible for all requests to use the
+</I>&gt;<i> &gt; same session ID so that they all see the same session, rather than one for
+</I>&gt;<i> &gt; each client?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Nick
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; donnie jones wrote:
+</I>&gt;<i> &gt; &gt; Ack... heh, I'd rather not go for that.  ;-)
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; I wonder if I could store the variable in a session?
+</I>&gt;<i> &gt; &gt; In my actual application, the variable is a dictionary, do you think
+</I>&gt;<i> &gt; &gt; it would be
+</I>&gt;<i> &gt; &gt; fine to store a dictionary inside a session's dictionary?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Thanks for everyone's help.
+</I>&gt;<i> &gt; &gt; __
+</I>&gt;<i> &gt; &gt; Donnie
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; On Fri, 11 Feb 2005 13:10:21 -0600, Nick &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nick at dd.revealed.net</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;&gt;I think your only recourse here is to lower the children to 1 and up the
+</I>&gt;<i> &gt; &gt;&gt;number of threads (a la windows), or else use an external database to store
+</I>&gt;<i> &gt; &gt;&gt;your variables.
+</I>&gt;<i> &gt; &gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt;Nick
+</I>&gt;<i> &gt; &gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt;donnie jones wrote:
+</I>&gt;<i> &gt; &gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt;&gt;---------- Forwarded message ----------
+</I>&gt;<i> &gt; &gt;&gt;&gt;From: donnie jones &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">donniejones18 at gmail.com</A>&gt;
+</I>&gt;<i> &gt; &gt;&gt;&gt;Date: Fri, 11 Feb 2005 14:02:48 -0500
+</I>&gt;<i> &gt; &gt;&gt;&gt;Subject: Re: [mod_python] pass variables between functions.
+</I>&gt;<i> &gt; &gt;&gt;&gt;To: Scott Sanders &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">sanders at apache.org</A>&gt;
+</I>&gt;<i> &gt; &gt;&gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt;&gt;I believe I am having this problem because if I reload the x=x+1
+</I>&gt;<i> &gt; &gt;&gt;&gt;function many times, sometimes it will increment the value and
+</I>&gt;<i> &gt; &gt;&gt;&gt;sometimes it won't... so I assume it is depending upon which thread
+</I>&gt;<i> &gt; &gt;&gt;&gt;has loaded.
+</I>&gt;<i> &gt; &gt;&gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt;&gt;Is there a way around this so that I have a consistent value between
+</I>&gt;<i> &gt; &gt;&gt;&gt;the functions?
+</I>&gt;<i> &gt; &gt;&gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt;&gt;Thank you.
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017407.html">[mod_python] pass variables between functions.
+</A></li>
+	<LI>Next message: <A HREF="017411.html">[mod_python] pass variables between functions.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17409">[ date ]</a>
+              <a href="thread.html#17409">[ thread ]</a>
+              <a href="subject.html#17409">[ subject ]</a>
+              <a href="author.html#17409">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

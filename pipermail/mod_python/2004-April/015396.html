@@ -1,0 +1,231 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] memory leak in mod_python?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20memory%20leak%20in%20mod_python%3F&In-Reply-To=41390.62.224.4.2.1081853734.squirrel%40webmail.diw-berlin.de">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015395.html">
+   <LINK REL="Next"  HREF="015397.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] memory leak in mod_python?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20memory%20leak%20in%20mod_python%3F&In-Reply-To=41390.62.224.4.2.1081853734.squirrel%40webmail.diw-berlin.de"
+       TITLE="[mod_python] memory leak in mod_python?">grisha at modpython.org
+       </A><BR>
+    <I>Tue Apr 13 09:52:08 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015395.html">[mod_python] memory leak in mod_python?
+</A></li>
+        <LI>Next message: <A HREF="015397.html">[mod_python] 
+	mod_python 2.xx for Apache 1.3.x + Python 2.3.x on Win32 ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15396">[ date ]</a>
+              <a href="thread.html#15396">[ thread ]</a>
+              <a href="subject.html#15396">[ subject ]</a>
+              <a href="author.html#15396">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Thanks for the detailed report, we'll check it out.
+
+Grisha
+
+On Tue, 13 Apr 2004 <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">stietke at diw.de</A> wrote:
+
+&gt;<i> Hi guys,
+</I>&gt;<i>
+</I>&gt;<i> thank you for this extremely cool piece of software. I am very
+</I>&gt;<i> happy with it. However there is one little problem I encountered
+</I>&gt;<i> while playing with it. On my computer, the apache process seems
+</I>&gt;<i> to leak memory when used with mod_python in certain configurations.
+</I>&gt;<i>
+</I>&gt;<i> In particular, it seems to leak memory when I use PythonOption
+</I>&gt;<i> directives in a &lt;Directory&gt;...&lt;/Directory&gt; context.
+</I>&gt;<i>
+</I>&gt;<i> I tried to figure out where the memory disapears using valgrind,
+</I>&gt;<i> but the hundreds of lines valgrind spit out left me rather clueless.
+</I>&gt;<i>
+</I>&gt;<i> Maybe somebody here has any idea what is going on.
+</I>&gt;<i>
+</I>&gt;<i> Thank you in advance + all the best,
+</I>&gt;<i> Stefan
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> summary:
+</I>&gt;<i> --------
+</I>&gt;<i> Some mod_python directives, including PythonOption and PythonInterpreter,
+</I>&gt;<i> seem to cause apache or mod_python to lose a certain, constant amount
+</I>&gt;<i> of memory for each request mod_python handles. The number of bytes
+</I>&gt;<i> lost each request seems to scale with the number of directives used.
+</I>&gt;<i>
+</I>&gt;<i> The apache process seems to lose memory when the mod_python module
+</I>&gt;<i> is loaded with a certain configuration, independently of the actual
+</I>&gt;<i> request beeing handled by mod_python. (see results 6 for details)
+</I>&gt;<i>
+</I>&gt;<i> versions:
+</I>&gt;<i> ---------
+</I>&gt;<i> 	apache 2.0.49
+</I>&gt;<i> 	mod_python 3.1.3
+</I>&gt;<i> 	python 2.3.3
+</I>&gt;<i> 	linux kernel 2.4.19
+</I>&gt;<i> 	libc6 2.3.1
+</I>&gt;<i> 	debian woody with some updates
+</I>&gt;<i>
+</I>&gt;<i> apache, python and mod_python are compiled from source.
+</I>&gt;<i>
+</I>&gt;<i> apache is compiled with prefork mpm to make testing easier (no threads),
+</I>&gt;<i> but tests with worker mpm showed similar results in earlier tests.
+</I>&gt;<i>
+</I>&gt;<i> httpd.config:
+</I>&gt;<i> -------------
+</I>&gt;<i> $ diff conf/httpd.conf conf/httpd-std.conf
+</I>&gt;<i> 119,122c119,122
+</I>&gt;<i> &lt; StartServers         1
+</I>&gt;<i> &lt; MinSpareServers      1
+</I>&gt;<i> &lt; MaxSpareServers      1
+</I>&gt;<i> &lt; MaxClients           1
+</I>&gt;<i> ---
+</I>&gt;<i> &gt; StartServers         5
+</I>&gt;<i> &gt; MinSpareServers      5
+</I>&gt;<i> &gt; MaxSpareServers     10
+</I>&gt;<i> &gt; MaxClients         150
+</I>&gt;<i> 219c219
+</I>&gt;<i> &lt; Listen 127.0.0.1:10080
+</I>&gt;<i> ---
+</I>&gt;<i> &gt; Listen 80
+</I>&gt;<i> 233d232
+</I>&gt;<i> &lt; LoadModule python_module
+</I>&gt;<i> /home/stefan/apache_test/apache_prefork/modules/mod_python.so
+</I>&gt;<i> 362,372d360
+</I>&gt;<i> &lt;     #
+</I>&gt;<i> &lt;     # mod_python
+</I>&gt;<i> &lt;     #
+</I>&gt;<i> &lt;     AddHandler mod_python .py
+</I>&gt;<i> &lt;     PythonHandler testdummy
+</I>&gt;<i> &lt;     #PythonInterpreter pylet_interp
+</I>&gt;<i> &lt;     #PythonDebug On
+</I>&gt;<i> &lt;     #PythonOption x a
+</I>&gt;<i> &lt;     #PythonOption y b
+</I>&gt;<i> &lt;     #PythonOption z c
+</I>&gt;<i> &lt;
+</I>&gt;<i> 493c481
+</I>&gt;<i> &lt; LogLevel debug
+</I>&gt;<i> ---
+</I>&gt;<i> &gt; LogLevel warn
+</I>&gt;<i>
+</I>&gt;<i> mod_python handler:
+</I>&gt;<i> -------------------
+</I>&gt;<i> $ cat testdummy.py
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>         return 0
+</I>&gt;<i>
+</I>&gt;<i> testprocedure:
+</I>&gt;<i> --------------
+</I>&gt;<i> 1) warm up: ../apache/bin/ab -n 50000 -k <A HREF="http://localhost:10080/test.py">http://localhost:10080/test.py</A>
+</I>&gt;<i>
+</I>&gt;<i> 2) test: cat /proc/2315/status &gt; httpd_status.txt;
+</I>&gt;<i> 	 for x in 1 2 3 4 5; do
+</I>&gt;<i> 		../apache/bin/ab -n 100000 -k <A HREF="http://localhost:10080/test.py;">http://localhost:10080/test.py;</A>
+</I>&gt;<i> 		cat /proc/2315/status &gt;&gt; httpd_status.txt;
+</I>&gt;<i> 	 done
+</I>&gt;<i>
+</I>&gt;<i> 3) see if the worker process grows in size: grep VmSize: httpd_status.txt
+</I>&gt;<i>
+</I>&gt;<i> results:
+</I>&gt;<i> --------
+</I>&gt;<i> 1) with the mod_python configuration from above, no growth.
+</I>&gt;<i> 2) with the line &quot;PythonOption x a&quot; enabled:
+</I>&gt;<i> 	VmSize:     8776 kB
+</I>&gt;<i> 	VmSize:    10348 kB	---&gt; +1572
+</I>&gt;<i> 	VmSize:    11916 kB	---&gt; +1568
+</I>&gt;<i> 	VmSize:    13488 kB	---&gt; +1572
+</I>&gt;<i> 	VmSize:    15056 kB	---&gt; +1568
+</I>&gt;<i> 	VmSize:    16624 kB	---&gt; +1568
+</I>&gt;<i>    total: ((16624 - 8776) * 1024) / 500000 = 16.07270 bytes/request
+</I>&gt;<i> 3) with the PythonOption replaced with &quot;PythonOption
+</I>&gt;<i> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+</I>&gt;<i> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&quot;
+</I>&gt;<i> (that is 100*x and 100*a):
+</I>&gt;<i> 	result: exactly the same as 2).
+</I>&gt;<i> 4) with &quot;PythonOption x a&quot; and &quot;PythonOption y b&quot; enabled:
+</I>&gt;<i> 	VmSize:     9956 kB	---&gt; +3924
+</I>&gt;<i> 	VmSize:    13880 kB	---&gt; +3924
+</I>&gt;<i> 	VmSize:    17804 kB	---&gt; +3924
+</I>&gt;<i> 	VmSize:    21728 kB	---&gt; +3932
+</I>&gt;<i> 	VmSize:    25660 kB	---&gt; +3924
+</I>&gt;<i> 	VmSize:    29584 kB
+</I>&gt;<i>    total: ((29584 - 9956) * 1024) / 500000 = 40.19814 bytes/request
+</I>&gt;<i> 5) with additionally &quot;PythonOption z c&quot; enabled:
+</I>&gt;<i> 	VmSize:    11532 kB
+</I>&gt;<i> 	VmSize:    18620 kB	---&gt; +7088
+</I>&gt;<i> 	VmSize:    25708 kB	---&gt; +7088
+</I>&gt;<i> 	VmSize:    32792 kB	---&gt; +7084
+</I>&gt;<i> 	VmSize:    39880 kB	---&gt; +7088
+</I>&gt;<i> 	VmSize:    46968 kB	---&gt; +7088
+</I>&gt;<i>    total: ((46968 - 11532) * 1024) / 500000 = 72.57292 bytes/request
+</I>&gt;<i> 6) with all PythonOptions disabled, but with
+</I>&gt;<i>    &quot;PythonInterpreter pylet_interp&quot; enabled:
+</I>&gt;<i> 	result: exactly the same as 2).
+</I>&gt;<i>    BUT: after this test, i ran
+</I>&gt;<i>    ../apache/bin/ab -n 300000 -k <A HREF="http://localhost:10080/index.html.en">http://localhost:10080/index.html.en</A>
+</I>&gt;<i>    without restarting apache, and the VmSize grew again to 21328 kB.
+</I>&gt;<i>    ((21328 - 16624) * 1024) / 300000 = 16.05632
+</I>&gt;<i>    Apparently, apache loses memory already when the mod_python
+</I>&gt;<i>    module is loaded but does not handle the request at hand.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015395.html">[mod_python] memory leak in mod_python?
+</A></li>
+	<LI>Next message: <A HREF="015397.html">[mod_python] 
+	mod_python 2.xx for Apache 1.3.x + Python 2.3.x on Win32 ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15396">[ date ]</a>
+              <a href="thread.html#15396">[ thread ]</a>
+              <a href="subject.html#15396">[ subject ]</a>
+              <a href="author.html#15396">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

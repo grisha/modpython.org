@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] providing REST style interfaces
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20providing%20REST%20style%20interfaces&In-Reply-To=BE4BF201-B994-4D69-BCB8-84BAD5D15465%40indiana.edu">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024626.html">
+   <LINK REL="Next"  HREF="024632.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] providing REST style interfaces</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Deron Meranda</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20providing%20REST%20style%20interfaces&In-Reply-To=BE4BF201-B994-4D69-BCB8-84BAD5D15465%40indiana.edu"
+       TITLE="[mod_python] providing REST style interfaces">deron.meranda at gmail.com
+       </A><BR>
+    <I>Fri Jan  4 04:32:14 EST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024626.html">[mod_python] providing REST style interfaces
+</A></li>
+        <LI>Next message: <A HREF="024632.html">[mod_python] providing REST style interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24628">[ date ]</a>
+              <a href="thread.html#24628">[ thread ]</a>
+              <a href="subject.html#24628">[ subject ]</a>
+              <a href="author.html#24628">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Jan 3, 2008 10:56 PM, Rajarshi Guha &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rguha at indiana.edu</A>&gt; wrote:
+&gt;<i> Hi, I'm trying to wrap my head around a REST style interface using
+</I>&gt;<i> mod_python.
+</I>
+REST and mod_python are for the most part unrelated.  But you can
+certainly use mod_python in a REST style (meaning that mod_python
+doesn't get in your way of doing REST).
+
+
+&gt;<i> My understanding of REST so far is that URI's should not
+</I>&gt;<i> specify specific actions (as in /service.py?action=delete).
+</I>
+Correct.
+
+The main point of REST is that your URLs identify resources (think
+nouns).  You'll typically have lots and lots of URLs; a different URL
+for each possible different thing or item.
+
+An opposite style is SOA (which is basically a more complex
+evolution of CGI), in which the URLs name services or functions
+instead (think verbs).  SOAs usually have very few URLs, but
+perhaps with lots and lots of &quot;arguments&quot;.
+
+REST exposes things but hides the actors.
+SOA exposes the actors but hides the things.
+
+With REST, what you want to do to the resource (the verb) is
+specified by the HTTP method which is part of the request protocol...
+it is never encoded into the URL.  The methods can be things like
+GET, PUT, DELETE, etc.  The POST method is generally
+frowned upon in a REST usage, but it can be valid in certain
+cases.  The same URL is used regardless of method as long as
+whatever you're doing is being done to the same resource.
+
+The whole REST style can be more involved, but it generally is
+much closer to the original web/HTTP architecture.  Things like
+ETags and content negotiation can be big deals in REST; while they
+are blissfully ignored in most SOA approaches.
+
+Perhaps one of the most widely used non-trivial REST applications
+on Apache is Subversion (via mod_dav_svn since it's written in C and
+not python).
+
+
+&gt;<i> Thus I'd like to be able to handle a URL like
+</I>&gt;<i> <A HREF="http://www.somehost.com/service.py/descriptor/CCCC">http://www.somehost.com/service.py/descriptor/CCCC</A>
+</I>&gt;<i> where CCCC is an argument to the service.
+</I>
+No, don't think argument to a *service*....that's an SOA mindset.
+Also you most certainly don't want something like &quot;service.py&quot;
+being visible in the URL.  A better URL would just be
+<A HREF="http://www.somehost.com/descriptor/CCCC">http://www.somehost.com/descriptor/CCCC</A>
+
+Think of /descriptor/CCCC instead as being a unique *name* for some
+resource or object.  Remember, with REST there is no action or verb
+implied by the URL; everything is just a name for things/nouns.
+
+
+&gt;<i> Is something like this possible in mod_python?
+</I>
+Yes, REST is very doable.  Since mod_python is so low-level (as
+contrasted with many web &quot;frameworks&quot;), it doesn't force you to use
+any one particular style or architecture for your applications.
+
+
+&gt;<i> If anybody could point
+</I>&gt;<i> me to some examples of REST interfaces built using mod_python, it
+</I>&gt;<i> would be much appreciated.
+</I>
+If you're just trying to understand REST concepts, start with
+
+<A HREF="http://en.wikipedia.org/wiki/Representational_State_Transfer">http://en.wikipedia.org/wiki/Representational_State_Transfer</A>
+
+but do be aware that more and more misinformation about REST
+is starting to show up as the marketing types are grabbing on the
+the term as a buzzword.  Sometimes SOA-style architectures are
+being described as REST even when they are technically not so.
+(the latest such mislabeled example being Amazon's SimpleDB)
+
+
+A very simple &quot;hello world&quot; like REST-style handler could be structured
+similar to the following (note this is not complete code and is not tested):
+The important thing to notice is that when doing REST you are usually
+going to be doing some sort of switch on the req.method value.
+
+def handler( req ):
+    # Extract the resource name (the CCCC portion of the URL):
+    uripath = [p for p in req.uri.split('/') if p]
+    if len(uripath) != 2 or uripath[0] != 'descriptor':
+        raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+    resource_name = uripath[-1]
+
+    # Now figure out what we want to do to the resource
+    if req.method == 'GET':
+        try:
+            content = resource_database[resource_name]
+        except KeyError:
+            raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+        req.content_type = 'application/octet-stream'
+        req.write( content )
+    elif req.method == 'PUT':
+         content = req.read()
+         resource_database[resource_name] = content
+    elif req.method == 'DELETE':
+         del resource_database[resource_name]
+    else:
+        raise apache.SERVER_RETURN, apache.HTTP_METHOD_NOT_ALLOWED
+
+    return apache.OK
+
+-- 
+Deron Meranda
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024626.html">[mod_python] providing REST style interfaces
+</A></li>
+	<LI>Next message: <A HREF="024632.html">[mod_python] providing REST style interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24628">[ date ]</a>
+              <a href="thread.html#24628">[ thread ]</a>
+              <a href="subject.html#24628">[ subject ]</a>
+              <a href="author.html#24628">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

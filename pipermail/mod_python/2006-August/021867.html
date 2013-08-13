@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How isolate class attributes across requests?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20isolate%20class%20attributes%20across%20requests%3F&In-Reply-To=4415742515.20060818140715%40zdisk.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021863.html">
+   <LINK REL="Next"  HREF="021865.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How isolate class attributes across requests?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20isolate%20class%20attributes%20across%20requests%3F&In-Reply-To=4415742515.20060818140715%40zdisk.net"
+       TITLE="[mod_python] How isolate class attributes across requests?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Aug 18 04:37:58 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021863.html">[mod_python] How isolate class attributes across requests?
+</A></li>
+        <LI>Next message: <A HREF="021865.html">[mod_python] How isolate class attributes across requests?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21867">[ date ]</a>
+              <a href="thread.html#21867">[ thread ]</a>
+              <a href="subject.html#21867">[ subject ]</a>
+              <a href="author.html#21867">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 18/08/2006, at 8:07 PM, Norman Tindall wrote:
+
+&gt;<i> Hello,
+</I>&gt;<i>     As i understand mod_python one interpreter per site
+</I>&gt;<i>     default policy, if i import somemodule
+</I>&gt;<i>     and then change attribute of class (
+</I>&gt;<i>     for example from
+</I>&gt;<i>             @classmethod
+</I>&gt;<i>                   def someclass_method(cls,arg):
+</I>&gt;<i>                   cls.atrib = arg
+</I>&gt;<i>     or with
+</I>&gt;<i>              setattr(class,'atrib_name',value) ).
+</I>&gt;<i>
+</I>&gt;<i>     Then in all other requests to this site i will have this attribute
+</I>&gt;<i>     of class changed (as they will run within same interpreter).
+</I>
+Correct. Do be aware that this would have to be done at time of
+module import otherwise multiple requests in distinct threads
+could fight to do it at the same time if there is not adequate thread
+locking.
+
+&gt;<i>     Is there any methods to isolate class attributes across requests
+</I>&gt;<i>     EXCEPT running interpreter per request, defining class within
+</I>&gt;<i>     handler, writing code without class attributes?
+</I>&gt;<i>     I mean elegant and high-speed solution.
+</I>
+You might be able to use thread local storage if your version of
+Python supports it, or simply resort to a data structure which is
+indexed by the thread identifier, ie., threading.currentThread().
+
+Am not sure that would really be what you want though as
+subsequent requests can reuse the same thread. Another
+alternative is to use the value of 'req.connection.id'. This is a
+unique ID which Apache allocates on a per process basis (I
+think) to identify individual connections handled by that process.
+
+In either case, you may need to register a request cleanup handler
+to delete any temporary data which was created related to the request.
+
+&gt;<i>     I bear in mind only one way out: to create instance of one (first)
+</I>&gt;<i>     class, store desired attributes as an instance attributes,
+</I>&gt;<i>     then spawn instances of other (second) class and they will have
+</I>&gt;<i>     needed attrubutes not as class attributes but as instance of first
+</I>&gt;<i>     class attributes.
+</I>&gt;<i>     But i dont like it, isolating class attributes across request
+</I>&gt;<i>     would be more elegant.
+</I>
+Not quite sure what you mean here, but the most common way of
+having per request data is simply to store it as an attribute in the
+request object itself as most of the time that will be passed around
+to handlers fulfilling the request anyway. Thus:
+
+   class RequestData:
+     ...
+
+   req.my_request_data = RequestData()
+
+Because the request object gets destroyed at the end of the request
+your request specific data will also be destroyed.
+
+&gt;<i>     By the way what is the avarage speed-drop down when using
+</I>&gt;<i>     interpreter per request in compare with interpreter per
+</I>&gt;<i>     directory/site?
+</I>
+You can't have a distinct interpreter for each distinct request  
+unless you
+use prefork MPM (UNIX only) and set maximum requests per child to 1.
+This would be very slow and only recommended during development
+for debugging.
+
+Maybe you can provide a better more complete example of what you
+want to do.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021863.html">[mod_python] How isolate class attributes across requests?
+</A></li>
+	<LI>Next message: <A HREF="021865.html">[mod_python] How isolate class attributes across requests?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21867">[ date ]</a>
+              <a href="thread.html#21867">[ thread ]</a>
+              <a href="subject.html#21867">[ subject ]</a>
+              <a href="author.html#21867">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

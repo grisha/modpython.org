@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: forks, daemons and other beasts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20forks%2C%20daemons%20and%20other%20beasts&In-Reply-To=5f56302b0602111402w537de1feg17189740ad7ad0dc%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020238.html">
+   <LINK REL="Next"  HREF="020251.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: forks, daemons and other beasts</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20forks%2C%20daemons%20and%20other%20beasts&In-Reply-To=5f56302b0602111402w537de1feg17189740ad7ad0dc%40mail.gmail.com"
+       TITLE="[mod_python] Re: forks, daemons and other beasts">nlv11281 at natlab.research.philips.com
+       </A><BR>
+    <I>Mon Feb 13 03:01:44 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020238.html">[mod_python] Re: forks, daemons and other beasts
+</A></li>
+        <LI>Next message: <A HREF="020251.html">[mod_python] Re: forks, daemons and other beasts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20248">[ date ]</a>
+              <a href="thread.html#20248">[ thread ]</a>
+              <a href="subject.html#20248">[ subject ]</a>
+              <a href="author.html#20248">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;&gt;<i>Run a small separate daemon process which embeds an  XML-RPC
+</I>&gt;&gt;<i>server and have your web pages use XML-RPC to call that daemon
+</I>&gt;&gt;<i>process to trigger off the task. The daemon process can still fork exec
+</I>&gt;&gt;<i>as necessary.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>This way you eliminate a fork in Apache child process which may be
+</I>&gt;&gt;<i>problematic because of the socket connections etc that are inherited.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Well, that still looks like to me that I'm shooting a bird with a
+</I>&gt;<i> cannon. The reason is that I need to do something really simple: users
+</I>&gt;<i> upload a zip file (remember my questions about the zipfile module? :))
+</I>&gt;<i> and should get an acknowledgement that the upload was successful. The
+</I>&gt;<i> server should start unpacking the archive, check if the files are okay
+</I>&gt;<i> and move them to a directory. All of this can take quite long, so the
+</I>&gt;<i> acknowledgement should be sent before this unpacking/checking/moving
+</I>&gt;<i> finishes.
+</I>
+(Uh... Just one observation: They UPLOAD a ZIP file, and you expect the 
+unpacking to take longer than that?)
+
+You might consider using the latest mod_python 3.2.7 modification that 
+supports file &quot;streaming&quot;. You can unpack the ZIP while it's being 
+uploaded. This also prevents using TEMP space. And when the upload is 
+ready, the files are there as well. I tested this method for uploading 
+multi-gigabyte TAR files.
+
+The trick is to add a file callback to the FieldStorage object. I have 
+attached a sample upload PSP script that just counts bytes. I'll leave 
+it up to your imagination to feed the data into a ZipFile object.
+
+Attempting to fork extra threads or processes from within an Apache 
+instance will bring you lots of troubles - and you never know what 
+happens in future versions.
+
+--
+Mike Looijmans
+-------------- next part --------------
+&lt;%
+import fmt
+%&gt;
+&lt;html&gt;
+&lt;head&gt;
+  &lt;title&gt;Upload&lt;/title&gt;
+  &lt;%= fmt.style %&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;h1&gt;Upload&lt;/h1&gt;
+&lt;p&gt;&lt;a href=&quot;upload.psp?reset=log&quot;&gt;Reset&lt;/a&gt;&lt;/p&gt;
+      
+&lt;form enctype=&quot;multipart/form-data&quot; method=&quot;POST&quot; action=&quot;upload.psp?doit=yes&quot;&gt;
+&lt;p&gt;File:&lt;br&gt;
+  &lt;input type=file size=64 name=&quot;archivefile&quot;&gt;&lt;br&gt;
+  &lt;input type=file size=64 name=&quot;archivefile&quot;&gt;&lt;br&gt;
+  &lt;input type=file size=64 name=&quot;archivefile&quot;&gt;
+&lt;/p&gt;
+&lt;p&gt;Action:
+  &lt;input type=submit name=action value=&quot;Create&quot;&gt;
+&lt;/p&gt;
+&lt;/form&gt;
+
+&lt;%
+
+from mod_python import util
+
+class FileCounter:
+    def __init__(self, name):
+        self.size = 0
+        self.blocks = 0
+        self.blocksize = 0
+        self.name = name
+    def write(self, data):
+        l = len(data)
+        self.size += l
+        self.blocks += 1
+        if l &gt; self.blocksize: self.blocksize = l
+    def seek(self, pos):
+        pass
+
+def make_file(filename):
+    req.write('&lt;p&gt;makefile: ' + str(filename) + '&lt;/p&gt;\n')
+    return FileCounter(filename)
+
+frm = util.FieldStorage(req, file_callback=make_file)
+for afile in frm.getlist('archivefile'):
+    req.write('&lt;p&gt;File name: &lt;b&gt;%s&lt;/b&gt;\n' % afile.filename)
+    req.write('read: &lt;b&gt;%d&lt;/b&gt; bytes, &lt;b&gt;%d&lt;/b&gt; blocks max blocksize: &lt;b&gt;%d&lt;/b&gt;&lt;/p&gt;\n' % (afile.file.size, afile.file.blocks, afile.file.blocksize))
+  
+
+# end if
+%&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020238.html">[mod_python] Re: forks, daemons and other beasts
+</A></li>
+	<LI>Next message: <A HREF="020251.html">[mod_python] Re: forks, daemons and other beasts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20248">[ date ]</a>
+              <a href="thread.html#20248">[ thread ]</a>
+              <a href="subject.html#20248">[ subject ]</a>
+              <a href="author.html#20248">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

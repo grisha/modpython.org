@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python 3.3.1 memory leak?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%203.3.1%20memory%20leak%3F&In-Reply-To=88e286470707031943q18536809xe3b00ed09701c622%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023986.html">
+   <LINK REL="Next"  HREF="023965.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python 3.3.1 memory leak?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>yubing</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%203.3.1%20memory%20leak%3F&In-Reply-To=88e286470707031943q18536809xe3b00ed09701c622%40mail.gmail.com"
+       TITLE="[mod_python] mod_python 3.3.1 memory leak?">trueice at gmail.com
+       </A><BR>
+    <I>Tue Jul  3 23:56:36 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023986.html">[mod_python] mod_python 3.3.1 memory leak?
+</A></li>
+        <LI>Next message: <A HREF="023965.html">[mod_python] Can't get a 206 (partial content) response
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23984">[ date ]</a>
+              <a href="thread.html#23984">[ thread ]</a>
+              <a href="subject.html#23984">[ subject ]</a>
+              <a href="author.html#23984">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Now, the python streamer only issue one flush about every 30 frames, the
+memory usage grows very slow:)
+
+Maybe Apache is too complicated for me, its default output filters requires
+the buckets and brigades.
+
+apr_brigade_create does actually do the pool allocation:
+
+APU_DECLARE(apr_bucket_brigade *) apr_brigade_create(apr_pool_t *p,
+                                                     apr_bucket_alloc_t
+*list)
+{
+    apr_bucket_brigade *b;
+
+    b = apr_palloc(p, sizeof(*b));
+    b-&gt;p = p;
+    b-&gt;bucket_alloc = list;
+
+    APR_RING_INIT(&amp;b-&gt;list, apr_bucket, link);
+
+    apr_pool_cleanup_register(b-&gt;p, b, brigade_cleanup,
+apr_pool_cleanup_null);
+    return b;
+}
+
+
+
+On 7/4/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> On 04/07/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; On 03/07/07, yubing &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">trueice at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; Anyhow, it's clear that ap_rflush is the root cause of this memory
+</I>&gt;<i> leak,
+</I>&gt;<i> &gt; &gt; maybe we should find a new API for this (maybe we should also add a
+</I>&gt;<i> new
+</I>&gt;<i> &gt; &gt; method to the request_object ).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; It is not just ap_rflush() but also ap_rwrite(), as it is also using
+</I>&gt;<i> &gt; the request pool.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; To avoid the problem would mean creating a separate pool just for the
+</I>&gt;<i> &gt; one operation and for the buckets to be allocated from that, with the
+</I>&gt;<i> &gt; pool destroyed at the end of the call.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Unfortunately it isn't perhaps quite as simple as that though. This is
+</I>&gt;<i> &gt; because one can only use a separate pool if you know the buckets would
+</I>&gt;<i> &gt; be used up and no longer required after the call. When doing a flush
+</I>&gt;<i> &gt; this may be the case, but need to check. Definitely not the case if
+</I>&gt;<i> &gt; not doing a flush though.
+</I>&gt;<i>
+</I>&gt;<i> Okay, I'm confused now. The bucket functions aren't supposed to be
+</I>&gt;<i> allocating memory out of the resource pool.
+</I>&gt;<i>
+</I>&gt;<i> /**
+</I>&gt;<i> * Create a new bucket brigade.  The bucket brigade is originally empty.
+</I>&gt;<i> * @param p The pool to associate with the brigade.  Data is not allocated
+</I>&gt;<i> out
+</I>&gt;<i> *          of the pool, but a cleanup is registered.
+</I>&gt;<i> * @param list The bucket allocator to use
+</I>&gt;<i> * @return The empty bucket brigade
+</I>&gt;<i> */
+</I>&gt;<i> APU_DECLARE(apr_bucket_brigade *) apr_brigade_create(apr_pool_t *p,
+</I>&gt;<i>                                                     apr_bucket_alloc_t
+</I>&gt;<i> *list);
+</I>&gt;<i>
+</I>&gt;<i> Ie., it takes buckets from a bucket list, to which buckets are
+</I>&gt;<i> returned for reuse when the bucket brigade is no longer needed at the
+</I>&gt;<i> completion of the operation.
+</I>&gt;<i>
+</I>&gt;<i> The only reason the request pool is required is so that the bucket
+</I>&gt;<i> brigade can be cleaned up automatically if the code forgets to
+</I>&gt;<i> explicitly destroy it before the request is over.
+</I>&gt;<i>
+</I>&gt;<i> So, looks like I have some more research to do to understand all this. :-(
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>
+
+
+-- 
+truly yours
+ice
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070704/09065355/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070704/09065355/attachment.html</A>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023986.html">[mod_python] mod_python 3.3.1 memory leak?
+</A></li>
+	<LI>Next message: <A HREF="023965.html">[mod_python] Can't get a 206 (partial content) response
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23984">[ date ]</a>
+              <a href="thread.html#23984">[ thread ]</a>
+              <a href="subject.html#23984">[ subject ]</a>
+              <a href="author.html#23984">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,243 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Bug%20in%20mod_python.c%20causing%20multiple/redundant%0A%09interpreter%20creation.&In-Reply-To=EBE0766E-1F73-11D9-9AA7-000393DCF16E%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016634.html">
+   <LINK REL="Next"  HREF="016642.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Bug%20in%20mod_python.c%20causing%20multiple/redundant%0A%09interpreter%20creation.&In-Reply-To=EBE0766E-1F73-11D9-9AA7-000393DCF16E%40dscpl.com.au"
+       TITLE="[mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.">grisha at modpython.org
+       </A><BR>
+    <I>Sat Oct 16 10:30:00 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016634.html">[mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+</A></li>
+        <LI>Next message: <A HREF="016642.html">[mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16636">[ date ]</a>
+              <a href="thread.html#16636">[ thread ]</a>
+              <a href="subject.html#16636">[ subject ]</a>
+              <a href="author.html#16636">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Thanks for this. Does this compile/run with threads disabled as well?
+
+Grisha
+
+On Sat, 16 Oct 2004, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 09/10/2004, at 6:10 PM, Nicolas Lehuen wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Hi Graham, what are the pros and cons of using the imp module versus an
+</I>&gt;&gt;<i> execfile call or an exec call ?
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> Using Apache 2.0.52 on win32, with a multithreaded MPM, I have noticed a 
+</I>&gt;&gt;<i> few
+</I>&gt;&gt;<i> problem with mod_python.publisher which reloads the same module many times
+</I>&gt;&gt;<i> when many threads try to load it concurrently. It seems that either
+</I>&gt;&gt;<i> mod_python.publisher or the imp module does not properly handle this
+</I>&gt;&gt;<i> situation. The result is that I have many instances of the same module in
+</I>&gt;&gt;<i> memory, so I got many connection pools instead of only one and so on. 
+</I>&gt;&gt;<i> That's
+</I>&gt;&gt;<i> why I decided to fix this and other problems (the famous 'only one 
+</I>&gt;&gt;<i> index.py
+</I>&gt;&gt;<i> in your application') by reimplementing my own variant of the publisher.
+</I>&gt;<i>
+</I>&gt;<i> Found it.
+</I>&gt;<i>
+</I>&gt;<i> From what I can tell, there is actually a bug in mod_python.c which is
+</I>&gt;<i> causing the problem you describe as &quot;reloads the same module many times
+</I>&gt;<i> when many threads try to load it concurrently&quot;.
+</I>&gt;<i>
+</I>&gt;<i> I am going to describe it quickly as it is getting late for me and I need
+</I>&gt;<i> some sleep. Have attached a patch for people to evaluate and try. Note that
+</I>&gt;<i> the patch also includes a Mac OS X specific fix. That fix is harmless in
+</I>&gt;<i> itself so just leave it in. The important changes are where APR mutex is
+</I>&gt;<i> created and then locked/unlocked.
+</I>&gt;<i>
+</I>&gt;<i> The basic problem revolves around the Python dictionary used to hold the
+</I>&gt;<i> set of interpreters. The code in mod_python.c is trying to use the Python
+</I>&gt;<i> GIL to provide exclusive access to that dictionary and any subsequent
+</I>&gt;<i> creation of an interpreter.
+</I>&gt;<i>
+</I>&gt;<i> The only catch is that in creating a new interpreter, the Python core is,
+</I>&gt;<i> in someway I don't understand, swapping thread states at some point which
+</I>&gt;<i> is allowing other threads to acquire the GIL. This is allowing other threads
+</I>&gt;<i> to check the set of interpreters for the same interpreter that is currently
+</I>&gt;<i> being constructed and since it isn't there yet, then also goes onto create
+</I>&gt;<i> it as well.
+</I>&gt;<i>
+</I>&gt;<i> The result is you get many threads in the same process creating the same
+</I>&gt;<i> named interpreter and loading the top level handler defined by the directive
+</I>&gt;<i> PythonHandler (or other earlier handler). Thus you see all the logged
+</I>&gt;<i> messages about (re)importing the handler, as each thread has managed to
+</I>&gt;<i> get to the point of doing it.
+</I>&gt;<i>
+</I>&gt;<i> What should have happened is that if the lock was truly exclusive, the
+</I>&gt;<i> subsequent threads would have waited until the first had actually finished
+</I>&gt;<i> creating the interpreter in the first place.
+</I>&gt;<i>
+</I>&gt;<i> The patch for the problem is below. What I do is create an APR mutex and
+</I>&gt;<i> lock that around the outside of the acquisition of the GIL, the GIL still
+</I>&gt;<i> being required.
+</I>&gt;<i>
+</I>&gt;<i> In all the debugging I have in place in my code, I still note something
+</I>&gt;<i> else not quite right in respect of the mod_python.apache module being
+</I>&gt;<i> reloaded more than once by a thread. I'll dig further into that tomorrow.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> *** mod_python.c.dist	Fri Sep 24 15:11:32 2004
+</I>&gt;<i> --- mod_python.c	Sat Oct 16 22:36:30 2004
+</I>&gt;<i> ***************
+</I>&gt;<i> *** 31,36 ****
+</I>&gt;<i> --- 31,38 ----
+</I>&gt;<i>   * (In a Python dictionary) */
+</I>&gt;<i>  static PyObject * interpreters = NULL;
+</I>&gt;<i>
+</I>&gt;<i> + static apr_thread_mutex_t* interpreters_lock = 0;
+</I>&gt;<i> +
+</I>&gt;<i>  apr_pool_t *child_init_pool = NULL;
+</I>&gt;<i>
+</I>&gt;<i>  /**
+</I>&gt;<i> ***************
+</I>&gt;<i> *** 124,129 ****
+</I>&gt;<i> --- 126,133 ----
+</I>&gt;<i>          name = MAIN_INTERPRETER;
+</I>&gt;<i>
+</I>&gt;<i>  #ifdef WITH_THREAD
+</I>&gt;<i> +     apr_thread_mutex_lock(interpreters_lock);
+</I>&gt;<i> +
+</I>&gt;<i>      PyEval_AcquireLock();
+</I>&gt;<i>  #endif
+</I>&gt;<i>
+</I>&gt;<i> ***************
+</I>&gt;<i> *** 149,154 ****
+</I>&gt;<i> --- 153,160 ----
+</I>&gt;<i>
+</I>&gt;<i>  #ifdef WITH_THREAD
+</I>&gt;<i>      PyEval_ReleaseLock();
+</I>&gt;<i> +
+</I>&gt;<i> +     apr_thread_mutex_unlock(interpreters_lock);
+</I>&gt;<i>  #endif
+</I>&gt;<i>
+</I>&gt;<i>      if (! idata) {
+</I>&gt;<i> ***************
+</I>&gt;<i> *** 469,474 ****
+</I>&gt;<i> --- 475,483 ----
+</I>&gt;<i>      const char *userdata_key = &quot;python_init&quot;;
+</I>&gt;<i>      apr_status_t rc;
+</I>&gt;<i>
+</I>&gt;<i> +     /* fudge for Mac OS X with Apache 1.3 where Py_IsInitialized() broke */
+</I>&gt;<i> +     static int initialized = 0;
+</I>&gt;<i> +
+</I>&gt;<i>      apr_pool_userdata_get(&amp;data, userdata_key, s-&gt;process-&gt;pool);
+</I>&gt;<i>      if (!data) {
+</I>&gt;<i>          apr_pool_userdata_set((const void *)1, userdata_key,
+</I>&gt;<i> ***************
+</I>&gt;<i> *** 490,502 ****
+</I>&gt;<i>      }
+</I>&gt;<i>
+</I>&gt;<i>      /* initialize global Python interpreter if necessary */
+</I>&gt;<i> !     if (! Py_IsInitialized())
+</I>&gt;<i>      {
+</I>&gt;<i>
+</I>&gt;<i>          /* initialze the interpreter */
+</I>&gt;<i>          Py_Initialize();
+</I>&gt;<i>
+</I>&gt;<i>  #ifdef WITH_THREAD
+</I>&gt;<i>          /* create and acquire the interpreter lock */
+</I>&gt;<i>          PyEval_InitThreads();
+</I>&gt;<i>  #endif
+</I>&gt;<i> --- 499,514 ----
+</I>&gt;<i>      }
+</I>&gt;<i>
+</I>&gt;<i>      /* initialize global Python interpreter if necessary */
+</I>&gt;<i> !     if (initialized == 0 || ! Py_IsInitialized())
+</I>&gt;<i>      {
+</I>&gt;<i> +         initialized = 1;
+</I>&gt;<i>
+</I>&gt;<i>          /* initialze the interpreter */
+</I>&gt;<i>          Py_Initialize();
+</I>&gt;<i>
+</I>&gt;<i>  #ifdef WITH_THREAD
+</I>&gt;<i> + 
+</I>&gt;<i> apr_thread_mutex_create(&amp;interpreters_lock,APR_THREAD_MUTEX_UNNESTED,p);
+</I>&gt;<i> +
+</I>&gt;<i>          /* create and acquire the interpreter lock */
+</I>&gt;<i>          PyEval_InitThreads();
+</I>&gt;<i>  #endif
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016634.html">[mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+</A></li>
+	<LI>Next message: <A HREF="016642.html">[mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16636">[ date ]</a>
+              <a href="thread.html#16636">[ thread ]</a>
+              <a href="subject.html#16636">[ subject ]</a>
+              <a href="author.html#16636">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

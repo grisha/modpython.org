@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Protecting%20Web%20apps%20from%20to%20many%20simultaneous%0A%09clicks/Hacking&In-Reply-To=200405162242.20902.SAiello%40Jentoo.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015608.html">
+   <LINK REL="Next"  HREF="015620.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Byron Ellacott</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Protecting%20Web%20apps%20from%20to%20many%20simultaneous%0A%09clicks/Hacking&In-Reply-To=200405162242.20902.SAiello%40Jentoo.com"
+       TITLE="[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking">bje at apnic.net
+       </A><BR>
+    <I>Tue May 18 14:42:25 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015608.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+        <LI>Next message: <A HREF="015620.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15618">[ date ]</a>
+              <a href="thread.html#15618">[ thread ]</a>
+              <a href="subject.html#15618">[ subject ]</a>
+              <a href="author.html#15618">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Mon, 2004-05-17 at 12:42, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">SAiello at Jentoo.com</A> wrote:
+&gt;<i> Connection Pools seem like a daunting undertaking, it could just be an 
+</I>&gt;<i> illusion.  Until I understand the basic definition of a Connection Pool, in a 
+</I>&gt;<i> programming way. It will seem like a complicate and mysterious thing.
+</I>
+Connection pools in Apache are particularly difficult because it is
+rather difficult to safely share open connections across multiple
+processes.  In short, this is a complicated and mysterious thing, and I
+don't recommend trying it. :)
+
+&gt;<i> Currently, when ever I require IMAP information, a connection needs to be 
+</I>&gt;<i> established, user authentication, information request, close IMAP connection, 
+</I>&gt;<i> parse the IMAP information into useable lists/distionaries, display web page. 
+</I>&gt;<i> In the beginning I really didn't like having to open and close the IMAP 
+</I>&gt;<i> connection, seemed like such a waste. So I tried to store the imaplib 
+</I>&gt;<i> function into a session var, that was bad. ImapLib can't be pickled due to it 
+</I>&gt;<i> using __slots__. I wrote the writer of imapLib, and he said he wasn't even 
+</I>&gt;<i> aware it used __slots__, and that he may look at it at some point. So to me 
+</I>&gt;<i> my next option was to look at writing my own IMAP library, how hard can it 
+</I>&gt;<i> be.. Results, I am not even close to handling tcp sockets. At this point I 
+</I>&gt;<i> was flustered, and came to conclusion to design my app as best I can, and 
+</I>&gt;<i> after it is working, go back and try to work on the bits I feel can be done 
+</I>&gt;<i> better.
+</I>
+You would be unable to pickle ImapLib anyway - pickling takes the state
+of an object and serialises it to a data stream, with unpickling being
+the reverse.  However, in the case of a TCP connection to an IMAP
+server, there is state held by both the OS and the IMAP server about the
+established connection which cannot be serialised.
+
+(Imagine: you write a pickled ImapLib object to disk, three days later
+when you try to unpickle it, how does the remote IMAP server know that
+it's an unpickled object from before?)
+
+One way to solve the problem would be to extend the ImapLib object to
+store enough information to reestablish the connection, but this
+wouldn't help here - you'd still be doing the expensive connection
+establishment when you unpickled the object!
+
+Rather, I would look for places you make the imaplib calls, and see if
+you could first check for cached data in your session before doing the
+call:
+
+def fetch_index(sess, user, password):
+    if sess.has_key('cache') and sess.cache.has_key('index'):
+        if sess.cache['index']['expires'] &gt; time.time():
+            return sess.cache['index']['data']
+    index = imaplib_fetch_index(user, password)
+    if not sess.has_key('cache'):
+        sess['cache'] = {}
+    sess['cache']['index'] = {}
+    sess['cache']['index']['expires'] = time.time() + 300
+    sess['cache']['index']['data'] = index
+    return index
+
+What this does is check if your session has a cache, and if that cache
+contains an entry for the imap index, and that the cached entry has not
+expired (it only lasts 5 minutes in this case).  If it does, the cached
+version is returned.
+
+Otherwise, the old call to fetch the index from imaplib is executed, the
+cache is created if it didn't exist, and an entry for the imap index is
+added.
+
+&gt;<i> That was my thinking to to use the session storage option. It seemes the 
+</I>&gt;<i> easiest way to do it. But I am always wary when doing something the easy way.
+</I>
+I like doing things the easy way.  If it's easy to understand now, it'll
+be easy to understand six months later when you need to do maintenance. 
+If it's easy to write, it should be easy to spot bugs.  And if it's easy
+to do, it'll take you less time than a more complex alternative.
+
+&gt;<i> I do not use refresh to cause the error, but page links (i.e. like the Next 
+</I>&gt;<i> button for the next set of messages).  clicking over and over on  the A link 
+</I>
+&gt;<i>From the server end, it's still a bunch of requests coming in hot on
+</I>each others' heels.  I used refresh so I didn't have to futz around
+making a form that submitted to a mod_python module; I just threw in an
+index.py and a PythonHandler index.
+
+&gt;<i> will cause it. It isn't the browser, I have tried Konqueror, firefox, and IE, 
+</I>&gt;<i> they all will get my error page. Below are my system specs. I think Apache is 
+</I>&gt;<i> forking, because I am not using threads as a compile option, so that is 
+</I>&gt;<i> forked right ? I have to read up on which is better, I tried apache with 
+</I>&gt;<i> threads once to see if that was the issue..  still did the same thing.
+</I>
+&quot;Which process model is better&quot; is a tricky question, and probably
+outside of the immediate scope of this list - and definitely outside the
+scope of my experience. :)
+
+&gt;<i> Server Specs:
+</I>&gt;<i>   Gentoo distribution of GNU/Linux, kernel 2.6.4
+</I>&gt;<i>   Apache 2.0.49 with berkdb, gdbm, &amp; ldap compiled in.
+</I>&gt;<i>   mod_python 3.1.3
+</I>
+I'm running 2.0.47 with 3.1.3, but it doesn't sound like this is a
+problem with your versions.  I can't shed any light on why your sessions
+are apparently not locked; so I don't know if I can help you further. :(
+
+-- 
+bje
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015608.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+	<LI>Next message: <A HREF="015620.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15618">[ date ]</a>
+              <a href="thread.html#15618">[ thread ]</a>
+              <a href="subject.html#15618">[ subject ]</a>
+              <a href="author.html#15618">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

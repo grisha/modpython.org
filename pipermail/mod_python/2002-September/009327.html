@@ -1,0 +1,214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod_python and Sub-Interpreter segregation
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20and%20Sub-Interpreter%20segregation&In-Reply-To=C0FC22C08B82074A88B50061764157775BAA%40johnson.mediapulse.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="009325.html">
+   <LINK REL="Next"  HREF="009330.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] Mod_python and Sub-Interpreter segregation</H1>
+    <B>Brian Hawthorne</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20and%20Sub-Interpreter%20segregation&In-Reply-To=C0FC22C08B82074A88B50061764157775BAA%40johnson.mediapulse.net"
+       TITLE="[mod_python] Mod_python and Sub-Interpreter segregation">brianh at exelixis.com
+       </A><BR>
+    <I>Fri Sep 13 14:58:33 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="009325.html">[mod_python] Mod_python and Sub-Interpreter segregation
+</A></li>
+        <LI>Next message: <A HREF="009330.html">[mod_python] Mod_python and Sub-Interpreter segregation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9327">[ date ]</a>
+              <a href="thread.html#9327">[ thread ]</a>
+              <a href="subject.html#9327">[ subject ]</a>
+              <a href="author.html#9327">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>hmmm,
+currently you can share global vars if you set apache to have exactly one
+child process (but to great performance detriment).  i was imagining you
+could do the same in the perthread server by setting the numprocs=1 and
+letting the numthreads grow/shrink (recouping the performace hit with
+extra threads).
+
+actually, it should be pretty easy to wrap a bit of code around python
+shelve to turn some dbm file into a modpyglobal repository of python objs
+keyed by varname.  that's what i would do if i didn't feel like dealing
+with a real db.  also, if you don't use an external repository, you have
+to worry about server restarts and child procs getting killed etc.
+
+brian
+
+
+On Fri, 13 Sep 2002, Michael C. Neel wrote:
+
+&gt;<i> I don't think this will work in apache2 either, based on my limited
+</I>&gt;<i> experience.
+</I>&gt;<i> 
+</I>&gt;<i> Apache2 threaded still has separate processes (children) along with
+</I>&gt;<i> threads.  You can either have a fixed number of processes, and let the
+</I>&gt;<i> threads grow and shrink, or have a fixed number of threads per process
+</I>&gt;<i> and add more processes as needed.
+</I>&gt;<i> 
+</I>&gt;<i> While this will help with resource pooling, you'll still need an outside
+</I>&gt;<i> database to have a global variable.  Now with apache2's cgid (a process
+</I>&gt;<i> to handle all cgi scripts since forking a 75 thread apache child would
+</I>&gt;<i> be, um, bad) there might be something you can do there, but then that
+</I>&gt;<i> means you app is a CGI and we don't use that word in 2002 anymore...
+</I>&gt;<i> 
+</I>&gt;<i> Mike 
+</I>&gt;<i> 
+</I>&gt;<i> --
+</I>&gt;<i> Michael C. Neel
+</I>&gt;<i> There are only 10 types of people in the world;
+</I>&gt;<i> those who understand binary and those who don't.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> -----Original Message-----
+</I>&gt;<i> From: Brian Hawthorne [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">brianh at exelixis.com</A>] 
+</I>&gt;<i> Sent: Friday, September 13, 2002 5:29 PM
+</I>&gt;<i> To: Bryan Mongeau
+</I>&gt;<i> Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Subject: Re: [mod_python] Mod_python and Sub-Interpreter segregation
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> unfortunately, there is no way to share global data among multiple
+</I>&gt;<i> apache child processes without using an external database of some sort.
+</I>&gt;<i> this is true regardless of how many interpreters you have in each child
+</I>&gt;<i> proc.  i anticipate that the multithreaded server model available in
+</I>&gt;<i> apache2 will address this issue, though i haven't gotten my hands dirty
+</I>&gt;<i> yet trying to set up modpy3 alpha with apache2.
+</I>&gt;<i> 
+</I>&gt;<i> brian hawthorne
+</I>&gt;<i> -bioinformatics,
+</I>&gt;<i> Exelixis, Inc.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On Fri, 13 Sep 2002, Bryan Mongeau wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Greetings,
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I've been playing around with mod_python and have noticed a peculiar
+</I>&gt;<i> behaviour 
+</I>&gt;<i> &gt; that perhaps someone could explain to me.  As the mod_python
+</I>&gt;<i> documentation 
+</I>&gt;<i> &gt; explains, a sub-interpreter is created for each virtual host
+</I>&gt;<i> (default).  I 
+</I>&gt;<i> &gt; therefore expected global variables within this sub-interpreter to be
+</I>&gt;<i> able to 
+</I>&gt;<i> &gt; maintain state between hits.  I created a simple script ( included
+</I>&gt;<i> below ) to 
+</I>&gt;<i> &gt; observe this behaviour by counting hits in a global variable and
+</I>&gt;<i> printing the 
+</I>&gt;<i> &gt; interpreter name.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; To my surprise, it seems as if different apache child processes run
+</I>&gt;<i> their 
+</I>&gt;<i> &gt; python code in different sub-interpreters even though the interpreter
+</I>&gt;<i> name 
+</I>&gt;<i> &gt; remains the same ( virtualhost ). I produced this behaviour by loading
+</I>&gt;<i> the 
+</I>&gt;<i> &gt; script in my browser and refreshing (very) rapidly. What happens is
+</I>&gt;<i> the hit 
+</I>&gt;<i> &gt; counter eventually returns to zero, meaning that the global variable
+</I>&gt;<i> is no 
+</I>&gt;<i> &gt; longer in the namespace. Repeated refreshing causes the hit counter to
+</I>&gt;<i> jump 
+</I>&gt;<i> &gt; all over the place as I presume it jumps from one apache child process
+</I>&gt;<i> to 
+</I>&gt;<i> &gt; another, each having their own sub-interpreters and global variables.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; It seems as if each child process has its own sub-interpreter? Or am I
+</I>&gt;<i> 
+</I>&gt;<i> &gt; confused? Was this documented? Enlightenment is greatly appreciated. 
+</I>&gt;<i> &gt; Unfortunately the behaviour I am observing is undesired.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Here is the code to demonstrate:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; from mod_python import apache
+</I>&gt;<i> &gt; def handler(req):
+</I>&gt;<i> &gt;     try:
+</I>&gt;<i> &gt;         globals()['hits']+=1
+</I>&gt;<i> &gt;     except KeyError:
+</I>&gt;<i> &gt;         globals()['hits'] = 0
+</I>&gt;<i> &gt;     req.write(&quot;interpreter_name=&quot; + req.interpreter )
+</I>&gt;<i> &gt;     req.write(&quot; - hits: &quot; + str(globals()['hits']))
+</I>&gt;<i> &gt;     return apache.OK
+</I>&gt;<i> &gt; -- 
+</I>&gt;<i> &gt; Bryan Mongeau
+</I>&gt;<i> &gt; eEvolved Inc. - IT Consulting &amp; Custom Software
+</I>&gt;<i> &gt; <A HREF="http://eevolved.com/">http://eevolved.com/</A>
+</I>&gt;<i> &gt; --
+</I>&gt;<i> &gt; &quot;The true function of life, that which is being maximized in the
+</I>&gt;<i> natural 
+</I>&gt;<i> &gt; world, is DNA survival. But DNA is not floating free; it is locked up
+</I>&gt;<i> in 
+</I>&gt;<i> &gt; living bodies and it has made the most of the levers of power at its 
+</I>&gt;<i> &gt; disposal.&quot; -- Richard Dawkins
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt; 
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="009325.html">[mod_python] Mod_python and Sub-Interpreter segregation
+</A></li>
+	<LI>Next message: <A HREF="009330.html">[mod_python] Mod_python and Sub-Interpreter segregation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9327">[ date ]</a>
+              <a href="thread.html#9327">[ thread ]</a>
+              <a href="subject.html#9327">[ subject ]</a>
+              <a href="author.html#9327">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

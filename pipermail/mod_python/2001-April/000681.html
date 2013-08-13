@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] CGI to mod_python -- what's the best way?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20CGI%20to%20mod_python%20--%20what%27s%20the%20best%20way%3F&In-Reply-To=3AD4F453.CE85A3AD%40zeta.org.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000680.html">
+   <LINK REL="Next"  HREF="000676.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] CGI to mod_python -- what's the best way?</H1>
+    <B>Victor Muslin</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20CGI%20to%20mod_python%20--%20what%27s%20the%20best%20way%3F&In-Reply-To=3AD4F453.CE85A3AD%40zeta.org.au"
+       TITLE="[mod_python] CGI to mod_python -- what's the best way?">victor at prodigy.net
+       </A><BR>
+    <I>Fri Apr 13 02:35:02 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000680.html">[mod_python] CGI to mod_python -- what's the best way?
+</A></li>
+        <LI>Next message: <A HREF="000676.html">[mod_python] PythonImport failure
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#681">[ date ]</a>
+              <a href="thread.html#681">[ thread ]</a>
+              <a href="subject.html#681">[ subject ]</a>
+              <a href="author.html#681">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>At 10:18 AM 4/12/2001 +1000, you wrote:
+Wouldn't it be better just to buffer the output and then just use one 
+output to send
+the entire buffer ? Isn't that what Grisha was suggesting in the first place ?
+
+yes, this is what he is suggesting and exactly what I was trying to avoid 
+in the first place. Also, while not being a CGI/Web guru, I can imagine a 
+number of potential problems with having to buffer all of the output before 
+sending it to the browser. First of all the output may be large and it may 
+not be practical to assemble it in memory. Second it may be useful to allow 
+browser to start rendering some output before it is completely created if 
+it takes a long time to create dynamic output. Third, if the browser 
+cancelled the request the only way to find out is to try to send the reply 
+and get some sort of bad status. Imagine a script that does a set of 
+time-consuming database queries to create the output. it would be useful to 
+test whether the request was cancelled after each query by attempting to 
+send something back (a space character perhaps) to see whether the socket 
+is still open before doing the rest of the queries. Perhaps somebody could 
+suggest how these scenarios could be handled with mod_python?
+
+I don't understand the problem with redirecting stdout. My understanding of 
+Mod-Python
+is that it just keeps the intertpreter running so it reduces start up time. I
+understood that each CGI session is still, as always, a separate session 
+that fires up
+it's own instance of the code. Is this not true ?
+
+I am using the &quot;publisher&quot; capability of mod_python. This is how I imagine 
+it works (not having had the time to go through the code). There is a 
+function -- call it handler() -- that handles requests. Let's say there are 
+two identical concurrent requests. Both are handled by the same instance of 
+Python interpeter that calls handler() for each one. All variables 
+instantiated inside the handler() function are local to the function and, 
+therefore, each request has its own instance of these variables. Variables 
+that are module level (of the module where the handler() function is) of 
+class-level are global, i.e. there is one instance of them in the 
+interpreter and, therefore, they are shared by the requests. If this 
+weren't the case you couldn't open a database connection once, for example, 
+and keep it open instead of re-opening it for each request. sys.stdout 
+happens to be a global variable and, therefore, shared by multiple 
+instances of handler() and consequently by the requests. If code in one 
+request reassigns it, the code in the other concurrent requests is affected.
+
+Secondly the idea of just rewriting something that works doesn't seem to be 
+a good idea
+to me. I would say rewrite if you're finding you are doing a lot of 
+mainatainence on
+existing code however if the code works well and has been tested, deployed 
+etc, it
+would be better to interfere with it as little as possible unless you 
+already know that
+current requirements will make a rewrite inevitable at some stage in the future
+(obviously I'm not just talking about a few lines of python here ).
+
+I think you are making my point here. I did not want to re-write anything.
+
+
+Wilson
+
+&quot;Gregory (Grisha) Trubetskoy&quot; wrote:
+
+ &gt; Victor -
+ &gt;
+ &gt; Rather than invent ways to deal with legacy CGI code, I would bite the
+ &gt; bullet and rewrite the code without the use of &quot;print&quot;. There are too many
+ &gt; subtle gotchas with simulating CGI...
+ &gt;
+ &gt; Grisha
+ &gt;
+ &gt; On Sun, 8 Apr 2001, Victor Muslin wrote:
+ &gt;
+ &gt; &gt;
+ &gt; &gt; Sorry for a long message, but this requires a bit of explanation. I
+ &gt; &gt; appreciate your patience in advance.
+ &gt; &gt;
+ &gt; &gt; I have a bunch of python legacy code that used to be part of a large
+ &gt; &gt; CGI-based system. This code simply used print statements to output HTML as
+ &gt; &gt; follows:
+ &gt; &gt;
+ &gt; &gt; def foo():
+ &gt; &gt; print 'html1'
+ &gt; &gt; print 'html2'
+ &gt; &gt;
+ &gt; &gt; Now I want to convert CGI to mod_python, but I would like to re-use the
+ &gt; &gt; legacy code with as little re-writing as possible (obviously the legacy
+ &gt; &gt; code is a lot lengthier and more complicated than the example above). I am
+ &gt; &gt; using the publisher module, which requires my code to return a string
+ &gt; &gt; containing all of the HTML. So I thought I would be clever and do 
+something
+ &gt; &gt; like this:
+ &gt; &gt;
+ &gt; &gt; import sys, cStringIO
+ &gt; &gt; def handler(req):
+ &gt; &gt; out = sys.stdout = StringIO()
+ &gt; &gt; foo()
+ &gt; &gt; return out
+ &gt; &gt;
+ &gt; &gt; This works great as long as the second request does not arrive before the
+ &gt; &gt; first one is done. Otherwise, the output gets screwed up. Since &quot;out&quot; is a
+ &gt; &gt; local variable, each request has its own instance, but sys.stdout is a
+ &gt; &gt; global. When the second request arrives, sys.stdout gets reassigned 
+and the
+ &gt; &gt; rest of the output produced by print statements in the foo() function goes
+ &gt; &gt; to the new StringIO object. For example, if the second request arrives and
+ &gt; &gt; gets executed between the two print statements of the first request, then
+ &gt; &gt; the first request's output could be 'html1\n' and the second request's
+ &gt; &gt; output could be 'html2\nhtml1\nhtml2\n'.
+ &gt; &gt;
+ &gt; &gt; Has anyone dealt with such a situation? Any clever suggestion would be
+ &gt; &gt; appreciated as I hate to have to go into all the legacy code and change it
+ &gt; &gt; to something like this:
+ &gt; &gt;
+ &gt; &gt; def foo():
+ &gt; &gt; out = 'html1\n'
+ &gt; &gt; out = out + 'html2\n'
+ &gt; &gt; return out
+ &gt; &gt;
+ &gt; &gt; def handler(req):
+ &gt; &gt; return foo()
+ &gt; &gt;
+ &gt; &gt; Thanks in advance.
+ &gt; &gt;
+__________________________________________________________________________________
+Victor Muslin      The power of accurate observation is frequently called
+                          cynicism by those who don't have it.
+                                       - George Bernard Shaw
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20010413/96c1a4d3/attachment.htm">http://mailman.modpython.org/pipermail/mod_python/attachments/20010413/96c1a4d3/attachment.htm</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000680.html">[mod_python] CGI to mod_python -- what's the best way?
+</A></li>
+	<LI>Next message: <A HREF="000676.html">[mod_python] PythonImport failure
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#681">[ date ]</a>
+              <a href="thread.html#681">[ thread ]</a>
+              <a href="subject.html#681">[ subject ]</a>
+              <a href="author.html#681">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Passing Cursor Objects
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Passing%20Cursor%20Objects&In-Reply-To=20030718040043.26298.qmail%40web21310.mail.yahoo.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="013982.html">
+   <LINK REL="Next"  HREF="013984.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Passing Cursor Objects</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Dustin Mitchell</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Passing%20Cursor%20Objects&In-Reply-To=20030718040043.26298.qmail%40web21310.mail.yahoo.com"
+       TITLE="[mod_python] Passing Cursor Objects">dustin at ywlcs.org
+       </A><BR>
+    <I>Thu Jul 17 23:38:45 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="013982.html">[mod_python] Passing Cursor Objects 
+</A></li>
+        <LI>Next message: <A HREF="013984.html">[mod_python] Passing Cursor Objects
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13983">[ date ]</a>
+              <a href="thread.html#13983">[ thread ]</a>
+              <a href="subject.html#13983">[ subject ]</a>
+              <a href="author.html#13983">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Thu, Jul 17, 2003 at 09:00:43PM -0700, Greenbeard wrote:
+&gt;<i> Sorry bout the premature email.  Stupid touchpad on
+</I>&gt;<i> the laptop here.....
+</I>&gt;<i> 
+</I>&gt;<i> Is it possible to pass the acutal cursor between
+</I>&gt;<i> requests? 
+</I>&gt;<i> 
+</I>&gt;<i> I can attach the cursor as a value on an &lt;input&gt; tag
+</I>&gt;<i> and when I submit the form and I print the variable
+</I>&gt;<i> passed I get the &lt;MySQLdb.cursors.Cursor instance at
+</I>&gt;<i> 0x04AC1038&gt; but if I reference it in future operations
+</I>&gt;<i> I get &quot;'str' object has no attribute 'execute' &quot;
+</I>&gt;<i> 
+</I>&gt;<i> Based on the documentation I see that I could pass the
+</I>&gt;<i> connection or I can move the cursor information out of
+</I>&gt;<i> the cursor and pass it as a string.  But am I missing
+</I>&gt;<i> something here that would allow me to use the cursor
+</I>&gt;<i> object?  
+</I>&gt;<i> 
+</I>&gt;<i> I am using the publisher handler if that makes a
+</I>&gt;<i> difference. 
+</I>
+Nope, you can't do it.  Basically all you can send to the client (the
+browser) is text.   Most browsers are nice enough to send your text
+back unmangled, but they're certainly not capable of anything more
+complicated.  A cursor is deeply tied into the current state of the
+Python Database API, the MySQL server, and whatnot -- all that state
+certainly can't be tied up in a string and recreated for the next
+request from the browser.
+
+The text you see (&lt;MySQLdb.cursors.Cursor instance at 0x04AC1038&gt;) is
+Python's best effor at turning this cursor into a string.  But all it
+says is &quot;I had this object here at this address with all this state in
+it&quot;.  When the request comes back from the browser (milliseconds,
+seconds, days later) that object is dead and gone.  Could be Apache
+restarted.  MySQL restarted.  The server started smoking and was
+replaced.  That cursor is no longer viable.
+
+While I'm on the subject, another good reason not to send things like
+this to your client (the browser) is this: you're not sure you'll get
+it back.  If you had a way to &quot;reserve&quot; cursors on the server, such
+that a browser could indicate &quot;I was using cursor number 243&quot; (perhaps
+with an input tag), what would happen if the browser never send another
+request?  That cursor would sit around, using up resources.  A couple
+dozen idle cursors, and you'll have a DOS'd server..
+
+So the long and short of it is you'll have to open a new cursor for
+each request from the web.  It may help to think about the state of the
+cursor that's most important to you: not the connection ID to the MySQL
+server or anything like that.  It's probably the row number the user
+last viewed, along with the components of the query.  If you put *that*
+information into the generated HTML in such a way that the browser will
+send it back to you (again, &lt;input&gt; tags are good for this), then
+you'll be able to create a cursor in the necessary state by grabbing
+any old cursor and executing the appropriate query.
+
+I hope this helps.  I try to err on the side of too much explaination.
+
+Dustin
+
+--
+
+  Dustin Mitchell
+  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">dustin at ywlcs.org</A>/<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">djmitche at alumni.uchicago.edu</A>
+  <A HREF="http://people.cs.uchicago.edu/~dustin/">http://people.cs.uchicago.edu/~dustin/</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="013982.html">[mod_python] Passing Cursor Objects 
+</A></li>
+	<LI>Next message: <A HREF="013984.html">[mod_python] Passing Cursor Objects
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13983">[ date ]</a>
+              <a href="thread.html#13983">[ thread ]</a>
+              <a href="subject.html#13983">[ subject ]</a>
+              <a href="author.html#13983">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

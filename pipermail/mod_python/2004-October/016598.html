@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Udate python modules without restarting Apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=1097196617.38987%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016596.html">
+   <LINK REL="Next"  HREF="016600.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Udate python modules without restarting Apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Daniel Popowich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=1097196617.38987%40dscpl.com.au"
+       TITLE="[mod_python] Udate python modules without restarting Apache">dpopowich at comcast.net
+       </A><BR>
+    <I>Fri Oct  8 11:23:49 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016596.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+        <LI>Next message: <A HREF="016600.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16598">[ date ]</a>
+              <a href="thread.html#16598">[ thread ]</a>
+              <a href="subject.html#16598">[ subject ]</a>
+              <a href="author.html#16598">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Graham Dumpleton writes:
+
+&gt;<i> Now, the mpservlet system has its own module import and caching
+</I>&gt;<i> system for .mps files. In mod_python doing the reimport of
+</I>&gt;<i> servlet.py it will actually throw out the mpservlet cache contents
+</I>&gt;<i> so when handler() is called it will need to reload index.mps which
+</I>&gt;<i> in turn obtains _TutorialBase from the standard mod_python cache.
+</I>&gt;<i> 
+</I>&gt;<i> The problem here is that _TutorialBase used a normal &quot;import&quot; to get
+</I>&gt;<i> HTMLPage and it still holds a reference to the copy that was
+</I>&gt;<i> imported before &quot;servlet.py&quot; got reimported by mod_python. When the
+</I>&gt;<i> handler() method in servlet.py goes to check to see if the servlet
+</I>&gt;<i> loaded from index.mps derives from Servlet it doesn't match. This is
+</I>&gt;<i> because that in _TutorialBase is still using the Servlet base class
+</I>&gt;<i> from the older servlet module obtained using &quot;import&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> In other words, there are two copies of the servlet module in
+</I>&gt;<i> memory. The handler() method is checking against itself (ie., new
+</I>&gt;<i> copy), where as _TutorialBase is still using the old one.
+</I>
+Excellent description by Graham of what's going on.  You will see
+this problem whenever the chain of &quot;imports&quot; is like this:
+
+  mod_python =&gt;
+      import servlet =&gt;
+          execfile('someservlet.mps') =&gt;
+              [import indirectmodule.py =&gt;]+
+	          import servlet.py
+
+It's the indirect importing of servlet.py that creates the subclassing
+error.  My suggestions:
+
+  0. The easiest way, of course, is &quot;apachectl graceful&quot;, but that
+     doesn't help you if you don't have privs on your hosting service.
+
+  1. Avoid touching servlet.py.  You can avoid accidental reloading of
+     servlet.py by mod_python by setting PythonAutoReload to &quot;off&quot;
+     (which is recommended in a production environment).  If you do
+     mean to modify servlet.py, consider subclassing Servlet or
+     HTMLPage and placing this code in another module.  I would
+     recommend subclassing anyway for two reasons: 1) it's the OO way
+     to add/replace functionality; 2) as I provide updates you will
+     have an easier time merging your modifications.
+
+  2. Use apache.import_module() or some such that will reload modules
+     automagically.
+
+BTW, during development my favorite way to avoid these importing
+issues is to set MaxRequestsPerChild to 1 in my apache configuration
+(prefork MPM).  Apache will then start a new python interpreter per
+request.  Performance can be sometimes doggish, but that's OK during
+development.  I crank it up to 1000 during beta testing.
+
+&gt;<i> BTW, mpservlet doesn't use &quot;imp&quot; module to do module importing of
+</I>&gt;<i> .mps files but instead uses execfile(). By using execfile() it
+</I>&gt;<i> effectively throws away the prior module before reimporting it.
+</I>
+The main reason I used execfile is because I wanted to build a cache
+of servlet classes keyed on the full filename.  This means I avoid
+problems of /somedir/index.mps and /somedir/subdir/index.mps
+colliding.  Also, there are so many gnarly issues with using the
+import system, I believe I've avoided many a head-ache (e.g., dealing
+with pythonpath; wanting to import files that end in .mps).
+
+Cheers!
+
+Daniel Popowich
+-----------------------------------------------
+<A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016596.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+	<LI>Next message: <A HREF="016600.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16598">[ date ]</a>
+              <a href="thread.html#16598">[ thread ]</a>
+              <a href="subject.html#16598">[ subject ]</a>
+              <a href="author.html#16598">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

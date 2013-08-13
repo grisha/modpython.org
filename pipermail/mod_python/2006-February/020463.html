@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How to make a handler for static files?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20to%20make%20a%20handler%20for%20static%20files%3F&In-Reply-To=5c06fa770602270810w1a0050b7i42e254483f575bd3%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020460.html">
+   <LINK REL="Next"  HREF="020459.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How to make a handler for static files?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Scott Chapman</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20to%20make%20a%20handler%20for%20static%20files%3F&In-Reply-To=5c06fa770602270810w1a0050b7i42e254483f575bd3%40mail.gmail.com"
+       TITLE="[mod_python] How to make a handler for static files?">scott_list at mischko.com
+       </A><BR>
+    <I>Tue Feb 28 03:50:46 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020460.html">[mod_python] How to make a handler for static files?
+</A></li>
+        <LI>Next message: <A HREF="020459.html">[mod_python] How to make a handler for static files?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20463">[ date ]</a>
+              <a href="thread.html#20463">[ thread ]</a>
+              <a href="subject.html#20463">[ subject ]</a>
+              <a href="author.html#20463">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Deron Meranda wrote:
+&gt;<i> Even though Apache mod_rewrite may work better, here's
+</I>&gt;<i> just a few comments on your mod_python approach.  If nothing
+</I>&gt;<i> else it might be useful as an example....
+</I>&gt;<i> 
+</I>&gt;<i> On 2/27/06, Scott Chapman &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">scott_list at mischko.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> from mod_python import apache
+</I>&gt;&gt;&gt;<i> import os
+</I>&gt;&gt;&gt;<i> import psycopg2
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> def parse_uri(uri):
+</I>&gt;&gt;&gt;<i>     uri_list = uri.split('/')
+</I>&gt;&gt;&gt;<i>     uri_list.insert(0,'')
+</I>&gt;&gt;&gt;<i>     uri_list=uri_list[-3:]
+</I>&gt;&gt;&gt;<i>     return uri_list
+</I>&gt;<i> 
+</I>&gt;<i> Consider using Python's urlparse module instead.
+</I>
+I'll check into it.  I think this is smaller than importing another module and 
+it is very simple and clean, and works great.
+
+&gt;&gt;&gt;<i> def _getInternalName(alias):
+</I>&gt;&gt;&gt;<i>         _conn = psycopg2.connect(&quot;user=foo dbname=bar host=127.0.0.1 password=barfoo&quot;)
+</I>&gt;&gt;&gt;<i>         _cursor = _conn.cursor()
+</I>&gt;&gt;&gt;<i>         query = &quot;SELECT hostname FROM host_aliases WHERE external_name = %s&quot;
+</I>&gt;&gt;&gt;<i>         parms = [alias]
+</I>&gt;<i> 
+</I>&gt;<i> Should probably use alias.tolower()  (or toupper()).  Hostnames are
+</I>&gt;<i> generally case-insensitive (in ASCII).
+</I>
+The table is full of lower case stuff.
+The alias is req.hostname, typically which is automatically converted to lower 
+case, apparently.  I've never had a problem with this.
+
+&gt;&gt;&gt;<i>         _cursor.execute(query, parms)
+</I>&gt;&gt;&gt;<i>         rval = _cursor.fetchone()
+</I>&gt;&gt;&gt;<i>         if rval:
+</I>&gt;&gt;&gt;<i>             rval = rval[0]
+</I>&gt;&gt;&gt;<i>         _conn.rollback()
+</I>&gt;<i> 
+</I>&gt;<i> Why a rollback?  A commit() is probably better.
+</I>
+A commit is better for a read-only operation (SELECT...)?
+
+&gt;&gt;&gt;<i>         _conn.close()
+</I>&gt;&gt;&gt;<i>         return (rval)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> def handler(req):
+</I>&gt;&gt;&gt;<i>     def _log(message):
+</I>&gt;&gt;&gt;<i>         req.log_error(message)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     debug = True
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     (subsite, moduleName, methodName)= parse_uri(req.uri)
+</I>&gt;&gt;&gt;<i>     internalName = _getInternalName(req.hostname)
+</I>&gt;&gt;&gt;<i>     if subsite:
+</I>&gt;&gt;&gt;<i>         internalName = _getInternalName(subsite)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     if not internalName:
+</I>&gt;&gt;&gt;<i>         if debug: _log('static_handler - illegal host name')
+</I>&gt;&gt;&gt;<i>         raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     orig_path = req.filename
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     (path, filename) = os.path.split(req.filename)
+</I>&gt;&gt;&gt;<i>     new_path = os.path.normpath(path + '/' + internalName + '/' + filename)
+</I>&gt;<i> 
+</I>&gt;<i> Use os.path.join() instead of a+'/'+b+'/'+c.
+</I>
+Doh. :)
+
+&gt;&gt;&gt;<i>     if os.path.exists(new_path):
+</I>&gt;&gt;&gt;<i>         use_path = new_path
+</I>&gt;&gt;&gt;<i>     elif os.path.exists(orig_path):
+</I>&gt;&gt;&gt;<i>         use_path = orig_path
+</I>&gt;&gt;&gt;<i>     else:
+</I>&gt;&gt;&gt;<i>         raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     if debug: _log('static_handler - used path: %s' % use_path)
+</I>&gt;<i> 
+</I>&gt;<i> You should set up some other headers too.  Mimimally something
+</I>&gt;<i> like this:
+</I>&gt;<i> 
+</I>&gt;<i>     import mimetypes, os, stat, time, sha
+</I>&gt;<i> 
+</I>&gt;<i>     ct, et = mimetypes.guess_type( use_path )
+</I>&gt;<i>     if not ct:
+</I>&gt;<i>         ct = 'application/octet-stream'
+</I>&gt;<i>     req.content_type = ct
+</I>&gt;<i>     if et:
+</I>&gt;<i>         req.headers_out['Content-Encoding'] = et
+</I>&gt;<i> 
+</I>&gt;<i>     mtime = os.stat( use_path )[ stat.ST_MTIME ]
+</I>&gt;<i>     lastmod = time.strftime('%a, %d %m %Y %H:%M:%S GMT',
+</I>&gt;<i>                            time.gmtime(mtime) )
+</I>&gt;<i>     req.headers_out['Last-Modified'] = lastmod
+</I>&gt;<i>     req.headers_out['Accept-Ranges'] = 'none'
+</I>&gt;<i>     hash = sha.sha()
+</I>&gt;<i>     sha.update( open(use_path,'rb').read() )
+</I>&gt;<i>     req.headers_out['ETag'] = hash.hexdigest()
+</I>&gt;<i> 
+</I>&gt;&gt;&gt;<i>     req.sendfile(use_path)
+</I>&gt;&gt;&gt;<i>     return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> If you really want to get advanced, try handling byte ranges too.
+</I>
+Thanks tons for all the help on this!
+
+Scott
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020460.html">[mod_python] How to make a handler for static files?
+</A></li>
+	<LI>Next message: <A HREF="020459.html">[mod_python] How to make a handler for static files?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20463">[ date ]</a>
+              <a href="thread.html#20463">[ thread ]</a>
+              <a href="subject.html#20463">[ subject ]</a>
+              <a href="author.html#20463">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

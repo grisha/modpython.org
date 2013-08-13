@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] some questions about using mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20some%20questions%20about%20using%20mod_python&In-Reply-To=ac0979c5b01d09a8ec3b5f44a46e3b70%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017729.html">
+   <LINK REL="Next"  HREF="017731.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] some questions about using mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20some%20questions%20about%20using%20mod_python&In-Reply-To=ac0979c5b01d09a8ec3b5f44a46e3b70%40dscpl.com.au"
+       TITLE="[mod_python] some questions about using mod_python">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Mar 20 16:30:54 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017729.html">[mod_python] some questions about using mod_python
+</A></li>
+        <LI>Next message: <A HREF="017731.html">[mod_python] Re: some questions about using mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17730">[ date ]</a>
+              <a href="thread.html#17730">[ thread ]</a>
+              <a href="subject.html#17730">[ subject ]</a>
+              <a href="author.html#17730">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 20/03/2005, at 9:55 PM, Graham Dumpleton wrote:
+
+&gt;&gt;<i> - I want to use a MVC approach,the publisher's methods are the 
+</I>&gt;&gt;<i> controlers
+</I>&gt;&gt;<i> that do the processing and send internal redirects to psps to show the
+</I>&gt;&gt;<i> results,so i need to pass objects to the psps from the pub methods,i 
+</I>&gt;&gt;<i> need
+</I>&gt;&gt;<i> those objects to be in the request object of the handler and 
+</I>&gt;&gt;<i> available to
+</I>&gt;&gt;<i> the target psp.
+</I>&gt;<i>
+</I>&gt;<i> Why do you need to redirect the request to PSP? Why couldn't you simply
+</I>&gt;<i> write a common method of your own which triggered PSP page rendering
+</I>&gt;<i> directly within your publisher method with the desired environment?
+</I>&gt;<i>
+</I>&gt;<i> At its simplest, you could use:
+</I>&gt;<i>
+</I>&gt;<i>     template = psp.PSP(req,filename=path,vars=settings)
+</I>&gt;<i>     template.run()
+</I>&gt;<i>
+</I>&gt;<i> Where &quot;path&quot; is the name of the PSP file and &quot;settings&quot; is a dictionary
+</I>&gt;<i> populated with data that your controller has obtained from the model.
+</I>&gt;<i> Using redirection seems to me to be drawing too much of an artificial
+</I>&gt;<i> separation between your controller and view.
+</I>
+Another issue that you should be mindful of when using internal 
+redirects
+is that POST form parameters do not survive an internal redirect. Your
+controller code which does the internal redirect would need to process
+any POST form parameters and work out what to do with them. There would
+be no means of communicating any result of this processing through to 
+the
+PSP page though. The only thing which will get transfered through to the
+PSP pages is the original GET form parameters.
+
+If you follow the recipe above and use psp.PSP() direct, you still hit a
+similar problem in that psp.PSP() ignores any req.form data which is 
+left
+there by publisher and instead tries to process form parameters again.
+Thus, any POST form parameters are still not available. I have posted
+that this could possibly be improved by having psp.PSP() look for the
+req.form from a prior parsing of the form parameters.
+
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-38">http://issues.apache.org/jira/browse/MODPYTHON-38</A>
+
+When using psp.PSP() direct, you have a few options for making use of 
+forms
+when triggered from inside publisher. The first is that the controller
+code in the publisher function translates them all into &quot;vars&quot; settings
+supplied to psp.PSP(). Alternatively, a PSP page rather than accessing
+the form through the &quot;form&quot; variable, instead uses &quot;req.form&quot; which will
+access directly the FieldStorage instance left by the original publisher
+function.
+
+The best workaround though would probably be to use:
+
+&#160;&#160;  &#160;settings[&quot;form&quot;] = req.form
+  &#160;&#160;&#160;&#160;template = psp.PSP(req,filename=path,vars=settings)
+  &#160;&#160;&#160;&#160;template.run()
+
+The caller setting of &quot;form&quot; here takes precedence over that put into 
+the
+variable set by PSP. The PSP pages can then still use &quot;form&quot;. The only
+downside of this is that it doesn't eliminate the redundant processing
+of form parameters that occurs because &quot;form&quot; is referenced in the PSP 
+page.
+
+Graham
+
+
+
+
+
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017729.html">[mod_python] some questions about using mod_python
+</A></li>
+	<LI>Next message: <A HREF="017731.html">[mod_python] Re: some questions about using mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17730">[ date ]</a>
+              <a href="thread.html#17730">[ thread ]</a>
+              <a href="subject.html#17730">[ subject ]</a>
+              <a href="author.html#17730">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

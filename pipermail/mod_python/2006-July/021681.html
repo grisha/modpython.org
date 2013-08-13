@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Background threads in mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Background%20threads%20in%20mod_python&In-Reply-To=B52BDBA8-A21B-4F4A-B45D-7A23871E4EBE%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021678.html">
+   <LINK REL="Next"  HREF="021682.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Background threads in mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Christian Gross</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Background%20threads%20in%20mod_python&In-Reply-To=B52BDBA8-A21B-4F4A-B45D-7A23871E4EBE%40dscpl.com.au"
+       TITLE="[mod_python] Background threads in mod_python">christianhgross at gmail.com
+       </A><BR>
+    <I>Sat Jul 29 09:16:42 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021678.html">[mod_python] Background threads in mod_python
+</A></li>
+        <LI>Next message: <A HREF="021682.html">[mod_python] Background threads in mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21681">[ date ]</a>
+              <a href="thread.html#21681">[ thread ]</a>
+              <a href="subject.html#21681">[ subject ]</a>
+              <a href="author.html#21681">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i>
+</I>&gt;<i> How do you know the thread is being killed? Are you sure it isn't the 
+</I>&gt;<i> process
+</I>&gt;<i> as a whole?
+</I>&gt;<i>
+</I>As I debugged the thread is being killed. There was a sample in the 
+mailing list that caught an exception to test if anything is going 
+wrong. Well there was an exception and that killed the thread. Once that 
+problem was fixed, the thread continued on.
+&gt;<i> There isn't any fundamental reason why a thread can't outlive the life 
+</I>&gt;<i> of the
+</I>&gt;<i> request handler, but there are some common mistakes.
+</I>&gt;<i>
+</I>Ah ok, that does help.
+&gt;<i> Main issue that you cannot pass the mod_python request object to such 
+</I>&gt;<i> a thread
+</I>&gt;<i> and have it hold a reference to it and use the request object beyond 
+</I>&gt;<i> the life
+</I>&gt;<i> of the request handler. This is because the internals of the request 
+</I>&gt;<i> object
+</I>&gt;<i> are destroyed when the request handler returns and an access to the 
+</I>&gt;<i> request
+</I>&gt;<i> object may result in the Apache child process then subsequently crashing.
+</I>&gt;<i>
+</I>I kind of guessed that. Context: I used to write Apache modules. But 
+thank-you for verifying.
+&gt;<i> Alternatively, if the Apache child process doesn't crash, you might at 
+</I>&gt;<i> least
+</I>&gt;<i> cause a Python exception to occur because the state of something in the
+</I>&gt;<i> request object isn't as expected. This exception would effectively 
+</I>&gt;<i> cause the
+</I>&gt;<i> thread to exit unless the context in which the access was made to the 
+</I>&gt;<i> request
+</I>&gt;<i> object was protected by a try/except block.
+</I>&gt;<i>
+</I>I copied specific items from the request object to a Python object. 
+Though this raises a question. If for example I assign the req.uri to a 
+class instance data member is this ok? Will at the end of the request 
+the data referenced by req.uri be released, or is req.uri a buffer 
+managed by Python?
+&gt;<i> In either case, if a Python exception occurs within the thread and it 
+</I>&gt;<i> isn't
+</I>&gt;<i> caught, it might not actually result in the details of the exception 
+</I>&gt;<i> being logged.
+</I>&gt;<i> This is because if the exception details are output, they go to 
+</I>&gt;<i> standard error
+</I>&gt;<i> and anything sent to standard error or standard output when running under
+</I>&gt;<i> mod_python isn't guaranteed to show up anywhere. It may if flushing 
+</I>&gt;<i> occurs,
+</I>&gt;<i> appear in the Apache error log, but I wouldn't depend on it. Sometimes 
+</I>&gt;<i> only
+</I>&gt;<i> such output ends up in the Apache error log when Apache itself is 
+</I>&gt;<i> shutdown
+</I>&gt;<i> and those streams get flushed at that point.
+</I>&gt;<i>
+</I>Thank-you for the reference information.
+&gt;<i> In the above I talk about a Python exception occurring due to access to a
+</I>&gt;<i> no longer valid request object, but even an uncaught exception in your 
+</I>&gt;<i> code
+</I>&gt;<i> will cause the same thing, with the thread appearing to exit but with 
+</I>&gt;<i> nothing
+</I>&gt;<i> necessarily being logged anywhere. What you want to do is to put a 
+</I>&gt;<i> try/except
+</I>&gt;<i> block around everything the thread does and if an exception occurs, then
+</I>&gt;<i> use apache.log_error() to log something to the Apache error log 
+</I>&gt;<i> indicating
+</I>&gt;<i> that the exception occurs and the details of the exception.
+</I>&gt;<i>
+</I>Would you consider doing this as a general rule in mod_python? I can see 
+the advantages, but am wondering if that could be considered a good 
+programming practice?
+&gt;<i> One final thing, are you sure that the thread isn't deadlocking on 
+</I>&gt;<i> something
+</I>&gt;<i> and isn't just stalled? Have you actually used apache.log_error() to log
+</I>&gt;<i> something at the exit point of the top level thread function to 
+</I>&gt;<i> confirm that
+</I>&gt;<i> it is really exiting? Note that exiting explicitly, or because of a 
+</I>&gt;<i> Python
+</I>&gt;<i> exception occurring within the thread is the only way the thread can 
+</I>&gt;<i> truly
+</I>&gt;<i> be stopped as there is no way in Python for a thread to be externally 
+</I>&gt;<i> killed
+</I>&gt;<i> by another thread anyway.
+</I>&gt;<i>
+</I>Thanks for you help....
+
+Christian
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021678.html">[mod_python] Background threads in mod_python
+</A></li>
+	<LI>Next message: <A HREF="021682.html">[mod_python] Background threads in mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21681">[ date ]</a>
+              <a href="thread.html#21681">[ thread ]</a>
+              <a href="subject.html#21681">[ subject ]</a>
+              <a href="author.html#21681">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

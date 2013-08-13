@@ -1,0 +1,265 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: Problem with mod_proxy + inputfilter + headers_in
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Problem%20with%20mod_proxy%20%2B%20inputfilter%20%2B%20headers_in&In-Reply-To=8fb874820804290215l71dcd9afjd39f86f683d4e34b%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025247.html">
+   <LINK REL="Next"  HREF="025243.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: Problem with mod_proxy + inputfilter + headers_in</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Problem%20with%20mod_proxy%20%2B%20inputfilter%20%2B%20headers_in&In-Reply-To=8fb874820804290215l71dcd9afjd39f86f683d4e34b%40mail.gmail.com"
+       TITLE="[mod_python] Re: Problem with mod_proxy + inputfilter + headers_in">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Tue Apr 29 06:26:02 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025247.html">[mod_python] Re: Problem with mod_proxy + inputfilter + headers_in
+</A></li>
+        <LI>Next message: <A HREF="025243.html">[mod_python] Post of image data
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25248">[ date ]</a>
+              <a href="thread.html#25248">[ thread ]</a>
+              <a href="subject.html#25248">[ subject ]</a>
+              <a href="author.html#25248">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2008/4/29 Emyr Thomas &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">emyr.thomas at gmail.com</A>&gt;:
+&gt;<i> Thanks for the pointer to the docs Graham - those look very helpful.
+</I>&gt;<i>  I'll do my best to read them.
+</I>&gt;<i>
+</I>&gt;<i>  So in the case of tramline[1], the 'tramline' header which is being
+</I>&gt;<i>  set in the finalizeInput[2] method (which is called from a
+</I>&gt;<i>  PythonInputFilter) will never make it to the back end? This is indeed
+</I>&gt;<i>  the behaviour I am seeing.
+</I>
+If you have set things up to proxy the request after tramline has
+capture the upload then probably no. If it was a mod_python handler
+that was doing the read then it would be available after the read had
+returned, but only to the mod_python handler.
+
+&gt;<i>  What would be the correct way to set this
+</I>&gt;<i>  header?
+</I>
+Possibly not to use mod_python to implement it. I never understood why
+tramline was even implemented in mod_python as mod_python input/output
+filters aren't that efficient. You would be much better off doing it
+as a special purpose C module for Apache, and most likely such a thing
+does exist if one looked hard enough.
+
+The only way one might do it with mod_python so that header is proxied
+through, is to use a PythonFixupHandler to trigger the read of input
+before the proxy handler is triggered in the response phase. That way
+the header would exist and proxy handler may pass it through.
+
+It has been a while since I looked at how tramline works, so this may
+or may not work.
+
+Graham
+
+&gt;<i>  [1] <A HREF="http://codespeak.net/svn/rr/tramline/trunk/README.txt">http://codespeak.net/svn/rr/tramline/trunk/README.txt</A>
+</I>&gt;<i>  [2] <A HREF="http://codespeak.net/svn/rr/tramline/trunk/src/tramline/core.py">http://codespeak.net/svn/rr/tramline/trunk/src/tramline/core.py</A>
+</I>&gt;<i>
+</I>&gt;<i>  Thank you so much for your help (and your patience!)
+</I>&gt;<i>
+</I>&gt;<i>  --Emyr
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  On Mon, Apr 28, 2008 at 10:09 PM, Graham Dumpleton
+</I>&gt;<i>  &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i>  &gt; Sorry, one mistake I did make, was that you need earlier handler than
+</I>&gt;<i>  &gt;  PythonFixupHandler if you want to affect access, authentication,
+</I>&gt;<i>  &gt;  authorisation phases. Point is though that you can't do it in a
+</I>&gt;<i>  &gt;  mod_python input filter as they only get triggered when content is
+</I>&gt;<i>  &gt;  being read and after headers have been processed. There are input
+</I>&gt;<i>  &gt;  filters that can process headers, but mod_python doesn't provide
+</I>&gt;<i>  &gt;  access to writing them.
+</I>&gt;<i>  &gt;
+</I>&gt;<i>  &gt;  Graham
+</I>&gt;<i>  &gt;
+</I>&gt;<i>  &gt;  2008/4/29 Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt;:
+</I>&gt;<i>  &gt;
+</I>&gt;<i>  &gt;
+</I>&gt;<i>  &gt; &gt; 2008/4/28 Emyr Thomas &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">emyr.thomas at gmail.com</A>&gt;:
+</I>&gt;<i>  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt; &gt; Graham, out of interest, has this always been the case with mod_python, or
+</I>&gt;<i>  &gt;  &gt;  &gt;  was this behavious introduced in a particular release?
+</I>&gt;<i>  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  This is nothing to do with mod_python, it is how underlying Apache C
+</I>&gt;<i>  &gt;  &gt;  APIs work. It has always been this way. If you have seen it behave any
+</I>&gt;<i>  &gt;  &gt;  other way, it would have been by luck due to calling sequences and not
+</I>&gt;<i>  &gt;  &gt;  guaranteed.
+</I>&gt;<i>  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  Suggest you dig through:
+</I>&gt;<i>  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;   <A HREF="http://www.fmc-modeling.org/category/projects/apache/amp/Apache_Modeling_Project.html">http://www.fmc-modeling.org/category/projects/apache/amp/Apache_Modeling_Project.html</A>
+</I>&gt;<i>  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  to get a better understanding of how Apache works internally.
+</I>&gt;<i>  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  Graham
+</I>&gt;<i>  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &quot;Graham Dumpleton&quot;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote in message
+</I>&gt;<i>  &gt;  &gt;  &gt;  news:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">88e286470704191453o5b0b3c08u77b14064c1f58950 at mail.gmail.com...</A>
+</I>&gt;<i>  &gt;  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  &gt; &gt; You can't use a mod_python input filter to modify incoming headers. If
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt; the changes to the headers aren't intended to influence the behaviour
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt; of what Apache does during access, authentication, authorisation and
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt; type checking phases, use a PythonFixupHandler to update any headers
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt; to then be used by the actual response handler.
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt; Note, provided you are using mod_python 3.3, you can actually use
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt; mod_python to trigger the proxying as well. See:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt; <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-141">http://issues.apache.org/jira/browse/MODPYTHON-141</A>
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt; Graham
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt; On 20/04/07, indyone ;o) &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">indyone at gmail.com</A>&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt; wrote:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Hi list,
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; I'm trying to get the headers_in from the client, and after
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; changing/adding
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; some headers i would like to pass them to the backend server.
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; I'm using Apache/2.0.55 (Win32) mod_python/3.1.3 Python/2.3.5
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; The problem is that the headers are sent to the backend unchanged when
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; using
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; this simple input filter:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; def inputfilter(filter):
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;     filter.req.headers_in['X-MyHeader'] = 'Test'
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;     if filter.req.main is not None:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;         filter.pass_on()
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;         return
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;     filter.req.log_error('Start %s' % filter.req.uri)
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;     s = filter.read()
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;     while s:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;         filter.write(s)
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;         s = filter.read()
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;     if s is None:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;         filter.close()
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;         filter.req.log_error('End %s' % filter.req.uri)
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;     filter.req.log_error('%s' % filter.req.headers_in)
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; and Apache logs:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; [Thu Apr 19 18:17:28 2007] [error] [client 127.0.0.1] Start /, referer:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; <A HREF="http://localhost/">http://localhost/</A>
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; [Thu Apr 19 18:17:28 2007] [error] [client 127.0.0.1] End /, referer:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; <A HREF="http://localhost/">http://localhost/</A>
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; [Thu Apr 19 18:17:28 2007] [error] [client 127.0.0.1] {'X-MyHeader':
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; 'Test',
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; 'X-Forwarded-Server': 'luna', 'X-Forwarded-Host': 'localhost',
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; 'X-Forwarded-For': ' 127.0.0.1', 'Max-Forwards': '10', 'Cookie':
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; 'wstyle=;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; __ac=&quot;YWRtaW46bWF0cml4&quot;;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; tree-s=&quot;eJzT0MgpMOQKVneEAKcAN19bda4CI67EkgJjLj0AegYHmA&quot;',
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; 'Referer': ' <A HREF="http://localhost/',">http://localhost/',</A> 'Accept-Charset':
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; 'ISO-8859-7,utf-8;q=0.7,*;q=0.7', 'Accept-Encoding': 'gzip,deflate',
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; 'Accept-Language': 'el,en-us;q=0.7 ,en;q=0.3', 'Accept':
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; 'text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5',
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; 'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; 1.8.0.8)
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Gecko/20061030 SeaMonkey/1.0.6', 'Host': 'localhost'}, referer:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; <A HREF="http://localhost/">http://localhost/</A>
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; ...(multiple times)...
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Which is right i think... But my backend server gets this request:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; GET
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; /VirtualHostBase/http/localhost:80/Editorial/VirtualHostRoot/
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; HTTP/1.1
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Host: localhost:8081
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; User-Agent: Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.8)
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Gecko/20061030 SeaMonkey/1.0.6
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Accept:
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Accept-Language: el,en-us;q=0.7,en;q=0.3
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Accept-Encoding: gzip,deflate
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Accept-Charset: ISO-8859-7,utf-8;q= 0.7,*;q=0.7
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Referer: <A HREF="http://localhost/">http://localhost/</A>
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Cookie: wstyle=; __ac=&quot;YWRtaW46bWF0cml4&quot;;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; tree-s=&quot;eJzT0MgpMOQKVneEAKcAN19bda4CI67EkgJjLj0AegYHmA&quot;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Max-Forwards: 10
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; X-Forwarded-For: 127.0.0.1
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; X-Forwarded-Host: localhost
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; X-Forwarded-Server: luna
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Thank you in advance,
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Ioannis Stavrinos
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; _______________________________________________
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; Mod_python mailing list
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  &gt;&gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;  &gt;  _______________________________________________
+</I>&gt;<i>  &gt;  &gt;  &gt;  Mod_python mailing list
+</I>&gt;<i>  &gt;  &gt;  &gt;  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i>  &gt;  &gt;  &gt;  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>  &gt;  &gt;  &gt;
+</I>&gt;<i>  &gt;  &gt;
+</I>&gt;<i>  &gt;
+</I>&gt;<i>
+</I></PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025247.html">[mod_python] Re: Problem with mod_proxy + inputfilter + headers_in
+</A></li>
+	<LI>Next message: <A HREF="025243.html">[mod_python] Post of image data
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25248">[ date ]</a>
+              <a href="thread.html#25248">[ thread ]</a>
+              <a href="subject.html#25248">[ subject ]</a>
+              <a href="author.html#25248">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

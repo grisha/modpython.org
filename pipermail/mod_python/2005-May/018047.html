@@ -1,0 +1,187 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python session trouble
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20session%20trouble&In-Reply-To=4280D6CE.5030602%40sympatico.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018046.html">
+   <LINK REL="Next"  HREF="018048.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python session trouble</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Wouter van Marle</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20session%20trouble&In-Reply-To=4280D6CE.5030602%40sympatico.ca"
+       TITLE="[mod_python] mod_python session trouble">wouter at squirrel-systems.com
+       </A><BR>
+    <I>Tue May 10 12:20:43 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018046.html">[mod_python] mod_python session trouble
+</A></li>
+        <LI>Next message: <A HREF="018048.html">[mod_python] mod_python session trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18047">[ date ]</a>
+              <a href="thread.html#18047">[ thread ]</a>
+              <a href="subject.html#18047">[ subject ]</a>
+              <a href="author.html#18047">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi all,
+
+Jim and Graham: thank you for your advices, it now seems to work well.
+The session is kept, even when calling functions in a different script,
+which is great.
+
+The reading of my persistent cookie is fixed, a stupid bug/typo on my
+side (an always false statement so they would not get read, ever). Now
+when starting a new session, the starting values are read from the
+persistent cookie on the user's side, and this cookie is updated
+properly as well.
+
+Currently I do not use the &quot;return apache.OK&quot;, instead just a return, as
+&quot;return apache.OK&quot; results in an extra &quot;0&quot;(zero) at the end of the page!
+I don't think that's supposed to be like that. It looks a bit silly to
+me.
+
+Wouter.
+
+On Tue, 2005-05-10 at 11:44 -0400, Jim Gallacher wrote:
+&gt;<i> Wouter van Marle wrote:
+</I>&gt;<i> &gt; Thank you all for the advices, I'm going to try it tomorrow. At least it 
+</I>&gt;<i> &gt; gives me something to try out, and a bit better understanding of the 
+</I>&gt;<i> &gt; process. Unfortunately the documentation is pretty sparse there.
+</I>&gt;<i> 
+</I>&gt;<i> I'm working on improving the documentation, so these kinds of 
+</I>&gt;<i> discussions are useful to me as well.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Some more comments below on why reading a separate cookie:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;&gt;call sess.save() before the end of your request as saving is not 
+</I>&gt;<i> &gt;&gt;automatic. The other way you may get a new session for each request is 
+</I>&gt;<i> &gt;&gt;if you start writing the response before the session is created. The 
+</I>&gt;<i> &gt;&gt;session must be able to set a cookie in the response sent to the 
+</I>&gt;<i> &gt;&gt;browser, and this is not possible if you've already started to send your 
+</I>&gt;<i> &gt;&gt;reply.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; So I should call sess.save() before doing any psp run() or req.write(), 
+</I>&gt;<i> &gt; right? That is now not the case (I do the save at the very end of the 
+</I>&gt;<i> &gt; routine - after sending the page).
+</I>&gt;<i> 
+</I>&gt;<i> No, it doesn't matter when you call sess.save(). The important step is 
+</I>&gt;<i> in the creation of the session instance. The session cookie in the 
+</I>&gt;<i> response header is set when the session instance is created. You must do 
+</I>&gt;<i> this before sending any part of the page. For example:
+</I>&gt;<i> 
+</I>&gt;<i> def good_requesthandler(req):
+</I>&gt;<i>      # session handling will work
+</I>&gt;<i>      req.content_type = &quot;text/plain&quot;
+</I>&gt;<i> 
+</I>&gt;<i>      # Create the session and implicitly set the session cookie
+</I>&gt;<i>      # in the response header
+</I>&gt;<i>      sess = Session.Session(req)
+</I>&gt;<i> 
+</I>&gt;<i>      # First call to req.write() sends the response headers
+</I>&gt;<i>      # to the browser, which includes the session cookie, and
+</I>&gt;<i>      # then writes the string.
+</I>&gt;<i>      req.write(&quot;Hello World!&quot;)
+</I>&gt;<i>      req.write(&quot;Goodbye world!&quot;)
+</I>&gt;<i> 
+</I>&gt;<i>      # Save the session data on the server
+</I>&gt;<i>      sess.save()
+</I>&gt;<i>      return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> def bad_requesthandler(req):
+</I>&gt;<i>      # session handling will not work
+</I>&gt;<i>      req.content_type = &quot;text/plain&quot;
+</I>&gt;<i> 
+</I>&gt;<i>      # First call to req.write() sends the response headers to
+</I>&gt;<i>      # the browser and then writes the string.
+</I>&gt;<i>      req.write(&quot;Hello World!&quot;)
+</I>&gt;<i> 
+</I>&gt;<i>      # Creating the session instance generates a cookie, but
+</I>&gt;<i>      # the response headers have already been sent as a result of
+</I>&gt;<i>      # the previous req.write() call, so the the browser will never
+</I>&gt;<i>      # receive the cookie.
+</I>&gt;<i>      sess = Session.Session(req)
+</I>&gt;<i>      req.write(&quot;Goodbye world!&quot;)
+</I>&gt;<i> 
+</I>&gt;<i>      # Save the session data on the server. The data is saved, but the
+</I>&gt;<i>      # browser never received the cookie, so it really is not relevant.
+</I>&gt;<i>      # As far as the browser is concerned the session data is gone.
+</I>&gt;<i>      sess.save()
+</I>&gt;<i>      return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;I'm a little unclear why you are reading and writing the cookies, 
+</I>&gt;<i> &gt;&gt;assuming you mean the session cookie. 
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I think of using a separate cookie for persistent information (currently 
+</I>&gt;<i> &gt; set to 90 day expiry) against session which includes login info and is 
+</I>&gt;<i> &gt; to keep the user logged with a timeout of say 30 minutes. At the 
+</I>&gt;<i> &gt; beginning of the session (new session) I want to read that persistent 
+</I>&gt;<i> &gt; information to provide a somewhat personalised site. Currently that is 
+</I>&gt;<i> &gt; only the language and the username if known, though in future that may 
+</I>&gt;<i> &gt; be more.
+</I>&gt;<i> 
+</I>&gt;<i> Ok. Then the problem you described with reading and writing cookies in 
+</I>&gt;<i> an earlier message is unrelated to the session handling code. But the 
+</I>&gt;<i> same idea applies. Make sure you set your cookie before any req.write() 
+</I>&gt;<i> attempts.
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> Jim
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018046.html">[mod_python] mod_python session trouble
+</A></li>
+	<LI>Next message: <A HREF="018048.html">[mod_python] mod_python session trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18047">[ date ]</a>
+              <a href="thread.html#18047">[ thread ]</a>
+              <a href="subject.html#18047">[ subject ]</a>
+              <a href="author.html#18047">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

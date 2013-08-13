@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> SSL-data access from verious handlers. was: Re:[mod_python]
+	problem w/ authen handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=SSL-data%20access%20from%20verious%20handlers.%20was%3A%20Re%3A%5Bmod_python%5D%0A%09problem%20w/%20authen%20handler&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018165.html">
+   <LINK REL="Next"  HREF="018164.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>SSL-data access from verious handlers. was: Re:[mod_python]
+	problem w/ authen handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=SSL-data%20access%20from%20verious%20handlers.%20was%3A%20Re%3A%5Bmod_python%5D%0A%09problem%20w/%20authen%20handler&In-Reply-To="
+       TITLE="SSL-data access from verious handlers. was: Re:[mod_python]
+	problem w/ authen handler">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon May 23 18:43:03 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018165.html">[mod_python] apache2 + mod_python + mod_php segfaults
+</A></li>
+        <LI>Next message: <A HREF="018164.html">SSL-data access from verious handlers. was: Re:[mod_python]
+	problem w/ authen handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18163">[ date ]</a>
+              <a href="thread.html#18163">[ thread ]</a>
+              <a href="subject.html#18163">[ subject ]</a>
+              <a href="author.html#18163">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Bud P. Bruegger wrote ..
+&gt;<i> Hi Graham,
+</I>&gt;<i> 
+</I>&gt;<i> thanks for the great material on the topic!  More below..
+</I>&gt;<i> 
+</I>&gt;<i> At 22.05 23/05/2005 +1000, Graham Dumpleton wrote:
+</I>&gt;<i> &gt;Overall, what would be most useful I guess is if mod_python provided a
+</I>&gt;<i> way 
+</I>&gt;<i> &gt;of saying
+</I>&gt;<i> &gt;whether a handler should be executed as first, middle or last. If this
+</I>&gt;<i> &gt;ability existed
+</I>&gt;<i> &gt;you could specify your handler to be run within the last group of the
+</I>&gt;<i> &gt;fixuphandlers,
+</I>&gt;<i> &gt;thus ensuring that it is run after the SSL middle fixuphandler where 
+</I>&gt;<i> &gt;common vars would
+</I>&gt;<i> &gt;be primed.
+</I>&gt;<i> 
+</I>&gt;<i> This idea is intriguing.  How difficult would this be to implement?  I
+</I>&gt;<i> suppose this may be interesting not only for fixup handlers?
+</I>
+There are a few parts, first is to come up with syntax for Apache
+configuration of how to indicate first, middle or last and write code to
+parse that. Default would still be middle if not specified. Interesting
+to see if mod_perl has a way of doing something similar and how they
+may represent it in Apache configuration.
+
+Next is the code related to lists of handlers for each phase has to be
+duplicated so there is a set for first and last as well as current middle.
+
+Then distinct hook functions registered for first and last for each phase,
+which then trigger handlers as appropriate.
+
+&gt;<i> While the module execution order sounds like a nice solution, I'm still
+</I>&gt;<i> wondering about the alternative approach of accessing mod-SSL's data. 
+</I>&gt;<i> Is 
+</I>&gt;<i> there a possibility to access different tables from mod-python than just
+</I>&gt;<i> req.notes and req.connection.notes?  Or are these data strictly private
+</I>&gt;<i> to 
+</I>&gt;<i> the module that sets them?
+</I>
+You probably wouldn't access its data structures directly. Instead it seems
+to register a couple of special functions as follows:
+
+void ssl_var_register(void)
+{
+    APR_REGISTER_OPTIONAL_FN(ssl_is_https);
+    APR_REGISTER_OPTIONAL_FN(ssl_var_lookup);
+    return;
+}
+
+This registration apparently allows a different module to look the functions
+up by name and if present then call them. If mod_python provided some
+means of looking up these special registered functions and then safely
+calling them, you could use &quot;ssl_var_lookup()&quot; to get access to the data
+you need.
+
+The beauty of &quot;ssl_var_lookup()&quot; is that it should be able to be used in
+whatever phase you want and not be dependent on waiting to common
+vars to be populated in SSL fixup handler.
+
+There is a bit of documentation about these registered functions macros
+at:
+
+  <A HREF="http://apr.apache.org/docs/apr-util/group___a_p_r___util___opt.html">http://apr.apache.org/docs/apr-util/group___a_p_r___util___opt.html</A>
+
+The macros supposedly try and make it type safe, so haven't quite worked
+out how you are meant to use them yet. In part it looks like compile time
+binding is required, which would be an issue with Python. What you might
+be able to do though is write a little C based Python module which did
+the lookup and calling of &quot;ssl_var_lookup()&quot; for you by going direct to the
+Apache runtime library calls. May work. :-)
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018165.html">[mod_python] apache2 + mod_python + mod_php segfaults
+</A></li>
+	<LI>Next message: <A HREF="018164.html">SSL-data access from verious handlers. was: Re:[mod_python]
+	problem w/ authen handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18163">[ date ]</a>
+              <a href="thread.html#18163">[ thread ]</a>
+              <a href="subject.html#18163">[ subject ]</a>
+              <a href="author.html#18163">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

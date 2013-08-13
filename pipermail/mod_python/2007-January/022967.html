@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and sqlite
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20sqlite&In-Reply-To=200701101758.29423.richardlewis%40fastmail.co.uk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022966.html">
+   <LINK REL="Next"  HREF="022968.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python and sqlite</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Colin Bean</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20sqlite&In-Reply-To=200701101758.29423.richardlewis%40fastmail.co.uk"
+       TITLE="[mod_python] mod_python and sqlite">ccbean at gmail.com
+       </A><BR>
+    <I>Wed Jan 10 14:18:30 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022966.html">[mod_python] mod_python and sqlite
+</A></li>
+        <LI>Next message: <A HREF="022968.html">[mod_python] mod_python and sqlite
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22967">[ date ]</a>
+              <a href="thread.html#22967">[ thread ]</a>
+              <a href="subject.html#22967">[ subject ]</a>
+              <a href="author.html#22967">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Richard,
+
+Could it be concurrency problems due to two apache instances trying to
+write to the database simultaneously?  Does it always fail on the
+first request?  Does it fail if you limit apache to a single child
+process?
+
+I'm looking at sqlite3 that came with python2.5 right now, so I'm not
+sure if the behavior and errors are the same, but I opened the same
+database from two different python interpreters and tried to insert a
+value from each one.  If I executed the first insert, then executed a
+second insert from the other interpreter (before committing the first
+one), it failed with an sqlite3.OperationalError.  I tried again with
+the isolation level set to None on both connections (so sqlite will
+autocommit after each statement), and both inserts worked.
+
+So I'd also try
+con = sqlite.connect(&quot;file.db&quot;, isolation_level=None)
+and see if that helps.
+
+hth,
+Colin
+
+
+On 1/10/07, Richard Lewis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">richardlewis at fastmail.co.uk</A>&gt; wrote:
+&gt;<i> On Wednesday 10 January 2007 17:45, Michael Rasmussen wrote:
+</I>&gt;<i> &gt; On Wed, 10 Jan 2007 17:28:14 +0000
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Richard Lewis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">richardlewis at fastmail.co.uk</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; The problem I have is that when I try to execute the SQL UPDATE
+</I>&gt;<i> &gt; &gt; query, the database raises the exception &quot;Database error: unable to
+</I>&gt;<i> &gt; &gt; open database file&quot;.
+</I>&gt;<i> &gt; &gt; I've checked to make sure that I can execute the code correctly from
+</I>&gt;<i> &gt; &gt; the Python interpreter, and I can.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; So I also made sure that Apache has write permission to the database
+</I>&gt;<i> &gt; &gt; file by setting the permissions to rwxrwxrwx!
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; You are sure your webserver does not run in a jail/chroot environment
+</I>&gt;<i> &gt; in which case a running instance of the webserver might never have
+</I>&gt;<i> &gt; access to the required directory?
+</I>&gt;<i> &gt;
+</I>&gt;<i> Um, not as far as I know. Its just Apache 2.2 on Debian (unstable).
+</I>&gt;<i>
+</I>&gt;<i> &gt; What does the webservers errorlog show?
+</I>&gt;<i>
+</I>&gt;<i> [Wed Jan 10 17:12:23 2007] [error] [client c_ip] PythonHandler session:
+</I>&gt;<i> Traceback (most recent call last):, referer: <A HREF="http://server/">http://server/</A>
+</I>&gt;<i>
+</I>&gt;<i> [Wed Jan 10 17:12:23 2007] [error] [client c_ip] PythonHandler session:
+</I>&gt;<i> File &quot;/usr/lib/python2.4/site-packages/mod_python/apache.py&quot;, line 299, in
+</I>&gt;<i> HandlerDispatch\n    result = object(req), referer: <A HREF="http://server/">http://server/</A>
+</I>&gt;<i>
+</I>&gt;<i> [Wed Jan 10 17:12:23 2007] [error] [client c_ip] PythonHandler session:
+</I>&gt;<i> File &quot;/var/www/session.py&quot;, line 50, in handler\n    cur.execute(&quot;UPDATE
+</I>&gt;<i> users SET in_use=1, name=\\&quot;%s\\&quot;, started=\\&quot;%s\\&quot; WHERE id=%d&quot; % \\,
+</I>&gt;<i> referer: <A HREF="http://server/">http://server/</A>
+</I>&gt;<i>
+</I>&gt;<i> [Wed Jan 10 17:12:23 2007] [error] [client c_ip] PythonHandler session:
+</I>&gt;<i> File &quot;/usr/lib/python2.4/site-packages/sqlite/main.py&quot;, line 237, in
+</I>&gt;<i> execute\n    self.con._begin(), referer: <A HREF="http://server/">http://server/</A>
+</I>&gt;<i>
+</I>&gt;<i> [Wed Jan 10 17:12:23 2007] [error] [client c_ip] PythonHandler session:
+</I>&gt;<i> File &quot;/usr/lib/python2.4/site-packages/sqlite/main.py&quot;, line 503, in _begin\n
+</I>&gt;<i> self.db.execute(&quot;BEGIN&quot;), referer: <A HREF="http://server/">http://server/</A>
+</I>&gt;<i>
+</I>&gt;<i> [Wed Jan 10 17:12:23 2007] [error] [client c_ip] PythonHandler session:
+</I>&gt;<i> DatabaseError: unable to open database file, referer: <A HREF="http://server/">http://server/</A>
+</I>&gt;<i>
+</I>&gt;<i> Cheers,
+</I>&gt;<i> Richard
+</I>&gt;<i> --
+</I>&gt;<i> -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+</I>&gt;<i> Richard Lewis
+</I>&gt;<i> Sonic Arts Research Archive
+</I>&gt;<i> <A HREF="http://www.sara.uea.ac.uk/">http://www.sara.uea.ac.uk/</A>
+</I>&gt;<i> JID: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ironchicken at jabber.earth.li</A>
+</I>&gt;<i> -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022966.html">[mod_python] mod_python and sqlite
+</A></li>
+	<LI>Next message: <A HREF="022968.html">[mod_python] mod_python and sqlite
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22967">[ date ]</a>
+              <a href="thread.html#22967">[ thread ]</a>
+              <a href="subject.html#22967">[ subject ]</a>
+              <a href="author.html#22967">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

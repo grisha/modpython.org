@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] simpleTAL - 500 Internal Server Error
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20simpleTAL%20-%20500%20Internal%20Server%20Error&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019239.html">
+   <LINK REL="Next"  HREF="019248.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] simpleTAL - 500 Internal Server Error</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20simpleTAL%20-%20500%20Internal%20Server%20Error&In-Reply-To="
+       TITLE="[mod_python] simpleTAL - 500 Internal Server Error">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Oct 12 03:32:43 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019239.html">[mod_python] simpleTAL - 500 Internal Server Error
+</A></li>
+        <LI>Next message: <A HREF="019248.html">[mod_python] simpleTAL - 500 Internal Server Error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19240">[ date ]</a>
+              <a href="thread.html#19240">[ thread ]</a>
+              <a href="subject.html#19240">[ subject ]</a>
+              <a href="author.html#19240">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>If sys.stdout is where TAL is writing the output to, try instead:
+
+  req.content_type = 'text/html'
+  req.send_http_header()
+  template.expand (context, req)
+  return &quot; &quot;
+
+This will only work though if TAL only uses write() on sys.stdout.
+
+It would be better if you could get a string out of expand()
+and write it to req explicitly or return it from handler.
+
+Maybe try:
+
+  output = StringIO.StringIO()
+  template.expand(context,output)
+  return output.getvalue()
+
+or:
+
+  output = StringIO.StringIO()
+  template.expand(context,output)
+  req.content_type = 'text/html'
+  req.send_http_header()
+  req.write(output.getvalue()
+  return &quot; &quot;
+
+Does expand() return a string if you don't supply sys.stdout as an
+argument?
+
+Sorry if this isn't helpful, in a bit of rush to get somewhere at the
+moment.
+
+Graham
+
+Julien Cigar wrote ..
+&gt;<i> Hello,
+</I>&gt;<i> 
+</I>&gt;<i> I suggest that you first try with multiple interpreters (with the 
+</I>&gt;<i> PythonInterpPerDirectory On for example). I had a lot of &quot;Internal 
+</I>&gt;<i> Server Error&quot; before, and the problem comes from that.
+</I>&gt;<i> I don't know TAL but I had a similar problem with the Clearsilver 
+</I>&gt;<i> template engine (and multiple interpreters).
+</I>&gt;<i> With clearsilver I had to run the neo_cgi.update() after importing 
+</I>&gt;<i> neo_cgi, from the documentation :
+</I>&gt;<i> 
+</I>&gt;<i> *update*()
+</I>&gt;<i>     This is only necessary in PyApache in non-single Python interpreter
+</I>&gt;<i>     mode. If you are using an embedded Python interpreter which
+</I>&gt;<i>     continues to be reloaded every page, then update reinstalls the
+</I>&gt;<i>     &quot;fake&quot; modules neo_util, and neo_cs. This is necessary because on
+</I>&gt;<i>     interpreter restart the modules are kept loaded, but their init
+</I>&gt;<i>     functions are not re-run.
+</I>&gt;<i> 
+</I>&gt;<i> maybe you have to do something like that with TAL too ...
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> Julien
+</I>&gt;<i> 
+</I>&gt;<i> Erdi Balint wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Hi all,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'm trying to use simpleTAL templates with no success. When querying
+</I>&gt;<i> &gt; the python script that expands the template I get the following:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &quot;Internal Server Error
+</I>&gt;<i> &gt; The server encountered an internal error or misconfiguration and was
+</I>&gt;<i> &gt; unable to complete your request.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Please contact the server administrator, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">webmaster at localhost</A> and 
+</I>&gt;<i> &gt; inform them of the time the error occurred, and anything you might 
+</I>&gt;<i> &gt; have done that may have caused the error.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; More information about this error may be available in the server error
+</I>&gt;<i> &gt; log.&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Apache/1.3.33 Server at localhost Port 80
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The apache error log is not verbose and does not contain a stack 
+</I>&gt;<i> &gt; trace, only this:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; [Wed Oct 12 08:42:37 2005] [notice] mod_python: (Re)importing 
+</I>&gt;<i> &gt; mod_python.publisher from None
+</I>&gt;<i> &gt; [Wed Oct 12 08:42:37 2005] [notice] mod_python: (Re)importing simple
+</I>&gt;<i> &gt; from ['/var/www/helloSimpleTAL/control']
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; My code:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; import sys
+</I>&gt;<i> &gt; from simpletal import simpleTAL, simpleTALES
+</I>&gt;<i> &gt; ------
+</I>&gt;<i> &gt; def hello(req):
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     # Create the context that is used by the template
+</I>&gt;<i> &gt;     context = simpleTALES.Context()
+</I>&gt;<i> &gt;     context.addGlobal (&quot;title&quot;, &quot;Hello World&quot;)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     templateFile = open (&quot;/var/www/helloSimpleTAL/simple.html&quot;, 'r')
+</I>&gt;<i> &gt;     template = simpleTAL.compileHTMLTemplate (templateFile)
+</I>&gt;<i> &gt;     templateFile.close()
+</I>&gt;<i> &gt;     template.expand (context, sys.stdout)
+</I>&gt;<i> &gt;     # (1)
+</I>&gt;<i> &gt; -----
+</I>&gt;<i> &gt; My Directory directive in apache:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &lt;Directory /var/www/helloSimpleTAL/control&gt;
+</I>&gt;<i> &gt;         SetHandler python-program
+</I>&gt;<i> &gt;         PythonHandler mod_python.publisher
+</I>&gt;<i> &gt;         PythonDebug on
+</I>&gt;<i> &gt; &lt;/Directory&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I've found someone had the same problem before on this mailing list 
+</I>&gt;<i> &gt; and got answered that this is a bug in mod_python 2.7.10, so I added
+</I>&gt;<i> a
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; return &quot; &quot; to (1) above, but that only returned an empty page (and if
+</I>&gt;<i> &gt; I do return &quot;x&quot;, a page with an 'x' will be rendered)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'm using Python 2.3.4, Apache 1.3.33, mod_python 2.7.11 and I've got
+</I>&gt;<i> &gt; the publisher handler to work beforehand, just not with simpleTAL :(
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Can anyone help me with this?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Thanks a lot in advance,
+</I>&gt;<i> &gt; Balint
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019239.html">[mod_python] simpleTAL - 500 Internal Server Error
+</A></li>
+	<LI>Next message: <A HREF="019248.html">[mod_python] simpleTAL - 500 Internal Server Error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19240">[ date ]</a>
+              <a href="thread.html#19240">[ thread ]</a>
+              <a href="subject.html#19240">[ subject ]</a>
+              <a href="author.html#19240">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

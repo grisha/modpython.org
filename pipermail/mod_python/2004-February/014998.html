@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] 
+	core dumping in worker MPM - can anyone help with these stack
+	traces?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%0A%09core%20dumping%20in%20worker%20MPM%20-%20can%20anyone%20help%20with%20these%20stack%0A%09traces%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015000.html">
+   <LINK REL="Next"  HREF="015003.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] 
+	core dumping in worker MPM - can anyone help with these stack
+	traces?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>perry.tew at cibavision.novartis.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%0A%09core%20dumping%20in%20worker%20MPM%20-%20can%20anyone%20help%20with%20these%20stack%0A%09traces%3F&In-Reply-To="
+       TITLE="[mod_python] 
+	core dumping in worker MPM - can anyone help with these stack
+	traces?">perry.tew at cibavision.novartis.com
+       </A><BR>
+    <I>Mon Feb  9 17:25:55 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015000.html">[mod_python] Mod_Python and win32com
+</A></li>
+        <LI>Next message: <A HREF="015003.html">[mod_python]  core dumping in worker MPM - can anyone help with
+ these stack traces?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14998">[ date ]</a>
+              <a href="thread.html#14998">[ thread ]</a>
+              <a href="subject.html#14998">[ subject ]</a>
+              <a href="author.html#14998">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hey Everyone,
+   Well, as promised, I'm attempting to troubleshoot my problems with the 
+worker MPM crashes I'm experiencing.  I rebuilt everything with the -g 
+CFLAG and when I examine the core file using gdb I receive the following 
+stack traces (I did it three times to see if it reproduced).  btw. I'm 
+using mod_python-3.1.1b (not using the latest 'cause my flex is out of 
+date) and apache 2.0.48. 
+
+I can provide additional information, but the actual code will be 
+difficult to set up since it's an Authen handler going against an Oracle 
+database using DCOracle2.
+
+If anyone can provide a path I should go down, I would appreciate it.  I 
+don't know the Apache API, and the only line of code that looks to be 
+mod_python-ish is
+#4  0xfdc2e9b0 in python_merge_config (p=0x67eb68, current_conf=0xdb520, 
+new_conf=0xef2f8) at mod_python.c:653
+
+which is this line of code from the source (mod_python.c 
+python_merge_config):
+    apr_table_overlap(merged_conf-&gt;options, nc-&gt;options, 
+APR_OVERLAP_TABLES_SET);
+
+Again, this runs without issue using the prefork model.
+
+Thanks!
+Perry Tew
+
+
+(gdb) where
+#0  0xfee4efec in strcasecmp () from /usr/lib/libc.so.1
+#1  0xff0ccdd4 in table_mergesort (pool=0xa1670, values=0x5a4420, n=12) at 
+apr_tables.c:1013
+#2  0xff0ccfb4 in apr_table_compress (t=0x6804b0, flags=0) at 
+apr_tables.c:1125
+#3  0xff0cd2dc in apr_table_overlap (a=0x6804b0, b=0xef448, flags=0) at 
+apr_tables.c:1244
+#4  0xfdc2e9b0 in python_merge_config (p=0x67eb68, current_conf=0xdb520, 
+new_conf=0xef2f8) at mod_python.c:653
+#5  0x3bc10 in ap_merge_per_dir_configs (p=0x67eb68, base=0xd1ab8, 
+new_conf=0x6800f8) at config.c:278
+#6  0x668b0 in ap_directory_walk (r=0x67eba0) at request.c:1177
+#7  0x60118 in core_map_to_storage (r=0x67eba0) at core.c:3367
+#8  0x6384c in ap_run_map_to_storage (r=0x67eba0) at request.c:110
+#9  0x64960 in ap_process_request_internal (r=0x67eba0) at request.c:191
+#10 0x337d0 in ap_process_request (r=0x67eba0) at http_request.c:286
+#11 0x2ae2c in ap_process_http_connection (c=0x3c5aa8) at http_core.c:293
+#12 0x4e29c in ap_run_process_connection (c=0x3c5aa8) at connection.c:85
+#13 0x4e83c in ap_process_connection (c=0x3c5aa8, csd=0x3c59b8) at 
+connection.c:211
+#14 0x35904 in process_socket (p=0x3c5980, sock=0x3c59b8, my_child_num=0, 
+my_thread_num=8, bucket_alloc=0x3cf9a8)
+    at worker.c:632
+#15 0x36448 in worker_thread (thd=0xbbcf8, dummy=0x14bcb8) at worker.c:946
+#16 0xff0d4de0 in dummy_worker (opaque=0xbbcf8) at thread.c:127
+
+
+
+
+(gdb) where
+#0  0xfee4efd4 in strcasecmp () from /usr/lib/libc.so.1
+#1  0xfee4efcc in strcasecmp () from /usr/lib/libc.so.1
+#2  0xff0ccfb4 in apr_table_compress (t=0x4b64c0, flags=0) at 
+apr_tables.c:1125
+#3  0xff0cd2dc in apr_table_overlap (a=0x4b64c0, b=0xef448, flags=0) at 
+apr_tables.c:1244
+#4  0xfdc2e9b0 in python_merge_config (p=0x4b4b80, current_conf=0xdb520, 
+new_conf=0xef2f8) at mod_python.c:653
+#5  0x3bc10 in ap_merge_per_dir_configs (p=0x4b4b80, base=0xd1ab8, 
+new_conf=0x4b6108) at config.c:278
+#6  0x668b0 in ap_directory_walk (r=0x4b4bb8) at request.c:1177
+#7  0x60118 in core_map_to_storage (r=0x4b4bb8) at core.c:3367
+#8  0x6384c in ap_run_map_to_storage (r=0x4b4bb8) at request.c:110
+#9  0x64960 in ap_process_request_internal (r=0x4b4bb8) at request.c:191
+#10 0x337d0 in ap_process_request (r=0x4b4bb8) at http_request.c:286
+#11 0x2ae2c in ap_process_http_connection (c=0x4b0af8) at http_core.c:293
+#12 0x4e29c in ap_run_process_connection (c=0x4b0af8) at connection.c:85
+#13 0x4e83c in ap_process_connection (c=0x4b0af8, csd=0x4b0a08) at 
+connection.c:211
+#14 0x35904 in process_socket (p=0x4b09d0, sock=0x4b0a08, my_child_num=0, 
+my_thread_num=14, bucket_alloc=0x4b2ae0)
+    at worker.c:632
+#15 0x36448 in worker_thread (thd=0xbbdb8, dummy=0x146c58) at worker.c:946
+#16 0xff0d4de0 in dummy_worker (opaque=0xbbdb8) at thread.c:127
+
+
+
+
+(gdb) where
+#0  0xfee4efd4 in strcasecmp () from /usr/lib/libc.so.1
+#1  0xfee4efcc in strcasecmp () from /usr/lib/libc.so.1
+#2  0xff0ccfb4 in apr_table_compress (t=0x497290, flags=0) at 
+apr_tables.c:1125
+#3  0xff0cd2dc in apr_table_overlap (a=0x497290, b=0xef448, flags=0) at 
+apr_tables.c:1244
+#4  0xfdc2e9b0 in python_merge_config (p=0x495948, current_conf=0xdb520, 
+new_conf=0xef2f8) at mod_python.c:653
+#5  0x3bc10 in ap_merge_per_dir_configs (p=0x495948, base=0xd1ab8, 
+new_conf=0x496ed8) at config.c:278
+#6  0x668b0 in ap_directory_walk (r=0x495980) at request.c:1177
+#7  0x60118 in core_map_to_storage (r=0x495980) at core.c:3367
+#8  0x6384c in ap_run_map_to_storage (r=0x495980) at request.c:110
+#9  0x64960 in ap_process_request_internal (r=0x495980) at request.c:191
+#10 0x337d0 in ap_process_request (r=0x495980) at http_request.c:286
+#11 0x2ae2c in ap_process_http_connection (c=0x490d58) at http_core.c:293
+#12 0x4e29c in ap_run_process_connection (c=0x490d58) at connection.c:85
+#13 0x4e83c in ap_process_connection (c=0x490d58, csd=0x490c68) at 
+connection.c:211
+#14 0x35904 in process_socket (p=0x490c30, sock=0x490c68, my_child_num=0, 
+my_thread_num=18, bucket_alloc=0x493940)
+    at worker.c:632
+#15 0x36448 in worker_thread (thd=0xbbe38, dummy=0x14bcb8) at worker.c:946
+#16 0xff0d4de0 in dummy_worker (opaque=0xbbe38) at thread.c:127
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015000.html">[mod_python] Mod_Python and win32com
+</A></li>
+	<LI>Next message: <A HREF="015003.html">[mod_python]  core dumping in worker MPM - can anyone help with
+ these stack traces?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14998">[ date ]</a>
+              <a href="thread.html#14998">[ thread ]</a>
+              <a href="subject.html#14998">[ subject ]</a>
+              <a href="author.html#14998">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

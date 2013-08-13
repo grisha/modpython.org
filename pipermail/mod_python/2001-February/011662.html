@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] [RFC] mod_python embedded python module
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5BRFC%5D%20mod_python%20embedded%20python%20module&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="011661.html">
+   <LINK REL="Next"  HREF="011663.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] [RFC] mod_python embedded python module</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Brent Verner</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5BRFC%5D%20mod_python%20embedded%20python%20module&In-Reply-To="
+       TITLE="[mod_python] [RFC] mod_python embedded python module">brent at rcfile.org
+       </A><BR>
+    <I>Wed Feb  7 08:59:53 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="011661.html">[mod_python] math import
+</A></li>
+        <LI>Next message: <A HREF="011663.html">[mod_python] [RFC] mod_python embedded python module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11662">[ date ]</a>
+              <a href="thread.html#11662">[ thread ]</a>
+              <a href="subject.html#11662">[ subject ]</a>
+              <a href="author.html#11662">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+  
+  First off, Gregory, thanks for writing this nice software :)
+
+  Secondly, after looking into mod_python and mod_snake, I've 
+decided that _I_ like mod_python (the base python/apache binding)
+much better than mod_snake. Now, I'm not a python programmer, but
+there's no better way to learn than to do, so last night I started
+hacking up a module/handler to handle documents having embedded
+HTML, the feature which drew me toward mod_snake at first.
+
+  What I intend to do with this module is have it:
+    1) parse (so to speak) a document containing HTML-embedded python
+       code into pure python code. My tentative direction is to:
+        a) create a python file that looks like
+========================================================
+env = {}
+def embedded_output_hook(req):
+  env = req.subprocess_env
+  req.write(&quot;&quot;&quot;&lt;html&gt;
+&lt;head&gt;
+&lt;title&gt;&quot;&quot;&quot;
+  req.write( req.uri )
+  req.write(&quot;&quot;&quot;&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&quot;&quot;&quot;
+  for i in env.keys():
+    req.write(&quot;&quot;&quot;&lt;b&gt;&quot;&quot;&quot;)
+    req.write( i )
+    req.write(&quot;&quot;&quot;: &quot;&quot;&quot;)
+    req.write( env[i] )
+    req.write(&quot;&quot;&quot;&lt;/b&gt;&lt;br&gt;
+&quot;&quot;&quot;)
+  # for
+  req.write(&quot;&quot;&quot;&lt;/body
+&lt;/html&gt;
+&quot;&quot;&quot;)
+
+========================================================
+from an HTML-embedded file of:
+========================================================
+&lt;html&gt;
+&lt;head&gt;
+&lt;title&gt;&lt;?= req.uri ?&gt;&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;?
+  for i in env.keys():
+?&gt;
+&lt;b&gt;&lt;?= i ?&gt;: &lt;?= env[i] ?&gt;&lt;/b&gt;&lt;br&gt;
+&lt;?
+  # for
+?&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+========================================================
+
+       and the module will call embedded_output_hook(req) from 
+       the loaded module. Also, I've thought of having calls to
+       content_type/auth/cleanup functions which may be defined in
+       the document...
+    2) save those parsed files to a cache directory, where they'll
+       actually be loaded from when the correspondeing HTML-embedded
+       file is requested via the handler. Of course I'm stat()ing
+       the files to make sure the parsed/cached file is up to date.
+
+That is all fairly simple, from the overview, but I do have a few 
+questions before I go too far down the wrong road :):
+  1) is this approach sane, or is there a more elegant/efficient
+     way to handle this?
+  2) To create the pure-python file from the embedded document, I'm
+     pretty sure some restrictions will have to be made on the
+     location/designation of functions. What is a reasonable set
+     of restrictions that can/should be placed on this so the module
+     doesn't become a major-hack-of-a-buncha-special-cases :)
+  3) I'm using load_module(...) to load the pure-python files. Is
+     there any way (a different one?) that will allow the loaded
+     module to access globals from the module's environment, i.e.,
+     database connections, et. al.
+  4) Is there any way to have multile 'AddHandler' types in the same 
+     config section? If not, will you accept clean patches to do so?
+
+
+comments and discussion are requested. I'm going to do this, I just
+want to make sure I do something that is maximally useful :) I'll
+not be resonding to this thread until the weekend, cause I've got
+some real (non-python :() work that _must_ get done to free up my
+weekend to get on with this hack.
+
+thanks.
+  brent
+
+-- 
+&quot;We want to help, but we wouldn't want to deprive you of a valuable 
+learning experience.&quot;
+                                          <A HREF="http://openbsd.org/mail.html">http://openbsd.org/mail.html</A>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="011661.html">[mod_python] math import
+</A></li>
+	<LI>Next message: <A HREF="011663.html">[mod_python] [RFC] mod_python embedded python module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11662">[ date ]</a>
+              <a href="thread.html#11662">[ thread ]</a>
+              <a href="subject.html#11662">[ subject ]</a>
+              <a href="author.html#11662">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

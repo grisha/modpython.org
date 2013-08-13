@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Very odd behavior using mysqldb
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Very%20odd%20behavior%20using%20mysqldb&In-Reply-To=450AF3E0.4080403%40brunson.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022079.html">
+   <LINK REL="Next"  HREF="022084.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Very odd behavior using mysqldb</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Eric Brunson</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Very%20odd%20behavior%20using%20mysqldb&In-Reply-To=450AF3E0.4080403%40brunson.com"
+       TITLE="[mod_python] Very odd behavior using mysqldb">brunson at brunson.com
+       </A><BR>
+    <I>Fri Sep 15 15:06:58 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022079.html">[mod_python] Very odd behavior using mysqldb
+</A></li>
+        <LI>Next message: <A HREF="022084.html">[mod_python] Very odd behavior using mysqldb
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22080">[ date ]</a>
+              <a href="thread.html#22080">[ thread ]</a>
+              <a href="subject.html#22080">[ subject ]</a>
+              <a href="author.html#22080">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Sorry, forgot to include version info:
+
+wbebrunsonlx(~)$ uname -a
+Linux wbebrunsonlx 2.6.17-1.2174_FC5 #1 Tue Aug 8 15:30:55 EDT 2006 i686 
+i686 i386 GNU/Linux
+wbebrunsonlx(~)$ cat /etc/fedora-release
+Fedora Core release 5 (Bordeaux)
+wbebrunsonlx(~)$ rpm -q httpd mod_python python MySQL-python MySQL-server
+httpd-2.2.2-1.2
+mod_python-3.2.8-3
+python-2.4.3-8.FC5
+MySQL-python-1.2.0-3.2.2
+MySQL-server-5.0.24-0.glibc23
+
+
+Eric Brunson wrote:
+&gt;<i> I've been working on a project using mod_python to access a mysql 
+</I>&gt;<i> database using the MySQLdb API.  I know mod_python is still considered 
+</I>&gt;<i> beta under Apache 2, so I thought I'd bring an issue to the attention 
+</I>&gt;<i> of the list.
+</I>&gt;<i>
+</I>&gt;<i> I was seeing some very bizarre results when generating dynamic content 
+</I>&gt;<i> from the database, which I first attributed to PSP caching, but then 
+</I>&gt;<i> investigated further when I switched to using the publisher handler.  
+</I>&gt;<i> It may be the way I've set up my modules and database connections, but 
+</I>&gt;<i> I haven't convinced myself that I really understand the problem and 
+</I>&gt;<i> until I do, I'm not going to be happy about it.  I have found a 
+</I>&gt;<i> workaround that I can live with, but I don't really like it that much 
+</I>&gt;<i> because it requires constantly connecting to and disconnection from 
+</I>&gt;<i> the database.
+</I>&gt;<i>
+</I>&gt;<i> The problem was simply getting old, wrong results interleaved with 
+</I>&gt;<i> new, correct results after updating the database.  Simply put, I'm 
+</I>&gt;<i> displaying data from a table.  My index.py imports a module for 
+</I>&gt;<i> generating HTML which, in turn, includes a module for doing database 
+</I>&gt;<i> access.  The odd thing about how I set up the database access, and I 
+</I>&gt;<i> think it's pertinent to the problem, was that I automatically connect 
+</I>&gt;<i> to the database when I import the database module.  Like this:
+</I>&gt;<i>
+</I>&gt;<i> ----- database.py -----
+</I>&gt;<i> import MySQLdb
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i> def Connect():
+</I>&gt;<i>    return MySQLdb.connect( '<A HREF="mysql://me:pass@localhost/mydatabase'">mysql://me:pass@localhost/mydatabase'</A> )
+</I>&gt;<i>
+</I>&gt;<i> dbc = Connect()
+</I>&gt;<i>
+</I>&gt;<i> def someExampleAccessFunction():
+</I>&gt;<i>    global dbc
+</I>&gt;<i>    curs = dbc.cursor()
+</I>&gt;<i>    curs.execute( &quot;select count(0) from sometable&quot; )
+</I>&gt;<i>    result = curs.fetchall()[0][0]
+</I>&gt;<i>    curs.close()
+</I>&gt;<i>    apache.log_error( &quot;result was %s&quot; % result )
+</I>&gt;<i>    return result
+</I>&gt;<i>
+</I>&gt;<i> ----- end database.py -----
+</I>&gt;<i>
+</I>&gt;<i> Let's disregard whether that's good programming practice or not, the 
+</I>&gt;<i> fact is, I could query that value several times by doing a page 
+</I>&gt;<i> reload, then delete a record from the database and commit the change, 
+</I>&gt;<i> then subsequent page loads would interleave old results with new 
+</I>&gt;<i> results, seemingly cyclically.
+</I>&gt;<i>
+</I>&gt;<i> The key to my confusion is that the error logs for apache would show a 
+</I>&gt;<i> message for every page reload, and the result from the query would 
+</I>&gt;<i> agree with whatever data was displayed on the page, correct or 
+</I>&gt;<i> incorrect.  Meanwhile a direct query to the database from the command 
+</I>&gt;<i> line would always return the correct result from the database.
+</I>&gt;<i>
+</I>&gt;<i> My best guess so far is that multiple threads in apache get multiple 
+</I>&gt;<i> copies of mod_python, each with it's own copy of the imported database 
+</I>&gt;<i> module in memory and each module maintaining a different database 
+</I>&gt;<i> connection that is somehow caching results.  I've never seen this 
+</I>&gt;<i> behavior in any application until I tried this under mod_python.  I 
+</I>&gt;<i> was able to force the correct results to always be returned by getting 
+</I>&gt;<i> rid of the module variable, dbc, and moving the mysqldb.connect() call 
+</I>&gt;<i> to inside each function call, opening the database connection, 
+</I>&gt;<i> executing my sql, then closing the database connection.  This is less 
+</I>&gt;<i> than optimal, since I may make several database queries during each 
+</I>&gt;<i> page load, so later today I'll try making the database connection in 
+</I>&gt;<i> the index.py, then passing the connection handle to each of the calls 
+</I>&gt;<i> that need it.  Also a little less than optimal, but tolerable.
+</I>&gt;<i>
+</I>&gt;<i> Does anyone have any insight into this behavior?  It's more of an 
+</I>&gt;<i> academic question at this point, but I wonder if it may lead to an 
+</I>&gt;<i> improvement if we were able to identify the problem and implement a 
+</I>&gt;<i> transparent fix.  Also, feel free to let me know if I'm completely 
+</I>&gt;<i> offbase with my theory of what's going on under the hood.
+</I>&gt;<i>
+</I>&gt;<i> Thanks,
+</I>&gt;<i> e.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022079.html">[mod_python] Very odd behavior using mysqldb
+</A></li>
+	<LI>Next message: <A HREF="022084.html">[mod_python] Very odd behavior using mysqldb
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22080">[ date ]</a>
+              <a href="thread.html#22080">[ thread ]</a>
+              <a href="subject.html#22080">[ subject ]</a>
+              <a href="author.html#22080">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

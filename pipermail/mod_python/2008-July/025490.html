@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Pickle can't save classes instances in mod_python ?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Pickle%20can%27t%20save%20classes%20instances%20in%20mod_python%20%3F&In-Reply-To=4890DE79.5090403%40ics.uci.edu">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025488.html">
+   <LINK REL="Next"  HREF="025491.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Pickle can't save classes instances in mod_python ?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Pickle%20can%27t%20save%20classes%20instances%20in%20mod_python%20%3F&In-Reply-To=4890DE79.5090403%40ics.uci.edu"
+       TITLE="[mod_python] Pickle can't save classes instances in mod_python ?">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Wed Jul 30 22:10:20 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025488.html">[mod_python] Pickle can't save classes instances in mod_python ?
+</A></li>
+        <LI>Next message: <A HREF="025491.html">[mod_python] Upload progress indicator shows after upload?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25490">[ date ]</a>
+              <a href="thread.html#25490">[ thread ]</a>
+              <a href="subject.html#25490">[ subject ]</a>
+              <a href="author.html#25490">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2008/7/31 Eric Baumer &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ebaumer at ics.uci.edu</A>&gt;:
+&gt;<i> I was having trouble loading a pickled class object using mod_python when I
+</I>&gt;<i> came across this post in the mod_python archives from June 2007. even though
+</I>&gt;<i> the link below implies that loading a pickled object in this manner cannot
+</I>&gt;<i> be done, I believe I may have found a work around. I wanted to bounce this
+</I>&gt;<i> off the mod_python list for two reasons: (a) to make sure I'm not breaking
+</I>&gt;<i> anything, and (b) to share what may be a viable solution to this problem.
+</I>&gt;<i>
+</I>&gt;<i> the link mentioned here seems to imply that one cannot load a pickled
+</I>&gt;<i> instance of a class in a script running through mod_python. the problem
+</I>&gt;<i> seems to be related to mod_python's method of importing. since there doesn't
+</I>&gt;<i> seem to be a good way to guarantee where on the file system the script will
+</I>&gt;<i> run when apache receives a request that invokes mod_python. thus, rather
+</I>&gt;<i> than referring to a module by name alone (with the standard &quot;import
+</I>&gt;<i> module_name&quot; approach), modules are referred to by their path on the file
+</I>&gt;<i> system using apache.import_module, for example &quot;my_module =
+</I>&gt;<i> apache.import_module('/home/username/my_proj/my_module.py')&quot;.
+</I>&gt;<i>
+</I>&gt;<i> the problem becomes that this method of importing doesn't register the
+</I>&gt;<i> module name with sys.modules. therefore, if I have a pickled instance of
+</I>&gt;<i> some class my_module.MyClass, when I try to load the pickled instance,
+</I>&gt;<i> python would complain that there is &quot;No module named my_module&quot; (as
+</I>&gt;<i> described by the OP), even if I had loaded it using apache.import_module.
+</I>&gt;<i>
+</I>&gt;<i> the workaround that I found looks something like the following.
+</I>&gt;<i>
+</I>&gt;<i> import sys
+</I>&gt;<i> def index(req):
+</I>&gt;<i>     my_module = apache.import_module('/home/username/my_proj/my_module.py')
+</I>&gt;<i>     sys.modules['my_module'] = my_module
+</I>&gt;<i>
+</I>&gt;<i> this code ensures that my_module is registered with the list of modules
+</I>&gt;<i> python knows about in sys.modules, so that when I load that pickled instance
+</I>&gt;<i> of my_module.MyClass, python knows about a module named &quot;my_module&quot; and thus
+</I>&gt;<i> can properly load the class.
+</I>&gt;<i>
+</I>&gt;<i> I should note that, in practice, this has actually worked for me. whether or
+</I>&gt;<i> not it's a good idea, though, is another question.
+</I>&gt;<i>
+</I>&gt;<i> what do you all think? have I gone horribly wrong, or is this a viable work
+</I>&gt;<i> around to loading a pickled instance of a class?
+</I>
+Why don't you do what the document suggests you do?
+
+That is, put common code into a proper Python module/package in a
+directory outside of the document tree served/managed by Apache and
+use PythonPath directive to indicate where that directory is. Then use
+standard 'import' statement to import that module. Thus code is in
+standard module/package and not a special mod_python code module.
+
+It is generally regarded as being bad practice to put too much code
+within directories managed by Apache/mod_python anyway, because a
+misconfiguration could expose your code to download, especially if the
+code isn't even in a handler code file.
+
+As to your code change. This could technically break at some point
+because a thread race condition exists in modifying sys.modules. It is
+also not really a good idea to have pickleable code coming from a
+module which could be reloaded as multiple versions of class types and
+thus multiple variations of instances could exist. This can cause
+problems when comparing object types etc, if object instances are
+passed/cached outside of that specific code file. You also have a
+potential ordering issue here as well. What if something tries to
+unpickle data requiring my_module before you have managed to load it.
+
+So, I certainly would just recommend you factor out your common class
+definitions etc into standard Python modules/packages installed on
+normal Python module search path and don't store them in reloadable
+mod_python managed code module files.
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025488.html">[mod_python] Pickle can't save classes instances in mod_python ?
+</A></li>
+	<LI>Next message: <A HREF="025491.html">[mod_python] Upload progress indicator shows after upload?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25490">[ date ]</a>
+              <a href="thread.html#25490">[ thread ]</a>
+              <a href="subject.html#25490">[ subject ]</a>
+              <a href="author.html#25490">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

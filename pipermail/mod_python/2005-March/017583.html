@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Module reload/derived class problem
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Module%20reload/derived%20class%20problem&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017585.html">
+   <LINK REL="Next"  HREF="017584.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Module reload/derived class problem</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Alan Davies</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Module%20reload/derived%20class%20problem&In-Reply-To="
+       TITLE="[mod_python] Module reload/derived class problem">alan at goatpunch.com
+       </A><BR>
+    <I>Fri Mar  4 13:42:09 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017585.html">[mod_python] Unable to execute python sample script 
+</A></li>
+        <LI>Next message: <A HREF="017584.html">[mod_python] Module reload/derived class problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17583">[ date ]</a>
+              <a href="thread.html#17583">[ thread ]</a>
+              <a href="subject.html#17583">[ subject ]</a>
+              <a href="author.html#17583">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I just wanted to contribute some information about a problem I'd been
+having, for a while that I couldn't find a clear answer to anywhere.
+It's a combination of two problems that I'd seen discussed in different
+places.
+
+The problem was this:
+
+    I created a class 'A', in it's own module, that serves up a dynamic
+    site.
+
+    I then derived a class 'B' from 'A', that adds a few extras. Some of
+    'A's methods were overridden, deferring functionality to the base
+    class by explicitly calling 'A' (e.g. calling A.foo(self) from
+    within
+    B::foo()).
+
+    Everything seemed to work as expected, but once in a while I would
+    get an error like this when a method on 'B' was called:
+
+        TypeError: unbound method foo() must be called with A instance 
+                   as first argument (got B instance instead)
+
+    The error would go away when I restarted Apache.
+
+The problem was, of course, caused by the module containing 'A' being
+reloaded. The reloads would happen when I made a change to 'A', which is
+called directly by mod python. Module 'A' would reload when I modified
+it, which I would do occasionally, without thinking to test 'B' which
+shouldn't have been impacted by the changes.
+
+The reloaded class 'A' is a different class from the original 'A'. I
+suppose this has to happen when a module is reloaded, and it's probably
+a feature that just looks like a bug.
+
+The problem can be demonstrated without even using mod_python, by the
+following simple example:
+
+------ file testa.py ---------
+
+class A:
+    def foo(self):
+        print &quot;A:foo&quot;
+
+-----file testderive.py -----
+
+import testa
+
+class B(testa.A):
+    def foo(self):
+        print &quot;B::foo&quot;
+        testa.A.foo(self)
+
+b = B()
+
+print &quot;first request:&quot;
+b.foo()
+
+# simulate mod_python performing a reload
+reload(testa)
+
+print &quot;second request:&quot;
+b.foo()
+
+---- testderive.py output ---------
+
+&gt;&gt;&gt;<i> 
+</I>first request:
+B::foo
+A:foo
+second request:
+B::foo
+Traceback (most recent call last):
+  File &quot;testderive.py&quot;, line 16, in ?
+    b.foo()
+  File &quot;testderive.py&quot;, line 6, in foo
+    testa.A.foo(self)
+TypeError: unbound method foo() must be called with A instance as first
+argument (got B instance instead)
+
+------------------------------------
+
+Now that I've realised why I get that error message, I can avoid the
+problem by brute force either by 'touch'ing 'B' every time I change
+'A', or by restarting Apache after a change to 'A' (instead of a week
+later when I notice the problem).
+
+More advanced ideas for fixing the module reloading problem would be
+appreciated.
+
+Hope someone finds this useful,
+
+--Alan
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017585.html">[mod_python] Unable to execute python sample script 
+</A></li>
+	<LI>Next message: <A HREF="017584.html">[mod_python] Module reload/derived class problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17583">[ date ]</a>
+              <a href="thread.html#17583">[ thread ]</a>
+              <a href="subject.html#17583">[ subject ]</a>
+              <a href="author.html#17583">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

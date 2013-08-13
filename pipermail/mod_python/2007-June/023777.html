@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] better understanding of the req object
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20better%20understanding%20of%20the%20req%20object&In-Reply-To=88e286470706041715n6340b2f2mbbde6cde325b4a76%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023776.html">
+   <LINK REL="Next"  HREF="023778.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] better understanding of the req object</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20better%20understanding%20of%20the%20req%20object&In-Reply-To=88e286470706041715n6340b2f2mbbde6cde325b4a76%40mail.gmail.com"
+       TITLE="[mod_python] better understanding of the req object">nlv11281 at natlab.research.philips.com
+       </A><BR>
+    <I>Tue Jun  5 03:02:00 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023776.html">[mod_python] better understanding of the req object
+</A></li>
+        <LI>Next message: <A HREF="023778.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23777">[ date ]</a>
+              <a href="thread.html#23777">[ thread ]</a>
+              <a href="subject.html#23777">[ subject ]</a>
+              <a href="author.html#23777">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Tip: Output the &quot;heading&quot; of your page first and &quot;flush&quot; it to the user as soon as possible. Then 
+run the queries and feed him the results.
+
+Sending the header quickly prevents the user accidentally submitting a web form twice (he'll get 
+impatient) and provides fast feedback that we're processing his request. Gives the website a fast 
+appearance too.
+
+If the query results tend to come in small chunks (e.g. sequential scan with few matches), i usually 
+output the data one row at a time (one req.write() for each &lt;tr&gt;...&lt;/tr&gt; part). When outputting 
+large tables, i usually send out tens of rows at a time.
+
+Buffering parts of the page in strings or list is in general a good idea. Buffering the whole page 
+is, in my opinion, bad practice. The user presses a button, then nothing seems to happen for a 
+while, and then suddenly the new page appears. I prefer to respond to the button press as quickly as 
+possible, even though the new page will just be a title for the next two seconds.
+
+
+Mike Looijmans
+Philips Natlab / Topic Automation
+
+
+Graham Dumpleton wrote:
+&gt;<i> The only problem with using the 'print' method as shown is that there
+</I>&gt;<i> is no way to control buffering. As a result, every one of those little
+</I>&gt;<i> strings gets written out by Apache separately which can slow down
+</I>&gt;<i> throughput.
+</I>&gt;<i> 
+</I>&gt;<i> It is actually better to use the following if outputing lots of little
+</I>&gt;<i> strings using 'print'.
+</I>&gt;<i> 
+</I>&gt;<i>  import StringIO
+</I>&gt;<i> 
+</I>&gt;<i>  data = StringIO.StringIO()
+</I>&gt;<i> 
+</I>&gt;<i>  print &gt;&gt; data, &quot;the uri is&quot;, req.uri
+</I>&gt;<i> 
+</I>&gt;<i>  req.write(data.getvalue())
+</I>&gt;<i> 
+</I>&gt;<i> Ie., perform only one call to write() with data accumulated using
+</I>&gt;<i> StringIO (or cStringIO).
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> 
+</I>&gt;<i> On 05/06/07, David Bear &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">David.Bear at asu.edu</A>&gt; wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> Thanks.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I was thinking in terms of using ',' string catenation like
+</I>&gt;&gt;<i> print 'this ', 'is something'.. while using req.write method.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I hate having to keep learning the same thing over and over...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Mon, Jun 04, 2007 at 04:47:48PM -0700, David Schachter wrote:
+</I>&gt;&gt;<i> &gt; David--
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; Try one of these:
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; req.write(&quot;the uri is %s&quot; % req.uri)
+</I>&gt;&gt;<i> &gt; print &gt;&gt; req, &quot;the uri is %s&quot; % req.uri
+</I>&gt;&gt;<i> &gt; print &gt;&gt; req, &quot;the uri is&quot;, req.uri
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; The latter two forms use the fact that the req object has a write()
+</I>&gt;&gt;<i> &gt; method compatible with what the print keyword expects. It's a bit nicer
+</I>&gt;&gt;<i> &gt; than the first form, imho.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; You tried to pass two strings to a function that takes only one string
+</I>&gt;&gt;<i> &gt; and an optional boolean flag (flush=0). You are lucky the universe did
+</I>&gt;&gt;<i> &gt; not invert into a black hole. Or perhaps unlucky; it depends on your
+</I>&gt;&gt;<i> &gt; point of view, I suppose.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;                      -- David Schachter
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; David Bear wrote:
+</I>&gt;&gt;<i> &gt; &gt;I'm trying to understand all the members/methods of the req object but
+</I>&gt;&gt;<i> &gt; &gt;anytime I try something like
+</I>&gt;&gt;<i> &gt; &gt;
+</I>&gt;&gt;<i> &gt; &gt;req.write('the uri is ', req.uri)
+</I>&gt;&gt;<i> &gt; &gt;
+</I>&gt;&gt;<i> &gt; &gt;or req.write('the hostname is ', req.hostname)
+</I>&gt;&gt;<i> &gt; &gt;
+</I>&gt;&gt;<i> &gt; &gt;I get an TypeError.
+</I>&gt;&gt;<i> &gt; &gt;
+</I>&gt;&gt;<i> &gt; &gt;I'm completely not understanding how to work with the req object.
+</I>&gt;&gt;<i> &gt; &gt;
+</I>&gt;&gt;<i> &gt; &gt;I assumed members would be 'callable' and return their value.
+</I>&gt;&gt;<i> &gt; &gt;
+</I>&gt;&gt;<i> &gt; &gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -- 
+</I>&gt;&gt;<i> David Bear
+</I>&gt;&gt;<i> phone:  602-496-0424
+</I>&gt;&gt;<i> fax:    602-496-0955
+</I>&gt;&gt;<i> College of Public Programs/ASU
+</I>&gt;&gt;<i> University Center Rm 622
+</I>&gt;&gt;<i> 411 N Central
+</I>&gt;&gt;<i> Phoenix, AZ 85007-0685
+</I>&gt;&gt;<i>  &quot;Beware the IP portfolio, everyone will be suspect of trespassing&quot;
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023776.html">[mod_python] better understanding of the req object
+</A></li>
+	<LI>Next message: <A HREF="023778.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23777">[ date ]</a>
+              <a href="thread.html#23777">[ thread ]</a>
+              <a href="subject.html#23777">[ subject ]</a>
+              <a href="author.html#23777">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

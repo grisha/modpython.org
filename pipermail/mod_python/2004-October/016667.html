@@ -1,0 +1,235 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] vampire form validation
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20vampire%20form%20validation&In-Reply-To=1098225959.29801%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016658.html">
+   <LINK REL="Next"  HREF="016654.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] vampire form validation</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20vampire%20form%20validation&In-Reply-To=1098225959.29801%40dscpl.com.au"
+       TITLE="[mod_python] vampire form validation">nicolas at lehuen.com
+       </A><BR>
+    <I>Wed Oct 20 03:11:38 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016658.html">[mod_python] vampire form validation
+</A></li>
+        <LI>Next message: <A HREF="016654.html">[mod_python] &quot;File&quot; class object in form fields.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16667">[ date ]</a>
+              <a href="thread.html#16667">[ thread ]</a>
+              <a href="subject.html#16667">[ subject ]</a>
+              <a href="author.html#16667">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> -----Message d'origine-----
+</I>&gt;<i> De : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A> 
+</I>&gt;<i> [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] De la part de 
+</I>&gt;<i> Graham Dumpleton
+</I>&gt;<i> Envoy&#233; : mercredi 20 octobre 2004 00:46
+</I>&gt;<i> &#192; : Johannes Erdfelt
+</I>&gt;<i> Cc : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Objet : Re: [mod_python] vampire form validation
+</I>&gt;<i> 
+</I>...
+&gt;<i> I certainly think something to assist in form validation 
+</I>&gt;<i> would be a good thing and I am sure it is something a few 
+</I>&gt;<i> people have probably tackled before. Thus will be interested 
+</I>&gt;<i> to here how other people have approached it as well. Amongst 
+</I>&gt;<i> all the different variants, we can come up with a nice 
+</I>&gt;<i> general approach that suits a lot of needs.
+</I>&gt;<i> 
+</I>&gt;<i> --
+</I>&gt;<i> Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</I>
+Like many, we have implemented a form handling module which we interfaced to
+mod_python. The module contains a Form class, which contains a series of
+fields. Fields are instances of subclass of the Field class, which differ
+based on their visual behaviour. Form and Fields are a mix of view and
+controller, views being mostly implemented using our own templating engine,
+and the model is a pretty simple dict-based model.
+
+Field classes are :
+
+- Label (not really a field, it's a read-only field)
+- Text (a simple text field)
+- TextArea
+- CheckBox
+- CheckList (a series of checkboxes representing a subset of a list in the
+model)
+- Radio and Select (two different rendering of a choice between differents
+items)
+- Submit
+
+Each field has a name, a label. It has a default controller behaviour, which
+can be customized. For example, a Text field transform HTTP fields into
+string in the model. If you want integers in the model, you just instanciate
+the field like this :
+
+Form((
+	
+Text('foobar',required=True,transform=IntegerTransform(),default_value=42),
+	Submit('ok'),
+))
+
+Form loading, validation and processing are implemented in the Form class,
+so if you want to customize them, you just subclass Form. The default
+implementation of Form.validate() calls Field.validate() for each field of
+the form, which ensures that each field is OK (e.g. for the Text field
+above, it checks that the field is filled and can be transformed into an
+integer).
+
+Forms are always posted at the same URI they are obtained (i.e. the ACTION
+attribute is automatically set to req.unparsed_uri). We use parameters from
+the query string to pass information, on top of what is POSTed.
+
+Here is a sample usage :
+
+### index.py
+from tcc.online.forms import *
+from tcc.template import html_template
+
+class MyForm(Form):
+	def __init__(self):
+		Form.__init__(self,(
+			Text('last_name',required=True),
+			Text('first_name'),
+	
+Radio('gender',((0,'Male'),(1,'Female')),required=True),
+			CheckList('interests',self.load_interests),
+			Text('children',transform=IntegerTransform()),
+			Text('phone',transform=PhoneNumber()),
+		))
+
+	def load_interests(self,req,form):
+		# anywhere a list of tuples is required (in CheckList, Radio
+or Select)
+		# it is possible to put a callable which returns a sequence
+or iterator of tuples.
+		# here we could dynamically load interests from a database,
+based on parameters in the request
+		return (
+			('babysitting','Babysitting'),
+			('sports','Sports'),
+		)
+
+	def load(self,req):
+		# here we can load data from a database into the model
+		# so that the form is pre-filled
+		pass
+
+	def validate(self,req):
+		if Form.validate(self,req):
+			# basic validation performed
+			# we can make cross-field validation
+			if req.fields['children']&gt;0 and 'babysitting' not in
+req.fields['interests']:
+				req.errors['interests']='If you have
+children, you must be interested in babysitting'
+				return False
+			return True
+		else:
+			return False
+
+	def process(self,req):
+		# here we can update the database etc.
+		# the default behaviour is to render a table of the fields
+		return Form.process(self,req)
+	
+	def render_page(self,req):
+		# here we can customize how the form is rendered
+		# Usually the template is in a file and cached in memory
+		return html_template['''
+			&lt;html&gt;&lt;head&gt;&lt;title&gt;Sample&lt;/title&gt;&lt;/head&gt;&lt;body&gt;
+				&lt;p&gt;Hello, world !&lt;/p&gt;
+				${form.control}
+			&lt;/body&gt;&lt;/html&gt;
+		'''](req=req,form=self)
+
+handler = MyForm()
+### end of index.py
+
+As you can see, the form instance is a callable object, so that is can
+directly be a mod_python.publisher handler. In its default behaviour, the
+Form class handle all the tricky validation process, i.e. :
+
+1) If the form is rendered &quot;from scratch&quot; (i.e. it has not been posted by
+the user), the load() method is called to initialize it.
+2) If the form is posted, the validate() method is called. If it returns
+True, the form is validated and the process() method is called.
+3) If the form is not posted or not validated, the form is rendered thanks
+to the template it has been given (default templates are used if no
+templates were given).
+
+This framework has the advantage of being scalable, i.e. if you want to
+write yourself the HTML code and use the Form class only for validation, you
+can. If you want to control the way the controls are disposed within the
+form, without handling the form itself, you can (just pass a template to the
+form). On the other hand, you can do everything with the Form class and
+never see any HTML code. Last, but not least, forms are embeddable within
+templates, so you can have many forms in a single page.
+
+This was a pretty quick description, there are many tricks when implementing
+this. What we thought was going to be a 100 lines module ended as a 400
+lines module. Form handling is a pretty involving matter ; I don't know if
+you can really find a one-size-fits-all answer to the problem. Maybe it's
+more an application-framework thing than a server-framework thing.
+
+Regards,
+
+Nicolas
+
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016658.html">[mod_python] vampire form validation
+</A></li>
+	<LI>Next message: <A HREF="016654.html">[mod_python] &quot;File&quot; class object in form fields.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16667">[ date ]</a>
+              <a href="thread.html#16667">[ thread ]</a>
+              <a href="subject.html#16667">[ subject ]</a>
+              <a href="author.html#16667">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

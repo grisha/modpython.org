@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python debug level message not logged
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20debug%20level%20message%20not%20logged&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025762.html">
+   <LINK REL="Next"  HREF="025764.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python debug level message not logged</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Annie Wang</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20debug%20level%20message%20not%20logged&In-Reply-To="
+       TITLE="[mod_python] mod_python debug level message not logged">aw1179 at yahoo.com
+       </A><BR>
+    <I>Mon Nov 17 19:36:30 EST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025762.html">[mod_python] [SPAM] 500 Internal Server Error
+</A></li>
+        <LI>Next message: <A HREF="025764.html">[mod_python] mod_python debug level message not logged
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25763">[ date ]</a>
+              <a href="thread.html#25763">[ thread ]</a>
+              <a href="subject.html#25763">[ subject ]</a>
+              <a href="author.html#25763">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello,
+
+I'm using Apache/2.2.8 (Unix),  mod_python/3.3.1, Python/2.5.2 and very new to mod_python.  I'm trying to get the logging working for debug and info level in mod_python. Here's the log.py and log is global object that used by the rest of our application to do logging.
+
+log = None
+
+import logging
+
+class StdLogger:
+    &quot;&quot;&quot; Simple class delegating logging calls to the standard logging module.&quot;&quot;&quot;
+    def debug(self,msg):
+        logging.debug(msg)
+
+    def info(self,msg):
+        logging.info(msg)
+
+    def warn(self,msg):
+        logging.warn(msg)
+    
+    def error(self,msg):
+        logging.error(msg)
+
+try:
+    # Configure production logging.
+    import mod_python
+    from mod_python import apache
+    
+    class ProdLogger:
+        &quot;&quot;&quot;
+        Logger class simulating the standard logging API's Logger but
+        funneling messages through mod_python to the Apache log.
+    
+        TODO: It looks like our calls to log_error below only make
+        it to the apache error log when severity is warn.  We need to
+        figure out how to better connect this code to the combination of
+        apache/mod_python/web.py we're running.
+        &quot;&quot;&quot;
+    
+        def debug(self,msg):
+            apache.log_error(msg,apache.APLOG_DEBUG)
+    
+        def info(self,msg):
+            apache.log_error(msg,apache.APLOG_INFO)
+    
+        def warn(self,msg):
+            apache.log_error(msg,apache.APLOG_WARNING)
+        
+        def error(self,msg):
+            apache.log_error(msg,apache.APLOG_ERR)
+
+    log = ProdLogger()
+except:
+    log = StdLogger()
+
+
+I read the mod_python manual and know that if there is a reference to the request object, I should use req.log_error, but in my case, the request object is not available, so I have to use the apache.log_error.  However, the manual also said that I need to specify the server parameter in order to be able to log debug and info level messages to the error_log or better yet to its own separate log file.  The server object can be obtained from the request object but I don't have access to the request object.   I searched thru the web and found the following code and tried it out but with no luck:
+ 
+frommod_pythonimportapache
+importlogging
+
+classApacheLogHandler(logging.Handler):
+&quot;&quot;&quot;A handler class which sends all logging to Apache.&quot;&quot;&quot;
+
+def__init__(self,level=logging.NOTSET):
+logging.Handler.__init__(self,level)
+
+&quot;&quot;&quot;Map logging levels to Apache codes.&quot;&quot;&quot;
+self.level_mapping={}
+self.level_mapping[logging.ERROR]=apache.APLOG_ERR
+self.level_mapping[logging.WARNING]=apache.APLOG_WARNING
+self.level_mapping[logging.INFO]=apache.APLOG_INFO
+self.level_mapping[logging.DEBUG]=apache.APLOG_DEBUG
+
+defapache_level(self,record):
+&quot;&quot;&quot;Map current record's logging level to Apache code.&quot;&quot;&quot;
+try:
+ifrecord.levelno:
+returnself.level_mapping[record.levelno]
+else:
+returnself.level_mapping[self.level]
+except(AttributeError,KeyError):
+returnapache.APLOG_ERR
+
+defemit(self,record):
+level=self.apache_level(record)
+&quot;&quot;&quot;
+        Set MODPYTHON mp_server object so that vhost logs to its own error_log.
+        &quot;&quot;&quot;
+try:
+server=record.__dict__['server']
+apache.log_error(record.getMessage(),level,server)
+exceptKeyError:
+apache.log_error(record.getMessage(),level)
+
+I think my problem is record.__dict__['server'] raised an exception and
+it is just calling apache.log_error(record.getMessage(), level) without
+the server parameter so only warn/error messages made it to the
+error_log. So my question is, how do I get a hold of this server object
+other than from the request object ? how do I configure the httpd.conf
+to get this working. Here's a snipplets of the httpd.conf regarding
+logging:
+
+# =================================================
+# Logs
+# =================================================
+LogLevel debug
+LogFormat &quot;%h %l %u %t \&quot;%r\&quot; %&gt;s %b \&quot;%{Referer}i\&quot; \&quot;%{User-Agent}i\&quot;&quot; combined
+LogFormat &quot;%h %l %u %t \&quot;%r\&quot; %&gt;s %b&quot; common
+LogFormat &quot;%{Referer}i -&gt; %U&quot; referer
+LogFormat &quot;%{User-agent}i&quot; agent
+ErrorLog /opt/app/logs/error_log
+CustomLog /opt/app/logs/access_log combined
+CustomLog logs/ssl_request_log \
+&quot;%t %h %{HTTPS}x %{SSL_PROTOCOL}x %{SSL_CIPHER}x \
+%{SSL_CIPHER_USEKEYSIZE}x %{SSL_CLIENT_VERIFY}x \&quot;%r\&quot; %b&quot;
+
+Thanks advance for any suggestions and help I can get.
+Annie
+
+
+      
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081117/3ebaea7f/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081117/3ebaea7f/attachment-0001.html</A>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025762.html">[mod_python] [SPAM] 500 Internal Server Error
+</A></li>
+	<LI>Next message: <A HREF="025764.html">[mod_python] mod_python debug level message not logged
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25763">[ date ]</a>
+              <a href="thread.html#25763">[ thread ]</a>
+              <a href="subject.html#25763">[ subject ]</a>
+              <a href="author.html#25763">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

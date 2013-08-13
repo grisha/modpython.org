@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problem with PSP and unicode
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20with%20PSP%20and%20unicode&In-Reply-To=c298f2d70602161146y48d7f14fu%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020323.html">
+   <LINK REL="Next"  HREF="020310.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Problem with PSP and unicode</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Dan Eloff</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20with%20PSP%20and%20unicode&In-Reply-To=c298f2d70602161146y48d7f14fu%40mail.gmail.com"
+       TITLE="[mod_python] Problem with PSP and unicode">dan.eloff at gmail.com
+       </A><BR>
+    <I>Thu Feb 16 15:17:21 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020323.html">[mod_python] Problem with PSP and unicode
+</A></li>
+        <LI>Next message: <A HREF="020310.html">[mod_python] Problem with PSP and unicode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20314">[ date ]</a>
+              <a href="thread.html#20314">[ thread ]</a>
+              <a href="subject.html#20314">[ subject ]</a>
+              <a href="author.html#20314">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&quot;in-place unicode to string conversion is quite difficult to achieve&quot;
+
+Oh you're right about that, I'd never attempt it, I was merely hoping to
+avoid redundant copies like creating a python string by copying the
+character buffer bit for bit when it could be reused.
+
+You're right of course about doing the psp module in C or C++. Now that I
+think about I don't know why I am rewriting it in C++ instead of python,
+other than because mod_python did that. Now I feel stupid, lol. The parsing
+would be much faster in C++, which means very little unless you have to
+reparse it frequently (depends how often the apache process gets killed and
+restarted.) Parsing the psp files is probably the most expensive part of my
+website initialization, simply because I have so many psp pages (and
+growing.) I haven't profiled it, but even just reading in all those files
+should be more expensive than the rest of the initialization process.
+
+The flex business was a mess, I was planning to just ignore it all and
+handcoded the parser, I only use a subset of the psp features anyway, so I
+only needed support for &lt;%%&gt; and &lt;%=%&gt;.
+
+The C++ code will still run slightly faster I imagine, mostly because the
+write function is then implemented natively and doesn't have the overhead of
+python function calls inside the function. Big deal, it wouldn't even be
+noticed in the face of all the other things going on in serving up a page in
+mod_python and in running the psp and database queries etc.
+
+So I'm going to leave the C++ code now, and do this in Python. I'm just
+annoyed at myself for having prototyped everything in C++ before writing it
+as python. It shouldn't take me long at least.
+
+Thanks a lot for your input!
+
+-Dan
+
+
+
+On 2/16/06, Nicolas Lehuen &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nicolas at lehuen.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> 2006/2/16, Dan Eloff &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">dan.eloff at gmail.com</A>&gt;:
+</I>&gt;<i> &gt; With the same input and outut encoding, there isn't any conversions done
+</I>&gt;<i> to
+</I>&gt;<i> &gt; the static content, because I encode static content directly into the
+</I>&gt;<i> output
+</I>&gt;<i> &gt; encoding. I've also done things in such a way that regular strings can
+</I>&gt;<i> be
+</I>&gt;<i> &gt; encoded as utf-8 without any conversion as well. For now I do this by
+</I>&gt;<i> &gt; assuming the string is ascii and therefore valid utf-8. I'm 90% sure
+</I>&gt;<i> that's
+</I>&gt;<i> &gt; fine, because passing a string in any other encoding is just looking for
+</I>&gt;<i> &gt; trouble, there's no way I can guess what it's encoded as so I could fix
+</I>&gt;<i> it
+</I>&gt;<i> &gt; or raise an error, this puts the responsibility for encoding regular
+</I>&gt;<i> strings
+</I>&gt;<i> &gt; on the developer, where it should be. But for any other object I convert
+</I>&gt;<i> to
+</I>&gt;<i> &gt; unicode and then encode it with the output encoding. This ensures
+</I>&gt;<i> &gt; __unicode__ is called preferentially over __str__.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; My trouble currently is how to implement the encoding and decoding, the
+</I>&gt;<i> only
+</I>&gt;<i> &gt; part I have working is converting the unicode objects to the output
+</I>&gt;<i> encoding
+</I>&gt;<i> &gt; (by using PyString_AsEncodedObject). I'd like to do the conversion using
+</I>&gt;<i> &gt; python's encoding/decoding abilites and without creating redundant extra
+</I>&gt;<i> &gt; copies (like those created by copying a char buffer into a python string
+</I>&gt;<i> and
+</I>&gt;<i> &gt; then converting.)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'd love to hear what you think about this, I will send you my code when
+</I>&gt;<i> &gt; it's finished and you can pull it apart and reuse the bits you like.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; -Dan
+</I>&gt;<i>
+</I>&gt;<i> If you are using the C API, I don't think there are more efficient
+</I>&gt;<i> ways than using PyString_AsEncodedObject and try not to think about
+</I>&gt;<i> the various extra objects that are created in the process...
+</I>&gt;<i>
+</I>&gt;<i> In-place unicode to string conversion is quite difficult to achieve,
+</I>&gt;<i> because in the general case you may end up with more bytes than
+</I>&gt;<i> unicode characters. The Java NIO library doesn't encode nor decode
+</I>&gt;<i> in-place, and given the efforts they made to remove data copy, I think
+</I>&gt;<i> it's pretty safe to say that's it's not easily feasable.
+</I>&gt;<i>
+</I>&gt;<i> I really think you should first worry about having the input and
+</I>&gt;<i> output coding right, then profile your code to see where the
+</I>&gt;<i> performance problems are. Most likely, you'll find that they are in
+</I>&gt;<i> mod_python rather than in the psp module ;).
+</I>&gt;<i>
+</I>&gt;<i> To me, the fact that PSP is implemented in C is a perfect case of
+</I>&gt;<i> premature optimisation. It's a quite complicated piece of C code,
+</I>&gt;<i> parts of it being generated by flex. As a result, it's difficult to
+</I>&gt;<i> maintain and solving the Unicode issues in this context could be quite
+</I>&gt;<i> difficult. And it's not like it's proven that writing this module in
+</I>&gt;<i> pure C is really useful as far as global performance are concerned.
+</I>&gt;<i>
+</I>&gt;<i> If it were up to me, I would reimplement it in pure Python, and I
+</I>&gt;<i> don't think the performance loss would be so big. Granted, compilation
+</I>&gt;<i> would be a little slower, but once the PSP is compiled, performance
+</I>&gt;<i> should be exactly the same - and implementing a compiler cache is
+</I>&gt;<i> extremely easy. Plus, the code being more easy to maintain, we could
+</I>&gt;<i> easily optimize it. Call it &quot;doing it the PyPy way&quot; if you like ;).
+</I>&gt;<i>
+</I>&gt;<i> Regards,
+</I>&gt;<i> Nicolas
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060216/cd90aea9/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060216/cd90aea9/attachment-0001.html</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020323.html">[mod_python] Problem with PSP and unicode
+</A></li>
+	<LI>Next message: <A HREF="020310.html">[mod_python] Problem with PSP and unicode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20314">[ date ]</a>
+              <a href="thread.html#20314">[ thread ]</a>
+              <a href="subject.html#20314">[ subject ]</a>
+              <a href="author.html#20314">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

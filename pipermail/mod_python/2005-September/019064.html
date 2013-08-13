@@ -1,0 +1,195 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonImport: Can someone please draw a
+	diagramfor	this idiot?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonImport%3A%20Can%20someone%20please%20draw%20a%0A%09diagramfor%09this%20idiot%3F&In-Reply-To=432889E2.80908%40joreybump.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019072.html">
+   <LINK REL="Next"  HREF="019066.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonImport: Can someone please draw a
+	diagramfor	this idiot?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Lee Brown</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonImport%3A%20Can%20someone%20please%20draw%20a%0A%09diagramfor%09this%20idiot%3F&In-Reply-To=432889E2.80908%40joreybump.com"
+       TITLE="[mod_python] PythonImport: Can someone please draw a
+	diagramfor	this idiot?">administrator at leebrown.org
+       </A><BR>
+    <I>Thu Sep 15 00:27:33 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019072.html">[mod_python] PythonImport: Can someone please draw a diagram for
+	this idiot?
+</A></li>
+        <LI>Next message: <A HREF="019066.html">[mod_python] PythonImport: Can someone please draw a
+	diagramfor	this idiot?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19064">[ date ]</a>
+              <a href="thread.html#19064">[ thread ]</a>
+              <a href="subject.html#19064">[ subject ]</a>
+              <a href="author.html#19064">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Greetings!
+
+PythonImport works exactly as advertised for me.  I'll show you my setup;
+maybe that will shed some light...
+
+Environment:
+
+	Apache 2.0.54 (win32/MPM), mod_python 3.1.3, Python 2.3.4, WinXP SP2
+
+In the main section of httpd.conf:
+
+	AddHandler mod_python .py
+	PythonImport site_setup.py crashtest
+
+In the vhosts section of httpd.conf:
+
+	&lt;VirtualHost *:80&gt;
+		ServerName crashtest.leebrown.org
+		...
+		PythonPath	&quot;sys.path +
+['C:/.../crashtest/home/','C:/.../crashtest/config/']&quot;
+		PythonInterpreter crashtest
+		PythonHandler import_test
+		PythonDebug On
+		...
+	&lt;/VirtualHost&gt;
+
+In site_setup.py:
+
+	__all__ = ['basepath', 'siteroot', 'cfg_root', 'doc_root',
+'tmp_root', 'py__root']
+
+	basepath = 'c:/projects/webdev/sites'
+	siteroot = basepath + '/crashtest'
+	cfg_root = siteroot + '/config'
+	doc_root = siteroot + '/home'
+	tmp_root = siteroot + '/templates'
+	py__root = siteroot + '/python'
+
+In import_test.py:
+
+	from mod_python import apache
+	from site_setup import *
+
+	def handler(req):
+    		req.content_type = 'text/plain'
+    		req.write(siteroot)
+    		return apache.OK
+
+Which writes &quot;c:/projects/webdev/sites/crashtest&quot; just as expected.
+
+A few observations bear noting:
+
+In my setup, the PythonInterpreter statement comes AFTER the PythonImport
+statement.  I noticed that some folks had it the other way 'round.  I have
+no idea if this really makes a difference or not.
+
+The first path added to sys.path is actually redundant; the server or vhost
+DocumentRoot path is stealthly added to sys.path by mod_python
+
+Site_setup.py is loaded before PythonPath is evaluated, so it's useless for
+locating the imported module.  However, site_setup.py is loaded AFTER the
+DocumentRoot is added to sys.path, so the imported module can be located in
+the DocumentRoot in addition to all the 'standard' Python places.
+
+I have not tried this yet, but with a proper *.pth (python path file) you
+~might~ be able to add custom paths that are available when PythonImport
+executes.
+
+Best Regards,
+Lee E. Brown
+(<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">administrator at leebrown.org</A>)
+
+-----Original Message-----
+From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+[mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] On Behalf Of Jorey Bump
+Sent: Wednesday, September 14, 2005 4:37 PM
+To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Subject: Re: [mod_python] PythonImport: Can someone please draw a diagramfor
+this idiot?
+
+Jorey Bump wrote:
+&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jamestmcneill-python at yahoo.co.uk</A> wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> 3) From this I can see that the PythonImport directive doesn't seem 
+</I>&gt;&gt;<i> to be working at all (or at least, in any way I expected it to). It 
+</I>&gt;&gt;<i> does not produce a compiled version of the module specified,
+</I>&gt;<i> 
+</I>&gt;<i> This is not unusual. The user that apache runs as must have write 
+</I>&gt;<i> permissions in the directory in order to produce a .pyc file. I'm not 
+</I>&gt;<i> sure what happens under Windows regarding this, but if I want a 
+</I>&gt;<i> compiled version of the module under Linux, I compile it ahead of time 
+</I>&gt;<i> or change the permissions (rarely).
+</I>
+Having said that, I just tried using the PythonImport statement, and I also
+see no evidence that it works. I may be using or testing it incorrectly,
+however.
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019072.html">[mod_python] PythonImport: Can someone please draw a diagram for
+	this idiot?
+</A></li>
+	<LI>Next message: <A HREF="019066.html">[mod_python] PythonImport: Can someone please draw a
+	diagramfor	this idiot?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19064">[ date ]</a>
+              <a href="thread.html#19064">[ thread ]</a>
+              <a href="subject.html#19064">[ subject ]</a>
+              <a href="author.html#19064">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

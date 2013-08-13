@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Sessions and Firefox
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20and%20Firefox&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018099.html">
+   <LINK REL="Next"  HREF="018100.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Sessions and Firefox</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Sander Voerman</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20and%20Firefox&In-Reply-To="
+       TITLE="[mod_python] Sessions and Firefox">54nd3r at nerim.net
+       </A><BR>
+    <I>Sun May 15 12:58:04 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018099.html">[mod_python] os.system() call does not work within mod_python
+	script
+</A></li>
+        <LI>Next message: <A HREF="018100.html">[mod_python] Dynamically Creating Large Downloads In The Dark
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18098">[ date ]</a>
+              <a href="thread.html#18098">[ thread ]</a>
+              <a href="subject.html#18098">[ subject ]</a>
+              <a href="author.html#18098">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi all,
+
+I have a strange bug in Session, that only occurs when visiting the  
+page with Firefox...
+
+The problem is that, while all other variables are saved into the  
+session, the variable sess['allofthem'] isn't saved when the page is  
+visited with Firefox. It looks like an initialisation bug, because  
+when the key 'allofthem' has been set by visiting the page with  
+another browser, everything works flawless..
+
+The goal of the script is to use the session id in the URL, to  
+prevent all sorts of cross-domain errors in IE...
+
+The script below can be tested live at: <A HREF="http://python.54nd3r.com/page?">http://python.54nd3r.com/page?</A> 
+a=1&amp;b=2
+Click refresh to see what variables are saved and which aren't.
+
+Does anyone else have any problems with Sessions and Firefox?
+
+Thanks for all your time,
+
+Sander
+
+Demo script:
+#############################################
+
+from mod_python import apache, util, Session
+
+def handler(req):
+         &quot;&quot;&quot; Test program to illustrate strange Session and Firefox  
+bug &quot;&quot;&quot;
+         ### Initialize
+         req.content_type = &quot;text/html&quot;
+         form = util.FieldStorage(req)
+         sess = 0;
+
+         ### Get the session ID from the GET url and initialize the  
+session
+         sid = form.get('session',None)
+         if sid:
+                 sess=Session.Session(req, sid, timeout=24*60*60)
+         else:
+                 sess=Session.Session(req, timeout=24*60*60)
+
+         ### Format the params and values from the GET url
+         formstrnew = formstr = &quot; &quot;.join([&quot;%s:%s&quot; % (k, form[k]) for  
+k in form.keys()])
+
+         ### Old session variables
+         sessionvarsold = &quot;;&quot;.join([&quot;%s=%s&quot; % (k, sess[k]) for k in  
+sess.keys()])
+
+         if sess.is_new():
+                 ### The session is new
+                 sess['allofthem'] = formstr
+                 req.write(&quot;New session&lt;br&gt;&quot;)
+         elif (sess.has_key('allofthem')):
+                 ### Read the former query
+                 formstr = sess['allofthem']
+                 sess['allofthem'] = formstrnew
+                 req.write(&quot;Old session&lt;br&gt;&quot;)
+
+         ### Put all the submitted values into Session
+         for k in form.keys():
+                 sess[k] = form[k]
+
+         ### Put all the values stored in Session into a string
+         sessionvars = &quot;;&quot;.join([&quot;%s=%s&quot; % (k, sess[k]) for k in  
+sess.keys()])
+
+         ### Save the session
+         sess.save()
+
+         refresh_url = '<A HREF="http://python.54nd3r.com/page?'">http://python.54nd3r.com/page?'</A>
+         refresh_url += '&amp;%s' % &quot;&amp;&quot;.join([&quot;%s=%s&quot; % (k, form[k]) for  
+k in form.keys()])
+         if not form.has_key('session'):
+                 refresh_url += '&amp;session=%s' % sess.id()
+
+         ### Print the values stored in session
+
+         req.write(&quot;Present in previous session  : %s &lt;br&gt;&quot; % formstr)
+         req.write(&quot;All values in the previous session : %s &lt;br&gt;&quot; %  
+sessionvarsold)
+         req.write(&quot;Put into the current session : %s &lt;br&gt;&quot; % sess 
+['allofthem'])
+         req.write(&quot;All values in the current session : %s &lt;br&gt;&quot; %  
+sessionvars)
+         req.write(&quot;Session id : %s&lt;br&gt;&quot; % sess.id())
+         req.write('&lt;a href=&quot;%s&quot;&gt;refresh&lt;/a&gt;' % refresh_url)
+
+         return apache.OK
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018099.html">[mod_python] os.system() call does not work within mod_python
+	script
+</A></li>
+	<LI>Next message: <A HREF="018100.html">[mod_python] Dynamically Creating Large Downloads In The Dark
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18098">[ date ]</a>
+              <a href="thread.html#18098">[ thread ]</a>
+              <a href="subject.html#18098">[ subject ]</a>
+              <a href="author.html#18098">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

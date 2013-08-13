@@ -1,0 +1,231 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Unicode convenience functions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Unicode%20convenience%20functions&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022485.html">
+   <LINK REL="Next"  HREF="022489.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Unicode convenience functions</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Bart</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Unicode%20convenience%20functions&In-Reply-To="
+       TITLE="[mod_python] Unicode convenience functions">scarfboy at gmail.com
+       </A><BR>
+    <I>Sun Nov  5 13:09:22 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022485.html">[mod_python] H-sphere and Mod_python
+</A></li>
+        <LI>Next message: <A HREF="022489.html">[mod_python] mod_python only returns 404 error's
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22487">[ date ]</a>
+              <a href="thread.html#22487">[ thread ]</a>
+              <a href="subject.html#22487">[ subject ]</a>
+              <a href="author.html#22487">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Because m_p was unicode-crippled last time I checked I first wrote
+error-prone code, then added a gazillion .encode('utf8')s, then finally
+wrote these helper functions and refactored for them.
+
+To me they're a lot more comfortable than bare mod_python behaviour,
+particularly since I'm writing something that occasionally needs to
+handle unicode both for input and output, so I'm posting this in case
+this is useful to someone else.
+
+It uses UTF8, period. It should perhaps be configurable, set on the
+req object and have utf8 merely as a default, but even hardcoded
+it's fairly sane since aside from utf16 and perhaps gb18030 nothing
+actually encodes even nearly enough codepoints to be considered
+a practical encoding for unicode-as-in-*unicode*.
+
+
+
+The major thing here is wrapping req.write with a filtering function.
+On the hander side of things this means you add one line
+and can forget the trouble existed:
+
+def utf8write(req,s):
+    &quot;&quot;&quot; Outputs str type()s unchanged, unicode as UTF8.
+        The thing that gets returned from u8writer and you should
+assign to your req.write.
+        Currently str()s anything not a string, which is probably a
+little too dynamic
+        and not real feature, but useful for debugging your apps. &quot;&quot;&quot;
+       #raise TypeError('req.write only takes strings')
+    if type(s)==str:
+        req.oldwrite(s)
+    elif type(s)==unicode:
+        req.oldwrite(s.encode('utf8'))
+    else:
+        req.oldwrite( str(s) )
+        #a stricter version would probably raise a ValueError
+
+def utf8writer(req,mime='text/html;charset=utf-8'):
+   &quot;&quot;&quot; You can use this to replace req.write with a unicode-capable
+writer (using utf8).
+       Use by putting the following in the handler before any writing:
+         req.write = utils.utf8writer(req)
+       Sets content_type to HTML using charset utf-8 (note the dash!).
+       If you want something else, use e.g.
+         req.write = utils.utf8writer(req,mime='text/plain;charset=utf-8')
+       Since utf8 is currently hardcoded, you always need that charset bit.
+   &quot;&quot;&quot;
+   req.content_type=mime #note this is only here to keep this a single
+line in your code
+   req.oldwrite=req.write #keep reference to the actual writer around
+   return lambda s: utf8write(req,s)
+
+
+
+Because I'm bad and py.xml is misdesigned (string based rather than
+object based, which bites one in the arse in this sort of case),
+I write my html as strings and so need functions for url encoding,
+basically drop-in replacements for urllib.quote and urllib.urlencode.
+
+def utf8quote(s):
+    &quot;&quot;&quot; Returns string as url-encoded UTF8 bytes (that is,
+urllib.quote(s.encode('utf8')) ) &quot;&quot;&quot;
+    return urllib.quote(s.encode('utf8'))
+
+def utf8dictquote(d,joinOn='&amp;amp;'):
+    &quot;&quot;&quot; Acts like urllib.urlencode (url encode for dict) but encodes
+vars and val as utf8 &quot;&quot;&quot;
+    parts=[]
+    for var in d:
+        val=d[var]
+        if type(var) != unicode:
+            var=unicode(var)
+        if type(val) != unicode:
+            val=unicode(val)
+        parts.append( '%s=%s'%(utf8quote(var), utf8quote(val)) )
+    return joinOn.join(parts)
+
+
+
+And, because I like to be robust to input and some browsers may still send
+form values in the outdated but once standard latin1.
+Actually, the reason I did this is not so much forms, but the fact
+that characters
+added to the browser's location bar got encoded as latin1 way even when the
+page (and possibly browser) default clearly wasn't.
+
+def getfirst_unicode(form,var,ifAbsent=None):
+    &quot;&quot;&quot; like form.getfirst(), and decodes utf8 (tries latin1 if that fails).
+        Returns what you pass it in ifAbsent if there is no such
+variable in the form *OR* if it didn't decode nicely.
+        (ifAbsent is None by default, but making it u'' or 0 may be
+convenient for you) &quot;&quot;&quot;
+    s=form.getfirst(var)
+    if s==None:
+        return ifAbsent
+    s=utf8_or_latin1_to_unicode(s)
+    if s==None:
+        return ifAbsent
+    return s
+
+the ifAbsent allows me to handle absence of parameters quickly:
+  r = getfirst_unicode(form,'regular')
+  i = int(getfirst_unicode(form,'amount',0))
+  s = getfirst_unicode(form,'strrring',u'') #, etc.
+
+The integer case thing would otherwise be something like:
+  i = form.getfirst(var)
+  if i==None:
+     i=0
+  i=int(i)
+...and I got tired of typing about five cases like that whenever I
+wanted to be robust to bad users.
+
+
+
+The utf8-or-latin1 function mentioned is failry trivial:
+
+def utf8_or_latin1_to_unicode(s):
+    &quot;&quot;&quot; Tries to decode a string as utf8 first, then as Latin1 (iso8859-1).
+        Returns None if both fail.&quot;&quot;&quot;
+    try:
+        return s.decode('utf8')
+    except UnicodeDecodeError:
+        try:
+            return s.decode('latin1')
+        except UnicodeDecodeError: #I believe this *is* technically possible
+            return None
+An alternative is replacing all high bytes, but you probably don't want that to
+happen without being told, so you get to do that yourself...
+
+
+
+Comments are welcome.
+It's possible I broke some code, I was editing it in the gmail composer:)
+
+Cheers,
+--Bart Alewijnse
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022485.html">[mod_python] H-sphere and Mod_python
+</A></li>
+	<LI>Next message: <A HREF="022489.html">[mod_python] mod_python only returns 404 error's
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22487">[ date ]</a>
+              <a href="thread.html#22487">[ thread ]</a>
+              <a href="subject.html#22487">[ subject ]</a>
+              <a href="author.html#22487">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

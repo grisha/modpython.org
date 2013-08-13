@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Udate python modules without restarting Apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=1097190646.28288%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016595.html">
+   <LINK REL="Next"  HREF="016598.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Udate python modules without restarting Apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=1097190646.28288%40dscpl.com.au"
+       TITLE="[mod_python] Udate python modules without restarting Apache">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Oct  7 19:50:21 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016595.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+        <LI>Next message: <A HREF="016598.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16596">[ date ]</a>
+              <a href="thread.html#16596">[ thread ]</a>
+              <a href="subject.html#16596">[ subject ]</a>
+              <a href="author.html#16596">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Oct 07 17:10, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Subject: Re: [mod_python] Udate python modules without restarting Apache
+</I>&gt;<i>
+</I>&gt;<i> On Oct 07 23:50, berry groenendijk &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">berry.groenendijk at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Subject: Re: [mod_python] Udate python modules without restarting Apache
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I think the problem is in the servlet.py. Because, as soon as I touch
+</I>&gt;<i> &gt; this file I get this error:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; ValueError: index is not a subclass of Servlet (in E:/Program
+</I>&gt;<i> &gt; Files/Apache Group/Apache2/htdocs/MySite/index.mps)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Before I touched servlet.py the index file loaded perfectly.
+</I>&gt;<i> &gt; Apparently apache tried reloading the servlet file effectively
+</I>&gt;<i> &gt; creating a new Servlet object in memory. Other pages that have already
+</I>&gt;<i> &gt; created in memory and that are subclasses from Servlet have now
+</I>&gt;<i> &gt; apparently lost their 'parent'.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Any suggestions how to solve this?
+</I>&gt;<i> 
+</I>&gt;<i> Hmmm, I haven't tried MPS as yet, looks like it might be time to do so
+</I>&gt;<i> in order to understand it a bit better.
+</I>&gt;<i> 
+</I>&gt;<i> One of the issues with reloading that isn't obvious is that it doesn't
+</I>&gt;<i> actually clean out the namespace of the existing loaded module before
+</I>&gt;<i> loading it again. In effect it lays the reloading module back over the top
+</I>&gt;<i> of the old one. You can thus still have strange things happen if you keep
+</I>&gt;<i> state in global variables or remove methods.
+</I>&gt;<i> 
+</I>&gt;<i> The easiest to explain is the removal of a method from a module which
+</I>&gt;<i> is imported by mod_python.publisher. Even though the method is removed
+</I>&gt;<i> from the code file, when it reloads the code module it doesn't actually
+</I>&gt;<i> delete the existing method, so it still exists and can still be accessed by
+</I>&gt;<i> a request.
+</I>
+Okay, have read your email properly now and have had a little play. What
+I didn't note was that you had put mod_python.servlet into your directory
+and touched it. A bit more of an explaination follows, but simple answer
+is that you shouldn't need to touch servlet.py anyway as that isn't going to
+help in the reloading of your code. I would also recommend that servlet.py
+be installed properly somewhere else and not be in your document tree.
+Preferably put it somewhere where its modification time will not be changed
+inadvertantly while it is being used.
+
+Anyway, what I think is happening is that in the most low level servlet class
+in your common code modules, you have an ordinary import of something
+from mpservlets. To use the demo tutorial that comes with mpservlets as an
+example, it has _TutorialBase.py which after accomodating that you had
+servlet.py in the same directory, has:
+
+  from servlet import HTMLPage
+
+Now in index.mps of the tutorial, if one has modified it to use import_module()
+you would have:
+
+  #from _TutorialBase import *
+
+  from mod_python import apache
+  _TutorialBase = apache.import_module(&quot;_TutorialBase&quot;)
+  TutorialBase = _TutorialBase.TutorialBase
+
+If Apache is freshly started, all will work okay. The problem now is that if servlet.py
+is touched, mod_python will reimport servlet.py the next time a request comes in.
+
+Now, the mpservlet system has its own module import and caching system for .mps
+files. In mod_python doing the reimport of servlet.py it will actually throw out the
+mpservlet cache contents so when handler() is called it will need to reload index.mps
+which in turn obtains _TutorialBase from the standard mod_python cache.
+
+The problem here is that _TutorialBase used a normal &quot;import&quot; to get HTMLPage and
+it still holds a reference to the copy that was imported before &quot;servlet.py&quot; got reimported
+by mod_python. When the handler() method in servlet.py goes to check to see if the
+servlet loaded from index.mps derives from Servlet it doesn't match. This is because
+that in _TutorialBase is still using the Servlet base class from the older servlet module
+obtained using &quot;import&quot;.
+
+In other words, there are two copies of the servlet module in memory. The handler()
+method is checking against itself (ie., new copy), where as _TutorialBase is still using
+the old one.
+
+Thus, for case where using mpservlet, simply don't touch the servlet.py. If you had
+changed _TutorialBase, touch index.mps as well and both will be reloaded.
+
+Although I suggest installing servlet.py somewhere else properly, you could possibly
+also use import_module() to load in &quot;servlet.py&quot; as well. Ie.,
+
+  # from servlet import HTMLPage
+
+  from mod_python import apache
+  servlet = apache.import_module(&quot;servlet&quot;)
+  HTMLPage = servlet.HTMLPage
+
+BTW, mpservlet doesn't use &quot;imp&quot; module to do module importing of .mps files but
+instead uses execfile(). By using execfile() it effectively throws away the prior module before
+reimporting it. This means you don't get issues with deleted methods still showing etc.
+It also means though that you can't use global variables cleverly to preserve state
+across module reloads. You would have to put such magic state in a separate modules
+loaded by import_module() or &quot;import&quot; instead. Managing such state is still tricky though.
+
+Hope this helps.
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016595.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+	<LI>Next message: <A HREF="016598.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16596">[ date ]</a>
+              <a href="thread.html#16596">[ thread ]</a>
+              <a href="subject.html#16596">[ subject ]</a>
+              <a href="author.html#16596">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

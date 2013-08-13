@@ -1,0 +1,272 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Some observations after writing my own modpython
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Some%20observations%20after%20writing%20my%20own%20modpython&In-Reply-To=465BA139.9020208%40rogerbinns.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023724.html">
+   <LINK REL="Next"  HREF="023745.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Some observations after writing my own modpython</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Some%20observations%20after%20writing%20my%20own%20modpython&In-Reply-To=465BA139.9020208%40rogerbinns.com"
+       TITLE="[mod_python] Some observations after writing my own modpython">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Tue May 29 00:23:43 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023724.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+        <LI>Next message: <A HREF="023745.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23725">[ date ]</a>
+              <a href="thread.html#23725">[ thread ]</a>
+              <a href="subject.html#23725">[ subject ]</a>
+              <a href="author.html#23725">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 29/05/07, Roger Binns &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rogerb at rogerbinns.com</A>&gt; wrote:
+&gt;<i> -----BEGIN PGP SIGNED MESSAGE-----
+</I>&gt;<i> Hash: SHA1
+</I>&gt;<i>
+</I>&gt;<i> So I wrote my own Apache module because I needed some things that
+</I>&gt;<i> weren't present in modpython (covered in previous messages in this
+</I>&gt;<i> group).  Here are some observations based on the experience.
+</I>&gt;<i>
+</I>&gt;<i> I have a new respect for anyone who has written an Apache module.
+</I>
+Maybe you would like to review my code for me. :-)
+
+  <A HREF="http://www.modwsgi.org">http://www.modwsgi.org</A>
+
+I would like to hope it does some of the core things like
+initialisation and interpreter management better than mod_python does.
+I know it fixes a lot of things that mod_python doesn't really get
+right.
+
+&gt;<i> Ultimately the internal structure and processing is simple.  Everything
+</I>&gt;<i> just &quot;plugs in&quot; at the appropriate points.  However the documentation
+</I>&gt;<i> about the plugging in, which apis to call and when, etc is pretty much
+</I>&gt;<i> non-existent.  (There are a few hello world examples but that is it).
+</I>&gt;<i> Doxygen generated references are very good, but the gotcha is that you
+</I>&gt;<i> have to know which methods to call.  It is kind of like learning a new
+</I>&gt;<i> language by being handed a dictionary but with no idea of grammar.
+</I>
+One can read:
+
+  <A HREF="http://www.fmc-modeling.org/projects/apache/html/Apache_Modeling_Project.html">http://www.fmc-modeling.org/projects/apache/html/Apache_Modeling_Project.html</A>
+
+Also, do a search on the net using Google for 'Writing Apache Modules
+with Perl and C'. The book is old and some sections are posted on the
+mod_perl site. Look a bit harder through the Google search results and
+you might stumble across a more complete copy. I will not post the
+address as it isn't probably supposed to be on the net in the first
+place.
+
+&gt;<i> For my module I chose to use the same names as the Apache apis.  For
+</I>&gt;<i> example I used &quot;ap_get_remote_host&quot; as the method name.  This means that
+</I>&gt;<i> it can be looked up in the Apache documentation for semantics, side
+</I>&gt;<i> effects and errors.  It does result in un-pythonic names but makes life
+</I>&gt;<i> easier for me anyway.
+</I>
+All my work on SWIGing the Apache APIs could probably have saved you a
+lot of effort. :-)
+
+&gt;<i> My main goal of being able to use subrequests in order to apply
+</I>&gt;<i> authentication and authorization directives from some uris to code in
+</I>&gt;<i> another uri has so far worked perfectly although I haven't explored all
+</I>&gt;<i> corner cases yet.  Note that I can actually do it from the request phase
+</I>&gt;<i> just fine and don't have to do it in the authentication phase.  (The
+</I>&gt;<i> request phase is when I have all the information necessary to know
+</I>&gt;<i> exactly what I want to do.)
+</I>
+Is what you have done patches to mod_python, or have you gone and
+written your own Apache module from scratch which is independent of
+mod_python, or uses the exported mod_python optional functions for
+getting access to interpreters? Are you intending to post your code
+anywhere so we can have a look?
+
+&gt;<i> These are various issues I found in the modpython code while comparing
+</I>&gt;<i> my approach with modpython:
+</I>
+And there are a lot more problems than that. Personally, in terms of
+adding more and more access to the Apache API I am far from convinced
+that mod_python is a good starting point. :-)
+
+&gt;<i> Modpython code for setting errors could be using PyErr_SetString  or
+</I>&gt;<i> PyErr_Format in several places.  In some places it actually leaks, for
+</I>&gt;<i> example line 111 in connobject.c:
+</I>&gt;<i>
+</I>&gt;<i>   if (rc != APR_SUCCESS) {
+</I>&gt;<i>       PyErr_SetObject(PyExc_IOError,
+</I>&gt;<i>                       PyString_FromString(&quot;Connection read error&quot;));
+</I>&gt;<i>       return NULL;
+</I>&gt;<i>   }
+</I>&gt;<i>
+</I>&gt;<i> The PyString_FromString results in a leaked object since it isn't
+</I>&gt;<i> decrefed.  It would be worthwhile checking out all usages of PyErr_*
+</I>&gt;<i> which should result in less code and definitely fewer memory leaks.
+</I>&gt;<i>
+</I>&gt;<i> While on the subject of errors, apr_strerror is never used so you'll not
+</I>&gt;<i> actually know what an error was.  For example see req_sendfile in
+</I>&gt;<i> requestobject.c.
+</I>&gt;<i>
+</I>&gt;<i>   status=apr_file_open(&amp;fd, fname,
+</I>&gt;<i>                          APR_READ, APR_OS_DEFAULT,
+</I>&gt;<i>                          self-&gt;request_rec-&gt;pool);
+</I>&gt;<i>   if (status != APR_SUCCESS) {
+</I>&gt;<i>         PyErr_SetString(PyExc_IOError, &quot;Could not open file for reading&quot;);
+</I>&gt;<i>         return NULL;
+</I>&gt;<i>     }
+</I>&gt;<i>
+</I>&gt;<i> Using apr_strerror will give the actual error string which could be any
+</I>&gt;<i> number of things in this example (eg permission denied, file doesn't exist).
+</I>&gt;<i>
+</I>&gt;<i> The Apache documentation says you are supposed to do this sequence of
+</I>&gt;<i> calls in order to read a request body:
+</I>&gt;<i>
+</I>&gt;<i>   ap_setup_client_block()
+</I>&gt;<i>   if (ap_should_client_block()):
+</I>&gt;<i>          ap_get_client_block()
+</I>&gt;<i>
+</I>&gt;<i> modpython does the setup implicitly saying that chunked uploads should
+</I>&gt;<i> be rejected.  The mp doc doesn't mention that it is always safe to call
+</I>&gt;<i> read() since it calls should_client_block behind the scenes so as a user
+</I>&gt;<i> of mp you can always use it without wondering about transfer encodings,
+</I>&gt;<i> content length headers etc.  In my own module I exposed
+</I>&gt;<i> ap_setup_client_block and ap_should_client_block which means that from
+</I>&gt;<i> my Python code I have control over chunked (happy to accept it) and I
+</I>&gt;<i> can tell if a body was actually supplied or not.  (In HTTP/1.1 any
+</I>&gt;<i> request can have a body including GET).
+</I>
+Read:
+
+  <A HREF="https://issues.apache.org/jira/browse/MODPYTHON-222">https://issues.apache.org/jira/browse/MODPYTHON-222</A>
+  <A HREF="https://issues.apache.org/jira/browse/MODPYTHON-212">https://issues.apache.org/jira/browse/MODPYTHON-212</A>
+
+Probably nothing that can be done to change mod_python though as would
+then potentially be incompatible with old code as the semantics of
+req.read() would need to change.
+
+&gt;<i> I found that mp request write method accepts unicode strings providing
+</I>&gt;<i> they can be converted to string objects using the default encoding
+</I>&gt;<i> (this conversion happens due to using PyArg_ParseTuple with a format of
+</I>&gt;<i> &quot;s&quot;).  Personally I think it is a really bad idea to accept unicode
+</I>&gt;<i> strings and have &quot;magic&quot; (the default encoding) convert them.  With this
+</I>&gt;<i> kind of thing I believe it is far better to require the user to convert
+</I>&gt;<i> to bytes explicitly choosing an encoding.
+</I>&gt;<i>
+</I>&gt;<i> modpython appears to make no effort to ensure that things don't crash if
+</I>&gt;<i> the python object representing a request outlives the request_rec that
+</I>&gt;<i> it is wrapping, although I do recall some part of the doc saying &quot;don't
+</I>&gt;<i> do that&quot;.  However I think it is fair for python users to expect not to
+</I>&gt;<i> be able to coredump the process no matter what they do.  In my own
+</I>&gt;<i> module I solved this fairly trivially.  When wrapping a request_rec, do
+</I>&gt;<i> an extra incref.  Then use apr_pool_cleanup_register.  In that callback,
+</I>&gt;<i> set the wrapped pointer to NULL and do a decref.  That will cause the
+</I>&gt;<i> python object to live at least as long as the request_rec.  But if the
+</I>&gt;<i> python object is still alive after the request_rec has gone away, then
+</I>&gt;<i> the wrapped pointer will be NULL.  In all my methods, I check that for
+</I>&gt;<i> NULL first and raise an objectdead exception if it is NULL.
+</I>&gt;<i> Consequently no matter what happens, it is impossible to crash things.
+</I>&gt;<i> The same principle can be applied to other objects since by definition
+</I>&gt;<i> they only live as long as their pool.
+</I>&gt;<i>
+</I>&gt;<i> mp doesn't do OOR - original object return.  ie each time you get a new
+</I>&gt;<i> request/header/etc python level object that is wrapping an underlying
+</I>&gt;<i> Apache object, you get a different Python object.
+</I>
+You do get the same request object, but correct that for many of the
+attributes you don't, plus wrappers for server and connection objects
+also always created on demand each time. Trying to cache values,
+especially when they aren't all read only and can be updated by other
+Apache functions, just makes the job of writing a hand coded wrapper
+even more work so I don't begrudge the original author for not doing
+it.
+
+&gt;<i> This shouldn't really
+</I>&gt;<i> matter that much, but it would be nice if you got the same object back
+</I>&gt;<i> (ie with the same id).  It took wxPython a while to figure out how to do
+</I>&gt;<i> it, since you'd need to have some way of mapping from the C level object
+</I>&gt;<i> to a Python level object.  I think you can use pools again to do this
+</I>&gt;<i> such as by using apr_pool_userdata_set with appropriate keys.
+</I>&gt;<i>
+</I>&gt;<i> Finally (and this is &quot;cosmetic&quot;) the code for setting members of
+</I>&gt;<i> requestobject has a lot of duplication.  For example there are data
+</I>&gt;<i> structures defining the names and types and then the code has additional
+</I>&gt;<i>  type checking and names.  I used PyGetSetDef's and tp_getset and it
+</I>&gt;<i> results in no duplication :-)
+</I>
+Too true, attribute and method lookup of objects is a mess.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023724.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+	<LI>Next message: <A HREF="023745.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23725">[ date ]</a>
+              <a href="thread.html#23725">[ thread ]</a>
+              <a href="subject.html#23725">[ subject ]</a>
+              <a href="author.html#23725">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

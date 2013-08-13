@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] CGI to mod_python -- what's the best way?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20CGI%20to%20mod_python%20--%20what%27s%20the%20best%20way%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="011766.html">
+   <LINK REL="Next"  HREF="011772.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] CGI to mod_python -- what's the best way?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Wilson Fletcher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20CGI%20to%20mod_python%20--%20what%27s%20the%20best%20way%3F&In-Reply-To="
+       TITLE="[mod_python] CGI to mod_python -- what's the best way?">mgpl1-NoTinnedHamThanks at zeta.org.au
+       </A><BR>
+    <I>Thu Apr 12 10:18:28 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="011766.html">[mod_python] CGI to mod_python -- what's the best way?
+</A></li>
+        <LI>Next message: <A HREF="011772.html">[mod_python] CGI to mod_python -- what's the best way?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11771">[ date ]</a>
+              <a href="thread.html#11771">[ thread ]</a>
+              <a href="subject.html#11771">[ subject ]</a>
+              <a href="author.html#11771">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Wouldn't it be better just to buffer the output and then just use one output to send
+the entire buffer ? Isn't that what Grisha was suggesting in the first place ?
+
+I don't understand the problem with redirecting stdout. My understanding of Mod-Python
+is that it just keeps the intertpreter running so it reduces start up time. I
+understood that each CGI session is still, as always, a separate session that fires up
+it's own instance of the code. Is this not true ?
+
+Secondly the idea of just rewriting something that works doesn't seem to be a good idea
+to me. I would say rewrite if you're finding you are doing a lot of mainatainence on
+existing code however if the code works well and has been tested, deployed etc, it
+would be better to interfere with it as little as possible unless you already know that
+current requirements will make a rewrite inevitable at some stage in the future
+(obviously I'm not just talking about a few lines of python here ).
+
+Wilson
+
+&quot;Gregory (Grisha) Trubetskoy&quot; wrote:
+
+&gt;<i> Victor -
+</I>&gt;<i>
+</I>&gt;<i> Rather than invent ways to deal with legacy CGI code, I would bite the
+</I>&gt;<i> bullet and rewrite the code without the use of &quot;print&quot;. There are too many
+</I>&gt;<i> subtle gotchas with simulating CGI...
+</I>&gt;<i>
+</I>&gt;<i> Grisha
+</I>&gt;<i>
+</I>&gt;<i> On Sun, 8 Apr 2001, Victor Muslin wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Sorry for a long message, but this requires a bit of explanation. I
+</I>&gt;<i> &gt; appreciate your patience in advance.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I have a bunch of python legacy code that used to be part of a large
+</I>&gt;<i> &gt; CGI-based system. This code simply used print statements to output HTML as
+</I>&gt;<i> &gt; follows:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; def foo():
+</I>&gt;<i> &gt;          print 'html1'
+</I>&gt;<i> &gt;          print 'html2'
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Now I want to convert CGI to mod_python, but I would like to re-use the
+</I>&gt;<i> &gt; legacy code with as little re-writing as possible (obviously the legacy
+</I>&gt;<i> &gt; code is a lot lengthier and more complicated than the example above). I am
+</I>&gt;<i> &gt; using the publisher module, which requires my code to return a string
+</I>&gt;<i> &gt; containing all of the HTML. So I thought I would be clever and do something
+</I>&gt;<i> &gt; like this:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; import sys, cStringIO
+</I>&gt;<i> &gt; def handler(req):
+</I>&gt;<i> &gt;          out =  sys.stdout = StringIO()
+</I>&gt;<i> &gt;          foo()
+</I>&gt;<i> &gt;          return out
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; This works great as long as the second request does not arrive before the
+</I>&gt;<i> &gt; first one is done. Otherwise, the output gets screwed up. Since &quot;out&quot; is a
+</I>&gt;<i> &gt; local variable, each request has its own instance, but sys.stdout is a
+</I>&gt;<i> &gt; global. When the second request arrives, sys.stdout gets reassigned and the
+</I>&gt;<i> &gt; rest of the output produced by print statements in the foo() function goes
+</I>&gt;<i> &gt; to the new StringIO object. For example, if the second request arrives and
+</I>&gt;<i> &gt; gets executed between the two print statements of the first request, then
+</I>&gt;<i> &gt; the first request's output could be  'html1\n' and the second request's
+</I>&gt;<i> &gt; output could be 'html2\nhtml1\nhtml2\n'.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Has anyone dealt with such a situation? Any clever suggestion would be
+</I>&gt;<i> &gt; appreciated as I hate to have to go into all the legacy code and change it
+</I>&gt;<i> &gt; to something like this:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; def foo():
+</I>&gt;<i> &gt;          out = 'html1\n'
+</I>&gt;<i> &gt;          out = out + 'html2\n'
+</I>&gt;<i> &gt;          return out
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; def handler(req):
+</I>&gt;<i> &gt;          return foo()
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Thanks in advance.
+</I>&gt;<i> &gt; __________________________________________________________________________________
+</I>&gt;<i> &gt; Victor Muslin      The power of accurate observation is frequently called
+</I>&gt;<i> &gt;                           cynicism by those who don't have it.
+</I>&gt;<i> &gt;                                        - George Bernard Shaw
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="011766.html">[mod_python] CGI to mod_python -- what's the best way?
+</A></li>
+	<LI>Next message: <A HREF="011772.html">[mod_python] CGI to mod_python -- what's the best way?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11771">[ date ]</a>
+              <a href="thread.html#11771">[ thread ]</a>
+              <a href="subject.html#11771">[ subject ]</a>
+              <a href="author.html#11771">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

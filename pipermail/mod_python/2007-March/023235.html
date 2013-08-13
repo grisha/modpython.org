@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache/mod_python process sizes. Help wanted.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=45E9E099.1000003%40joreybump.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023233.html">
+   <LINK REL="Next"  HREF="023236.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache/mod_python process sizes. Help wanted.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=45E9E099.1000003%40joreybump.com"
+       TITLE="[mod_python] Apache/mod_python process sizes. Help wanted.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Mar  3 17:30:57 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023233.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+        <LI>Next message: <A HREF="023236.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23235">[ date ]</a>
+              <a href="thread.html#23235">[ thread ]</a>
+              <a href="subject.html#23235">[ subject ]</a>
+              <a href="author.html#23235">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 04/03/2007, at 7:54 AM, Jorey Bump wrote:
+
+&gt;<i>
+</I>&gt;&gt;<i> If eager, use a hello world mod_python example and trigger one  
+</I>&gt;&gt;<i> request
+</I>&gt;&gt;<i> against it and see how size changes.
+</I>&gt;<i>
+</I>&gt;<i> top - 15:29:18 up 93 days,  5:52,  1 user,  load average: 0.00,  
+</I>&gt;<i> 0.03, 0.07
+</I>&gt;<i> Tasks:  78 total,   2 running,  76 sleeping,   0 stopped,   0 zombie
+</I>&gt;<i> Cpu(s):   4.7% user,   0.3% system,   0.0% nice,  95.0% idle
+</I>&gt;<i> Mem:    904440k total,   465304k used,   439136k free,    39272k  
+</I>&gt;<i> buffers
+</I>&gt;<i> Swap:  1951856k total,    32408k used,  1919448k free,   113432k  
+</I>&gt;<i> cached
+</I>&gt;<i>
+</I>&gt;<i>   PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+</I>&gt;<i> 31480 nobody    14   0 13248  12m 8836 S  5.0  1.5   0:00.15 httpd
+</I>
+Thanks for the feedback so far guys. First thing this all shows is  
+that need
+a more conclusive way of determining how memory is used by Apache
+process as top alone isn't that good. I'll look at pmap as suggested and
+see what else there might be.
+
+Apart from the size of PHP, what is disturbing to me though is how much
+the amount of memory used jumps up on the first request. In phase 1 of
+looking at this, wasn't intending to look at that aspect, but just  
+threw in the
+request to try it as an afterthought. I had actually forgotten that  
+it does jump
+up quite significantly.
+
+The reason I had forgotten is that these days I have been playing with
+mod_wsgi most of the time and have grown accustomed to a small memory
+footprint.
+
+As an example, on MacOS with both mod_python and mod_wsgi modules
+loaded I start out with:
+
+   408 httpd        0.0%  0:00.00   1     8    39   212K  2.86M    
+900K  30.4M
+   407 httpd        0.0%  0:00.00   1     8    39   216K  2.86M    
+904K  30.4M
+   406 httpd        0.0%  0:00.00   1     8    39   216K  2.86M    
+904K  30.4M
+   405 httpd        0.0%  0:00.00   1     8    39   216K  2.86M    
+904K  30.4M
+   404 httpd        0.0%  0:00.00   1     8    39   212K  2.86M    
+904K  30.4M
+   403 httpd        0.0%  0:00.06   1    11    39    44K  2.86M   
+1.78M  30.4M
+
+Ie., 212K - 216K memory private to the Apache child process.
+
+I then fire off a mod_python and mod_wsgi request. For both modules, I
+have forced use of the first Python interpreter instance created to  
+avoid
+the creation of an extra interpreter. Being the first interpreter, it  
+is also
+used for both mod_python and mod_wsgi requests, whereas normally
+all other interpreter instances are separate to each package.
+
+For both cases use simple hello world program. With mod_python use a
+basic handler and not mod_python.publisher.
+
+The result for mod_python request is (pid 405):
+
+   410 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+888K  30.4M
+   408 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+764K  30.4M
+   407 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+768K  30.4M
+   406 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+768K  30.4M
+   405 httpd        0.0%  0:00.37   1    10    86  2.40M  2.75M   
+3.94M  32.0M
+   404 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+768K  30.4M
+   403 httpd        0.0%  0:00.06   1    11    39    32K  2.87M   
+1.30M  30.4M
+
+Thus, private memory use by Apache child process jumps up to 2.40M.
+Ie., about an extra 2.2M.
+
+For a mod_wsgi request however, the result is (pid 407):
+
+   410 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+816K  30.4M
+   408 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+764K  30.4M
+   407 httpd        0.0%  0:00.01   1    10    39   568K  2.87M  1.64M 
++ 30.4M
+   406 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+768K  30.4M
+   405 httpd        0.0%  0:00.37   1    10    86  2.40M  2.75M   
+3.95M  32.0M
+   404 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+768K  30.4M
+   403 httpd        0.0%  0:00.06   1    11    39    32K  2.87M   
+1.30M  30.4M
+
+That is, private memory use by Apache child process only jumps up to  
+568K.
+Ie., about an extra 350K.
+
+This is quite a big difference and really makes one wander what  
+mod_python
+is actually doing. This will also have to be investigated, but  
+probably still
+want to pursue this shared versus static library thing first.
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023233.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+	<LI>Next message: <A HREF="023236.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23235">[ date ]</a>
+              <a href="thread.html#23235">[ thread ]</a>
+              <a href="subject.html#23235">[ subject ]</a>
+              <a href="author.html#23235">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

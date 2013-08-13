@@ -1,0 +1,257 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Current Working Directory not set?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Current%20Working%20Directory%20not%20set%3F&In-Reply-To=9dc573c399ce80c60a509e49a652f997%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020145.html">
+   <LINK REL="Next"  HREF="020147.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Current Working Directory not set?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Sean Jamieson</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Current%20Working%20Directory%20not%20set%3F&In-Reply-To=9dc573c399ce80c60a509e49a652f997%40dscpl.com.au"
+       TITLE="[mod_python] Current Working Directory not set?">sean at barriescene.com
+       </A><BR>
+    <I>Fri Jan 27 17:41:15 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020145.html">[mod_python] Current Working Directory not set?
+</A></li>
+        <LI>Next message: <A HREF="020147.html">[mod_python] Current Working Directory not set?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20146">[ date ]</a>
+              <a href="thread.html#20146">[ thread ]</a>
+              <a href="subject.html#20146">[ subject ]</a>
+              <a href="author.html#20146">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Thanks for all the options Graham.
+
+I've come up with the following code template, if anyone see anything 
+obviously wrong/bad please let me know:
+import os
+import sys
+from mod_python import apache, util
+from kid import Template
+
+# this file's current directory
+__dir__ = os.path.dirname( __file__ )
+
+# set the templates path under this file's directory
+__templates__ = os.path.join( __dir__, &quot;templates&quot; )
+
+def index( req ): _page='index'
+    req.content_type = 'text/html'
+    ## function body ##
+    return Template( file=os.path.join( __templates__, '%s_%s.kid' % 
+(__name__, _page) ), **vars() )
+
+
+I'm expecting someone might say something about my use of **vars().
+The overall result of my return Template(..) statement is that it will 
+match [script's dir]/templates/[script name]_[function name].kid
+
+Comments?
+
+Sean
+
+Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 28/01/2006, at 6:53 AM, Sean Jamieson wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Hello everybody,
+</I>&gt;&gt;<i> I don't know if there's already been a discussion about this, it 
+</I>&gt;&gt;<i> seems like a small but obvious issue.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Many times. ;-)
+</I>&gt;<i>
+</I>&gt;&gt;<i> The current working directory does not apear to be set when a 
+</I>&gt;&gt;<i> mod_python.publisher script runs; or rather it's set to &quot;/&quot; which is 
+</I>&gt;&gt;<i> not useful. This becomes quite a pain, as I'm forced to do many 
+</I>&gt;&gt;<i> things to work around it.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> As someone else said, working directory can't be changed because of 
+</I>&gt;<i> multithreading
+</I>&gt;<i> abilities of mod_python.
+</I>&gt;<i>
+</I>&gt;&gt;<i> i.e.
+</I>&gt;&gt;<i> 1) I've started using kid templates, and I have to use:
+</I>&gt;&gt;<i>     Template( file=req.document_root().'template.kid', ... )
+</I>&gt;&gt;<i> or
+</I>&gt;&gt;<i>    Template( 
+</I>&gt;&gt;<i> file=req.document_root().'project_dir/templates/template.kid', ... )
+</I>&gt;&gt;<i> rather then the more natural:
+</I>&gt;&gt;<i>    Template( file='templates/template.kid )
+</I>&gt;&gt;<i> this should find the 'templates' directory in the same directory as 
+</I>&gt;&gt;<i> the running script
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Don't use req.document_root(). Instead, in that specific Python code 
+</I>&gt;<i> file,
+</I>&gt;<i> include at global scope:
+</I>&gt;<i>
+</I>&gt;<i>   import os
+</I>&gt;<i>   __here__ = os.path.dirname(__file__)
+</I>&gt;<i>   __templates__ = os.path.join(__here__,&quot;templates&quot;)
+</I>&gt;<i>
+</I>&gt;<i> That will give you the directory that file is located in, in a handy 
+</I>&gt;<i> variable
+</I>&gt;<i> which you can then use.
+</I>&gt;<i>
+</I>&gt;<i>     Template( file=os.path.join(__templates__,&quot;template.kid&quot;) )
+</I>&gt;<i>
+</I>&gt;<i> This is only useful though if all your publisher handlers are in the 
+</I>&gt;<i> one directory.
+</I>&gt;<i> If you have stuff spread over subdirectories, you start having to use 
+</I>&gt;<i> relative
+</I>&gt;<i> paths as appropriate in subdirectory handler files.
+</I>&gt;<i>
+</I>&gt;<i>   import os
+</I>&gt;<i>   __here__ = os.path.dirname(__file__)
+</I>&gt;<i>   __templates__ = os.path.join(__here__,&quot;..&quot;,&quot;templates&quot;)
+</I>&gt;<i>
+</I>&gt;<i> Thus, you may be better off doing something like:
+</I>&gt;<i>
+</I>&gt;<i>   def _templates(req,path):
+</I>&gt;<i>     return os.path.join(req.hlist.directory,&quot;templates&quot;,path)
+</I>&gt;<i>
+</I>&gt;<i>   ...
+</I>&gt;<i>
+</I>&gt;<i>     Template( file=_template(&quot;template.kid&quot;) )
+</I>&gt;<i>
+</I>&gt;<i> The req.hlist.directory variable will be set to the directory for 
+</I>&gt;<i> which PythonHandler
+</I>&gt;<i> is specified, thus giving you a root anchor point which you can use to 
+</I>&gt;<i> describe all
+</I>&gt;<i> paths relative to. Doing this means you have more flexibility as far 
+</I>&gt;<i> as moving code
+</I>&gt;<i> files around between directories without having to modify code.
+</I>&gt;<i>
+</I>&gt;<i> The other reference point you might use is:
+</I>&gt;<i>
+</I>&gt;<i>   def _templates(req,path):
+</I>&gt;<i>     directory = os.path.dirname(req.filename)
+</I>&gt;<i>     return os.path.join(directory,path)
+</I>&gt;<i>
+</I>&gt;<i>   ...
+</I>&gt;<i>
+</I>&gt;<i>     Template( file=_template(&quot;templates/template.kid&quot;) )
+</I>&gt;<i>
+</I>&gt;<i> The req.filename object is similar to using __file__ for most cases, 
+</I>&gt;<i> but getting the
+</I>&gt;<i> information from the request object instead.
+</I>&gt;<i>
+</I>&gt;<i> You might even create your own derived class from Kid's Template class 
+</I>&gt;<i> so you can
+</I>&gt;<i> pass it a 'req' object and relative template file path and have that 
+</I>&gt;<i> derived class
+</I>&gt;<i> constructor do the calculation of where the file is relative to 
+</I>&gt;<i> PythonHandler root
+</I>&gt;<i> or req.filename.
+</I>&gt;<i>
+</I>&gt;<i> In other words, to be more transparent, the template system would need 
+</I>&gt;<i> to know about
+</I>&gt;<i> the environment it is used in.
+</I>&gt;<i>
+</I>&gt;&gt;<i> 2) I have to fully qualify imports from the document root, as the 
+</I>&gt;&gt;<i> document root is added to sys.modules, but the current directory is 
+</I>&gt;&gt;<i> not. So, if I'm in a subdirectory under the document root I have to do:
+</I>&gt;&gt;<i>    import project_dir.subpackage.module
+</I>&gt;&gt;<i> when the current directory is 'project_dir'. This is silly, I should 
+</I>&gt;&gt;<i> be able to import something in, or under, the current working directory:
+</I>&gt;&gt;<i>    import subpackage.module
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> If these packages contain reusable code used across various pages and 
+</I>&gt;<i> don't have
+</I>&gt;<i> actual code in them for generating pages, it is not a good idea to put 
+</I>&gt;<i> them under
+</I>&gt;<i> your document root. This is because with the right URL they may be 
+</I>&gt;<i> able to be
+</I>&gt;<i> invoked by a remote user because of publishers automatic mapping. Thus 
+</I>&gt;<i> you need to
+</I>&gt;<i> be very careful.
+</I>&gt;<i>
+</I>&gt;<i> If they do contain code for generating pages, you should not be using 
+</I>&gt;<i> &quot;import&quot;
+</I>&gt;<i> to access them as at the same time they could be getting loaded by 
+</I>&gt;<i> publisher using
+</I>&gt;<i> a different module loading system which will cause various problems.
+</I>&gt;<i>
+</I>&gt;<i> As suggested by someone else, look at using &quot;apache.import_module()&quot;.
+</I>&gt;<i>
+</I>&gt;&gt;<i> I would have to do some hack involving seperating the dirname of 
+</I>&gt;&gt;<i> __file__ and adding it to sys.modules
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I think you must have meant into sys.path. Same above, Modifying 
+</I>&gt;<i> sys.path directly
+</I>&gt;<i> in mod_python is not usually a good idea either. The use of 
+</I>&gt;<i> PythonHandler will
+</I>&gt;<i> automatically put that root directory in sys.path for you without 
+</I>&gt;<i> having to resort
+</I>&gt;<i> to using PythonPath. This all assumes you have already set PythonPath 
+</I>&gt;<i> explicitly
+</I>&gt;<i> and aren't using Location directive instead of Directory directive to 
+</I>&gt;<i> specify context
+</I>&gt;<i> in which mod_python is used.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020145.html">[mod_python] Current Working Directory not set?
+</A></li>
+	<LI>Next message: <A HREF="020147.html">[mod_python] Current Working Directory not set?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20146">[ date ]</a>
+              <a href="thread.html#20146">[ thread ]</a>
+              <a href="subject.html#20146">[ subject ]</a>
+              <a href="author.html#20146">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] stumped by inputfilter infinite repeat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20stumped%20by%20inputfilter%20infinite%20repeat&In-Reply-To=2cd46e7f0708201719u379ebf6m1b5b49d9aa750e69%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024139.html">
+   <LINK REL="Next"  HREF="024141.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] stumped by inputfilter infinite repeat</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20stumped%20by%20inputfilter%20infinite%20repeat&In-Reply-To=2cd46e7f0708201719u379ebf6m1b5b49d9aa750e69%40mail.gmail.com"
+       TITLE="[mod_python] stumped by inputfilter infinite repeat">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Mon Aug 20 20:25:56 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024139.html">[mod_python] stumped by inputfilter infinite repeat
+</A></li>
+        <LI>Next message: <A HREF="024141.html">[mod_python] libapache2-mod-python error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24140">[ date ]</a>
+              <a href="thread.html#24140">[ thread ]</a>
+              <a href="subject.html#24140">[ subject ]</a>
+              <a href="author.html#24140">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 21/08/07, Ken Manheimer &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ken.manheimer at gmail.com</A>&gt; wrote:
+&gt;<i> hmm!
+</I>&gt;<i>
+</I>&gt;<i> the lack of any input handling in my routine was really dumb.  but in
+</I>&gt;<i> any case, this may point to something that gets tramline working.
+</I>&gt;<i>
+</I>&gt;<i> the tramline input filter is intended to only intervene for main POST
+</I>&gt;<i> requests that consist of multipart/form-data.  for other requests it
+</I>&gt;<i> would do a filter.pass_on() and return:
+</I>&gt;<i>
+</I>&gt;<i>     def inputfilter(filter):
+</I>&gt;<i>         # we're done if we're in a subrequest
+</I>&gt;<i>         if filter.req.main is not None:
+</I>&gt;<i>             filter.pass_on()
+</I>&gt;<i>             return
+</I>
+I'd be worried about the check of:
+
+  filter.req.main
+
+&gt;<i>From memory this is going to always pass on doing the request if it is
+</I>a sub request. A sub request might occur if using mod_rewrite or
+Action directives, plus possibly other things.
+
+Put some debug in which dumps out whether req.main is set and then
+dump out what main request is, ie., req.main.uri etc. This may give
+clues as to what is going on.
+
+Graham
+
+&gt;<i>         # we only handle POST requests
+</I>&gt;<i>         if filter.req.method != 'POST':
+</I>&gt;<i>             filter.pass_on()
+</I>&gt;<i>             return
+</I>&gt;<i>
+</I>&gt;<i>         # we only handle multipart/form-data
+</I>&gt;<i>         enctype = filter.req.headers_in.get('Content-Type')
+</I>&gt;<i>         if enctype[:19] != 'multipart/form-data':
+</I>&gt;<i>             filter.pass_on()
+</I>&gt;<i>             return
+</I>&gt;<i>
+</I>&gt;<i>         [do some real stuff, otherwise]
+</I>&gt;<i>
+</I>&gt;<i> i the assume that the filter.pass_on() was supposed to do the right
+</I>&gt;<i> thing, but i tried that in my stub filters (after confirming that your
+</I>&gt;<i> filter.read()/filter.write() handling did in fact work, graham), and
+</I>&gt;<i> it didn't.  so i replaced the above with:
+</I>&gt;<i>
+</I>&gt;<i>     def inputfilter(filter):
+</I>&gt;<i>
+</I>&gt;<i>         enctype = filter.req.headers_in.get('Content-Type')
+</I>&gt;<i>         if ((filter.req.main is not None)   # we are in a subrequest
+</I>&gt;<i>             or (filter.req.method != 'POST')# this is not a POST
+</I>&gt;<i> request
+</I>&gt;<i>             or (enctype[:19] != 'multipart/form-data')): # not
+</I>&gt;<i> multipart/form-data:
+</I>&gt;<i>             s = filter.read()
+</I>&gt;<i>             while s:
+</I>&gt;<i>                 filter.write(s)
+</I>&gt;<i>                 s = filter.read()
+</I>&gt;<i>             if s is None:
+</I>&gt;<i>                 filter.close()
+</I>&gt;<i>             return
+</I>&gt;<i>
+</I>&gt;<i>         [do some real stuff, otherwise]
+</I>&gt;<i>
+</I>&gt;<i> and i don't get the hang.  i have to test the intended tramline
+</I>&gt;<i> operation, and don't understand enough yet about it or mod_python
+</I>&gt;<i> filters to be confident that i have something right, but at least i
+</I>&gt;<i> have something to work with now!
+</I>&gt;<i>
+</I>&gt;<i> can you say why the filter.pass_on() is not sufficient, by the way?
+</I>&gt;<i> even with and added filter.flush() the infinite repeat still happens.
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024139.html">[mod_python] stumped by inputfilter infinite repeat
+</A></li>
+	<LI>Next message: <A HREF="024141.html">[mod_python] libapache2-mod-python error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24140">[ date ]</a>
+              <a href="thread.html#24140">[ thread ]</a>
+              <a href="subject.html#24140">[ subject ]</a>
+              <a href="author.html#24140">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

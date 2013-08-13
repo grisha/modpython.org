@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Internal redirect (to the same server)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Internal%20redirect%20%28to%20the%20same%20server%29&In-Reply-To=OOENKCHGJGHILGPAGHGOEEPOCDAA.gbeasley%40tsa.ac.za">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012797.html">
+   <LINK REL="Next"  HREF="012792.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Internal redirect (to the same server)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Ian Clelland</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Internal%20redirect%20%28to%20the%20same%20server%29&In-Reply-To=OOENKCHGJGHILGPAGHGOEEPOCDAA.gbeasley%40tsa.ac.za"
+       TITLE="[mod_python] Internal redirect (to the same server)">ian at veryfresh.com
+       </A><BR>
+    <I>Thu Aug 15 15:37:04 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012797.html">[mod_python] Internal redirect (to the same server)
+</A></li>
+        <LI>Next message: <A HREF="012792.html">Fw: Re: [mod_python] Publisher Handler and redirect
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12799">[ date ]</a>
+              <a href="thread.html#12799">[ thread ]</a>
+              <a href="subject.html#12799">[ subject ]</a>
+              <a href="author.html#12799">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Thu, Aug 15, 2002 at 12:19:30PM +0200, Grant Beasley wrote:
+&gt;<i> Hi
+</I>&gt;<i> 
+</I>&gt;<i> If I want to redirect the browser to another URL on my server, I can use a
+</I>&gt;<i> HTTP redirect, but as I understand it, the redirect gets sent to the
+</I>&gt;<i> browser, which then goes to the new URL, i.e. comes back to my server.
+</I>
+Yep. An HTTP redirect is a (usually) 301 status code sent back to the 
+browser to tell it to request a different document. This allows for a 
+great deal of flexibility on the server side -- you can go as far as 
+redirecting clients to a completely different server, or to a different 
+protocol (ftp: or mailto:, even).
+
+&gt;<i> I
+</I>&gt;<i> want to be able to tell apache to serve another URL, without the useless
+</I>&gt;<i> loop back to the browser.
+</I>&gt;<i> 
+</I>&gt;<i> Is this possible? And if so, could you give me a few pointers?
+</I>
+If the extra messages really are useless, then the way to eliminate 
+them is to change the URL on the server before Apache handles it. The 
+simplest method is probably to use mod_alias (or mod_rewrite if you 
+need something more powerful).
+
+If you want to do this completely in mod_python, then you can write a 
+PythonTransHandler, which will receive all requests, and has the chance 
+to modify the URL before Apache passes the request to your main handler.
+
+Remember, though, that in these cases, the client software has no idea 
+that the URL has been changed, and will continue to request the old URL 
+every time. This can be very useful if you are trying to create a 
+'virtual' server layout which is different than your actualy filesystem 
+layout, but at other times, you just want to tell the client 'sorry, 
+this document has moved; please look for it here now.' That's when the 
+HTTP redirects are useful.
+
+
+&gt;<i> Secondly, what is the difference between HTTP_MOVED_TEMPORARILY and
+</I>&gt;<i> HTTP_TEMPORARY_REDIRECT?
+</I>
+HTTP/1.0 only had two redirection status codes: 301 (Moved Permanently) 
+and 302 (Moved Temporarily). 302 was used for any situation where the 
+client shouldn't remember the response, and should continue to request 
+the original URL every time.
+
+In HTTP/1.1, the 302 status code has been split into three different 
+codes: 302 (now called 'Found'), 303 (See Other) and 307 (Temporary 
+Redirect).
+
+The idea behind this is that a 302 tells the client &quot;I looked for the 
+URL which you requested, and this is where I found it.&quot; It is not 
+necessarily the case that the URL has changed, just that the document 
+you want is somewhere else.
+
+A 307 tells the client &quot;The URL you requested has been temporarily 
+moved. Please get it from this location, for now.&quot; This should be 
+returned when the document used to be in one locaion, and probably will 
+be back there again, but it has been moved out of the way for a while.
+
+For all practical purposes, these two responses are exactly the same. 
+The only difference (besides the semantics) is that HTTP/1.0 clients 
+don't understand the 307 code at all, so if you want to use it, you'll 
+have to check the protocol version (in mod_python, test req.proto_num 
+&gt;<i>= 1001) and fall back to 302 if the client is using HTTP/1.0.
+</I>
+
+Neither of these status codes should usually be returned in response to 
+a POST request, by the way. If a client receives a 302 or 307 from a 
+POST request, then it is supposed to confirm the redirect with the 
+user, and (after confirmation) repeat the POST to the new URL. A 303 
+code can be returned to tell the client &quot;I've processed your POST 
+request, and the results you want are at this URL. Please use a GET 
+query to access it.&quot;
+
+
+--
+Ian Clelland
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ian at veryfresh.com</A>&gt;
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012797.html">[mod_python] Internal redirect (to the same server)
+</A></li>
+	<LI>Next message: <A HREF="012792.html">Fw: Re: [mod_python] Publisher Handler and redirect
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12799">[ date ]</a>
+              <a href="thread.html#12799">[ thread ]</a>
+              <a href="subject.html#12799">[ subject ]</a>
+              <a href="author.html#12799">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

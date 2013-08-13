@@ -1,0 +1,386 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Udate python modules without restarting Apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=20041009081038.1F587C6B8%40postfix3-2.free.fr">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016610.html">
+   <LINK REL="Next"  HREF="016624.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Udate python modules without restarting Apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=20041009081038.1F587C6B8%40postfix3-2.free.fr"
+       TITLE="[mod_python] Udate python modules without restarting Apache">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Oct 10 19:50:15 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016610.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+        <LI>Next message: <A HREF="016624.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16606">[ date ]</a>
+              <a href="thread.html#16606">[ thread ]</a>
+              <a href="subject.html#16606">[ subject ]</a>
+              <a href="author.html#16606">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 09/10/2004, at 6:10 PM, Nicolas Lehuen wrote:
+
+&gt;<i> Hi Graham, what are the pros and cons of using the imp module versus an
+</I>&gt;<i> execfile call or an exec call ?
+</I>
+Hmmm, I'll try and have a go at this question now. Note that I haven't 
+ever
+used execfile()/exec myself so what I talk about here is only based on 
+some
+quick observations. Also, as far as I can tell, the end result of 
+execfile()
+and exec is the same, so I'll compare just imp.load_module() and 
+execfile().
+
+When using combination of imp.find_module() and imp.load_module(), main 
+thing
+is that it is a true module. Ie., result of calling type() on the 
+result will
+actually be &lt;type 'module'&gt;.
+
+Taking a simple module which contains:
+
+   variable = 0
+   def function(): pass
+
+If this module is imported using imp.load_module(), result is same as 
+&quot;import&quot;
+and running dir() on the module yields the following.
+
+   ['__builtins__', '__doc__', '__file__', '__name__', 'function', 
+'variable']
+
+If one uses execfile() however, the result is simply a dictionary, ie., 
+type()
+yields &lt;type 'dict'&gt;. The results of calling keys() on that dictionary 
+yields
+the following.
+
+   ['__builtins__', 'variable', 'function']
+
+In terms of executing code within the context of the two, there 
+probably isn't
+going to be much difference. The only issue would be if the code being 
+loaded
+had expected it to be executing within the environment of a true 
+module. Ie.,
+that it expected __file__ and __name__ to actually exist.
+
+I know that I occasionally write code which uses __file__ to work out 
+the
+directory that the code file is in, because in the same directory I 
+might
+place some data file that the module reads in when required as part of 
+some
+function the module provides.
+
+This isn't a big detail, as a module importing system that used 
+execfile() could
+fake up the entries for __file__ and __name__ by loading them into the 
+dictionary
+prior to calling execfile().
+
+Next issue with using execfile() is that the input has to be the 
+original Python
+code as text, albeit stored in a file. When using imp.find_module() and
+imp.load_module() together, it can take advantage of a precompiled 
+Python code
+file, ie., &quot;.pyc&quot; file. I'll ignore C compiled modules, but if you are 
+mad enough
+you could use those as well.
+
+Ultimately, this is probably no big deal in as much as you are caching 
+the module
+in memory for use anyway and it would only be an issue on a subsequent 
+restart of
+Apache the first time the code needs to be loaded.
+
+Moving on to deletion of the loaded code in each case if you really 
+needed to do
+that. When using execfile(), the only place it will be saved away is in 
+your cache.
+Thus, delete it from the cache and once any code executing within the 
+context of
+it or otherwise holding a reference to it goes away, the code will also 
+vanish.
+
+When using &quot;imp&quot; methods, deleting it from your own cache isn't going 
+to be enough
+as it will also be referenced from sys.modules. Whether or not deleting 
+stuff from
+sys.modules is a good idea I don't know. I have done it in emergencies 
+as I don't
+have an ability to readily get Apache restarted in one place where I am 
+doing
+stuff.
+
+An issue with deleting stuff from sys.modules is what happens in a 
+multithreaded
+environment if another thread is importing a module at the same time 
+and is thus
+updating sys.modules. It may well be the case that the safest thing to 
+do is to
+use the Python 2.3+ methods imp.acquire_lock()/imp.release_lock() on 
+the assumption
+that that lock is acquired when a module is being imported and thus 
+when sys.modules
+is being updated. Because it is only deletion of a single key, it may 
+also not
+really be needed either.
+
+Now as far as initial loading of a module goes, the only other thing is 
+that
+in both cases, any module caching system should ensure that if it is to 
+work
+properly in a multithreaded environment that it thread locks its cache 
+data
+structures while working out whether a module is present and up to date 
+and
+when importing modules.
+
+If this isn't done, you end up with problems like I described in prior 
+email where
+for example multiple threads may determine at the same time that a 
+module has to
+be freshly loaded. If this happens and the &quot;imp&quot; functions are being 
+used, the
+initial import will happen okay, but all the others end up in a reload 
+being done.
+
+If execfile() is being used, if you start out with a clean slate each 
+time, you
+end up with every thread getting a separate instance of the loaded 
+module, but
+all except the last one to store its copy back in the cache, will be 
+deleted when
+the HTTP request for each completes.
+
+The actual differences between using &quot;imp&quot; functions and execfile() 
+probably come
+about when it comes to module reloading when the code changes. As I 
+described in
+prior email, the &quot;imp&quot; functions effectively reload the new code into 
+the same
+module instance it had already created.
+
+That code is reloaded into the same module can both be beneficial and 
+detrimental
+if you are not careful.
+
+A benefit is that you can store data which you wish to be preserved 
+across reloads
+in global variables. To get this to work, the variable can't be 
+declared at global
+scope when the module first loads, instead, it should only be created 
+from a method
+later on. The other alternative as explain in prior mail was to have 
+code executing
+at global scope check for prior existence of the global variable and 
+not reinitialise
+it if it already existed.
+
+The not so good things I see about module reloading, and which I also 
+explained in
+prior email, is what to do if a module reload occurs while some other 
+thread is
+executing code in the module at the same time and accessing any global 
+data. One
+has to be very careful about how you perform your thread locking to 
+ensure that
+data doesn't get modified at the same time in bad ways.
+
+As far as I know, there is possibly no real alternative to having 
+modules reload
+into the same namespace when using &quot;imp&quot; functions. Deletion of the 
+module first from
+sys.modules will work, but not sure how wise that is.
+
+As it happens, when using execfile() you actually have a choice as to 
+whether a
+reload is done into the same namespace or not. This is controlled by 
+the dictionary
+supplied as second argument to execfile().
+
+The choices are to pass in an empty dictionary and start from scratch 
+each time,
+or pass in the existing dictionary and have it be overlaid with new 
+stuff just like
+with the &quot;imp&quot; functions. Obviously, if starting from scratch each 
+time, you would
+delete the old dictionary from the cache first and then load in the 
+module into the
+new dictionary. In you want to keep what you had, don't delete it from 
+the cache
+and just reload over it.
+
+Obviously, if you reload over it, you end up with all the same issues 
+as described
+from the &quot;imp&quot; methods.
+
+There is other thing worth mentioning here in relation to reloading 
+over the top of the
+existing module in both cases. This is that if the new code module has 
+removed a method
+or some global bit of data. That method or data will still persist 
+after the reload
+even though it is no longer in the code file. This is because nothing 
+in the namespace
+is deleted.
+
+That this can happen can be problematic. Consider the 
+mod_python.publisher case which
+currently uses apache.import_module(). If a method is deleted from the 
+original code
+file because you no longer want it to be visible, even after the 
+reload, the old
+version will still be there and still callable. Your only option to 
+really get rid
+of it is to restart Apache.
+
+Now I am glad you asked this question as it has really made me think 
+about how I use
+the &quot;imp&quot; functions. At the sacrifice of potentially having precompiled 
+code around,
+I may actually change from using &quot;imp&quot; to execfile(). I would do this 
+to enable more
+flexibility by allowing control over what happens to existing data on 
+reloads.
+
+First off, to preserve some compatibility, I would have execfile() when 
+reloading
+a module after a change pass in the existing dictionary of data. Thus, 
+new stuff is
+overlaid on top of the old.
+
+This however would be the default behaviour only. One could have 
+special variables
+defined within the module which dictate what is actually to occur on a 
+reload. The
+options I see which could be provided are:
+
+1. Default behaviour being that of the &quot;imp&quot; methods where new is 
+overlaid on top.
+
+2. Start as new option where the existing module is totally discarded 
+first and new
+module goes into a fresh dictionary.
+
+3. Same as option 2, except that module could define a list of global 
+variables which
+should be copied from the old module into the dictionary for the new 
+before the reload
+occurs.
+
+When I first started on my module importing system, what I really 
+wanted was option 3,
+but I couldn't work out how to do it given &quot;imp&quot; reloaded on top and 
+didn't really give
+you a way of doing it any other way.
+
+The reason I like option 3 is that it solves the problem with deleted 
+methods not really
+being deleted and thus perhaps causing problems because they may still 
+be accessible.
+Also, by requiring that the list of variables that should be preserved 
+across the
+reload be listed, it makes it clearer in the code what is preserved 
+state information.
+
+Now hopefully you have followed me through to the end on this. After 
+having gone through
+this, as suggested above, my preferred approach may actually now be as 
+follows.
+
+1. Use execfile().
+
+2. On an import, setup __file__ and __name__ so it sort of looks like a 
+real module in
+cases where code expects to see those values set.
+
+3. Default behaviour on reloading is to work like &quot;imp&quot; modules and 
+reload on top of
+existing module by passing dictionary for it as second argument to 
+execfile().
+
+4. Have ability through special variables defined in imported module to 
+control what
+actually happens on a reload. Namely, allow the three options above, 
+for default
+behaviour, start over as new and start over as new but preserve limited 
+set of state
+variables including thread locks.
+
+Okay, looks like I have a TODO list for myself now. Not only do I have 
+to address the
+threading issues in Vampire as I knew I had to, but change the module 
+importing system
+to use execfile() and implement some control mechanisms over the reload 
+behaviour.
+Ahhh, more coding to do. In the meantime, my documentation for this 
+project and
+another project I work on just get delayed more and more. :-(
+
+As usual, if some one thinks I speak with forked tongue and have 
+misinterpreted how
+something works, please respond and describe what really happens. Any 
+other ideas
+are also most welcome. Thanks.
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016610.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+	<LI>Next message: <A HREF="016624.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16606">[ date ]</a>
+              <a href="thread.html#16606">[ thread ]</a>
+              <a href="subject.html#16606">[ subject ]</a>
+              <a href="author.html#16606">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

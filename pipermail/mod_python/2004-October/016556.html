@@ -1,0 +1,122 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] authenhandler woes
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20authenhandler%20woes&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016555.html">
+   <LINK REL="Next"  HREF="016557.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] authenhandler woes</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Todd Boland</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20authenhandler%20woes&In-Reply-To="
+       TITLE="[mod_python] authenhandler woes">itodd at itodd.org
+       </A><BR>
+    <I>Sun Oct  3 19:26:47 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016555.html">[mod_python] Session always create new session ID
+</A></li>
+        <LI>Next message: <A HREF="016557.html">[mod_python] authenhandler woes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16556">[ date ]</a>
+              <a href="thread.html#16556">[ thread ]</a>
+              <a href="subject.html#16556">[ subject ]</a>
+              <a href="author.html#16556">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I've created a mod_python authenhandler which sets some session data. 
+It works perfectly for the initial request. Unfortunately, all 
+subsequent requests hang on the line I marked with a &gt; character. 
+Anyone have any ideas?
+
+The behavior  I'm experiencing is as if the handler was waiting for a 
+lock to be released on the session dbm file. I'm using mod_python 3.1.3 
+with Python 2.3.4
+
+from mod_python import apache, util
+from mod_python.Session import Session
+
+def authenhandler(req):
+         password = req.get_basic_auth_pw()
+         username = req.user
+
+ &gt;        req.session = Session(req, secret=&quot;********&quot;)
+
+         if req.session.is_new() == True:
+                 from RPM.database import connection
+                 cursor = connection.cursor()
+
+                 try:
+                         cursor.execute(&quot;SELECT accounts.id AS 
+account_id, users.id AS user_id, people.id AS person_id, 
+organizations.id AS organization_id, users.username AS username, 
+CONCAT(people.first_name, ' ', people.last_name) AS person_name, 
+organizations.name AS organization_name, people.email_address AS 
+email_address FROM accounts, users, people, organizations WHERE 
+users.person_id = people.id AND people.organization_id = 
+organizations.id AND accounts.organization_id = organizations.id AND 
+users.username = %s AND users.password = PASSWORD(%s)&quot; % 
+(connection.escape(username), connection.escape(password)))
+
+                         req.session.update(cursor.fetchone())
+                         cursor.execute(&quot;UPDATE users SET last_login = 
+NOW() WHERE id = %d&quot; % req.session[&quot;user_id&quot;])
+                         cursor.close()
+                         req.session.save()
+
+                 except(KeyError, AttributeError):
+                         req.log_error(&quot;Invalid password for %s&quot; % 
+req.user,
+                                 apache.APLOG_NOTICE )
+                         return apache.HTTP_UNAUTHORIZED
+
+         return apache.OK
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016555.html">[mod_python] Session always create new session ID
+</A></li>
+	<LI>Next message: <A HREF="016557.html">[mod_python] authenhandler woes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16556">[ date ]</a>
+              <a href="thread.html#16556">[ thread ]</a>
+              <a href="subject.html#16556">[ subject ]</a>
+              <a href="author.html#16556">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

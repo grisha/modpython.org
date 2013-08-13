@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] script_name bug?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20script_name%20bug%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002930.html">
+   <LINK REL="Next"  HREF="002933.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] script_name bug?</H1>
+    <B>Russell Yanofsky</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20script_name%20bug%3F&In-Reply-To="
+       TITLE="[mod_python] script_name bug?">rey4 at columbia.edu
+       </A><BR>
+    <I>Sat Aug  9 11:01:21 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002930.html">[mod_python] Problem understanding PythonAccessHandler
+</A></li>
+        <LI>Next message: <A HREF="002933.html">[mod_python] script_name bug?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2931">[ date ]</a>
+              <a href="thread.html#2931">[ thread ]</a>
+              <a href="subject.html#2931">[ subject ]</a>
+              <a href="author.html#2931">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I've noticed that req.subprocess_env['SCRIPT_NAME'] seems to have the wrong
+value whenever the requested URL ends in a forward slash. This happens with
+mod_python 3.0.3 and apache 2.0.47. Here are some examples:
+
+  Requested URL: /mptest/mptest.py/
+    Actual SCRIPT_NAME = /mptest/mptest.py/
+    Expected SCRIPT_NAME = /mptest/mptest.py
+    PATH_INFO = /
+
+  Requested URL: /mptest/mptest.py/abc/
+    Actual SCRIPT_NAME = /mptest/mptest.py/abc
+    Expected SCRIPT_NAME = /mptest/mptest.py
+    PATH_INFO = /abc/
+
+  Requested URL: /mptest/mptest.py/abc/123/
+    Actual SCRIPT_NAME = /mptest/mptest.py/abc/123
+    Expected SCRIPT_NAME = /mptest/mptest.py
+    PATH_INFO = /abc/123/
+
+When the request doesn't end with a forward slash there's no problem:
+
+  Requested URL: /mptest/mptest.py
+    Actual SCRIPT_NAME = /mptest/mptest.py
+    Expected SCRIPT_NAME = /mptest/mptest.py
+    PATH_INFO =
+
+  Requested URL: /mptest/mptest.py/abc
+    Actual SCRIPT_NAME = /mptest/mptest.py
+    Expected SCRIPT_NAME = /mptest/mptest.py
+    PATH_INFO = /abc
+
+  Requested URL: /mptest/mptest.py/abc/123
+    Actual SCRIPT_NAME = /mptest/mptest.py
+    Expected SCRIPT_NAME = /mptest/mptest.py
+    PATH_INFO = /abc/123
+
+Here's the code I used to produce the above output:
+
+-- begin .htaccess listing --
+AddHandler python-program .py
+PythonHandler mptest
+PythonDebug On
+-- end .htaccess listing -- 
+
+-- begin mptest.py listing --
+from mod_python import apache
+
+def handler(req):
+  req.content_type = 'text/plain'
+  env = req.subprocess_env
+  req.write('Requested URL: %s\n' % env['REQUEST_URI'])
+  req.write('  Actual SCRIPT_NAME = %s\n' % env['SCRIPT_NAME'])
+  fixenv(env)
+  req.write('  Expected SCRIPT_NAME = %s\n' % env['SCRIPT_NAME'])
+  req.write('  PATH_INFO = %s\n' % env.get('PATH_INFO', ''))
+  return apache.OK
+
+# This is only a partial fix, does not work in the presence
+# of double slashes in the PATH_INFO segment
+def fixenv(env):
+  path_info = env.get('PATH_INFO', '')
+  if path_info and path_info[-1] == '/':
+    script_name = env['SCRIPT_NAME']
+    path_len = len(path_info) - 1
+    if path_len:
+      assert script_name[-path_len:] == path_info[:-1]
+      env['SCRIPT_NAME'] = script_name[:-path_len]
+    else:
+      assert script_name[-1] == '/'
+      env['SCRIPT_NAME'] = script_name[:-1]
+-- end mptest.py listing --
+
+This behavior only seems to occur in mod_python. SCRIPT_NAME does seem to
+have the right value in CGI scripts.
+
+- Russ
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002930.html">[mod_python] Problem understanding PythonAccessHandler
+</A></li>
+	<LI>Next message: <A HREF="002933.html">[mod_python] script_name bug?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2931">[ date ]</a>
+              <a href="thread.html#2931">[ thread ]</a>
+              <a href="subject.html#2931">[ subject ]</a>
+              <a href="author.html#2931">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

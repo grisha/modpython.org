@@ -1,0 +1,116 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] RuntimeError: dictionary changed size during iteration
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20RuntimeError%3A%20dictionary%20changed%20size%20during%20iteration&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018180.html">
+   <LINK REL="Next"  HREF="018204.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] RuntimeError: dictionary changed size during iteration</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Shack Toms</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20RuntimeError%3A%20dictionary%20changed%20size%20during%20iteration&In-Reply-To="
+       TITLE="[mod_python] RuntimeError: dictionary changed size during iteration">shack at livedata.com
+       </A><BR>
+    <I>Thu May 26 11:13:10 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018180.html">[mod_python] psp module 
+</A></li>
+        <LI>Next message: <A HREF="018204.html">[mod_python] RuntimeError: dictionary changed size during
+	iteration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18181">[ date ]</a>
+              <a href="thread.html#18181">[ thread ]</a>
+              <a href="subject.html#18181">[ subject ]</a>
+              <a href="author.html#18181">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>The mem_cleanup routine, in Session.py, appears to have a bug that causes
+python to throw &quot;dictionary changed size during iteration&quot;.
+
+The current code is.
+
+def mem_cleanup(sdict):
+    for sid in sdict:
+        dict = sdict[sid]
+        if (time.time() - dict[&quot;_accessed&quot;]) &gt; dict[&quot;_timeout&quot;]:
+            del sdict[sid]
+
+The for statement should be changed to
+    for sid in sdict.keys():
+
+This will first generate a list of the keys of the sdict, and will avoid the
+complaint about the dictionary changing on the &quot;del sdict[sid]&quot; statement.
+
+The dbm_cleanup code has another approach, to use one iteration to gather
+the keys to be deleted, and then have a second iteration over the gathered
+keys which does the del.   Using that approach, mem_cleanup should become...
+
+def mem_cleanup(sdict):
+    old = []
+    for sid in sdict:
+        dict = sdict[sid]
+        if (time.time() - dict[&quot;_accessed&quot;]) &gt; dict[&quot;_timeout&quot;]:
+            old.append(sid)
+    for sid in old:
+        del sdict[sid]
+
+This is more efficient if the number of sessions is large compared to the
+number of sessions to be deleted.
+
+Shack Toms
+LiveData, Inc.
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018180.html">[mod_python] psp module 
+</A></li>
+	<LI>Next message: <A HREF="018204.html">[mod_python] RuntimeError: dictionary changed size during
+	iteration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18181">[ date ]</a>
+              <a href="thread.html#18181">[ thread ]</a>
+              <a href="subject.html#18181">[ subject ]</a>
+              <a href="author.html#18181">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

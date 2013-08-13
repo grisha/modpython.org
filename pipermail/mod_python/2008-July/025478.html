@@ -1,0 +1,240 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod-gnutls 'SSL_SRP_USER' and ModPython
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod-gnutls%20%27SSL_SRP_USER%27%20and%20ModPython&In-Reply-To=20b1e36e0807260429l86f7e8bw2a4d61e786f70eec%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025475.html">
+   <LINK REL="Next"  HREF="025481.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod-gnutls 'SSL_SRP_USER' and ModPython</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod-gnutls%20%27SSL_SRP_USER%27%20and%20ModPython&In-Reply-To=20b1e36e0807260429l86f7e8bw2a4d61e786f70eec%40mail.gmail.com"
+       TITLE="[mod_python] mod-gnutls 'SSL_SRP_USER' and ModPython">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sun Jul 27 02:36:40 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025475.html">[mod_python] mod-gnutls 'SSL_SRP_USER' and ModPython
+</A></li>
+        <LI>Next message: <A HREF="025481.html">[mod_python] mod-gnutls 'SSL_SRP_USER' and ModPython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25478">[ date ]</a>
+              <a href="thread.html#25478">[ thread ]</a>
+              <a href="subject.html#25478">[ subject ]</a>
+              <a href="author.html#25478">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Haven't mod_python code in front of me right now, but I suspect that
+if SSL_SRP_USER is being set to None, it is because in the underlying
+request_rec-&gt;subprocess_env in Apache C code, the value is referencing
+a null pointer rather than a valid string value. You would need to ask
+the module developers for the code that sets that variable in the
+first place why it is a null pointer and not an actual string value,
+even if it is an empty string value.
+
+Also, the traceback suggests code:
+
+  os.environ.update(req.subprocess_env)
+
+is being executed. Again, don't have code to hand to look at, but me
+thinks that means you are running mod_python.cgihandler. If that is
+the case, I would really recommend you don't as the CGI handler in
+mod_python is quite a hack and shouldn't be used for any serious
+stuff. These days I'd suggest you port your CGI applications to use
+WSGI instead thereby not relying on os.environ as means of being
+passed request information in the first place.
+
+Graham
+
+2008/7/26 Ambrose Andrews &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ambrose-bulk at vrvl.net</A>&gt;:
+&gt;<i> [ N.B.  i sent an identical message to the mod_gnutls list, and send it
+</I>&gt;<i> here too now since its an issue of interaction and i don't know
+</I>&gt;<i> precisely where the problem lies.  -AA. ]
+</I>&gt;<i>
+</I>&gt;<i> Hi...
+</I>&gt;<i>
+</I>&gt;<i> I run Debian 'Lenny' testing with:
+</I>&gt;<i> Apache2 v 2.2.9
+</I>&gt;<i> Mod-Python v 3.3.1
+</I>&gt;<i> Mod-GnuTLS v 0.5.1
+</I>&gt;<i>
+</I>&gt;<i> I've struck some mod-gnutls specific trouble in interaction with
+</I>&gt;<i> modpython - see this traceback:
+</I>&gt;<i>
+</I>&gt;<i> &quot;&quot;&quot;
+</I>&gt;<i> MOD_PYTHON ERROR
+</I>&gt;<i>
+</I>&gt;<i> ProcessId:      15879
+</I>&gt;<i> Interpreter:    'CRYPTO'
+</I>&gt;<i>
+</I>&gt;<i> ServerName:     'www.pathogens.vrvl.net'
+</I>&gt;<i> DocumentRoot:   '/var/www/SSL_www.zed.vrvl.net/'
+</I>&gt;<i>
+</I>&gt;<i> URI:            '/'
+</I>&gt;<i> Location:       '/'
+</I>&gt;<i> Directory:      None
+</I>&gt;<i> Filename:       '/var/www/SSL_www.zed.vrvl.net/'
+</I>&gt;<i> PathInfo:       ''
+</I>&gt;<i>
+</I>&gt;<i> Phase:          'PythonHandler'
+</I>&gt;<i> Handler:        'django.core.handlers.modpython'
+</I>&gt;<i>
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line
+</I>&gt;<i> 1537, in HandlerDispatch
+</I>&gt;<i>    default=default_handler, arg=req, silent=hlist.silent)
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line
+</I>&gt;<i> 1229, in _process_target
+</I>&gt;<i>    result = _execute_target(config, req, object, arg)
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/lib/python2.5/site-packages/mod_python/importer.py&quot;, line
+</I>&gt;<i> 1128, in _execute_target
+</I>&gt;<i>    result = object(arg)
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/var/lib/python-support/python2.5/django/core/handlers/modpython.py&quot;,
+</I>&gt;<i> line 177, in handler
+</I>&gt;<i>    return ModPythonHandler()(req)
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/var/lib/python-support/python2.5/django/core/handlers/modpython.py&quot;,
+</I>&gt;<i> line 137, in __call__
+</I>&gt;<i>    os.environ.update(req.subprocess_env)
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/lib/python2.5/os.py&quot;, line 489, in update
+</I>&gt;<i>    self[k] = dict[k]
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/lib/python2.5/os.py&quot;, line 474, in __setitem__
+</I>&gt;<i>    putenv(key, item)
+</I>&gt;<i>
+</I>&gt;<i> TypeError: putenv() argument 2 must be string, not None
+</I>&gt;<i> &quot;&quot;&quot;
+</I>&gt;<i>
+</I>&gt;<i> So to investigate, from inside a modpython script I get this output
+</I>&gt;<i> for str(req.subprocess_env):
+</I>&gt;<i>
+</I>&gt;<i> {
+</I>&gt;<i> 'SCRIPT_NAME': '/',
+</I>&gt;<i>  'REQUEST_URI': '/',
+</I>&gt;<i>  'QUERY_STRING': '',
+</I>&gt;<i>  'REQUEST_METHOD': 'GET',
+</I>&gt;<i>  'SERVER_PROTOCOL': 'HTTP/1.1',
+</I>&gt;<i>  'GATEWAY_INTERFACE': 'CGI/1.1',
+</I>&gt;<i>  'SSL_SERVER_S_AN1': 'UNSUPPORTED',
+</I>&gt;<i>  'SSL_SERVER_S_AN0': 'DNSNAME:*.pathogens.vrvl.net',
+</I>&gt;<i>  'SSL_SERVER_A_KEY': 'RSA',
+</I>&gt;<i>  'SSL_SERVER_A_SIG': 'RSA-SHA',
+</I>&gt;<i>  'SSL_SERVER_V_START': 'Jul 21 10:36:39 2008 EST',
+</I>&gt;<i> 'SSL_SERVER_V_END': 'Jul 21 10:36:39 2010 EST',
+</I>&gt;<i> 'SSL_SERVER_CERT_TYPE': 'X.509',
+</I>&gt;<i>  'SSL_SERVER_M_VERSION': '3',
+</I>&gt;<i>  'SSL_SERVER_M_SERIAL': '5B8F',
+</I>&gt;<i>  'SSL_SERVER_I_DN': 'O=CAcert Inc.,OU=<A HREF="http://www.CAcert.org,CN=CAcert">http://www.CAcert.org,CN=CAcert</A>
+</I>&gt;<i> Class 3 Root',
+</I>&gt;<i>  'SSL_SERVER_S_DN': 'CN=*.pathogens.zed.vrvl.net',
+</I>&gt;<i>  'SSL_SESSION_ID':
+</I>&gt;<i> '2352784F1DDE3AA3687B3ED53D6C7055CBC3BA2F80B13B58760B9C33B9413EA2',
+</I>&gt;<i> 'SSL_CIPHER_EXPORT': 'false',
+</I>&gt;<i> 'SSL_CIPHER_ALGKEYSIZE': '256',
+</I>&gt;<i> 'SSL_CIPHER_USEKEYSIZE': '256',
+</I>&gt;<i>  'SSL_CLIENT_VERIFY': 'NONE',
+</I>&gt;<i>  'SSL_SRP_USER': None,
+</I>&gt;<i>  'SSL_COMPRESS_METHOD': 'NULL',
+</I>&gt;<i>  'SSL_CIPHER': 'DHE_RSA_AES_256_CBC_SHA1',
+</I>&gt;<i> 'SSL_PROTOCOL': 'SSL3.0',
+</I>&gt;<i> 'SSL_VERSION_INTERFACE': 'mod_gnutls/0.5.1',
+</I>&gt;<i> 'SSL_VERSION_LIBRARY': 'GnuTLS/2.2.1',
+</I>&gt;<i> 'HTTPS': 'on'
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> and was offered the following observation in the Django irc channel:
+</I>&gt;<i>
+</I>&gt;<i> &quot;&quot;&quot;
+</I>&gt;<i> 19:47 &lt; Magus-&gt; aha
+</I>&gt;<i> 19:47 &lt; Magus-&gt; SSL_SRP_USER is being set wrong
+</I>&gt;<i> 19:48 &lt; Magus-&gt; it is None instead of a string like &quot;NONE&quot; like
+</I>&gt;<i> SSL_CLIENT_VERIFY is set to
+</I>&gt;<i> 19:48 &lt; Magus-&gt; since you can't update environ with None as an env var value
+</I>&gt;<i> 19:51 &lt; Magus-&gt; its probably an issue in the module though, unless its
+</I>&gt;<i> the modpython handler replacing None with 'NONE' on the other bits
+</I>&gt;<i>
+</I>&gt;<i> &quot;&quot;&quot;
+</I>&gt;<i>
+</I>&gt;<i> So I don't know if the problem is modpython not dealing with an exotic
+</I>&gt;<i> environment variable it doesn't get from mod-ssl or whether it is a
+</I>&gt;<i> mod-gnutls inconsistency.  Anyone know?
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  -AA.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Ambrose Andrews
+</I>&gt;<i> LPO box 8274 ANU Acton ACT 0200 Australia
+</I>&gt;<i> <A HREF="http://www.vrvl.net/~ambrose/">http://www.vrvl.net/~ambrose/</A>
+</I>&gt;<i> mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ambrose at vrvl.net</A>
+</I>&gt;<i> home:+61_262305976
+</I>&gt;<i> work:+61_261256749
+</I>&gt;<i> mobile:+61_415544621
+</I>&gt;<i> irc:{undernet|freenode|oftc}:znalo
+</I>&gt;<i> xmpp:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ambrose at jabber.fsfe.org</A>
+</I>&gt;<i> sip:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">znalo at ekiga.net</A>
+</I>&gt;<i> CE38 8B79 C0A7 DF4A 4F54 E352 2647 19A1 DB3B F823
+</I>&gt;<i> 556A 6D19 0904 827C 9DB8 3697 32D0 1E11 403F 2BE1
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025475.html">[mod_python] mod-gnutls 'SSL_SRP_USER' and ModPython
+</A></li>
+	<LI>Next message: <A HREF="025481.html">[mod_python] mod-gnutls 'SSL_SRP_USER' and ModPython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25478">[ date ]</a>
+              <a href="thread.html#25478">[ thread ]</a>
+              <a href="subject.html#25478">[ subject ]</a>
+              <a href="author.html#25478">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

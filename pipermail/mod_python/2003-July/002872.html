@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20apache%20API%20and%20mod_python%20%3C-%3E%20protocol%20module%0A%09integration&In-Reply-To=20030716134923.B92465%40onyx.ispol.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002871.html">
+   <LINK REL="Next"  HREF="002877.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration</H1>
+    <B>Dustin Mitchell</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20apache%20API%20and%20mod_python%20%3C-%3E%20protocol%20module%0A%09integration&In-Reply-To=20030716134923.B92465%40onyx.ispol.com"
+       TITLE="[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+	integration">dustin at ywlcs.org
+       </A><BR>
+    <I>Wed Jul 16 13:25:15 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002871.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+ integration
+</A></li>
+        <LI>Next message: <A HREF="002877.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+ integration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2872">[ date ]</a>
+              <a href="thread.html#2872">[ thread ]</a>
+              <a href="subject.html#2872">[ subject ]</a>
+              <a href="author.html#2872">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Wed, Jul 16, 2003 at 01:59:58PM -0400, Gregory (Grisha) Trubetskoy wrote:
+&gt;<i> This is not a problem of mod_python or Apache, this is the way sockets
+</I>&gt;<i> work. If your protocol is such that you know ahead of time how much to
+</I>&gt;<i> read (e.g. HTTP), then you can request this much data in one read.
+</I>&gt;<i> Otherwise, you must read in smallest unit sizes of your protocol, which
+</I>&gt;<i> (I'm guessing) is 1 byte in case of Z39.50.
+</I>
+This is not strictly true, as long as you're OK with possibly getting a
+bit of *extra* data beyond a particular PDU (a little bit of buffering
+can take care of that).  Apache has to do this to read the HTTP header,
+which is not of a fixed length.
+
+The socket blocking read interface is structured such that it will block
+when *no* data is available, and will return *up to* the quantity
+specified in the recv() call if it is available.  However, if some
+smaller amount of data is available, that data will be returned
+immediately.
+
+To demonstrate, I hacked this together:
+
+from socket import *
+s = socket(AF_INET, SOCK_STREAM)
+s.bind((&quot;&quot;, 9900))
+s.listen(5)
+while 1:
+  ss, sa = s.accept()
+  print &quot;Connect from '%s'&quot; % (sa,)
+  while 1:
+    data = ss.recv(100)
+    if not data: break
+    print &quot; Received: %s&quot; % `data`
+  print &quot;Connection closed from '%s'&quot; % (sa,)
+
+Then connected with telnet and typed &quot;Hello&quot; and &quot;World&quot; on separate
+lines.  Telnet, by default, buffers lines of input until a newline, but
+you will note that in the two returns from ss.recv(), neither contained
+100 bytes of data:
+
+Connect from '('127.0.0.1', 56260)'
+ Received: 'Hello\r\n'
+ Received: 'World\r\n'
+Connection closed from '('127.0.0.1', 56260)'
+
+Further, a loop such as:
+  for i in 'hello world': s.send(i)
+will produce output like this:
+
+Connect from '('127.0.0.1', 56277)'
+ Received: 'h'
+ Received: 'ello world'
+Connection closed from '('127.0.0.1', 56277)'
+
+Either the client or the server's socket implementation is buffering the
+characters because they're appearing so quickly, which cuts down on the
+number of recv() calls which must be made.
+
+I can't speak for the Apache sockets API, or the Python interface
+thereto, but sockets themselves *do* support this interface (they'd be
+pretty useless if they didn't!).  I highly recommend W. Richard
+Stevens' TCP/IP Illustrated for an in-depth and very readable
+discussion of this and many other crucial implementation details of
+TCP/IP.
+
+Dustin
+
+-- 
+
+  Dustin Mitchell
+  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">dustin at ywlcs.org</A>/<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">djmitche at alumni.uchicago.edu</A>
+  <A HREF="http://people.cs.uchicago.edu/~dustin/">http://people.cs.uchicago.edu/~dustin/</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002871.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+ integration
+</A></li>
+	<LI>Next message: <A HREF="002877.html">[mod_python]  apache API and mod_python &lt;-&gt; protocol module
+ integration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2872">[ date ]</a>
+              <a href="thread.html#2872">[ thread ]</a>
+              <a href="subject.html#2872">[ subject ]</a>
+              <a href="author.html#2872">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

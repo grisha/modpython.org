@@ -1,0 +1,140 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] [patch] vampire 1.1 remove unknown query variables
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5Bpatch%5D%20vampire%201.1%20remove%20unknown%20query%20variables&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016649.html">
+   <LINK REL="Next"  HREF="016652.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] [patch] vampire 1.1 remove unknown query variables</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Johannes Erdfelt</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5Bpatch%5D%20vampire%201.1%20remove%20unknown%20query%20variables&In-Reply-To="
+       TITLE="[mod_python] [patch] vampire 1.1 remove unknown query variables">johannes at erdfelt.com
+       </A><BR>
+    <I>Tue Oct 19 16:56:50 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016649.html">[mod_python] ANNOUNCE: Myghty 0.94 Released
+</A></li>
+        <LI>Next message: <A HREF="016652.html">[mod_python] Re: [patch] vampire 1.1 remove unknown query variables
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16650">[ date ]</a>
+              <a href="thread.html#16650">[ thread ]</a>
+              <a href="subject.html#16650">[ subject ]</a>
+              <a href="author.html#16650">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I've been using vampire the last couple of days and I like it, but it
+has some problems some code I originally wrote didn't have.
+
+This patch fixes a problem where unknown query variables (form
+variables) could cause an internal server error.
+
+Generally, this shouldn't happen and on a well designed site, it's the
+users error for causing this to occur, but it causes some undue alarm
+when looking at the logs, so I wrote up this patch to remove unknown
+query variables before applying it to the called handler.
+
+It also prints out an error message if variables are required by the
+handler, but aren't given by the client (it doesn't have a default)
+
+It applies to vampire 1.1
+
+JE
+
+diff -ur vampire-1.1-20041009.orig/packages/vampire/apache.py vampire-1.1-20041009/packages/vampire/apache.py
+--- vampire-1.1-20041009.orig/packages/vampire/apache.py	2004-10-08 18:31:50.000000000 -0700
++++ vampire-1.1-20041009/packages/vampire/apache.py	2004-10-19 13:55:48.000000000 -0700
+@@ -171,4 +171,40 @@
+ 
+   # Execute the content handler.
+ 
+-  return apply(function,(req,),args)
++  # Match up the arguments given by the client to the expected arguments
++  # from the method. We only remove non expected names and don't check for
++  # expected because the argument may have a default if not set. We use
++  # exceptions to catch the case where an argument does not have a default.
++  fc = function.func_code
++  expected = fc.co_varnames[0:fc.co_argcount]
++ 
++  # Silently remove any unexpected arguments if we need to
++  if not fc.co_flags &amp; 0x000C:  # CO_VARARGS | CO_VARKEYWORDS
++    for name in args.keys():
++      if name not in expected:
++        del args[name]
++
++  try:
++    return apply(function,(req,),args)
++  except TypeError, vars:
++    missing = []
++
++    # Don't worry about the arguments with defaults
++    argcount = fc.co_argcount
++    if function.func_defaults:
++      argcount = argcount - len(function.func_defaults)
++    # Skip the first argument, which is the req
++    for name in fc.co_varnames[1:argcount]:
++      if name not in args:
++        missing.append(name)
++
++    if not len(missing):
++      raise
++
++    # We definately had some missing variables, let's let the user know
++    req.content_type = &quot;text/plain&quot;
++    req.status = apache.HTTP_INTERNAL_SERVER_ERROR
++    req.send_http_header()
++    req.write(&quot;Call is missing these variables: %s\n&quot; % &quot;, &quot;.join(missing))
++
++    return apache.OK
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016649.html">[mod_python] ANNOUNCE: Myghty 0.94 Released
+</A></li>
+	<LI>Next message: <A HREF="016652.html">[mod_python] Re: [patch] vampire 1.1 remove unknown query variables
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16650">[ date ]</a>
+              <a href="thread.html#16650">[ thread ]</a>
+              <a href="subject.html#16650">[ subject ]</a>
+              <a href="author.html#16650">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

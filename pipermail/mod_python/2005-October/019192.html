@@ -1,0 +1,248 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session Pickling Error II - 3.2.2b
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Pickling%20Error%20II%20-%203.2.2b&In-Reply-To=1128467565.19364%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019183.html">
+   <LINK REL="Next"  HREF="019181.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session Pickling Error II - 3.2.2b</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Terence MacDonald</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Pickling%20Error%20II%20-%203.2.2b&In-Reply-To=1128467565.19364%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Session Pickling Error II - 3.2.2b">terencemacdonald at gmail.com
+       </A><BR>
+    <I>Thu Oct  6 07:15:42 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019183.html">[mod_python] Session Pickling Error II - 3.2.2b
+</A></li>
+        <LI>Next message: <A HREF="019181.html">[mod_python] Multi-tier functionality
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19192">[ date ]</a>
+              <a href="thread.html#19192">[ thread ]</a>
+              <a href="subject.html#19192">[ subject ]</a>
+              <a href="author.html#19192">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Thanks for the in depth explanation Graham.
+
+It HAS helped me understand the problem and has helped me fix it (for now)
+
+On a different note I would like to take this opportunity to voice my
+appreciation to a number of volunteers (you know who you are) that have
+stepped forward in the past year or so and given mod_python a fresh impetus.
+I find you extremely helpful and knowledgeable.
+
+Hats off to you guys!
+
+Roll on 3.2 (3.3...)
+
+On 10/5/05, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Terence MacDonald wrote ..
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On Wed, 2005-10-05 at 07:28 +1000, Graham Dumpleton wrote:
+</I>&gt;<i> &gt; &gt; The only way I can see there possibly being a problem is if the
+</I>&gt;<i> &gt; &gt; apache.import_module() method were being used to import
+</I>&gt;<i> &gt; &gt; pyPgSQL module and it was getting reloaded. I would expect
+</I>&gt;<i> &gt; &gt; though that pyPgSQL is a standard module in site-packages
+</I>&gt;<i> &gt; &gt; though so would be imported using &quot;import&quot;. Yes/No?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; the PyPgSQL module PgSQL.py is imported using the usual &quot;import&quot;, this
+</I>&gt;<i> &gt; import resides in my database module which itself is imported, by my
+</I>&gt;<i> &gt; processing modules, using apache.import_module(). I have PythonOption
+</I>&gt;<i> &gt; AutoReload set to 'on'
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I have stopped using apache.import_module inline to import my database
+</I>&gt;<i> &gt; module when required and resorted to 'top of the file' import instead.
+</I>&gt;<i> &gt; The problem appears (fingers crossed!) to have gone away.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I am still not sure what the problem or the solution is/was, except that
+</I>&gt;<i> &gt; it is related to import_module, pickling session data that has object
+</I>&gt;<i> &gt; instances and a pickling helper function (in this case a function named
+</I>&gt;<i> &gt; _B that aids in pickling PgBoolean instances and is declared in the
+</I>&gt;<i> &gt; init.py file of the PyPgSQL package) not being at the same address....
+</I>&gt;<i> &gt; If that makes sense
+</I>&gt;<i>
+</I>&gt;<i> In short, in mod_python 3.1.4 and earlier, pickling of anything which
+</I>&gt;<i> depends on a function object which resides in a module imported using
+</I>&gt;<i> apache.import_module() will not be reliable. With the changes in 3.2, it
+</I>&gt;<i> simply will not work.
+</I>&gt;<i>
+</I>&gt;<i> Lets start with the following tests:
+</I>&gt;<i>
+</I>&gt;<i> # &gt;&gt;&gt; import pickle
+</I>&gt;<i> # &gt;&gt;&gt; def a(): pass
+</I>&gt;<i> # ...
+</I>&gt;<i> # &gt;&gt;&gt; pickle.dumps(a)
+</I>&gt;<i> # 'c__main__\na\np0\n.'
+</I>&gt;<i> # &gt;&gt;&gt; z = a
+</I>&gt;<i> # &gt;&gt;&gt; pickle.dumps(z)
+</I>&gt;<i> # 'c__main__\na\np0\n.'
+</I>&gt;<i>
+</I>&gt;<i> As you can see, it is possible to pickle the function object. This can
+</I>&gt;<i> be done even through a copy of the function object by reference,
+</I>&gt;<i> although in that case the pickled object still refers to the original
+</I>&gt;<i> function object.
+</I>&gt;<i>
+</I>&gt;<i> Now lets delete the original function object and pickle the copy again.
+</I>&gt;<i>
+</I>&gt;<i> # &gt;&gt;&gt; del a
+</I>&gt;<i> # &gt;&gt;&gt; pickle.dumps(z)
+</I>&gt;<i> # Traceback (most recent call last):
+</I>&gt;<i> # ....... deleted traceback
+</I>&gt;<i> # pickle.PicklingError: Can't pickle &lt;function a at 0x612b0&gt;: it's not
+</I>&gt;<i> found as __main__.a
+</I>&gt;<i>
+</I>&gt;<i> Because the original function object was deleted from where it was
+</I>&gt;<i> created, one cannot now even pickle the copy.
+</I>&gt;<i>
+</I>&gt;<i> Now lets recreate the original function object.
+</I>&gt;<i>
+</I>&gt;<i> # &gt;&gt;&gt; def a(): pass
+</I>&gt;<i> # ...
+</I>&gt;<i> # &gt;&gt;&gt; pickle.dumps(z)
+</I>&gt;<i> # Traceback (most recent call last):
+</I>&gt;<i> # ....... deleted traceback
+</I>&gt;<i> # pickle.PicklingError: Can't pickle &lt;function a at 0x612b0&gt;: it's not the
+</I>&gt;<i> same object as __main__.a
+</I>&gt;<i>
+</I>&gt;<i> Notice how the exception message has changed. It recognises that &quot;a&quot;
+</I>&gt;<i> exists but realises that it is actually a different function object from
+</I>&gt;<i> which the &quot;z&quot; copy was originally made.
+</I>&gt;<i>
+</I>&gt;<i> Where problems can start occuring in mod_python 3.1.4 and earlier is if
+</I>&gt;<i> the function object is cached in some data object which is held outside
+</I>&gt;<i> of the module the function object was defined in. If the original module
+</I>&gt;<i> holding the original function object were now reloaded because of the
+</I>&gt;<i> automatic module reloading mechanism implemented by the
+</I>&gt;<i> apache.import_module() function, an attempt to pickle the data object
+</I>&gt;<i> which had cached the function object will fail. This is because the
+</I>&gt;<i> original function object which had been copied from will have been
+</I>&gt;<i> overrwritten by a new one when the module was reloaded.
+</I>&gt;<i>
+</I>&gt;<i> This sort of problem although it will not occur for an instance of a
+</I>&gt;<i> class object, will occur for the class object type itself.
+</I>&gt;<i>
+</I>&gt;<i> # &gt;&gt;&gt; class B: pass
+</I>&gt;<i> # ...
+</I>&gt;<i> # &gt;&gt;&gt; b=B()
+</I>&gt;<i> # &gt;&gt;&gt; pickle.dumps(b)
+</I>&gt;<i> # '(i__main__\nB\np0\n(dp1\nb.'
+</I>&gt;<i> # &gt;&gt;&gt; del B
+</I>&gt;<i> # &gt;&gt;&gt; pickle.dumps(b)
+</I>&gt;<i> # '(i__main__\nB\np0\n(dp1\nb.'
+</I>&gt;<i>
+</I>&gt;<i> # &gt;&gt;&gt; class B: pass
+</I>&gt;<i> # ...
+</I>&gt;<i> # &gt;&gt;&gt; pickle.dumps(B)
+</I>&gt;<i> # 'c__main__\nB\np0\n.'
+</I>&gt;<i> # &gt;&gt;&gt; C = B
+</I>&gt;<i> # &gt;&gt;&gt; pickle.dumps(C)
+</I>&gt;<i> # 'c__main__\nB\np0\n.'
+</I>&gt;<i> # &gt;&gt;&gt; del B
+</I>&gt;<i> # &gt;&gt;&gt; pickle.dumps(C)
+</I>&gt;<i> # Traceback (most recent call last):
+</I>&gt;<i> # ........ deleted traceback
+</I>&gt;<i> # pickle.PicklingError: Can't pickle &lt;class __main__.B at 0x53ab0&gt;: it's
+</I>&gt;<i> not found as __main__.B
+</I>&gt;<i>
+</I>&gt;<i> Thus, in practice, even in mod_python 3.1.4 and earlier I would not
+</I>&gt;<i> recommend trying to pickle function objects or class object types,
+</I>&gt;<i> unless you are absolutely gauranteed that the module that the original
+</I>&gt;<i> function object instance or class object type resides in is only
+</I>&gt;<i> imported using &quot;import&quot; and is never in anyway reloaded.
+</I>&gt;<i>
+</I>&gt;<i> If wanted to ensure that no strange problems were going to occur, I
+</I>&gt;<i> would possibly go as far as suggesting that only basic Python types,
+</I>&gt;<i> ie., scalars, tuples, lists and dictionaries, be pickled along with
+</I>&gt;<i> Session objects.
+</I>&gt;<i>
+</I>&gt;<i> One other obscure area that would worry me in respect of pickling and
+</I>&gt;<i> mod_python is that different parts of a web site can have different
+</I>&gt;<i> PythonPath settings. The issue here is that when unpickling certain
+</I>&gt;<i> objects, such as function objects and class object types, the original
+</I>&gt;<i> module containing a type must be importable within the context that the
+</I>&gt;<i> unpickling is occuring. This is so that if it hasn't already been
+</I>&gt;<i> imported it can be automatically imported.
+</I>&gt;<i>
+</I>&gt;<i> What though happens when the pickling occurs in one part of the
+</I>&gt;<i> namespace of a web site and it is unpickled in another where PythonPath
+</I>&gt;<i> is set differently and the required module hadn't already been imported,
+</I>&gt;<i> but doesn't appear in any directory specificed by PythonPath. Because of
+</I>&gt;<i> how mod_python can overlay same named modules over the top of each other
+</I>&gt;<i> in mod_python 3.1.4, it may also not import the correct module, plus
+</I>&gt;<i> there is a mixing of the &quot;import&quot; and &quot;apache.import_module()&quot;
+</I>&gt;<i> mechanisms.
+</I>&gt;<i>
+</I>&gt;<i> I may be overly paranoid, but that is what defensive programming is all
+</I>&gt;<i> about if you really want to ensure you are building a robust system
+</I>&gt;<i> where you avoid any hint of trouble. :-)
+</I>&gt;<i>
+</I>&gt;<i> Anyway, hope this might help in some way to explain your problems.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20051006/fda24a07/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20051006/fda24a07/attachment.html</A>
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019183.html">[mod_python] Session Pickling Error II - 3.2.2b
+</A></li>
+	<LI>Next message: <A HREF="019181.html">[mod_python] Multi-tier functionality
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19192">[ date ]</a>
+              <a href="thread.html#19192">[ thread ]</a>
+              <a href="subject.html#19192">[ subject ]</a>
+              <a href="author.html#19192">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

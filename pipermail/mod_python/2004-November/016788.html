@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Bug in setting interpreter name with
+	PythonInterpPerDirectory.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Bug%20in%20setting%20interpreter%20name%20with%0A%09PythonInterpPerDirectory.&In-Reply-To=1100125136.29704%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016784.html">
+   <LINK REL="Next"  HREF="016785.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Bug in setting interpreter name with
+	PythonInterpPerDirectory.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Bug%20in%20setting%20interpreter%20name%20with%0A%09PythonInterpPerDirectory.&In-Reply-To=1100125136.29704%40dscpl.com.au"
+       TITLE="[mod_python] Bug in setting interpreter name with
+	PythonInterpPerDirectory.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Nov 11 21:59:27 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016784.html">[mod_python] Bug in setting up of config_dir from Handler
+	directives.
+</A></li>
+        <LI>Next message: <A HREF="016785.html">[mod_python] Directory separator in uri/filename on Win32.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16788">[ date ]</a>
+              <a href="thread.html#16788">[ thread ]</a>
+              <a href="subject.html#16788">[ subject ]</a>
+              <a href="author.html#16788">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Nov 10 15:18, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Subject: [mod_python] Bug in setting up of config_dir from Handler directives.
+</I>&gt;<i>
+</I>&gt;<i> I wander where else there are little mistakes like this in mod_python
+</I>&gt;<i> where it doesn't take into consideration that Apache passed it POSIX
+</I>&gt;<i> style pathnames and not Win32 ones.
+</I>&gt;<i> 
+</I>&gt;<i> Anyway, possibly another one for the TODO list of things to fix. Someone
+</I>&gt;<i> want to confirm this analysis or make the change and see what happens
+</I>&gt;<i> then.
+</I>
+Having a very quick look at mod_python.c, the SLASH macros get used in only
+one other spot. It is mentioned in other places, but that code is commented
+out.
+
+The code in this case is in select_interp_name() and it to is wrong, although
+it has a couple of problems and gives slightly undesirable results on UNIX
+platforms as well in certain cirsumstances.
+
+Consider a publisher based content handler containing:
+
+  def index(req):
+    return req.interpreter
+
+If you do not have the PythonInterPerDirectory diective turned on, accessing
+that page will generate the virtual/actual host of the web server. Eg.
+
+  grumpy.company.com
+
+If you turn on the PythonInterpPerDirectory and access the page explicitly
+as for example:
+
+  <A HREF="http://localhost:8080/~grahamd/publisher/index.py">http://localhost:8080/~grahamd/publisher/index.py</A>
+
+You get something like:
+
+  /Users/grahamd/Sites/publisher/
+
+The trailing slash &quot;/&quot; is put there by the select_interp_name() function. If this
+were on Win32, you probably end up with:
+
+  /Users/grahamd/Sites/publisher\
+
+Now, if the actual directory is accessed instead and the automagic mapping to
+the index() method in the file is relied upon, ie., request as:
+
+  <A HREF="http://localhost:8080/~grahamd/publisher">http://localhost:8080/~grahamd/publisher</A>
+
+You first get redirected to:
+
+  <A HREF="http://localhost:8080/~grahamd/publisher/">http://localhost:8080/~grahamd/publisher/</A>
+
+and the result you get back is:
+
+  /Users/grahamd/Sites/publisher//
+
+Again, the final trailing '/' is put there by select_interp_name(). On Win32, this is
+thus likely to be:
+
+  /Users/grahamd/Sites/publisher/\
+
+In summary, there are two problems here.
+
+First is that on Win32 it is most likely going to use '\' even though rest of the path
+uses POSIX naming style.
+
+Second is that the code doesn't check to see if there already is a trailing slash with
+the result that although access to the directory and the file should result in the
+same interpreter name, it doesn't.
+
+This latter problem means that the same index() method can get executed within
+the context of two different interpreters dependent on which URL you used. This
+shouldn't be the case and could cause problems in some applications.
+
+I haven't worked out the actual patch required in this case because of there being
+two issues and because I haven't looked through the code enough to know where
+to look to see if there already is a trailing slash. At the minimum, the use of SLASH_S
+should be changed to &quot;/&quot; in that part of the select_interp_name() method.
+
+Anyone on Win32 want to see if my assumptions about what happens there is
+correct?
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016784.html">[mod_python] Bug in setting up of config_dir from Handler
+	directives.
+</A></li>
+	<LI>Next message: <A HREF="016785.html">[mod_python] Directory separator in uri/filename on Win32.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16788">[ date ]</a>
+              <a href="thread.html#16788">[ thread ]</a>
+              <a href="subject.html#16788">[ subject ]</a>
+              <a href="author.html#16788">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

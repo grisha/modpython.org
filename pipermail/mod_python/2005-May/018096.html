@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] os.system() call does not work within mod_python
+	script
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20os.system%28%29%20call%20does%20not%20work%20within%20mod_python%0A%09script&In-Reply-To=979688eab85c558405880f2d8a700d08%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018095.html">
+   <LINK REL="Next"  HREF="018097.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] os.system() call does not work within mod_python
+	script</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Arno Wilhelm</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20os.system%28%29%20call%20does%20not%20work%20within%20mod_python%0A%09script&In-Reply-To=979688eab85c558405880f2d8a700d08%40dscpl.com.au"
+       TITLE="[mod_python] os.system() call does not work within mod_python
+	script">quirxi at aon.at
+       </A><BR>
+    <I>Sun May 15 06:59:43 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018095.html">[mod_python] os.system() call does not work within mod_python
+	script
+</A></li>
+        <LI>Next message: <A HREF="018097.html">[mod_python] os.system() call does not work within mod_python
+	script
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18096">[ date ]</a>
+              <a href="thread.html#18096">[ thread ]</a>
+              <a href="subject.html#18096">[ subject ]</a>
+              <a href="author.html#18096">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello,
+
+thanks for your help.
+
+I have resolved the issue now. User apache is not allowed to issue (almost) any 
+command. I had to load the suexec module that uses the command suexec2 in order 
+to get that to work!
+
+The only command that worked without the suexec_module was the echo command:
+system( &quot;/bin/echo Hello_mod_python &gt;&gt; /tmp/dummy.log 2&gt;&amp;1&quot; )
+
+Any other command from within a mod_python script did not show any results, 
+except an empty /tmp/dummy file (but not even an error message) at all!
+
+When I load the suexec_module in apache2.conf like this:
+
+LoadModule suexec_module      modules/mod_suexec.so
+SuexecUserGroup root root
+
+apache2 seems to issue the command with the help of the suexec2 utility:
+
+# suexec2 -V
+  -D AP_DOC_ROOT=&quot;/var/www&quot;
+  -D AP_GID_MIN=100
+  -D AP_HTTPD_USER=&quot;apache&quot;
+  -D AP_LOG_EXEC=&quot;/var/log/apache2/suexec_log&quot;
+  -D AP_SAFE_PATH=&quot;/usr/local/bin:/usr/bin:/bin&quot;
+  -D AP_SUEXEC_UMASK=077
+  -D AP_UID_MIN=1000
+  -D AP_USERDIR_SUFFIX=&quot;public_html&quot;
+
+
+See also this website for more details:
+<A HREF="http://blog.develix.com/archives/33-Configuring-Apache-and-PHP-to-use-mod_suexec.html">http://blog.develix.com/archives/33-Configuring-Apache-and-PHP-to-use-mod_suexec.html</A>
+
+
+Thanks and greetings,
+
+
+quirxi
+
+Graham Dumpleton wrote:
+&gt;<i> On 15/05/2005, at 8:08 AM, Arno Wilhelm wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> Hello,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I have got a proble for which I cannot find a proper solution:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Whenever a user on his browser hits a certain page (served by 
+</I>&gt;&gt;<i> mod_python) the mod_python should send a SIGUSR signal to a certain 
+</I>&gt;&gt;<i> process in order to force a update on him like this
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> # os.system( &quot;kill -s SIGUSR1 26199&quot; )
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Whenever I make this call from within a python script it works. But 
+</I>&gt;&gt;<i> whenever I try to build it into the mod_python script that is handled 
+</I>&gt;&gt;<i> by apache it does not work. After that I have experimented with other 
+</I>&gt;&gt;<i> os.system calls from within mod_python scripts and all of them seem to 
+</I>&gt;&gt;<i> be ignored somehow.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Could someone here possibly shed some light on this issue, since I am 
+</I>&gt;&gt;<i> on the end of my knowledge.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> A few things to consider.
+</I>&gt;<i> 
+</I>&gt;<i> 1. Set full pathnames to the programs in the command.
+</I>&gt;<i> 
+</I>&gt;<i> The PATH setup for Apache may not be that useful. It may reference
+</I>&gt;<i> some standard locations, but not much. Thus, if you expect program
+</I>&gt;<i> to be found by searching PATH, it may not work.
+</I>&gt;<i> 
+</I>&gt;<i> 2. Don't rely on the current working directory to be anything specific.
+</I>&gt;<i> 
+</I>&gt;<i> Normally current working directory would be '/' and nothing to to do
+</I>&gt;<i> with where any Python request handler will be. Any references to files
+</I>&gt;<i> should always be as absolute paths.
+</I>&gt;<i> 
+</I>&gt;<i> 3. Apache usually runs as user &quot;nobody&quot; or some other special user.
+</I>&gt;<i> 
+</I>&gt;<i> Because Apache runs as a special user, it often will not have the
+</I>&gt;<i> necessary privileges to be able to write to directories or send signals
+</I>&gt;<i> to processes running as another user.
+</I>&gt;<i> 
+</I>&gt;<i> 4. Log output of scripts to a directory in &quot;/tmp&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> As a way of working out problems, send the output of any commands to
+</I>&gt;<i> a log file in &quot;/tmp&quot;. Ie., run your command as:
+</I>&gt;<i> 
+</I>&gt;<i>   os.system( &quot;kill -s SIGUSR1 26199 &gt;&gt; /tmp/dummy.log 2&gt;&amp;1&quot; )
+</I>&gt;<i> 
+</I>&gt;<i> This will allow you to see any errors. With the way that Apache works,
+</I>&gt;<i> you might not otherwise see errors generated by a call to os.system()
+</I>&gt;<i> until Apache is shutdown and certain buffers are flushed out.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018095.html">[mod_python] os.system() call does not work within mod_python
+	script
+</A></li>
+	<LI>Next message: <A HREF="018097.html">[mod_python] os.system() call does not work within mod_python
+	script
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18096">[ date ]</a>
+              <a href="thread.html#18096">[ thread ]</a>
+              <a href="subject.html#18096">[ subject ]</a>
+              <a href="author.html#18096">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] CSS not processed in
+	PSP	stylesheet&amp;In-Reply-To=20369.1105262074@www1.gmx.net
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20CSS%20not%20processed%20in%0A%09PSP%09stylesheet%26In-Reply-To%3D20369.1105262074%40www1.gmx.net&In-Reply-To=3889.1105378417%40www50.gmx.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017055.html">
+   <LINK REL="Next"  HREF="017062.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] CSS not processed in
+	PSP	stylesheet&amp;In-Reply-To=20369.1105262074@www1.gmx.net</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Byron Ellacott</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20CSS%20not%20processed%20in%0A%09PSP%09stylesheet%26In-Reply-To%3D20369.1105262074%40www1.gmx.net&In-Reply-To=3889.1105378417%40www50.gmx.net"
+       TITLE="[mod_python] CSS not processed in
+	PSP	stylesheet&amp;In-Reply-To=20369.1105262074@www1.gmx.net">bje at apnic.net
+       </A><BR>
+    <I>Mon Jan 10 18:12:32 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017055.html">[mod_python] CSS not processed in PSP
+	stylesheet&amp;In-Reply-To=20369.1105262074@www1.gmx.net
+</A></li>
+        <LI>Next message: <A HREF="017062.html">[mod_python] Mod_pythong quit working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17059">[ date ]</a>
+              <a href="thread.html#17059">[ thread ]</a>
+              <a href="subject.html#17059">[ subject ]</a>
+              <a href="author.html#17059">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">pit.grinja at gmx.de</A> wrote:
+&gt;<i> Many thanks for your hints. In fact, the problem had nothing to do with an
+</I>&gt;<i> incorrect path, and the content type 'text/html' is in principle ok. The
+</I>&gt;<i> problem seems to be the combination of the content type AND the xml
+</I>&gt;<i> declaration. It turned out that the directly opening the file in mozilla did
+</I>&gt;<i> not give the expected results (&lt;b&gt;sometext&lt;/b&gt;,&lt;i&gt;someother&lt;/i&gt;,&lt;br /&gt;...
+</I>&gt;<i> parts were ignored if not defined in the css). After lots of
+</I>&gt;<i> experimentation, I found that all what is needed is the following tag as a
+</I>&gt;<i> child of the head-tag:
+</I>&gt;<i> &lt;meta content=&quot;application/xhtml+xml&quot;/&gt;.
+</I>
+There are a couple of caveats to beware of here.  First, as you have 
+probably surmised, &lt;?xml-stylesheet ...?&gt; is only valid in an XML 
+document, which text/html is not.  Even if you send an XHTML document, 
+complete with a &lt;?xml ...?&gt; opener, browsers will /not/ treat it as an 
+XHTML document.  This is trivial to demonstrate with the following page:
+
+---------------------
+&lt;?xml version=&quot;1.0&quot;?&gt;
+&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot;
+         &quot;<A HREF="http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;">http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;</A>&gt;
+&lt;html xmlns=&quot;<A HREF="http://www.w3.org/1999/xhtml&quot;">http://www.w3.org/1999/xhtml&quot;</A> xml:lang=&quot;en&quot; lang=&quot;en&quot;&gt;
+   &lt;head&gt;
+     &lt;title&gt;Test page&lt;/title&gt;
+   &lt;/head&gt;
+   &lt;body&gt;
+     &lt;p&gt;
+       &lt;script type=&quot;text/javascript&quot;&gt;
+           document.write('Hello, World!');
+       &lt;/script&gt;
+     &lt;/p&gt;
+   &lt;/body&gt;
+&lt;/html&gt;
+--------------------
+
+If you serve this file up as text/html, you will get a blank page with 
+'Hello, World!' on it.  If you serve this file up as 
+application/xhtml+xml, you will get a blank page.  This is because an 
+XHTML document is parsed differently; a DOM tree is built before 
+anything is interpreted, to ensure the document is valid, and so the 
+document.write does not happen until after the parse, when it's too late 
+to add anything new to the parse.
+
+Also, Internet Explorer will ask if you wish to save the file to disk, 
+since it does not recognise XHTML.
+
+Since you have direct control over the MIME type you're sending, I would 
+recommend that you send the correct MIME type directly, rather than 
+relying on a &lt;meta ...&gt; element.
+
+Also note that in the example you gave, your DOCTYPE was not entirely 
+correct -- the system should not be a relative URL, it should be the 
+absolute URL pointing to the w3c's dtd for XHTML.  I use XHTML Strict 
+when I produce XHTML.
+
+&gt;<i> Now I have a file that is well-formed, valid and correctly rendered in the
+</I>&gt;<i> browser with respect to the standard html tags.
+</I>
+Beware well-formedness and validity with XHTML.  If you do not send the 
+correct content-type to the w3c's validator, your page will not be 
+validated as XHTML!  Also beware the subtle differences in how CSS 
+applies to XHTML documents compared to HTML.  Most notably, XHTML 
+elements are case sensitive, so your CSS selectors must be all lower 
+case.  Also, CSS attributes you would normally apply to a body element 
+must instead be applied to an html element.
+
+Finally, it bears repeating: Internet Explorer, all versions, does not 
+recognise XHTML.  As far as I know, it never will.  If you need to 
+support IE, you are far better off producing HTML4.01 Strict than XHTML1 
+Transitional, since HTML4.01 Strict is understood by all browsers with 
+its correct MIME type.
+
+See <A HREF="http://www.hixie.ch/advocacy/xhtml">http://www.hixie.ch/advocacy/xhtml</A> for an explanation of XHTML and 
+HTML differences, and why XHTML should never be sent as &quot;text/html&quot;.
+
+-- 
+bje
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017055.html">[mod_python] CSS not processed in PSP
+	stylesheet&amp;In-Reply-To=20369.1105262074@www1.gmx.net
+</A></li>
+	<LI>Next message: <A HREF="017062.html">[mod_python] Mod_pythong quit working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17059">[ date ]</a>
+              <a href="thread.html#17059">[ thread ]</a>
+              <a href="subject.html#17059">[ subject ]</a>
+              <a href="author.html#17059">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

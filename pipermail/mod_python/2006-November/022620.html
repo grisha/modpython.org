@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod_python on HP-UX 11.11
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20on%20HP-UX%2011.11&In-Reply-To=1163646409.19165%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022619.html">
+   <LINK REL="Next"  HREF="022621.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mod_python on HP-UX 11.11</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Deron Meranda</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20on%20HP-UX%2011.11&In-Reply-To=1163646409.19165%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Mod_python on HP-UX 11.11">deron.meranda at gmail.com
+       </A><BR>
+    <I>Thu Nov 16 01:00:47 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022619.html">[mod_python] Mod_python on HP-UX 11.11
+</A></li>
+        <LI>Next message: <A HREF="022621.html">[mod_python] high memory consumption with multiple Python
+	interpreters ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22620">[ date ]</a>
+              <a href="thread.html#22620">[ thread ]</a>
+              <a href="subject.html#22620">[ subject ]</a>
+              <a href="author.html#22620">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> &gt;         /opt/imake/bin/install -c -d /wwimacs6/apache2/modules
+</I>&gt;<i> &gt; rm: /wwimacs6/apache2/modules/ directory
+</I>&gt;<i> &gt; cp: illegal option -- d
+</I>
+The &quot;install&quot; that comes with imake (a really old build
+system for X Window System) does not conform to the
+the same options that the GNU install program does.
+Unfortunately that's the only thing that comes with HP-UX,
+so the autoconfigure scripts will try to use it.  Sometimes
+it works and sometimes it doesn't.
+
+You can either copy the files manually, or the best
+option if you compile a lot of open source software is
+to install the GNU version (it's in the &quot;coreutils&quot; package
+these days).  <A HREF="http://www.gnu.org/software/coreutils/">http://www.gnu.org/software/coreutils/</A>
+
+In fact to make life happier I typically always install the
+GNU versions of these before bulding much of anything
+else: install, gmake, libtool
+
+
+&gt;<i> &gt; This is all that is in .libs after the make install and I end up with no
+</I>&gt;<i> &gt; .so file
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; -rw-r--r--   1 root       sys         161346 Nov 15 20:39 mod_python.a
+</I>&gt;<i> &gt; lrwxr-xr-x   1 root       sys             16 Nov 15 20:39 mod_python.la
+</I>&gt;<i> &gt; -&gt; ../mod_python.la
+</I>&gt;<i> &gt; -rw-r--r--   1 root       sys            848 Nov 15 20:39 mod_python.lai
+</I>&gt;<i> &gt; -rwxr-xr-x   1 root       sys         188416 Nov 15 20:39 mod_python.sl
+</I>&gt;<i>
+</I>&gt;<i> The mod_python.sl file is what you are after. The libtool program looks
+</I>&gt;<i> not to be generating .so extension because of HPUX using a .sl extension.
+</I>
+Graham's right, rename the *.sl to *.so should work.
+
+HP-UX uses a default *.sl extension for all shared libraries, as
+well as shared objects (there's really no difference for 32-bit
+SOM format).  For 64-bit HP-UX uses ELF, but still keeps the *.sl
+convention.  The older Apache/libtool you have just aren't passing
+all the options to the linker to make it use the alternate names.
+
+However you can name the file anything you want, so just rename
+it from *.sl to *.so.  The linker (ld) won't know what a *.so file is,
+but Apache loads modules using the dlopen(3) calls, not ld, and
+it is Apache which is expecting the file to have a *.so extension.
+
+Since you're having to manually install the library, you may want
+to check the file for dependencies first.  libtool will typically
+re-link all shared libraries/objects during the install phase so
+what you find in the build .libs directory may not be exactly what
+you would get after the install phase.
+
+To see if you're okay, do the following command on the library:
+
+    chatr  mod_python.sl
+
+Among the output you'll see any dynamic dependencies on
+additional libraries.  You want to check for any libraries other
+than the standard system ones (in /usr/lib).  In particular see
+if there is a dependency on libpython* or any other non-HP
+libraries.  I don't know if you'll see them or not, but if you do
+check out if the references have the correct embded paths
+to where the libraries are actually installed and not to where
+you happened to build them.
+
+If you don't know how to interpret the chatr output and are
+still having problems post the output of chatr here.
+
+
+One thing you may definitely want to try/test is that the
+chained shared loading works.  Remember that Apache
+loads shared objects dynamically, but so does Python.
+So you can have a case where apache loads mod_python,
+which then because of some import statement of a
+C-extension module will then dynamically load another
+shared object (from the python lib).  So to test that all
+your dynamic linking stuff is working, write a simple
+mod_python handler which imports some C-based python
+module such as cStringIO (assuming your Python was
+built to have it as a loadable module).  Look in the python
+lib-dynload directory of your Python installation for
+candidate modules to try.
+
+Finally, also be aware of any potentially conflicting shared
+objects/libraries that Apache vs. Python use.  Typical
+potential conflicts are with zlib (libz) or the SSL libs
+(libcrypto, libssl).  Make sure everything is linking against
+the exact same versions of everything.
+
+
+BTW, this is not a mod_python issue, but just so you
+know there was an HP-UX specific bug in Apache 2.0.x
+with the regex libraries; it would use HP's libraries thinking
+they were POSIX regex compatible, but they weren't...
+causing many Apache regex-based directives to fail
+(such as &lt;FileMatch&gt;).   I filed a bug report/patch ages
+ago and this seems to no longer be a problem with the
+Apache 2.2 branch.
+-- 
+Deron Meranda
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022619.html">[mod_python] Mod_python on HP-UX 11.11
+</A></li>
+	<LI>Next message: <A HREF="022621.html">[mod_python] high memory consumption with multiple Python
+	interpreters ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22620">[ date ]</a>
+              <a href="thread.html#22620">[ thread ]</a>
+              <a href="subject.html#22620">[ subject ]</a>
+              <a href="author.html#22620">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

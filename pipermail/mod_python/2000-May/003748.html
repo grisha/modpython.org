@@ -1,0 +1,135 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Hi, database connection queston
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Hi%2C%20database%20connection%20queston&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003744.html">
+   <LINK REL="Next"  HREF="003749.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Hi, database connection queston</H1>
+    <B>Danilo Fiorenzano</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Hi%2C%20database%20connection%20queston&In-Reply-To="
+       TITLE="[mod_python] Hi, database connection queston">danilo at telusplanet.net
+       </A><BR>
+    <I>Sun May 28 18:54:02 EST 2000</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003744.html">[mod_python] Hi, database connection queston
+</A></li>
+        <LI>Next message: <A HREF="003749.html">[mod_python] Hi, database connection queston
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3748">[ date ]</a>
+              <a href="thread.html#3748">[ thread ]</a>
+              <a href="subject.html#3748">[ subject ]</a>
+              <a href="author.html#3748">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>On Sun, 28 May 2000, Cary O'Brien wrote:
+ 
+&gt;<i> 1) How are people handling persistant database connections?
+</I>&gt;<i> [....]
+</I>&gt;<i>    It seems from the documentation that each request gets its own
+</I>&gt;<i>    subinterpreter.
+</I>
+Since global vars retain their values between requests serviced by the
+same httpd process, I ended up doing something like this:
+
+---------------- cut ---------------- cut ---------------- cut ----------------
+import informixdb
+import os, re, cgi, string
+from mod_python import apache
+
+_dbconn = None
+
+def handler(req):
+    global _dbconn
+
+    ... etc etc ...
+    results = findProducts('acid')
+    ... etc etc ...
+
+
+def findProducts(substring):
+    global _dbconn
+
+    if _dbconn == None:
+        try:
+            _dbconn = informixdb.informixdb('<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">db at server</A>', 'user', 'password')
+        except:
+            return ['Access Denied']
+
+    c = _dbconn.cursor()
+    blah = &quot;%&quot; + string.lower(substring) + &quot;%&quot;
+
+    c.execute(&quot;select strshippingname from tblproducts where lower(strshippingname) like ?&quot;, (blah,))
+    retval = []
+    for row in c.fetchall():
+        retval.append(row[0])
+
+    return retval
+
+---------------- cut ---------------- cut ---------------- cut ----------------
+
+  This works exactly as you want, although it should also have a &quot;try:
+except:&quot; block around the actual query, to recover from dropped
+connections et similia.  Otherwise, normally the connection is
+established only when a freshly-spawned httpd executes a query for the
+first time, and should persist until it reaches 'MaxRequestsPerChild&quot;
+in httpd.conf - then the httpd instance is terminated and the
+connection is closed automatically.
+
+ I have been wondering how one could automatically preload a Python
+module upon start of a new httpd, so users would not have to endure
+the occasional delay due to the opening of a new connection to the
+database.  I suspect it may be possible by using some apache
+directives, but I haven't really looked into it yet :)
+
+-- Shade
+
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003744.html">[mod_python] Hi, database connection queston
+</A></li>
+	<LI>Next message: <A HREF="003749.html">[mod_python] Hi, database connection queston
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3748">[ date ]</a>
+              <a href="thread.html#3748">[ thread ]</a>
+              <a href="subject.html#3748">[ subject ]</a>
+              <a href="author.html#3748">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

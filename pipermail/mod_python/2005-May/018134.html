@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] feature request: psp templating returns html
+	codeto calling script, not to browser.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20feature%20request%3A%20psp%20templating%20returns%20html%0A%09codeto%20calling%20script%2C%20not%20to%20browser.&In-Reply-To=1116481960.9626%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018133.html">
+   <LINK REL="Next"  HREF="018135.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] feature request: psp templating returns html
+	codeto calling script, not to browser.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Wouter van Marle</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20feature%20request%3A%20psp%20templating%20returns%20html%0A%09codeto%20calling%20script%2C%20not%20to%20browser.&In-Reply-To=1116481960.9626%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] feature request: psp templating returns html
+	codeto calling script, not to browser.">wouter at squirrel-systems.com
+       </A><BR>
+    <I>Thu May 19 03:41:58 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018133.html">[mod_python] feature request: psp templating returns html code
+	to calling script, not to browser.
+</A></li>
+        <LI>Next message: <A HREF="018135.html">[mod_python] feature request: psp templating returns html codeto
+	calling script, not to browser.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18134">[ date ]</a>
+              <a href="thread.html#18134">[ thread ]</a>
+              <a href="subject.html#18134">[ subject ]</a>
+              <a href="author.html#18134">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>And a little bit of fiddling later I come to this result: psp2html;
+direct. I don't see the need of capturing the in-between Python code
+anyway. As such it runs and appears pretty robust, without scary handler
+hacks that I don't really understand.
+Thanks Graham for the further input and advice.
+
+from mod_python import _psp
+import os
+import sys
+import StringIO
+
+def psp2html (filename, vars={}):
+    dir, fname = os.path.split(filename)
+    dir += &quot;/&quot;
+    # produce usable python code using the psp parser.
+    pycode = _psp.parse(fname, dir).splitlines()
+    pycode = [s.rstrip() for s in pycode]
+    code = &quot;&quot;
+    # as req.write() for a real request object works a little different
+    # than the req.write we use here, we have to change the code a
+    # little bit.
+    for s in pycode:
+        code += s.replace(&quot;,0)&quot;, &quot;)&quot;)+&quot;\n&quot;
+    vars[&quot;req&quot;] = StringIO.StringIO()
+    try:
+        exec code in vars
+    except:
+        et, ev, etb = sys.exc_info()
+        raise et, ev, etb
+    return vars[&quot;req&quot;].getvalue()
+
+
+Wouter.
+
+
+On Thu, 2005-05-19 at 01:52 -0400, Graham Dumpleton wrote:
+&gt;<i> Wouter van Marle wrote ..
+</I>&gt;<i> &gt; def get_source(filename):
+</I>&gt;<i> &gt;     dir, fname = os.path.split(filename)
+</I>&gt;<i> &gt;     dir += &quot;/&quot;
+</I>&gt;<i> &gt;     pycode = _psp.parse(fname, dir).splitlines()
+</I>&gt;<i> &gt;     pycode = [s.rstrip() for s in pycode]
+</I>&gt;<i> &gt;     for line in pycode:
+</I>&gt;<i> &gt;         left = line.replace(&quot;\t&quot;, &quot; &quot;*4)
+</I>&gt;<i> &gt;         result += left+&quot;\n&quot;
+</I>&gt;<i> &gt;     return result
+</I>&gt;<i> 
+</I>&gt;<i> This may only work for an indenting style where tabs are used. At least
+</I>&gt;<i> the substitution of tabs with 4 spaces looks dangerous to me in that it
+</I>&gt;<i> could screen up indenting of code. You would also be changing tabs
+</I>&gt;<i> that may be present in literal strings. Why did you feel you needed to
+</I>&gt;<i> do these changes.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; def get_html(filename, vars={}):
+</I>&gt;<i> &gt;     code = get_source(filename)
+</I>&gt;<i> &gt;     lines = code.splitlines()
+</I>&gt;<i> &gt;     code = 'html = &quot;&quot;\n'
+</I>&gt;<i> &gt;     for l in lines:
+</I>&gt;<i> &gt;         l = l.replace(&quot;req.write(&quot;, &quot;html +=&quot;).replace(&quot;,0)&quot;, &quot;&quot;)
+</I>&gt;<i> &gt;         code += l+&quot;\n&quot;
+</I>&gt;<i> &gt;     global_scope = globals().copy()
+</I>&gt;<i> &gt;     global_scope.update(vars)
+</I>&gt;<i> &gt;     html = &quot;&quot;
+</I>&gt;<i> &gt;     l = locals()
+</I>&gt;<i> &gt;     try:
+</I>&gt;<i> &gt;         exec code in global_scope, l
+</I>&gt;<i> &gt;     except:
+</I>&gt;<i> &gt;         et, ev, etb = sys.exc_info()
+</I>&gt;<i> &gt;         raise et, ev, etb
+</I>&gt;<i> &gt;     return l[&quot;html&quot;]
+</I>&gt;<i> 
+</I>&gt;<i> Actually modifying the source code seems a bit messy to me. You could
+</I>&gt;<i> still use the &quot;req&quot; wrapper class hack I suggested before, or if you know
+</I>&gt;<i> the PSP page never actually references the &quot;req&quot; object explicitly, you
+</I>&gt;<i> could pass an instance of StringIO into it and call it &quot;req&quot; and it should just
+</I>&gt;<i> work. This would avoid having to pass in locals(). For the purposes of
+</I>&gt;<i> what you are doing, there is probably no point even copying globals as
+</I>&gt;<i> it may not give you anything you need anyway. You could almost just
+</I>&gt;<i> use &quot;exec code in vars&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> def get_html(filename, vars={}):
+</I>&gt;<i>      code = get_source(filename)
+</I>&gt;<i>      vars = vars.copy()
+</I>&gt;<i>      vars[&quot;req&quot;] = StringIO.StringIO()
+</I>&gt;<i>      try:
+</I>&gt;<i>          exec code in vars
+</I>&gt;<i>      except:
+</I>&gt;<i>          et, ev, etb = sys.exc_info()
+</I>&gt;<i>          raise et, ev, etb
+</I>&gt;<i>      return vars[&quot;req&quot;].getvalue()
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018133.html">[mod_python] feature request: psp templating returns html code
+	to calling script, not to browser.
+</A></li>
+	<LI>Next message: <A HREF="018135.html">[mod_python] feature request: psp templating returns html codeto
+	calling script, not to browser.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18134">[ date ]</a>
+              <a href="thread.html#18134">[ thread ]</a>
+              <a href="subject.html#18134">[ subject ]</a>
+              <a href="author.html#18134">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Use of Vampire features outside of Vampire handlers.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Use%20of%20Vampire%20features%20outside%20of%20Vampire%20handlers.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018249.html">
+   <LINK REL="Next"  HREF="018251.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Use of Vampire features outside of Vampire handlers.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Use%20of%20Vampire%20features%20outside%20of%20Vampire%20handlers.&In-Reply-To="
+       TITLE="[mod_python] Use of Vampire features outside of Vampire handlers.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Jun  1 21:35:45 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018249.html">[mod_python] URLs
+</A></li>
+        <LI>Next message: <A HREF="018251.html">[mod_python] can I create files or directories?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18250">[ date ]</a>
+              <a href="thread.html#18250">[ thread ]</a>
+              <a href="subject.html#18250">[ subject ]</a>
+              <a href="author.html#18250">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>CC'd back to the list as will possibly be of interest to others.
+
+Jamieson Becker wrote ..
+&gt;<i> i've virtualized all my uris, so (for example) requests to /media
+</I>&gt;<i> directory ONLY get redirected (via mod_rewrite) to the actual media
+</I>&gt;<i> directory, whereas all other requests get handled by my handler. that's
+</I>&gt;<i> cool and works for me, but i noticed that you had a lot of other cool
+</I>&gt;<i> stuff in vampire -- like form handling stuff etc. is any of that usable
+</I>&gt;<i> outside of the normal vampire framework?
+</I>
+The intention is that as much as possible is usable outside of handlers
+dispatched by Vampire. My history is that I have done a lot of work on
+writing reusable C++ class libraries. My mindset therefore, even when
+using Python, is to write as much as possible as being reusable within
+its own right. If something doesn't and it appears there is no reason it
+shouldn't, then I probably didn't test it outside of a handler dispatched
+by Vampire and simply overlooked something obvious.
+
+You mention forms, so will tackle that first. Note though that some of
+the documentation on the web site is more up to date than latest
+official release and describes features actually only in Vampire 1.7. This
+release has been delayed for a little while I work out a better way of
+doing something in the module loading mechanism. :-)
+
+Obviously, if you use your own top level handler it will not be able to
+accept form parameters direct as arguments in style of publisher as
+done in Vampire. Your top level handler though, if dispatching to other
+functions, can use vampire.executeHandler (1.7 feature), to execute
+the function and thus get automatic form parameter unpacking and
+interpretation of structured form values. Eg.
+
+  from mod_python import apache
+
+  import vampire
+
+  def handler_args(req,arg1=&quot;&quot;,arg2=&quot;&quot;):
+    req.content_type = &quot;text/plain&quot;
+    req.send_http_header()
+    print &gt;&gt; req, arg1
+    print &gt;&gt; req, arg2
+    return apache.OK
+
+  def handler(req):
+    return vampire.executeHandler(req,handler_args)
+
+A request of form:
+
+  <A HREF="http://localhost:8080/dummy?arg1=1&amp;arg2-1=2&amp;arg2-2=3">http://localhost:8080/dummy?arg1=1&amp;arg2-1=2&amp;arg2-2=3</A>
+
+Will thus yield:
+
+  1
+  ['2', '3']
+
+Note that you can do something similar to this with standard
+mod_python by using util.apply_fs_data(). In Vampire though
+you get the structured form data as well as lazy evaluation of
+the form, ie., only actually process the form data when required,
+which is important in some circumstances where third party
+templating system expects to do its own form processing.
+
+Functions like vampire.handlerArguments() also work fine outside
+of handler dispatched by Vampire.
+
+Other things that will also work are the configuration mechanism.
+Is used exactly the same as if it was used in handler dispatched
+by Vampire.
+
+  def handler(req):
+    config = vampire.loadConfig(req,&quot;settings.cf&quot;)
+    req.content_type = &quot;text/plain&quot;
+    req.send_http_header()
+    print &gt;&gt; req, config.get(&quot;Settings&quot;,&quot;key1&quot;)
+    print &gt;&gt; req, config.get(&quot;Settings&quot;,&quot;key2&quot;)
+    return apache.OK
+
+You wouldn't be able to load config at global scope though because
+of need to use &quot;req&quot; object. When Vampire dispatch mechanism is used
+the &quot;req&quot; object is temporarily made available as &quot;__req__&quot; when loading
+a module and that would be used if config lookup needed at global
+scope. If your own top level handler made use of Vampire's module
+importing mechanism however, you could do that also. Ie., should be
+able to use vampire.importModule() as well with no problems outside
+of handler dispatched by Vampire.
+
+Some of the other things that should work are the vampire.Publisher(),
+vampire.Handler() and vampire.Instance() (1.7 feature) wrapper objects.
+
+  class _Object:
+
+    def __init__(self):
+      self.method2 = vampire.PathInfo(self._method2)
+
+    def method1(self):
+      return &quot;method1&quot;
+
+    def _method2(self,path):
+      return &quot;method2&quot;,path
+  
+  handler = vampire.Publisher(_Object())
+
+At least that it is supposed to work. Looks like I broke this at one point
+as not working now when I know it used to. Will have to fix it for 1.7.
+
+Anyway, you should get the idea. If there is a specific feature you were
+looking at, let me know and can tell you if it will work and any possible
+limitations if any.
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018249.html">[mod_python] URLs
+</A></li>
+	<LI>Next message: <A HREF="018251.html">[mod_python] can I create files or directories?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18250">[ date ]</a>
+              <a href="thread.html#18250">[ thread ]</a>
+              <a href="subject.html#18250">[ subject ]</a>
+              <a href="author.html#18250">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

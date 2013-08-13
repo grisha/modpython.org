@@ -1,0 +1,125 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] file upload very slow in fieldStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20file%20upload%20very%20slow%20in%20fieldStorage&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019407.html">
+   <LINK REL="Next"  HREF="019405.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] file upload very slow in fieldStorage</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20file%20upload%20very%20slow%20in%20fieldStorage&In-Reply-To="
+       TITLE="[mod_python] file upload very slow in fieldStorage">nlv11281 at natlab.research.philips.com
+       </A><BR>
+    <I>Tue Oct 25 05:00:13 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019407.html">[mod_python] problem importing numarray
+</A></li>
+        <LI>Next message: <A HREF="019405.html">[mod_python] file upload very slow in fieldStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19404">[ date ]</a>
+              <a href="thread.html#19404">[ thread ]</a>
+              <a href="subject.html#19404">[ subject ]</a>
+              <a href="author.html#19404">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I was looking at Barry's fix in util.py, but I had already done some 
+work into the same direction, in order to upload huge files (to a TAPE 
+streamer, go figure...).
+
+<A HREF="http://www.modpython.org/pipermail/mod_python/2005-March/017773.html">http://www.modpython.org/pipermail/mod_python/2005-March/017773.html</A>
+
+My idea is that the &quot;read_to_boundary&quot; function is unnessary complex. 
+the following code does basically the same thing, but it skips a lot of 
+memcpy calls (based on the 3.1.4 code but should work for 3.2.x too):
+
+     def read_to_boundary(self, req, boundary, file):
+         delim = &quot;&quot;
+         line = req.readline(10240)
+         while line and not line.startswith(boundary):
+             odelim = delim
+             if line[-2:] == &quot;\r\n&quot;:
+                 delim = &quot;\r\n&quot;
+                 line = line[:-2]
+             elif line[-1:] == &quot;\n&quot;:
+                 delim = &quot;\n&quot;
+                 line = line[:-1]
+             else:
+                 delim = &quot;&quot;
+             file.write(odelim + line)
+             line = req.readline(10240)
+
+Consider:
+- If the last char is a #13 (\r) then it's just sent to the file. The 
+next readline will return the \n by itself. Since most callback handlers 
+will just write to a disk file, they don't care about line ends anyway. 
+They must be prepared to receive partial lines anyway.
+
+- line.startswith(boundary)
+Now you may argue that it is only a boundary if it appears on a line by 
+itself. Well, I say, the odds that your file contains a boundary string 
+followed by a newline are not _significantly_ smaller than without that 
+one character.
+
+I tested this implementation with various binary (100MB), DOS and UNIX 
+text files, without problems. The uploaded files were bitwise equal.
+
+I also implemented the callback by allowing subclasses to override 
+make_file. That should go into another thread, I guess.
+
+-- 
+Mike Looijmans
+Philips Natlab / Topic Automation
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019407.html">[mod_python] problem importing numarray
+</A></li>
+	<LI>Next message: <A HREF="019405.html">[mod_python] file upload very slow in fieldStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19404">[ date ]</a>
+              <a href="thread.html#19404">[ thread ]</a>
+              <a href="subject.html#19404">[ subject ]</a>
+              <a href="author.html#19404">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

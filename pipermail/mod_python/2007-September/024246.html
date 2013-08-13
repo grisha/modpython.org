@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%202.2%20authen/authz%20and%20%22require%22%20semantics&In-Reply-To=28012bc60709240352x65756a66w3ebafdd7fde1f16d%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024245.html">
+   <LINK REL="Next"  HREF="024247.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%202.2%20authen/authz%20and%20%22require%22%20semantics&In-Reply-To=28012bc60709240352x65756a66w3ebafdd7fde1f16d%40mail.gmail.com"
+       TITLE="[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Mon Sep 24 07:21:46 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024245.html">[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics
+</A></li>
+        <LI>Next message: <A HREF="024247.html">[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24246">[ date ]</a>
+              <a href="thread.html#24246">[ thread ]</a>
+              <a href="subject.html#24246">[ subject ]</a>
+              <a href="author.html#24246">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 24/09/2007, Arnar Birgisson &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">arnarbi at gmail.com</A>&gt; wrote:
+&gt;<i> On 9/24/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; On 24/09/2007, Arnar Birgisson &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">arnarbi at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; Can I return apache.HTTP_UNAUTHORIZED from a fixup-handler to make the
+</I>&gt;<i> &gt; &gt; browser request username/passwd?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Technically you can. The issue will be that if you have defined
+</I>&gt;<i> &gt; AuthType etc then the earlier auth handler phase may result in it not
+</I>&gt;<i> &gt; getting that far.
+</I>&gt;<i>
+</I>&gt;<i> Would I perform the authentication in the fixup handler as well?
+</I>&gt;<i> Basically just do it all there?
+</I>&gt;<i>
+</I>&gt;<i> 1. find project name
+</I>&gt;<i> 2. lookup project in db
+</I>&gt;<i> 3. if anon access allowed - apache.OK
+</I>&gt;<i> 4. call req.get_basic_auth_pw()
+</I>&gt;<i> 5. lookup user - apache.HTTP_UNAUTHORIZED if not found
+</I>&gt;<i> 6. check passwd - apache.HTTP_UNAUTHORIZED if no match
+</I>&gt;<i> 7. check for user access - apache.OK if allowed
+</I>&gt;<i> 8. apache.HTTP_UNAUTHORIZED otherwise
+</I>
+But then you may as well do it all in the authentication handler and
+just use 'Require valid-user' as the authorisation phase, although you
+are strictly mixing up the intent of what the phases are all about.
+
+Thus we get back to perhaps just doing it properly in the first place
+but where mod_python doesn't exactly make it easy. This is partly
+because of the incomplete exposure of the Apache APIs through
+mod_python, partly because mod_python Basic authentication handling is
+historically incorrect and has encouraged sloppy practices and partly
+because of incomplete documentation for mod_python on how to do it
+properly. :-(
+
+At this point I scream and wish I had finished the auth/authz support
+in mod_wsgi which will just make this all so much easier. :-)
+
+For example, in mod_wsgi (unreleased 2.0), your Apache configuration
+would be something (names of things still changing) like:
+
+&lt;AuthnProviderAlias wsgi django&gt;
+WSGIAuthenticationGroup django
+AuthWSGIUserScript /usr/local/django/mysite/apache/auth.wsgi
+&lt;/AuthnProviderAlias&gt;
+
+WSGIScriptAlias / /usr/local/django/mysite/apache/django.wsgi
+
+&lt;Directory /usr/local/django/mysite/apache&gt;
+Order deny,allow
+Allow from all
+
+WSGIApplicationGroup django
+
+AuthType Basic
+AuthName &quot;Django Site&quot;
+AuthBasicProvider django
+Require valid-user
+&lt;/Directory&gt;
+
+Here the authentication is being applied to the Django site itself,
+but could also be applied to Trac /login URL or Subversion access.
+
+The auth script would then just be:
+
+import os, sys
+sys.path.append('/usr/local/django')
+os.environ['DJANGO_SETTINGS_MODULE'] = 'mysite.settings'
+
+import apache.mod_auth
+from django.contrib.auth.models import User
+from django import db
+
+def check_password(environ, user, password):
+    db.reset_queries()
+
+    kwargs = {'username': req.user, 'is_active': True}
+
+    try:
+        try:
+            user = User.objects.get(**kwargs)
+        except User.DoesNotExist:
+            return apache.mod_auth.AUTH_USER_NOT_FOUND
+
+        if user.check_password(password):
+            return apache.mod_auth.AUTH_GRANTED
+        else:
+            return apache.mod_auth.AUTH_DENIED
+    finally:
+        db.connection.close()
+
+None of the worrying about HTTP headers, password decoding etc as
+Apache does that all for you. You only have to worry about the
+password check.
+
+The bit I am still working on is the authorisation, ie., group access
+bits. Using your example, this would be something like:
+
+Require wsgi-group svn_read
+&lt;LimitExcept GET PROPFIND OPTIONS REPORT&gt;
+   Require wsgi-group svn_write
+&lt;/LimitExcept&gt;
+
+Am looking at couple of different options at present as to how this
+would be checked on Python side. One is to have:
+
+def groups_for_user(environ, user):
+    db.reset_queries()
+
+    kwargs = {'username': req.user, 'is_active': True}
+
+    try:
+        try:
+            user = User.objects.get(**kwargs)
+        except User.DoesNotExist:
+            return None
+
+         return user.groups
+
+    finally:
+        db.connection.close()
+
+The mod_wsgi module would then process the Require directives and
+deliver the necessary response.
+
+In the greater scheme of things, all much simpler.
+
+In the mean time, I'll try and find some time to explain how to do it
+for mod_python properly. Cant promise anything though as starting to
+get backlogged as it is.
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024245.html">[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics
+</A></li>
+	<LI>Next message: <A HREF="024247.html">[mod_python] Apache 2.2 authen/authz and &quot;require&quot; semantics
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24246">[ date ]</a>
+              <a href="thread.html#24246">[ thread ]</a>
+              <a href="subject.html#24246">[ subject ]</a>
+              <a href="author.html#24246">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,284 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] 
+ I hacked out Application.py using Session.py as a template. Is sucha thing
+ needed by anyone?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%0A%20I%20hacked%20out%20Application.py%20using%20Session.py%20as%20a%20template.%20Is%20sucha%20thing%0A%20needed%20by%20anyone%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006879.html">
+   <LINK REL="Next"  HREF="006878.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] 
+ I hacked out Application.py using Session.py as a template. Is sucha thing
+ needed by anyone?</H1>
+    <B>perry.tew at cibavision.novartis.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%0A%20I%20hacked%20out%20Application.py%20using%20Session.py%20as%20a%20template.%20Is%20sucha%20thing%0A%20needed%20by%20anyone%3F&In-Reply-To="
+       TITLE="[mod_python] 
+ I hacked out Application.py using Session.py as a template. Is sucha thing
+ needed by anyone?">perry.tew at cibavision.novartis.com
+       </A><BR>
+    <I>Fri Oct  3 15:18:08 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006879.html">[mod_python] Hello newbie problems #2
+</A></li>
+        <LI>Next message: <A HREF="006878.html">[mod_python] Hello newbie problems #2
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6875">[ date ]</a>
+              <a href="thread.html#6875">[ thread ]</a>
+              <a href="subject.html#6875">[ subject ]</a>
+              <a href="author.html#6875">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>Hello,
+   I had need for global persistence in my mod_python application under 
+Solaris.  I read Grisha's article last night talking about the new Session 
+code.  I thought is was really useful.  So I looked it over and used it as 
+a template for creating application level data sharing similar to Visual 
+Basic's Application object or JSP's application object.  I basically 
+stripped out the cookie code, time stamping, and used a constant hash id 
+for retrieving the data.
+
+I'm still raw to python.  I was wondering if such functionality is needed 
+by the mod_python community or if such a thing already exists.  I was also 
+hoping that if somebody did have a use for it then they could code review 
+it for me and hopefully provide criticism or optimizations on the code. If 
+neither, then I'll just keep it for my own use.
+
+The code is listed below.  I'm not sure if this mailing list accepts 
+attachments, so I'm providing it both ways.
+
+Thanks,
+Perry Tew
+
+
+
+
+#######################################################################
+from mod_python import apache
+import _apache
+
+import os
+import time
+import anydbm, whichdb
+import cPickle
+import tempfile
+
+APP_SID = 'app.sid'
+
+tempdir = tempfile.gettempdir()
+
+
+class BaseApplication(dict):
+
+    def __init__(self, req, lock=1):
+
+        self._req = req
+        self._lock = lock
+        self._new = 1
+        self._created = 0
+        self._locked = 0
+
+        dict.__init__(self)
+
+        self.init_lock()
+
+        # attempt to load ourselves
+        #self.lock()
+        if self.load():
+            self._new = 0
+
+        if self._new:
+            self._created = time.time()
+
+
+    def load(self):
+        dict = self.do_load()
+        if dict == None:
+            return 0
+
+        self._created  = dict[&quot;_created&quot;]
+        self.update(dict[&quot;_data&quot;])
+        return 1
+
+    def save(self):
+        dict = {&quot;_data&quot;    : self.copy(), 
+        &quot;_created&quot; : self._created}
+        self.do_save(dict)
+
+    def delete(self):
+        self.do_delete()
+        self.clear()
+
+    def init_lock(self):
+        pass
+
+    def lock(self):
+        if self._lock:
+            _apache._global_lock(self._req.server, None, 0)
+            self._locked = 1
+
+    def unlock(self):
+        if self._lock and self._locked:
+            _apache._global_unlock(self._req.server, None, 0)
+            self._locked = 0
+
+    def is_new(self):
+        return not not self._new
+
+    def created(self):
+        return self._created
+
+    def __del__(self):
+        self.unlock()
+
+
+
+class DbmApplication(BaseApplication):
+
+    def __init__(self, req, dbm=None, dbmtype=anydbm):
+
+        if not dbm:
+            opts = req.get_options()
+            if opts.has_key(&quot;ApplicationDbm&quot;):
+                dbm = opts[&quot;ApplicationDbm&quot;]
+            else:
+                dbm = os.path.join(tempdir, req.server.server_hostname + 
+str(req.server.port))
+
+        self._dbmfile = dbm
+        self._dbmtype = dbmtype
+
+        BaseApplication.__init__(self, req)
+
+    def _set_dbm_type(self):
+        module = whichdb.whichdb(self._dbmfile)
+        if module:
+            self._dbmtype = __import__(module)
+ 
+    def _get_dbm(self):
+        result = self._dbmtype.open(self._dbmfile, 'c')
+        if self._dbmtype is anydbm:
+            self._set_dbm_type()
+        return result
+
+
+    def do_load(self):
+        _apache._global_lock(self._req.server, None, 0)
+        dbm = self._get_dbm()
+        try:
+            if dbm.has_key(APP_SID):
+                return cPickle.loads(dbm[APP_SID])
+            else:
+                return None
+        finally:
+            dbm.close()
+            _apache._global_unlock(self._req.server, None, 0)
+
+    def do_save(self, dict):
+        _apache._global_lock(self._req.server, None, 0)
+        dbm = self._get_dbm()
+        try:
+            dbm[APP_SID] = cPickle.dumps(dict)
+        finally:
+            dbm.close()
+            _apache._global_unlock(self._req.server, None, 0)
+
+    def do_delete(self):
+        _apache._global_lock(self._req.server, None, 0)
+        dbm = self._get_dbm()
+        try:
+            try:
+                del dbm[APP_SID]
+            except KeyError: pass
+        finally:
+            dbm.close()
+            _apache._global_unlock(self._req.server, None, 0)
+
+
+class MemoryApplication(BaseApplication):
+
+    sdict = {}
+
+    def __init__(self, req):
+
+        BaseApplication.__init__(self, req)
+
+    def do_load(self):
+        if MemoryApplication.sdict.has_key(APP_SID):
+            return MemoryApplication.sdict[APP_SID]
+        return None
+
+    def do_save(self, dict):
+        MemoryApplication.sdict[APP_SID] = dict
+
+    def do_delete(self):
+        try:
+            del MemoryApplication.sdict[APP_SID]
+        except KeyError: pass
+
+def Application(req):
+
+    threaded = _apache.mpm_query(apache.AP_MPMQ_IS_THREADED)
+    forked = _apache.mpm_query(apache.AP_MPMQ_IS_FORKED)
+    daemons =  _apache.mpm_query(apache.AP_MPMQ_MAX_DAEMONS)
+
+    if (threaded and ((not forked) or (daemons == 1))):
+        return MemoryApplication(req)
+    else:
+        return DbmApplication(req)
+#######################################################################
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: Application.py
+Type: application/octet-stream
+Size: 7023 bytes
+Desc: not available
+Url : <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20031003/199b5fec/Application-0001.obj">http://mailman.modpython.org/pipermail/mod_python/attachments/20031003/199b5fec/Application-0001.obj</A>
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006879.html">[mod_python] Hello newbie problems #2
+</A></li>
+	<LI>Next message: <A HREF="006878.html">[mod_python] Hello newbie problems #2
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6875">[ date ]</a>
+              <a href="thread.html#6875">[ thread ]</a>
+              <a href="subject.html#6875">[ subject ]</a>
+              <a href="author.html#6875">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Module getting imported twice?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Module%20getting%20imported%20twice%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015667.html">
+   <LINK REL="Next"  HREF="015679.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Module getting imported twice?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Sean Reifschneider</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Module%20getting%20imported%20twice%3F&In-Reply-To="
+       TITLE="[mod_python] Module getting imported twice?">jafo at tummy.com
+       </A><BR>
+    <I>Mon May 24 06:25:06 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015667.html">[mod_python] Accessing all form fields, empty strings or not
+</A></li>
+        <LI>Next message: <A HREF="015679.html">[mod_python] Module getting imported twice?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15678">[ date ]</a>
+              <a href="thread.html#15678">[ thread ]</a>
+              <a href="subject.html#15678">[ subject ]</a>
+              <a href="author.html#15678">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I'm having a kind of weird problem and I don't fully understand why it's
+happening.  Basically, it seems that sometimes a module I'm importing
+(from site-packages), is losing it's mind.  It's like half way through a
+function it's running in entirely a different name-space.  Yes, this can
+happen while making two calls into a module on successive lines of a
+function.
+
+What I traced it down to is that different calls are showing the
+following values for the module:
+
+   &lt;module 'jotweb.jotwebutils' from
+      '/usr/lib/python2.2/site-packages/jotweb/jotwebutils.py'&gt;
+   &lt;module
+      '/var/www/jotweb/www.tummy.jotweb.jotwebutils' from
+      '/usr/lib/python2.2/site-packages/jotweb/jotwebutils.py'&gt;
+
+I really don't understand the latter.  My HTML and site-related python
+files are in &quot;/var/www/jotweb/www.tummy.com/html&quot;.
+
+If, in jotwebutils.py, I dump the stack when the module is imported, I
+see that the first time it's imported with the following:
+
+   File &quot;/var/tmp/mod_python-3.0.4-root/usr/lib/python2.2/site-packages/mod_python/apache.py&quot;,
+      line 274, in HandlerDispatch 
+   File &quot;/var/tmp/mod_python-3.0.4-root/usr/lib/python2.2/site-packages/mod_python/apache.py&quot;,
+      line 440, in import_module 
+   File &quot;lib/jotweb/__init__.py&quot;, line 32, in ? 
+
+and the second time it's imported with:
+
+   File &quot;/var/tmp/mod_python-3.0.4-root/usr/lib/python2.2/site-packages/mod_python/apache.py&quot;,
+      line 274, in HandlerDispatch 
+   File &quot;/usr/lib/python2.2/site-packages/jotweb/jotweb_mod_python.py&quot;,
+      line 45, in handler     def handler(req): 
+   [... Deep into the bowels of my handler code ...]
+   File &quot;/var/www/jotweb/www.tummy.com/html/navigation.py&quot;,
+      line 3, in ?     import time, string, re, dircache, math 
+   File &quot;lib/jotweb/__init__.py&quot;, line 32, in ?
+
+Now, it should be noted that I'm using the &quot;imp&quot; module to load modules
+dynamically when they are referenced from my HTML templates.  But the
+code in question that is triggering this is:
+
+   from jotweb import jotwebutils
+   import jotweb
+
+   navbar = jotwebutils.getGlobal('navbar')
+   urlBase = jotweb.config.getconfig().get('tummyurlbase', 'unknown')
+
+jotwebutils.getGlobal is very simple:
+
+   def getGlobal(name): 
+      from jotweb import config
+      return(config.getconfig()['talglobalvars'][name].value())
+
+If I change the &quot;tummyurlbase&quot; line above to:
+
+   urlBase = jotwebutils.getGlobal('jotwebconfig').get('tummyurlbase', 'unknown')
+
+it works fine.  I can do many &quot;getGlobal()&quot; lines, but if I do a
+&quot;getconfig()&quot;, it's suddenly using another jotwebutils module.
+
+Note that all the jotweb imports are done using &quot;import&quot;.  Only local
+files in my HTML directory are imported using the &quot;imp&quot; module.
+
+I'm able to find workarounds for these issues in most cases, but it's
+kind of driving me crazy as far as when something will work and when it
+will lose it's mind.
+
+I tried moving getconfig() into the jotwebutils module, but that just
+seemed to make it worse.  Then getGlobal() was also acting this way.
+
+Any thoughts?
+
+Thanks,
+Sean
+-- 
+ How does a girl like you get to be a girl like you?
+                 -- _North_by_Northwest_
+Sean Reifschneider, Member of Technical Staff &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jafo at tummy.com</A>&gt;
+tummy.com, ltd. - Linux Consulting since 1995.  Qmail, Python, SysAdmin
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015667.html">[mod_python] Accessing all form fields, empty strings or not
+</A></li>
+	<LI>Next message: <A HREF="015679.html">[mod_python] Module getting imported twice?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15678">[ date ]</a>
+              <a href="thread.html#15678">[ thread ]</a>
+              <a href="subject.html#15678">[ subject ]</a>
+              <a href="author.html#15678">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

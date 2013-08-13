@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache/mod_python process sizes. Help wanted.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=9B4F4598-0595-4098-BAA1-7E3FF9442C49%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023238.html">
+   <LINK REL="Next"  HREF="023241.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache/mod_python process sizes. Help wanted.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=9B4F4598-0595-4098-BAA1-7E3FF9442C49%40dscpl.com.au"
+       TITLE="[mod_python] Apache/mod_python process sizes. Help wanted.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Mar  3 22:05:30 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023238.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+        <LI>Next message: <A HREF="023241.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23240">[ date ]</a>
+              <a href="thread.html#23240">[ thread ]</a>
+              <a href="subject.html#23240">[ subject ]</a>
+              <a href="author.html#23240">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 04/03/2007, at 11:36 AM, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 04/03/2007, at 11:31 AM, Jim Gallacher wrote:
+</I>&gt;<i>
+</I>&gt;&gt;&gt;<i> Part of the jump is the imports in mod_python.apache:
+</I>&gt;&gt;&gt;<i> import sys
+</I>&gt;&gt;&gt;<i> import traceback
+</I>&gt;&gt;&gt;<i> import time
+</I>&gt;&gt;&gt;<i> import os
+</I>&gt;&gt;&gt;<i> import pdb
+</I>&gt;&gt;&gt;<i> import stat
+</I>&gt;&gt;&gt;<i> import imp
+</I>&gt;&gt;&gt;<i> import types
+</I>&gt;&gt;&gt;<i> import cgi
+</I>&gt;&gt;&gt;<i> import _apache
+</I>&gt;&gt;&gt;<i> import threading
+</I>&gt;&gt;&gt;<i> I had been thinking they would have been done when mod_python loaded
+</I>&gt;&gt;&gt;<i> for first interpreter, but they aren't done until time of first  
+</I>&gt;&gt;&gt;<i> request.
+</I>&gt;&gt;&gt;<i> If I import the same modules into mod_wsgi example, then get (pid  
+</I>&gt;&gt;&gt;<i> 429):
+</I>&gt;&gt;&gt;<i>   432 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;&gt;&gt;<i> 904K  30.4M
+</I>&gt;&gt;&gt;<i>   430 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;&gt;&gt;<i> 776K  30.4M
+</I>&gt;&gt;&gt;<i>   429 httpd        0.0%  0:00.18   1    10    67  1.95M  2.88M   
+</I>&gt;&gt;&gt;<i> 3.33M  31.5M
+</I>&gt;&gt;&gt;<i>   428 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+</I>&gt;&gt;&gt;<i> 780K  30.4M
+</I>&gt;&gt;&gt;<i>   427 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+</I>&gt;&gt;&gt;<i> 780K  30.4M
+</I>&gt;&gt;&gt;<i>   426 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;&gt;&gt;<i> 780K  30.4M
+</I>&gt;&gt;&gt;<i>   425 httpd        0.0%  0:00.07   1    11    39    32K  2.87M   
+</I>&gt;&gt;&gt;<i> 1.34M  30.4M
+</I>&gt;&gt;&gt;<i> Thus these modules alone causes it to jump up to 1.95M. This  
+</I>&gt;&gt;&gt;<i> works out
+</I>&gt;&gt;&gt;<i> about an extra 1.4MB. Because mod_wsgi is all in C code aren't  
+</I>&gt;&gt;&gt;<i> relying on
+</I>&gt;&gt;&gt;<i> any Python modules so base overhead is less.
+</I>&gt;&gt;&gt;<i> Interesting. How many of these modules could be avoided in  
+</I>&gt;&gt;&gt;<i> mod_python
+</I>&gt;&gt;&gt;<i> if we tried hard?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I have no idea, but it's worth a look.
+</I>&gt;<i>
+</I>&gt;<i> It is quite easy to get rid of 'cgi' as all that is used in it is  
+</I>&gt;<i> cgi.escape(). We can
+</I>&gt;<i> just duplicate that one function:
+</I>&gt;<i>
+</I>&gt;<i> def escape(s, quote=None):
+</I>&gt;<i>   s = string.replace(s,&quot;&amp;&quot;,&quot;&amp;amp;&quot;)
+</I>&gt;<i>   s = string.replace(s,&quot;&lt;&quot;,&quot;&amp;lt;&quot;)
+</I>&gt;<i>   s = string.replace(s,&quot;&gt;&quot;,&quot;&amp;gt;&quot;,)
+</I>&gt;<i>   if quote:
+</I>&gt;<i>     s = string.replace(s,'&quot;',&quot;&amp;quot;&quot;)
+</I>&gt;<i>   return s
+</I>&gt;<i>
+</I>&gt;<i> We also do not need to load 'pdb' at global scope. We can instead  
+</I>&gt;<i> do it only
+</I>&gt;<i> at point that it is required. Ie., if PythonEnablePdb directive  is  
+</I>&gt;<i> enabled.
+</I>&gt;<i>
+</I>&gt;<i> Those two alone drop my 1.95M figure down to 0.8MB.
+</I>&gt;<i>
+</I>&gt;<i>   510 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;<i> 904K  30.4M
+</I>&gt;<i>   509 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+</I>&gt;<i> 792K  30.4M
+</I>&gt;<i>   508 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+</I>&gt;<i> 796K  30.4M
+</I>&gt;<i>   507 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+</I>&gt;<i> 796K  30.4M
+</I>&gt;<i>   506 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+</I>&gt;<i> 796K  30.4M
+</I>&gt;<i>   505 httpd        0.0%  0:00.04   1    10    42   812K  2.80M   
+</I>&gt;<i> 2.01M+ 30.5M
+</I>&gt;<i>   504 httpd        0.0%  0:00.06   1    11    39    32K  2.87M   
+</I>&gt;<i> 1.39M  30.4M
+</I>&gt;<i>
+</I>&gt;<i> The rest can't probably be eliminated and gains would be a lot  
+</I>&gt;<i> less. The
+</I>&gt;<i> 'cgi' module is always a big memory hog and slow to load, so if can  
+</I>&gt;<i> get
+</I>&gt;<i> rid of that, all the better. Would need to go from 'apache',  
+</I>&gt;<i> 'importer' and
+</I>&gt;<i> 'psp' mod_python modules.
+</I>
+On mod_python itself, after eliminating 'cgi' module use from  
+'apache', 'psp'
+and 'importer', plus 'urllib2', 'rfc822', 'calendar' and 'weakref'  
+from 'cache'
+and deferring import of 'pdb', have gone from my original mod_python
+figure of:
+
+   410 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+888K  30.4M
+   408 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+764K  30.4M
+   407 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+768K  30.4M
+   406 httpd        0.0%  0:00.00   1     8    39   216K  2.87M    
+768K  30.4M
+   405 httpd        0.0%  0:00.37   1    10    86  2.40M  2.75M   
+3.94M  32.0M
+   404 httpd        0.0%  0:00.00   1     8    39   212K  2.87M    
+768K  30.4M
+   403 httpd        0.0%  0:00.06   1    11    39    32K  2.87M   
+1.30M  30.4M
+
+to:
+
+3355 httpd        0.0%  0:00.00   1     8    39   212K  3.09M   900K   
+30.4M
+3353 httpd        0.0%  0:00.00   1     8    39   212K  3.09M   768K   
+30.4M
+3352 httpd        0.0%  0:00.00   1     8    39   212K  3.09M   768K   
+30.4M
+3351 httpd        0.0%  0:00.00   1     8    39   212K  3.09M   768K   
+30.4M
+3350 httpd        0.0%  0:00.14   1    10    67  1.36M  3.09M  2.70M   
+31.0M
+3349 httpd        0.0%  0:00.00   1     8    39   212K  3.09M   772K   
+30.4M
+3348 httpd        0.0%  0:00.08   1    11    39    36K  3.09M  1.32M   
+30.4M
+
+Thus have eliminated 1.0MB from base Apache child process size.
+
+Obviously if an application is using any of these modules anyway,  
+they'll
+just get loaded back again later.
+
+To drop some of the stuff from 'cache' had to comment out stuff like the
+HTTPCache etc. These bits of that file aren't used by mod_python though
+and were only in there to preserve the full content of original file  
+when it
+was borrowed from elsewhere. When full cutover to new module importer
+done that file was going to disappear anyway.
+
+All well and good, but this is distracting from my original goal of  
+the static
+versus shared library issue. :-)
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023238.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+	<LI>Next message: <A HREF="023241.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23240">[ date ]</a>
+              <a href="thread.html#23240">[ thread ]</a>
+              <a href="subject.html#23240">[ subject ]</a>
+              <a href="author.html#23240">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

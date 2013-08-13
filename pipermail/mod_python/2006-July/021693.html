@@ -1,0 +1,190 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Background threads in mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Background%20threads%20in%20mod_python&In-Reply-To=44CE23F6.8080708%40gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021692.html">
+   <LINK REL="Next"  HREF="021696.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Background threads in mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Deron Meranda</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Background%20threads%20in%20mod_python&In-Reply-To=44CE23F6.8080708%40gmail.com"
+       TITLE="[mod_python] Background threads in mod_python">deron.meranda at gmail.com
+       </A><BR>
+    <I>Mon Jul 31 15:09:09 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021692.html">[mod_python] Background threads in mod_python
+</A></li>
+        <LI>Next message: <A HREF="021696.html">[mod_python] Background threads in mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21693">[ date ]</a>
+              <a href="thread.html#21693">[ thread ]</a>
+              <a href="subject.html#21693">[ subject ]</a>
+              <a href="author.html#21693">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 7/31/06, Christian Gross &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">christianhgross at gmail.com</A>&gt; wrote:
+&gt;<i> Mike Looijmans wrote:
+</I>&gt;<i> &gt; It really depends on WHAT you intend to do. I can think of no reason
+</I>&gt;<i> &gt; whatsoever to start a thread in the handler that somehow &quot;survives&quot;
+</I>&gt;<i> &gt; the request. Once that thread has created some &quot;answer&quot;, where can it
+</I>&gt;<i> &gt; send that answer?
+</I>&gt;<i> &gt;
+</I>&gt;<i> There is lots of needs for this in an Ajax world. For example Jetty
+</I>&gt;<i> (<A HREF="http://www.mortbay.com/MB/log/gregw/?permalink=ScalingConnections.html">http://www.mortbay.com/MB/log/gregw/?permalink=ScalingConnections.html</A>),
+</I>&gt;<i> Apache 2.2, and IIS a few years can do asynchronous processing. There
+</I>&gt;<i> are two ways to do asynchronous processing. The first is to lock onto
+</I>&gt;<i> the request and hold it and move it into a &quot;secondary&quot; processing area.
+</I>&gt;<i> The second is to start a task and then ask if any data has been
+</I>&gt;<i> generated. The running task will store in a cache that is then picked up
+</I>&gt;<i> by another request at another time.
+</I>&gt;<i>
+</I>&gt;<i> The big idea here is to mimic an architecture where the server &quot;calls&quot;
+</I>&gt;<i> the client, which is very popular in Ajax.
+</I>
+I am still failing to see why Ajax makes this different.  And I don't
+understand what you mean by the server &quot;calling&quot; the client.
+
+I think you may be influenced too much by the &quot;Java way&quot;?  Apache httpd is a
+web server.  It is not an all-encompassing kitchen sink included
+application runtime environment. So the core function of Apache is to
+service individual HTTP requests.
+
+HTTP does not have &quot;asynchronous&quot; calls as you're using that term.
+Each HTTP request is synchronous and self-contained.  And each HTTP
+request is (mostly) independent of any others.
+
+If you want to have decidely non-HTTP semantics, such as having one
+HTTP request start up a background activity, and have a later HTTP
+request check up on its progress, you've got to do so outside the
+scope of Apache...because it's outside the scope of HTTP.
+
+The common way to do this is to use a non-Apache process to perform
+that work, and use a communication mechanism between Apache and that
+process.  There are dozens of kinds of IPC (inter-process
+communication) mechanisms to do this sort of workflow.  Although using
+an nested RPC-XML is one way, you can also use things like named
+pipes, or even passing work requests around inside a database.
+
+The point is that you should keep web transactions inside Apache and
+non-web stuff outside of Apache.  It's compartmentalization, and it
+can have lots of benifits.
+
+&gt;<i> &gt; When Apache is using multiple processes, it will terminate child
+</I>&gt;<i> &gt; processes for various reasons (for example, when
+</I>&gt;<i> &gt; max_requests_per_child has been reached). That will also terminate any
+</I>&gt;<i> &gt; thread you created in that process.
+</I>&gt;<i> &gt;
+</I>&gt;<i> Yeah I was looking at this and it is pain. On Windows Apache does not do
+</I>&gt;<i> this. They use only two processes and use threads within those processes.
+</I>
+IMHO, Windows has an over-reliance on threads which can lead to some
+poor architectural designs.  If everything is a thread, then every
+problem starts looking like a needle (or something like that :)
+
+You need to keep in mind that with Apache not only can it create and
+destroy processes and threads at its own whim (between requests), but
+it can also spawn many different processes and you have no control
+over which HTTP request will get sent to which process or thread.
+This is of course a frequent source of confusion over how to store
+persistent server-side state.
+
+&gt;<i> &gt; I suspect your software gets a &quot;job&quot; from the user, and reports back
+</I>&gt;<i> &gt; to the user that the job has been started. The job itself must keep
+</I>&gt;<i> &gt; running for some time after that. The job creates a file or something
+</I>&gt;<i> &gt; similar which can make the user conclude that the job has finished.
+</I>&gt;<i> &gt;
+</I>&gt;<i> I would not say &quot;job&quot;. I would say long running tasks generating data.
+</I>&gt;<i> For example I like to read real-time feeds, and want to generate the
+</I>&gt;<i> data. But the client is in control of the task using parameters that are
+</I>&gt;<i> sent to server.
+</I>
+The real question is if the computation is within the scope of a
+single HTTP request or not (regardless of how long it takes, although
+most user agents, proxies, and even Apache impose an upper limit on
+the time of a request).  If the results of assembling your feeds are
+to be given back to the UA within the same request, then just do it
+(there's no implicit need to launch off additional threads).  However
+if it really is a background activity that is a side-effect of the
+request (in that the result of the request is not dependent upon the
+result of the task), then it is best to communicate that to some
+service which lives outside of Apache.
+
+&gt;<i> &gt; A web service used within a web server is not redundant, it's just a
+</I>&gt;<i> &gt; way to delegate tasks to other machines or processes. This is
+</I>&gt;<i> &gt; typically done for security reasons.
+</I>&gt;<i> &gt;
+</I>&gt;<i> I don't really buy this argument. Let's say I do what you recommend and
+</I>&gt;<i> that is call an XML-RPC service. Why, do I need Apache in the first
+</I>&gt;<i> place? While I might get security I don't get any added value. If I am
+</I>&gt;<i> using web services then Apache is pretty well useless anyways because
+</I>&gt;<i> most web services don't use HTTP security. Most web service
+</I>&gt;<i> infrastructures use the WS-* specs, or some home-backed tokens that are
+</I>&gt;<i> added to the XML package.
+</I>
+You have to answer the question of whether you need Apache.  Apache is
+a tool for handling HTTP requests, and a very nice and efficient one
+at that.  But it is not a CORBA ORB (or it's poor cousin, a web
+service thingamabob), nor is it a TPM.
+
+The whole web services fad really abuses the semantics of HTTP beyond
+recognition anyway, so perhaps Apache really has no use to you.  I
+find it unfortunate that they call it &quot;web&quot; services, since it really
+has so very little to do with the &quot;web&quot;.  But that's a different rant.
+
+BTW, do you have any mod_python specific questions, or is this really
+more a general Apache architecture discussion?  If you want to know
+how to do IPC and such I'm sure we can help.
+-- 
+Deron Meranda
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021692.html">[mod_python] Background threads in mod_python
+</A></li>
+	<LI>Next message: <A HREF="021696.html">[mod_python] Background threads in mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21693">[ date ]</a>
+              <a href="thread.html#21693">[ thread ]</a>
+              <a href="subject.html#21693">[ subject ]</a>
+              <a href="author.html#21693">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

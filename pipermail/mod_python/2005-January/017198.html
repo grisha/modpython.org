@@ -1,0 +1,208 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] psp_site example doesn't work
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp_site%20example%20doesn%27t%20work&In-Reply-To=c298f2d7050123230939196a6%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017197.html">
+   <LINK REL="Next"  HREF="017199.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] psp_site example doesn't work</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp_site%20example%20doesn%27t%20work&In-Reply-To=c298f2d7050123230939196a6%40mail.gmail.com"
+       TITLE="[mod_python] psp_site example doesn't work">list at joreybump.com
+       </A><BR>
+    <I>Mon Jan 24 09:12:24 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017197.html">[mod_python] psp_site example doesn't work
+</A></li>
+        <LI>Next message: <A HREF="017199.html">[mod_python] psp_site example doesn't work
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17198">[ date ]</a>
+              <a href="thread.html#17198">[ thread ]</a>
+              <a href="subject.html#17198">[ subject ]</a>
+              <a href="author.html#17198">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Nicolas Lehuen wrote:
+&gt;<i> On Sun, 23 Jan 2005 18:38:43 -0500, Graham Dumpleton
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+</I>
+&gt;&gt;<i>Package such as mpservlets and Vampire implement their own module
+</I>&gt;&gt;<i>importing mechanisms in order to avoid this problem. Ie., with those
+</I>&gt;&gt;<i>packages it is safe to have Python code files which are named the same
+</I>&gt;&gt;<i>appearing in different directories managed by mod_python running
+</I>&gt;&gt;<i>under the same interpreter.
+</I>&gt;<i> 
+</I>&gt;<i> We had a discussion a few months ago about this issue, and I still
+</I>&gt;<i> think it's a bug. Like Daniel Popovitch with mpservlets and you with
+</I>&gt;<i> Vampire, I had to implement my own import mechanism to work around the
+</I>&gt;<i> bug. I think it's time to fix it... I'll add a bug report and see what
+</I>&gt;<i> we can do about it.
+</I>
+I guess I'm on record as considering this to be normal Python behaviour, 
+and not a bug. Talk of modifying Publisher's current import mechanism 
+threatens the significant investment I have in the applications I've 
+already developed. I'd rather see Publisher left alone, as other 
+frameworks are maturing that address this issue.
+
+We should be clear about what we are talking about:
+
+Issue:
+
+An interpreter imports a module's name into the namespace independent of 
+its location in the filesystem.
+
+Pros:
+
+- This is consistent with normal Python behaviour, where an interpreter 
+loads modules from the current directory or PYTHONPATH. [1]
+
+- There is no ambiguity about imports, and no need to rewrite code when 
+moving the module to another location.
+
+- The Python language documentation serves as a good resource, as native 
+behaviours are not contradicted. [2]
+
+- General purpose code needs *very* little modification to run under 
+mod_python.publisher.
+
+- The default Python behaviour of caching imported modules can be used 
+to great leverage, and plays a significant role in the performance boost 
+offered by mod_python. [3]
+
+- With careful planning, per-interpreter package repositories can be 
+created.
+
+Cons:
+
+- This consistently trips up newbies, who are expecting PHP-like 
+behaviour from their web applications.
+
+- Within an interpreter (a VirtualHost, for example), such care must be 
+taken to create unique module names that porting an application or 
+working in a team environment is significantly more fragile than in 
+other web technologies, where it usually suffices to throw the code in 
+its own directory.
+
+- Although a lot of issues can be addressed in .htaccess files, so much 
+configuration occurs at the apache level that it is difficult to use 
+mod_python effectively without apache admin privileges. [4]
+
+- The Multi-Processing Modules (MPMs) in apache 2 may have a unique 
+effect on an application. After throwing in the different platforms, 
+Python versions, and developer styles, it can be very hard to reach a 
+consensus on whether an issue even exists.
+
+Possible solution:
+
+Automatically package module based on the file path.
+
+Pros:
+
+- Hopefully, this would provide better separation of modules in namespace.
+
+Cons:
+
+- Serious potential to break existing Publisher applications.
+
+- The same module might be loaded into a separate namespace for 
+different applications, eliminating the advantage of module caching. [5]
+
+- This encourages the reuse of module names (such as index.py), which is 
+considered a bad programming practice in Python. [1]
+
+- If the code assumes and uses a package name based on its location, it 
+will need to be rewritten if it is moved.
+
+- The possibility that autopackaging will arbitrarily create a namespace 
+clash with a standard module is unacceptably high, especially where 
+third party packages are installed.
+
+- It severely limits the ability to test portions of the code from the 
+command line, because it adds an element of unpredictability to the 
+module search path.
+
+- Seasoned Python programmers might consider mod_python.publisher to be 
+&quot;broken&quot; because it doesn't conform to Python standards. [6]
+
+
+[1] For a clear description of Python's module search path, see: 
+<A HREF="http://www.python.org/doc/current/tut/node8.html#SECTION008110000000000000000">http://www.python.org/doc/current/tut/node8.html#SECTION008110000000000000000</A>
+
+[2] The documentation for mod_python is sparse because it simply embeds 
+an interpreter in apache. See the Python documentation for programming 
+issues: <A HREF="http://www.python.org/doc/current/index.html">http://www.python.org/doc/current/index.html</A>
+
+[3] This seems to be the main complaint levied against mod_python, in 
+one form or the other. I consider it one of it's greatest strengths. For 
+example, it allows me to import database handling code from a module 
+once for that interpreter, allowing multiple applications to share the 
+connection -- a poor man's database pool, if you will.
+
+[4] The same can be said about php.ini, but noone ever needs to restart 
+apache to develop PHP applications.
+
+[5] What is the solution to the problems caused by module caching? It 
+doesn't make much sense to force mod_python to act like it's spawning a 
+new interpreter for every request. Run the app as a CGI instead of using 
+mod_python.
+
+[6] The strength of Publisher is that it leverages the advantages of 
+Python with very little overhead, simply adding a number of conveniences 
+specific to web application development. mod_python.psp is a much better 
+area to radically depart from this paradigm, as it is expected to 
+provide PHP-like behaviour.
+
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017197.html">[mod_python] psp_site example doesn't work
+</A></li>
+	<LI>Next message: <A HREF="017199.html">[mod_python] psp_site example doesn't work
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17198">[ date ]</a>
+              <a href="thread.html#17198">[ thread ]</a>
+              <a href="subject.html#17198">[ subject ]</a>
+              <a href="author.html#17198">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

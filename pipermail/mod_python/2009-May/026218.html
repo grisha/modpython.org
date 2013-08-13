@@ -1,0 +1,373 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Multiple Interpreters mod_python optimization
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%3D%3FUTF-8%3FQ%3F%3D5Bmod%3D5Fpython%3D5D%3D20Multiple%3D20Interpreters%3D20mod%3D5Fpython%3F%3D%0A%09%3D%3FUTF-8%3FQ%3F%3D20optimization%3F%3D&In-Reply-To=88e286470905150311n6421baa9x35342c06be9f28ec%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026217.html">
+   <LINK REL="Next"  HREF="026219.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Multiple Interpreters mod_python optimization</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>zsi</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%3D%3FUTF-8%3FQ%3F%3D5Bmod%3D5Fpython%3D5D%3D20Multiple%3D20Interpreters%3D20mod%3D5Fpython%3F%3D%0A%09%3D%3FUTF-8%3FQ%3F%3D20optimization%3F%3D&In-Reply-To=88e286470905150311n6421baa9x35342c06be9f28ec%40mail.gmail.com"
+       TITLE="[mod_python] Multiple Interpreters mod_python optimization">zsi at skolesys.dk
+       </A><BR>
+    <I>Fri May 15 06:34:07 EDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026217.html">[mod_python] Multiple Interpreters mod_python optimization
+</A></li>
+        <LI>Next message: <A HREF="026219.html">[mod_python] Multiple Interpreters mod_python optimization
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26218">[ date ]</a>
+              <a href="thread.html#26218">[ thread ]</a>
+              <a href="subject.html#26218">[ subject ]</a>
+              <a href="author.html#26218">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+
+On Fri, 15 May 2009 20:11:38 +1000, Graham Dumpleton
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+&gt;<i> 2009/5/15 zsi &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">zsi at skolesys.dk</A>&gt;:
+</I>&gt;&gt;<i> Hey *
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I am creating a SOAP service that is based on ZSI and mod_python. I have
+</I>&gt;&gt;<i> the service running and it works, but it's not performing well, so I
+</I>&gt;<i> made
+</I>&gt;&gt;<i> did some output to the syslog from inside the handler:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> reloadchecker.py:
+</I>&gt;&gt;<i> ----------------
+</I>&gt;&gt;<i> testvar=1
+</I>&gt;&gt;<i> ----------------
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> My handler:
+</I>&gt;&gt;<i> ----------------
+</I>&gt;&gt;<i> import capa0_9.soap.sessionservice as sessionservice
+</I>&gt;&gt;<i> import capa0_9.soap.zsi_handler as zsi_handler
+</I>&gt;&gt;<i> from mod_python import apache
+</I>&gt;&gt;<i> import capa0_9.tools.log as log
+</I>&gt;&gt;<i> import os,reloadchecker
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> mod = __import__('encodings.utf_8', globals(), locals(), '*')
+</I>&gt;&gt;<i> mod = __import__('encodings.utf_16_be', globals(), locals(), '*')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> def handler(req):
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &#160; &#160; &#160; &#160;&quot;&quot;&quot;
+</I>&gt;&gt;<i> &#160; &#160; &#160; &#160;The PythonHandler entry-point. This function must be present
+</I>&gt;<i> in
+</I>&gt;&gt;<i> order to have mod_apache dispatch a python operation.
+</I>&gt;&gt;<i> &#160; &#160; &#160; &#160;&quot;&quot;&quot;
+</I>&gt;&gt;<i> &#160; &#160; &#160; &#160;zsi_handler.AsHandler(modules=(sessionservice,), request=req)
+</I>&gt;&gt;<i> &#160; &#160; &#160; &#160;log.debug(&quot;REQUESTINFO: Interpreter Name = %s&quot; %
+</I>&gt;&gt;<i> str(req.interpreter))
+</I>&gt;&gt;<i> &#160; &#160; &#160; &#160;log.debug(&quot;REQUESTINFO: os.getpid() &#160; &#160; &#160;= %s&quot; %
+</I>&gt;<i> str(os.getpid()))
+</I>&gt;&gt;<i> &#160; &#160; &#160; &#160;log.debug(&quot;REQUESTINFO: reloadchecker &#160; &#160;= %s&quot; %
+</I>&gt;&gt;<i> str(reloadchecker.testvar))
+</I>&gt;&gt;<i> &#160; &#160; &#160; &#160;reloadchecker.testvar += 1
+</I>&gt;&gt;<i> &#160; &#160; &#160; &#160;return apache.OK
+</I>&gt;&gt;<i> -----------------
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I log the interpreter name, which according to section 4.1 should make
+</I>&gt;&gt;<i> mod_python boost performance by keeping the interpreter alive as long as
+</I>&gt;&gt;<i> the apache server processes. And I log the pid of the interpreter. As it
+</I>&gt;<i> is
+</I>&gt;&gt;<i> clear to see in the output below a new pid is spawned each time, it does
+</I>&gt;&gt;<i> not reuse the interpreter and therefore, I guess, it has to reload
+</I>&gt;&gt;<i> everything for each request. Note that i also list the apache2 processes
+</I>&gt;&gt;<i> before and after I bombard the server with requests, it shows that the
+</I>&gt;<i> same
+</I>&gt;&gt;<i> processes are running before and after. I also made a dummy module
+</I>&gt;&gt;<i> &quot;reloadchecker&quot; that contains one variable &quot;testvar&quot;. If it is reloaded
+</I>&gt;<i> the
+</I>&gt;&gt;<i> variable is initialized to 1, if it was already loaded it should be
+</I>&gt;&gt;<i> increased by 1 for each request.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Am I missing something,
+</I>
+Thanks for the quick response.
+
+&gt;<i> 
+</I>&gt;<i> Yes.
+</I>&gt;<i> 
+</I>&gt;&gt;<i> shouldn't mod_python optimize performance by
+</I>&gt;&gt;<i> reusing previously loaded modules from earlier requests?
+</I>&gt;<i> 
+</I>&gt;<i> Only if the request is actually handled by the same process. Since
+</I>&gt;<i> Apache is a multiprocess web server, the requests could be handled by
+</I>&gt;<i> any of the processes. You will obviously incur the load cost of the
+</I>&gt;<i> interpreter and application for the first request against each
+</I>&gt;<i> processor. Subsequent requests for a process should use the fact that
+</I>&gt;<i> stuff is already loaded. You likely didn't do enough requests to have
+</I>&gt;<i> touched all process and have a request actually go back to a process
+</I>&gt;<i> which was already used.
+</I>&gt;<i> 
+</I>&gt;<i> Read:
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i>
+</I><A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/TheProcessInterpreterModel">http://www.dscpl.com.au/wiki/ModPython/Articles/TheProcessInterpreterModel</A>
+&gt;<i> 
+</I>&gt;<i> Since you appear to be using prefork MPM, also read about the dangers
+</I>&gt;<i> of prefork MPM in:
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i>
+</I><A HREF="http://blog.dscpl.com.au/2009/03/load-spikes-and-excessive-memory-usage.html">http://blog.dscpl.com.au/2009/03/load-spikes-and-excessive-memory-usage.html</A>
+&gt;<i> 
+</I>&gt;<i> If you want better control over how many processes are used for your
+</I>&gt;<i> application and particularly so you can limit number to small fixed
+</I>&gt;<i> number and/or use threading as well, then look at mod_wsgi daemon mode
+</I>&gt;<i> instead.
+</I>&gt;<i> 
+</I>&gt;<i> BTW, the process IDs in your 'ps' output don't even match what your
+</I>&gt;<i> Python code is producing. Looks like you aren't even talking to the
+</I>&gt;<i> same Apache instance.
+</I>I wasn't expecting them to match. The process id's from the python code
+are the interpreter's pid not the apaches. What I wanted to show by
+that was that it is stille the same apache processes (8 of them) but
+I have 18 different interpreter process ID's. So it is not because I
+hit a new apache process every time.
+
+&gt;<i> So, try and validate your configuration and whether you might have
+</I>&gt;<i> multiple Apache installations running. Look for 'httpd' processes as
+</I>&gt;<i> well.
+</I>
+Here is the server pool configuration (standard ubuntu mpm-prefork
+configuration):
+    StartServers          5
+    MinSpareServers       5
+    MaxSpareServers      10
+    MaxClients          150
+    MaxRequestsPerChild   0
+
+Best regards
+Jakob Simon-Gaarde
+
+&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mikrov at capa-server</A>:/srv/capa/www/0.9$ sudo ps aux | grep apache2
+</I>&gt;&gt;<i> mikrov &#160; &#160;7396 &#160;0.0 &#160;0.1 &#160; 3004 &#160; 764 pts/2 &#160; &#160;S+ &#160; 11:11 &#160;
+</I>&gt;<i> 0:00 grep
+</I>&gt;&gt;<i> apache2
+</I>&gt;&gt;<i> root &#160; &#160; 22343 &#160;0.0 &#160;1.0 &#160;13728 &#160;5336 ? &#160; &#160; &#160; &#160;Ss &#160; May14 &#160;
+</I>&gt;<i> 0:26
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22346 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22347 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22348 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22349 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22350 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22383 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22392 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22407 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22716 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:03
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 23356 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:03
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mikrov at capa-server</A>:/srv/capa/www/0.9/sessionservice$ sudo tail -f
+</I>&gt;&gt;<i> /var/log/syslog | grep REQUESTINFO
+</I>&gt;&gt;<i> May 15 11:52:03 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:03 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7953
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:03 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:03 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:03 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7954
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:03 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:04 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:04 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7955
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:04 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:05 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:05 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7959
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:05 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:06 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:06 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7960
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:06 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:07 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:07 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7961
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> May 15 11:52:07 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:08 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:08 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7963
+</I>&gt;&gt;<i> May 15 11:52:08 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:08 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:08 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7964
+</I>&gt;&gt;<i> May 15 11:52:08 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:09 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:09 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7966
+</I>&gt;&gt;<i> May 15 11:52:09 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:10 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:10 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7968
+</I>&gt;&gt;<i> May 15 11:52:10 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:11 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:11 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7969
+</I>&gt;&gt;<i> May 15 11:52:11 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:12 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:12 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7970
+</I>&gt;&gt;<i> May 15 11:52:12 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:13 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:13 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7972
+</I>&gt;&gt;<i> May 15 11:52:13 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:13 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:13 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7973
+</I>&gt;&gt;<i> May 15 11:52:13 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:14 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:14 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7974
+</I>&gt;&gt;<i> May 15 11:52:14 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:15 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:15 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7976
+</I>&gt;&gt;<i> May 15 11:52:15 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i> May 15 11:52:16 capa-server capa: REQUESTINFO: Interpreter Name =
+</I>&gt;&gt;<i> /srv/capa/www/0.9/sessionservice/
+</I>&gt;&gt;<i> May 15 11:52:16 capa-server capa: REQUESTINFO: os.getpid() &#160; &#160; &#160;=
+</I>&gt;<i> 7977
+</I>&gt;&gt;<i> May 15 11:52:16 capa-server capa: REQUESTINFO: reloadchecker &#160; &#160;= 1
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mikrov at capa-server</A>:/srv/capa/www/0.9$ sudo ps aux | grep apache2
+</I>&gt;&gt;<i> mikrov &#160; &#160;7457 &#160;0.0 &#160;0.1 &#160; 3004 &#160; 764 pts/2 &#160; &#160;S+ &#160; 11:12 &#160;
+</I>&gt;<i> 0:00 grep
+</I>&gt;&gt;<i> apache2
+</I>&gt;&gt;<i> root &#160; &#160; 22343 &#160;0.0 &#160;1.0 &#160;13728 &#160;5336 ? &#160; &#160; &#160; &#160;Ss &#160; May14 &#160;
+</I>&gt;<i> 0:26
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22346 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22347 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22348 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22349 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22350 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22383 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22392 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22407 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:04
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 22716 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:03
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>&gt;&gt;<i> root &#160; &#160; 23356 &#160;0.0 &#160;0.6 &#160;13728 &#160;3136 ? &#160; &#160; &#160; &#160;S &#160; &#160;May14 &#160;
+</I>&gt;<i> 0:03
+</I>&gt;&gt;<i> /usr/sbin/apache2 -k start
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026217.html">[mod_python] Multiple Interpreters mod_python optimization
+</A></li>
+	<LI>Next message: <A HREF="026219.html">[mod_python] Multiple Interpreters mod_python optimization
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26218">[ date ]</a>
+              <a href="thread.html#26218">[ thread ]</a>
+              <a href="subject.html#26218">[ subject ]</a>
+              <a href="author.html#26218">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

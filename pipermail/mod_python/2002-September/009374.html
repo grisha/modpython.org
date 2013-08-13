@@ -1,0 +1,137 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] [patch] Make mod_python work with NTLM authentication
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5Bpatch%5D%20Make%20mod_python%20work%20with%20NTLM%20authentication&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="009373.html">
+   <LINK REL="Next"  HREF="009376.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] [patch] Make mod_python work with NTLM authentication</H1>
+    <B>Martin Pool</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5Bpatch%5D%20Make%20mod_python%20work%20with%20NTLM%20authentication&In-Reply-To="
+       TITLE="[mod_python] [patch] Make mod_python work with NTLM authentication">mbp at samba.org
+       </A><BR>
+    <I>Wed Sep 25 18:26:47 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="009373.html">[mod_python] another beta tarball
+</A></li>
+        <LI>Next message: <A HREF="009376.html">[mod_python] [patch] Make mod_python work with NTLM authentication
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9374">[ date ]</a>
+              <a href="thread.html#9374">[ thread ]</a>
+              <a href="subject.html#9374">[ subject ]</a>
+              <a href="author.html#9374">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>The mod_python 2.7.8 Publisher assumes that it will only ever be used
+with Basic authentication.  It always returns &quot;400 Bad Request&quot; if it
+is ever used inside a directory authenticated by Apache's mod_ntlm,
+which uses the Authorization header with a different format.   I
+suspect it would fail with digest authentication as well.
+
+This patch makes the publisher adhere more closely to the RFC2617
+specification by checking the authentication scheme name before trying
+to parse the header.
+
+If this could go into 2.7.9 I would be happy.
+
+Index: publisher.py
+===================================================================
+--- publisher.py
++++ publisher.py	2002-09-25 17:23:05.000000000 +1000
+@@ -189,6 +189,29 @@
+     else:
+         return apache.HTTP_INTERNAL_SERVER_ERROR
+ 
++
++def _parse_authentication(req):
++    &quot;&quot;&quot;Return (username, password) from the Authorization header.
++
++    This only handles HTTP Basic (RFC2617) authentication.  In at
++    least two other interesting cases, it is not possible for
++    mod_python to know the password, because it is not included in the
++    request.  For authentication schemes other than Basic, (None,
++    None) is returned.
++
++    May raise an exception if the authorization is invalid in some way.
++    &quot;&quot;&quot;
++    s = req.headers_in[&quot;Authorization&quot;]
++    scheme, rest = string.split(s, None, 1)
++    if string.lower(scheme) != 'basic':
++        return None, None
++
++    s = base64.decodestring(rest)
++    user, passwd = string.split(s, &quot;:&quot;, 1)
++    return user, passwd
++    
++    
++
+ def process_auth(req, object, realm=&quot;unknown&quot;, user=None, passwd=None):
+ 
+     found_auth, found_access = 0, 0
+@@ -202,9 +225,7 @@
+     # once and the are received as arguments
+     if not user and req.headers_in.has_key(&quot;Authorization&quot;):
+         try:
+-            s = req.headers_in[&quot;Authorization&quot;][6:]
+-            s = base64.decodestring(s)
+-            user, passwd = string.split(s, &quot;:&quot;, 1)
++            user, passwd = _parse_authentication(req)
+         except:
+             raise apache.SERVER_RETURN, apache.HTTP_BAD_REQUEST
+ 
+
+-- 
+Martin 
+
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="009373.html">[mod_python] another beta tarball
+</A></li>
+	<LI>Next message: <A HREF="009376.html">[mod_python] [patch] Make mod_python work with NTLM authentication
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9374">[ date ]</a>
+              <a href="thread.html#9374">[ thread ]</a>
+              <a href="subject.html#9374">[ subject ]</a>
+              <a href="author.html#9374">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

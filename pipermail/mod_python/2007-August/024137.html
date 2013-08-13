@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] stumped by inputfilter infinite repeat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20stumped%20by%20inputfilter%20infinite%20repeat&In-Reply-To=88e286470708181549j3cfd9b38sd975581939902007%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024136.html">
+   <LINK REL="Next"  HREF="024138.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] stumped by inputfilter infinite repeat</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Ken Manheimer</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20stumped%20by%20inputfilter%20infinite%20repeat&In-Reply-To=88e286470708181549j3cfd9b38sd975581939902007%40mail.gmail.com"
+       TITLE="[mod_python] stumped by inputfilter infinite repeat">ken.manheimer at gmail.com
+       </A><BR>
+    <I>Mon Aug 20 18:39:33 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024136.html">[mod_python] stumped by inputfilter infinite repeat
+</A></li>
+        <LI>Next message: <A HREF="024138.html">[mod_python] stumped by inputfilter infinite repeat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24137">[ date ]</a>
+              <a href="thread.html#24137">[ thread ]</a>
+              <a href="subject.html#24137">[ subject ]</a>
+              <a href="author.html#24137">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 8/18/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+&gt;<i> Which version of mod_python and Apache are you using?
+</I>&gt;<i>
+</I>&gt;<i> The Tramline author suspected there existed a problem in mod_python
+</I>&gt;<i> and/or Apache that caused some issues. They suggest in their
+</I>&gt;<i> documentation a change that should be made to mod_python, although it
+</I>&gt;<i> hasn't been done in official releases as it wouldn't seem to be the
+</I>&gt;<i> correct thing to do. One issue was fixed in filter code in mod_python
+</I>&gt;<i> in recent versions which may have caused issues, but not the same
+</I>&gt;<i> change they suggested. They also felt that certain older versions of
+</I>&gt;<i> Apache may have had some problem.
+</I>&gt;<i>
+</I>&gt;<i> For some more details see:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="https://issues.apache.org/jira/browse/MODPYTHON-76">https://issues.apache.org/jira/browse/MODPYTHON-76</A>
+</I>
+thanks much, graham, for your reply.  i did know about the need to
+inihbit filter.flush() - it's described in the tramline install
+instructions.  i also factored tramline completely out of the picture,
+reproducing the behavior using instead some trivial artifical
+inputfilter and outputfilter functions:
+
+  def inputfilter(filter):
+      &quot;stub input filter&quot;
+      filter.req.log_error(&quot;klm input filter&quot;)
+
+  def outputfilter(filter):
+      &quot;stub output filter&quot;
+      filter.req.log_error(&quot;klm output filter&quot;)
+
+running without pdb enabled but through the rewrite rule i mentioned
+earlier, to Zope, yields an infinite stream of the &quot;klm input filter&quot;
+messages, and no &quot;klm output filter&quot; ones.  (the problem does *not*
+happen when the Zope backend is not running.)
+
+i did reread the bug report, and it occurred to me to try the current
+apache svn version, as the bug report mentions - an off chance,
+though, since the features of the svn version around the time of the
+bug report should have seen released by now.  unfortunately, that
+works worse.  i'm getting a fatal error trying to run the latest svn
+version with mod_python installed:
+
+httpd: Syntax error on line 116 of /usr/local/apache2/conf/httpd.conf:
+Cannot load /usr/local/apache2/modules/mod_python.so into server:
+/usr/local/apache2/modules/mod_python.so: undefined symbol:
+ap_requires
+err 1:  2811  /usr/local/apache2/bin/apachectl configtest
+
+this obstacle on obstacle is discouraging.  a google search reveals no
+other reports of this particular error, and i have no reason to be
+confident that getting it working would actually improve the original
+inputfilter problem.  i plan to inquire on the tramline and plone
+lists for alternatives.  i am interested to hear insights on this, but
+think i'm better off pursuing other avenues (there's some alpha plone
+accommodations for blobs in the zodb), and if that works, giving up on
+mod_python.
+
+i did solve one interesting incidental problem along the way, that
+might be of value to someone else.  when the interminable inputfilter
+invocation is happening i have to kill apache with a KILL signal (9).
+doing that lead to mutex leaks, soon leading to apache start failures,
+with an error_log complaint like this:
+
+[Fri Aug 17 12:00:00 2007] [error] (28)No space left on device:
+mod_python: Failed to create global mutex 0 of 32 (/tmp/mpmtx125450).
+
+investigating, i learned about ipcs to report semaphores and ipcrm to
+remove them, and created a little script that did the job for me:
+
+ipcs -s | while read key id garbage; do
+  case &quot;$id&quot; in
+    [0-9]* ) echo -n &quot;$id &quot;
+             ipcrm -s $id;;
+    * ) : ;;
+  esac
+done
+
+handy.
+
+also, in case anyone still thinks attention to mod_python and tramline
+is worthwhile, here are my web server details, from mod_python's
+mpinfo:
+
+  Apache/2.2.4 (Unix) mod_ssl/2.2.4  OpenSSL/0.9.7a  DAV/2  mod_python/3.3.1
+  Python/2.4.3
+
+and host server os and hardware: linux kernel 2.6.9-42.ELsmp on an AMD
+Athlon 64 X2
+Dual Core Processor 4200+.  (it's actually running redhat 4.1, alas.)
+
+-- 
+ken
+<A HREF="http://myriadicity.net">http://myriadicity.net</A>
+
+&gt;<i> On 19/08/07, Ken Manheimer &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ken.manheimer at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; hi, all.  i'm using mod_python with a downloads/uploads handler,
+</I>&gt;<i> &gt; tramline ( <A HREF="http://infrae.com/products/tramline">http://infrae.com/products/tramline</A> ) with a content
+</I>&gt;<i> &gt; management system (plone).  when the tramline input and output filters
+</I>&gt;<i> &gt; are hooked in (using SetInputFilter and SetOutputFilter) and i visit
+</I>&gt;<i> &gt; the zope/plone site via a redirect, i get infinite repeated calls to
+</I>&gt;<i> &gt; the input filter.  (i can observe the this by setting PythonEnablePdb
+</I>&gt;<i> &gt; - from the perspective of the web browser, no page is returned.)  i
+</I>&gt;<i> &gt; can provide more details, and realize that this may be a tramline
+</I>&gt;<i> &gt; problem, but it seems like a behavior that might be familiar to
+</I>&gt;<i> &gt; mod_python experts, so i thought i'd run it by you all first.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; things like mpinfo and mptest.py work fine.  visiting the regular,
+</I>&gt;<i> &gt; file-based mockup site yields no problems - only the embedded zope
+</I>&gt;<i> &gt; site, via a rewrite rule:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   RewriteRule ^/testbed(.*)
+</I>&gt;<i> &gt; <A HREF="http://127.0.0.1:8080/VirtualHostBase/http/%{HTTP_HOST}:80/VirtualHostRoot/_vh_testbed/$1">http://127.0.0.1:8080/VirtualHostBase/http/%{HTTP_HOST}:80/VirtualHostRoot/_vh_testbed/$1</A>
+</I>&gt;<i> &gt; [L,P]
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; (the elaborate VirtualHostRoot stuff is for a zope virtual hosting provision.)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; does any of this sound familiar to anyone?  suggestions about
+</I>&gt;<i> &gt; debugging it?  (stepping through the input and output filters using
+</I>&gt;<i> &gt; PythonEnablePdb yields little or no illumination - they just keep
+</I>&gt;<i> &gt; getting invoked.  i don't know what to look for tracing added to
+</I>&gt;<i> &gt; importer.py FilterDispatch, which i tried instead of using
+</I>&gt;<i> &gt; PythonEnablePdb.)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; any help would be appreciated!
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024136.html">[mod_python] stumped by inputfilter infinite repeat
+</A></li>
+	<LI>Next message: <A HREF="024138.html">[mod_python] stumped by inputfilter infinite repeat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24137">[ date ]</a>
+              <a href="thread.html#24137">[ thread ]</a>
+              <a href="subject.html#24137">[ subject ]</a>
+              <a href="author.html#24137">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] how do I eliminate the .py extension in url?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20do%20I%20eliminate%20the%20.py%20extension%20in%20url%3F&In-Reply-To=20050210233910.44207.qmail%40web31010.mail.mud.yahoo.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017380.html">
+   <LINK REL="Next"  HREF="017388.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] how do I eliminate the .py extension in url?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Shawn Harrison</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20do%20I%20eliminate%20the%20.py%20extension%20in%20url%3F&In-Reply-To=20050210233910.44207.qmail%40web31010.mail.mud.yahoo.com"
+       TITLE="[mod_python] how do I eliminate the .py extension in url?">harrison at tbc.net
+       </A><BR>
+    <I>Thu Feb 10 19:30:32 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017380.html">[mod_python] how do I eliminate the .py extension in url?
+</A></li>
+        <LI>Next message: <A HREF="017388.html">[mod_python] how do I eliminate the .py extension in url?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17382">[ date ]</a>
+              <a href="thread.html#17382">[ thread ]</a>
+              <a href="subject.html#17382">[ subject ]</a>
+              <a href="author.html#17382">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Too quick on the send key. Here's the file.
+
+Jef Dodson wrote [02/10/05 5:39 PM]:
+&gt;<i> Also, it's not a very general solution.  I would like to be able to access any number of scripts
+</I>&gt;<i> without having the .py show up in the URL.  I am sure it is possible because I had it working
+</I>&gt;<i> under Linux, but I am now trying to get it working under BSD so I'm wondering if maybe there is
+</I>&gt;<i> some option that I'm missing in my httpd config file that was there by default on the Linux
+</I>&gt;<i> installation.  Anyone have any ideas on this?
+</I>
+Put the following in httpd.conf:
+
+SetHandler mod_python
+PythonHandler module.path.to.handler.file
+
+Then in the handler file, def a handler that looks for python scripts
+and loads them based on the req.uri. The attached very crufty handler
+might be a good source of amusement.
+
+-- 
+________________
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">harrison at tbc.net</A>
+
+
+-------------- next part --------------
+
+# there's some stuff here that the handler doesn't actually use....
+from mod_python import apache, psp, util, Cookie, Session
+from string import split, join
+import os
+
+def handler(req):
+    # 1. If the file exists &amp; not a directory, serve it.
+
+    filepath = req.document_root() + req.uri
+    if (os.access(filepath, os.R_OK) 
+    and not os.path.isdir(filepath)) :
+        # req.write(&quot;sending file\n&quot;)
+        req.sendfile(filepath)
+        return apache.OK
+
+    # 2. Search for a PSP or PY file to handle the request
+    # -- working backwards from the end of the URI
+
+    urllist = split(req.uri, '/')
+
+    thefile = None
+    for i in range(len(urllist)):
+        filepath = os.path.join(req.document_root(), 
+                join(urllist[1:len(urllist)-i], '/'))
+
+        files = ('', 'index')             # keep lists short! only what is used
+        exts = ('psp', 'py')              # each item adds to the processing time.
+
+        for j in range(len(files)):
+            for k in range(len(exts)):
+                if files[j] == '':
+                    thefile = (&quot;%s.%s&quot;
+                              % (filepath, exts[k]))
+                else:
+                    thefile = (&quot;%s.%s&quot; 
+                               % (os.path.join(filepath, files[j]), exts[k]))
+                # DEBUG
+                #req.content_type = &quot;text/html&quot;
+                #req.write(&quot;%s&lt;br /&gt;\n&quot; % thefile)
+
+                if os.access(thefile, os.R_OK):
+                    if exts[k] == 'py':    
+                        # there are better ways to do this....
+                        # assumes thefile is a script that can be &quot;run&quot; directly.
+                        execfile(thefile)    # replace w/import?
+                    elif exts[k] == 'psp':
+                        template = psp.PSP(req, filename=thefile)
+                        template.run({'psp_file':thefile})
+                    else:
+                        # default is to treat the file as HTML. 
+                        req.content_type=&quot;text/html&quot;
+                        req.sendfile(thefile)
+
+                    return apache.OK
+
+    # 3. Give up: Nothing found.
+
+    return apache.HTTP_NOT_FOUND
+
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017380.html">[mod_python] how do I eliminate the .py extension in url?
+</A></li>
+	<LI>Next message: <A HREF="017388.html">[mod_python] how do I eliminate the .py extension in url?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17382">[ date ]</a>
+              <a href="thread.html#17382">[ thread ]</a>
+              <a href="subject.html#17382">[ subject ]</a>
+              <a href="author.html#17382">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,198 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] 2.2 is out
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%202.2%20is%20out&In-Reply-To=Pine.LNX.4.21.0006041452530.28185-100000%40saturn.ispol.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007463.html">
+   <LINK REL="Next"  HREF="007470.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] 2.2 is out</H1>
+    <B>Mads Kiilerich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%202.2%20is%20out&In-Reply-To=Pine.LNX.4.21.0006041452530.28185-100000%40saturn.ispol.com"
+       TITLE="[mod_python] 2.2 is out">Mads at Kiilerich.com
+       </A><BR>
+    <I>Tue Jun 13 10:10:20 EST 2000</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007463.html">[mod_python] 2.2 is out
+</A></li>
+        <LI>Next message: <A HREF="007470.html">[mod_python] AttributeError: handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7498">[ date ]</a>
+              <a href="thread.html#7498">[ thread ]</a>
+              <a href="subject.html#7498">[ subject ]</a>
+              <a href="author.html#7498">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Jun 4 I got mail from Gregory Trubetskoy:
+
+&gt;<i> Also thanks to Gerhard Haering for the Suse RPM's. It'd be nice if someone
+</I>&gt;<i> came up and agreed to maintain with RedHat RPM, Debian package, a FreeBSD
+</I>&gt;<i> port and a Solaris package...
+</I>
+I've made a spec for RedHat, you'll find it attached. IMHO, if
+you make a rpm and install it on a plain 6.2 system you'll get
+something that works and can be used as a base for further
+experiments.
+
+Feedback is welcome!
+
+Regards,
+
+-- 
+Mads Kiilerich          Sys.Adm. Cand.Polyt
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mads at Kiilerich.com</A>      Tel. +45 38 16 26 00  Mob. +45 26 20 07 73
+M&#248;ntmestervej 12B 1th,  DK-2400 NV,  Denmark
+
+&quot;Learned about WAP. It sucks. The more I play with WML the more sure I 
+am that WAP will die out rapidly once phones doing HTML exist.&quot;    Cox
+
+-------------- next part --------------
+Summary: The Python language for use with Apache.
+Name: mod_python
+Version: 2.2
+Release: 0
+Group: System Environment/Daemons
+Source0: %{name}-%{version}.tgz
+Copyright: BSD-ish???
+BuildRoot: %{_tmppath}/%{name}-root
+Requires: apache &gt;= 1.3 , python &gt;= 1.5.2
+BuildPrereq: apache-devel 
+Packager: Mads Kiilerich &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mads at kiilerich.com</A>&gt;
+
+%description
+Mod_python allows embedding Python within the Apache http server for a
+considerable boost in performance and added flexibility in designing web based
+applications. 
+
+The RPM installs a small example in /home/httpd/mod_python which can be
+accessed as <A HREF="http://localhost/mod_python/some/path/which/doesn/t/matter">http://localhost/mod_python/some/path/which/doesn/t/matter</A>
+
+%prep
+%setup -q -n mod_python-%{version}
+
+%build
+# 1. Installing Python Libraries
+/usr/bin/python /usr/lib/python1.5/compileall.py lib/python/mod_python
+
+# 2. Compiling -- Compiling mod_python as a DSO
+apxs -I /usr/include/python1.5 -c src/mod_python.c \
+	/usr/lib/python1.5/config/libpython1.5.a -lpthread
+
+%install
+rm -rf $RPM_BUILD_ROOT
+install -D -s src/mod_python.so $RPM_BUILD_ROOT/usr/lib/apache/mod_python.so
+mkdir -p $RPM_BUILD_ROOT/usr/lib/python1.5/site-packages/mod_python
+install lib/python/mod_python/* \
+	$RPM_BUILD_ROOT/usr/lib/python1.5/site-packages/mod_python
+mkdir -p $RPM_BUILD_ROOT/home/httpd/mod_python
+cat &lt;&lt;CAT&gt;$RPM_BUILD_ROOT/home/httpd/mod_python/.htaccess
+SetHandler python-program
+PythonHandler pythonhandler
+CAT
+cat &lt;&lt;CAT&gt;$RPM_BUILD_ROOT/home/httpd/mod_python/pythonhandler.py 
+from mod_python import apache
+
+def handler(req):
+    req.send_http_header()
+    req.write(&quot;Hello to the World from &quot;+req.uri+&quot;!&quot;)
+    return apache.OK 
+CAT
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%post
+grep -q 'LoadModule python_module' /etc/httpd/conf/httpd.conf || \
+patch /etc/httpd/conf/httpd.conf &lt;&lt;CAT
+*** httpd.conf.org      
+--- httpd.conf  
+***************
+*** 206,207 ****
+--- 206,208 ----
+  # LoadModule foo_module modules/mod_foo.so
++ LoadModule python_module      modules/mod_python.so
+  #LoadModule mmap_static_module modules/mod_mmap_static.so
+***************
+*** 253,254 ****
+--- 254,256 ----
+  ClearModuleList
++ AddModule mod_python.c
+  #AddModule mod_mmap_static.c
+***************
+*** 965,966 ****
+--- 967,974 ----
+  
++ &lt;IfModule mod_python.c&gt;
++   Alias /mod_python/ /home/httpd/mod_python/
++   &lt;Directory /home/httpd/mod_python&gt;
++     AllowOverride FileInfo
++   &lt;/Directory&gt;
++ &lt;/IfModule&gt;
+  ### Section 3: Virtual Hosts
+CAT
+
+%postun
+perl -pi -e 's|^LoadModule python_module|#LoadModule python_module|g' \
+ 	/etc/httpd/conf/httpd.conf
+perl -pi -e 's|^AddModule mod_python.c|#AddModule mod_python.c|g' \
+	/etc/httpd/conf/httpd.conf
+
+%files
+%defattr(-,root,root)
+%attr(0755,root,root) /usr/lib/apache/mod_python.so
+/usr/lib/python1.5/site-packages/mod_python
+/home/httpd/mod_python
+%doc COPYRIGHT doc/*.html
+
+%changelog
+* Mon Jun 13 2000 Mads Kiilerich &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mads at kiilerich.com</A>&gt;
+- Made initial version of mod_python rpm
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007463.html">[mod_python] 2.2 is out
+</A></li>
+	<LI>Next message: <A HREF="007470.html">[mod_python] AttributeError: handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7498">[ date ]</a>
+              <a href="thread.html#7498">[ thread ]</a>
+              <a href="subject.html#7498">[ subject ]</a>
+              <a href="author.html#7498">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

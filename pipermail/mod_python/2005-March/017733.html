@@ -1,0 +1,249 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: Re: some questions about using mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Re%3A%20some%20questions%20about%20using%20mod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017732.html">
+   <LINK REL="Next"  HREF="017734.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: Re: some questions about using mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>vegetax</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Re%3A%20some%20questions%20about%20using%20mod_python&In-Reply-To="
+       TITLE="[mod_python] Re: Re: some questions about using mod_python">vegeta.z at gmail.com
+       </A><BR>
+    <I>Sun Mar 20 20:02:10 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017732.html">[mod_python] Re: some questions about using mod_python
+</A></li>
+        <LI>Next message: <A HREF="017734.html">[mod_python] File Progress Upload Indicator
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17733">[ date ]</a>
+              <a href="thread.html#17733">[ thread ]</a>
+              <a href="subject.html#17733">[ subject ]</a>
+              <a href="author.html#17733">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+
+&gt;<i> vegetax wrote ..
+</I>&gt;&gt;<i> Graham Dumpleton wrote:
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> &gt;&gt; - Where do i set a database connection pool to load at server
+</I>&gt;&gt;<i> &gt;&gt; initialization ,so that all request can access it? is the pythonImport
+</I>&gt;&gt;<i> &gt;&gt; directive the best place? where do i set a clean up function for the
+</I>&gt;&gt;<i> &gt;&gt; pool
+</I>&gt;&gt;<i> &gt;&gt; at server finalization ?
+</I>&gt;&gt;<i> &gt; 
+</I>&gt;&gt;<i> &gt; Cleanup function registration for stuff that should be done at time of
+</I>&gt;&gt;<i> &gt; child
+</I>&gt;&gt;<i> &gt; termination can only be done with req.server.register_cleanup(). There
+</I>&gt;&gt;<i> &gt; probably should be an apache.register_cleanup() method which would be
+</I>&gt;&gt;<i> &gt; available from a module imported using PythonImport. This would then
+</I>&gt;&gt;<i> be
+</I>&gt;&gt;<i> &gt; the
+</I>&gt;&gt;<i> &gt; best way of doing it.
+</I>&gt;&gt;<i> &gt; 
+</I>&gt;&gt;<i> &gt; It seems that the best one could do now is import the module when
+</I>&gt;&gt;<i> &gt; required
+</I>&gt;&gt;<i> &gt; but don't do anything at the time of import which would require a
+</I>&gt;&gt;<i> &gt; cleanup
+</I>&gt;&gt;<i> &gt; function to be registered. Then, when the first handler calls in to the
+</I>&gt;&gt;<i> &gt; actual module, require that the &quot;req&quot; object be passed into the pool,
+</I>&gt;&gt;<i> &gt; with
+</I>&gt;&gt;<i> &gt; those resources which need to be cleaned up later being created then
+</I>&gt;&gt;<i> &gt; with a
+</I>&gt;&gt;<i> &gt; cleanup function being registered through
+</I>&gt;&gt;<i> &gt; req.server.register_cleanup().
+</I>&gt;&gt;<i> &gt; 
+</I>&gt;&gt;<i> &gt; I have added a bug report suggesting that apache.register_cleanup() be
+</I>&gt;&gt;<i> &gt; added to allow it to be used from module imported using PythonImport.
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> But is to problematic to clean resources at request level, i think in the
+</I>&gt;&gt;<i> midtime i will be cleaning up resources like connections with an external
+</I>&gt;&gt;<i> script which i run after apache exits.
+</I>&gt;<i> 
+</I>&gt;<i> I perhaps didn't explain it properly or I don't understand what you are
+</I>&gt;<i> saying.
+</I>&gt;<i> 
+</I>&gt;&gt;<i>From a request object there are two ways of registering a cleanup
+</I>&gt;<i> function. The first is:
+</I>&gt;<i> 
+</I>&gt;<i>   req.register_cleanup()
+</I>&gt;<i> 
+</I>&gt;<i> The register function in this case will be called when the handler for
+</I>&gt;<i> that specific request is finished.
+</I>&gt;<i> 
+</I>&gt;<i> The other which I referenced was:
+</I>&gt;<i> 
+</I>&gt;<i>   req.server.register_cleanup()
+</I>&gt;<i> 
+</I>&gt;<i> This registers a function which will only be called when the Apache
+</I>&gt;<i> process itself terminates. Ie., when one does apachectl stop or
+</I>&gt;<i> restart.
+</I>&gt;<i> 
+</I>&gt;<i> Thus, wasn't talking about cleaning up resources at request level.
+</I>&gt;<i> The unfortunate bit was that since apache.register_cleanup() doesn't
+</I>&gt;<i> exist, one has to defer registration of cleanup function for process
+</I>&gt;<i> termination until one has access to req.server, which is at point of
+</I>&gt;<i> first request that needs pool.
+</I>&gt;<i> 
+</I>&gt;&gt;<i> &gt; FWIW, in Vampire, when Vampire's module importing mechanism is used a
+</I>&gt;&gt;<i> &gt; stripped down request object is available in the set of global
+</I>&gt;&gt;<i> &gt; variables during import as __req__. Thus in Vampire one could actually
+</I>&gt;&gt;<i> &gt; register a cleanup function during import by using:
+</I>&gt;&gt;<i> &gt; 
+</I>&gt;&gt;<i> &gt;    __req__.server.register_cleanup(....)
+</I>&gt;&gt;<i> &gt; 
+</I>&gt;&gt;<i> &gt; This would save each handler having to pass the req object into a pool
+</I>&gt;&gt;<i> &gt; and
+</I>&gt;&gt;<i> &gt; means one wouldn't have to delay creation of resources which needed the
+</I>&gt;&gt;<i> &gt; cleanup function to be registered.
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> Looks like a good solution when the clean up is needed per request,and
+</I>&gt;&gt;<i> is
+</I>&gt;&gt;<i> also posible that the pool component was made by someone else,and cant
+</I>&gt;&gt;<i> take
+</I>&gt;&gt;<i> req as parameter.
+</I>&gt;<i> 
+</I>&gt;<i> Again, not talking per request here as am registering cleanup handler
+</I>&gt;<i> via the server object and not the actual request object.
+</I>
+Sorry about the missunderstanding,i see the irony of the
+req.server.register_cleanup, maybe adding a PythonCleanUp directive ?
+ 
+&gt;&gt;<i> &gt; BTW, have you considered other page templating solutions besides PSP?
+</I>&gt;&gt;<i> &gt; In terms
+</I>&gt;&gt;<i> &gt; of best separation between model, view and controller, or at least
+</I>&gt;&gt;<i> &gt; between the
+</I>&gt;&gt;<i> &gt; HTML that represents a page and the code that populates it, I would
+</I>&gt;&gt;<i> &gt; recommend
+</I>&gt;&gt;<i> &gt; using HTMLTemplate.
+</I>&gt;&gt;<i> &gt; 
+</I>&gt;&gt;<i> &gt;    <A HREF="http://freespace.virgin.net/hamish.sanderson/htmltemplate.html">http://freespace.virgin.net/hamish.sanderson/htmltemplate.html</A>
+</I>&gt;&gt;<i> &gt; 
+</I>&gt;&gt;<i> &gt; Why I prefer it over PSP is that in PSP you are effectively still
+</I>&gt;&gt;<i> &gt; embedding
+</I>&gt;&gt;<i> &gt; Python code in the template itself and to render the template you are
+</I>&gt;&gt;<i> &gt; actually
+</I>&gt;&gt;<i> &gt; executing it, with there being call outs from the template to collect
+</I>&gt;&gt;<i> &gt; data.
+</I>&gt;&gt;<i> &gt; In HTMLTemplate, the template object is distinct, with your controller
+</I>&gt;&gt;<i> &gt; code
+</I>&gt;&gt;<i> &gt; making calls into the template object when desired to set fields within
+</I>&gt;&gt;<i> &gt; it.
+</I>&gt;&gt;<i> &gt; Ie., DOM like but not having the overhead of a DOM because only
+</I>&gt;&gt;<i> &gt; fillable parts
+</I>&gt;&gt;<i> &gt; of the template are indexed.
+</I>&gt;&gt;<i> &gt; 
+</I>&gt;&gt;<i> &gt; What this means is that with HTMLTemplate you aren't forced to prepare
+</I>&gt;&gt;<i> &gt; all your
+</I>&gt;&gt;<i> &gt; data up front before filling in the template, instead you can fill it
+</I>&gt;&gt;<i> &gt; in bit
+</I>&gt;&gt;<i> &gt; by bit.
+</I>&gt;&gt;<i> &gt; 
+</I>&gt;&gt;<i> &gt; I can supply references to example of using HTMLTemplate from Vampire
+</I>&gt;&gt;<i> &gt; later if
+</I>&gt;&gt;<i> &gt; you are interested.
+</I>&gt;&gt;<i> &gt; Graham
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> Thanks for the advice graham,but i dont share the philosophy kind of
+</I>&gt;&gt;<i> those templates engines, first and last it uses its own tag language, i
+</I>&gt;&gt;<i> HATE that.
+</I>&gt;<i> 
+</I>&gt;<i> Huh. PSP also defines its own language within HTML so I don't really
+</I>&gt;<i> see the difference. I personally find the PSP syntax more confusing,
+</I>&gt;<i> more complicated and more error prone especially if embedding actual
+</I>&gt;<i> Python code. Please don't confuse HTMLTemplate with systems like
+</I>&gt;<i> TAL and Metal. It is different and much simpler, with the manner in
+</I>&gt;<i> which pages are constructed and then rendered being different as well.
+</I>&gt;<i> 
+</I>&gt;&gt;<i> I like psp because it lets you embed python code, so that i can
+</I>&gt;&gt;<i> generate complex dynamic views,but the code inside the psp is only for
+</I>&gt;&gt;<i> content displaying, 100% of the form processing is done by the controler
+</I>&gt;&gt;<i> calling domain object's methods! in extremely exceptional situations the
+</I>&gt;&gt;<i> psp code will have a litle processing or data gathering, but those are
+</I>&gt;&gt;<i> only
+</I>&gt;&gt;<i> exceptions, the key here is that the team respect the rules.
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> I work with web designers,you simply cant let them touch the dynamic
+</I>&gt;&gt;<i> parts,those parts tend to be complex,they should work in the static parts
+</I>&gt;&gt;<i> and coordinate with the programmer in charge of the dynamic view
+</I>&gt;&gt;<i> generation,and then plug dynamic and static parts together, in order to
+</I>&gt;&gt;<i> coordinate they MUST have some programming knowledge ,anyway i use
+</I>&gt;&gt;<i> javascript a lot and i dont take a person who doesnt know javascript as
+</I>&gt;&gt;<i> a
+</I>&gt;&gt;<i> web designer.Thats my point of view.
+</I>&gt;<i> 
+</I>&gt;<i> When using HTMLTemplate the web designers don't need to touch
+</I>&gt;<i> any Python code at all and thus don't go anywhere near the controller
+</I>&gt;<i> aspects of the application. Because HTMLTemplate is standard XHTML
+</I>&gt;<i> the web designer can even use high level web design tools. All they
+</I>&gt;<i> need to do is add the appropriate namespace designated attributes
+</I>&gt;<i> in the XHTML as per Python coders directions as to what data will be
+</I>&gt;<i> filled in. The web designer can even put in dummy data in the template
+</I>&gt;<i> as place holders so the pages look correct for some set of data when
+</I>&gt;<i> they are designing it, with the dummy content being replaced by the
+</I>&gt;<i> controller code when it runs.
+</I>
+
+&gt;<i> Anyway, there is probably no point continuing this particular discussion.
+</I>
+I also agree with you =) in that ,is just that we have different
+methodologies and/or requirements,which need different tools to work well.
+
+
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017732.html">[mod_python] Re: some questions about using mod_python
+</A></li>
+	<LI>Next message: <A HREF="017734.html">[mod_python] File Progress Upload Indicator
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17733">[ date ]</a>
+              <a href="thread.html#17733">[ thread ]</a>
+              <a href="subject.html#17733">[ subject ]</a>
+              <a href="author.html#17733">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

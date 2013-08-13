@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Circular references starting from the request
+	objectare not collected
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Circular%20references%20starting%20from%20the%20request%0A%09objectare%20not%20collected&In-Reply-To=414093EB.6080005%40joreybump.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016385.html">
+   <LINK REL="Next"  HREF="016386.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Circular references starting from the request
+	objectare not collected</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Circular%20references%20starting%20from%20the%20request%0A%09objectare%20not%20collected&In-Reply-To=414093EB.6080005%40joreybump.com"
+       TITLE="[mod_python] Circular references starting from the request
+	objectare not collected">nicolas at lehuen.com
+       </A><BR>
+    <I>Thu Sep  9 22:01:23 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016385.html">[mod_python] Circular references starting from the request object
+	are not collected
+</A></li>
+        <LI>Next message: <A HREF="016386.html">[mod_python] Circular references starting from the request object
+	are not collected
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16392">[ date ]</a>
+              <a href="thread.html#16392">[ thread ]</a>
+              <a href="subject.html#16392">[ subject ]</a>
+              <a href="author.html#16392">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Jorey Bump wrote:
+
+&gt;<i> Nicolas Lehuen wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; def handler(req):
+</I>&gt;<i> &gt;     # req.foobar=req
+</I>&gt;<i> 
+</I>&gt;<i> I'm not sure what you're doing, but won't that create a &quot;hall 
+</I>&gt;<i> of mirrors&quot; effect?
+</I>&gt;<i> 
+</I>&gt;<i>   req.foobar.foobar.foobar.foobar.foobar...
+</I>&gt;<i> 
+</I>&gt;<i> Wouldn't it be better to reset the attribute before storing req?
+</I>&gt;<i> 
+</I>&gt;<i>   req.foobar = []
+</I>&gt;<i>   req.foobar = req
+</I>
+
+No, you won't have a hall of mirror, just a reference loop. It's OK for the
+Python interpreter, but it can only be cleaned up from memory if the garbage
+collector is properly notified. It is for Python code but for native code,
+you have to do the aforementionned tricks.
+
+This was a dumb sample, just to show the problem with circular references. I
+wrote a small mod_python.publisher clone, which does not have the annoying
+bug with collision of module name, plus handle concurrent reloading of
+published pages gracefully and so on. When it is stable enough, I think I'll
+put it somewhere on the web. Anyway... In the handler, I decorate the
+request object with many attributes, to make it a little bit more
+object-oriented, like that :
+
+def handler(req):
+	req.external_redirect = lambda location, permanent=0, text=None:
+util.redirect(req,location,permanent,text)
+
+This way I can write :
+
+return req.external_redirect('<A HREF="http://www.example.org/'">http://www.example.org/'</A>)
+
+Which I find cleaner than
+util.external_redirect(req,'<A HREF="http://www.example.org/'">http://www.example.org/'</A>) and symmetrical to
+req.internal_redirect.
+
+The problem is that defining this external_redirect creates an implicit
+circular reference (due to nested scopes : req.external -&gt; lambda -&gt; req)...
+Thus creating a memory leak.
+
+There is a workaround, in fact, it is to make sure that all you reference
+from the request object is deleted, by manually writing :
+
+	del req.external_redirect
+
+at the end of the handler. I'm going to try that right now (or just drop
+this silly req.external_redirect idea...). But the trouble is that this bug
+can bite you just about anytime, and you have to really think things through
+to make sure that you don't create any circular reference. This is OK in the
+framework, but the application writers won't like it.
+
+Regards,
+
+Nicolas
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016385.html">[mod_python] Circular references starting from the request object
+	are not collected
+</A></li>
+	<LI>Next message: <A HREF="016386.html">[mod_python] Circular references starting from the request object
+	are not collected
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16392">[ date ]</a>
+              <a href="thread.html#16392">[ thread ]</a>
+              <a href="subject.html#16392">[ subject ]</a>
+              <a href="author.html#16392">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

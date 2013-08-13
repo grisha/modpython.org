@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problem keeping persistent object in memory (global)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20keeping%20persistent%20object%20in%20memory%20%28global%29&In-Reply-To=74B9E521-6DA1-4E68-9406-2B031B09F93D%40mac.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018310.html">
+   <LINK REL="Next"  HREF="018292.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Problem keeping persistent object in memory (global)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20keeping%20persistent%20object%20in%20memory%20%28global%29&In-Reply-To=74B9E521-6DA1-4E68-9406-2B031B09F93D%40mac.com"
+       TITLE="[mod_python] Problem keeping persistent object in memory (global)">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Jun  7 18:02:13 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018310.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+        <LI>Next message: <A HREF="018292.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18312">[ date ]</a>
+              <a href="thread.html#18312">[ thread ]</a>
+              <a href="subject.html#18312">[ subject ]</a>
+              <a href="author.html#18312">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Whoops. I made a mistake in the code I suggested. Should be:
+
+if not globals().has_key(&quot;mysitepool&quot;):
+     global mysitepool
+     mysitepool = Pool(Constructor(Site), apache.mpm_query(6))
+
+Ie., has_key() and not has_attr().
+
+Since there is no such thing has &quot;has_attr()&quot;, that might be 
+contributing.
+
+Sorry. :-(
+
+Graham
+
+On 08/06/2005, at 12:47 AM, S&#233;bastien Arnaud wrote:
+
+&gt;<i> Thank you Graham for the details on the proper use and issues with 
+</I>&gt;<i> using a singleton.
+</I>&gt;<i>
+</I>&gt;<i> I have modified my code and it seems that now the object mysitepool is 
+</I>&gt;<i> staying in memory yeah!
+</I>&gt;<i>
+</I>&gt;<i> The only other issue is that it seems the Site object I am inserting 
+</I>&gt;<i> in the Pool is getting initialized every-time... It is like the 
+</I>&gt;<i> Queueing mechanism is not working properly and initializing using the 
+</I>&gt;<i> Contructor every-time.
+</I>&gt;<i>
+</I>&gt;<i> I am using the pool.py written by Andy dustman 
+</I>&gt;<i> (<A HREF="http://dustman.net/andy/python/">http://dustman.net/andy/python/</A>), and basically the mysitepool is now 
+</I>&gt;<i> being initialized as shown below. What I am noticing is that the Site 
+</I>&gt;<i> objects which are created in the Pool (basically in the Queue) are 
+</I>&gt;<i> initialized each time you call mysitepool.get(). The behavior I am 
+</I>&gt;<i> looking for is to keep all X Site objects in the Pool to stay in 
+</I>&gt;<i> memory. FYI the Site object initialize a connection to the DB among 
+</I>&gt;<i> other things, so it is critical that it is initialized and destroyed 
+</I>&gt;<i> cleanly.
+</I>&gt;<i>
+</I>&gt;<i> Thanks for sharing your wisdom once more ;)
+</I>&gt;<i>
+</I>&gt;<i> S&#233;bastien
+</I>&gt;<i>
+</I>&gt;<i> handler.py (the one that mod_python points to via PythonHandler in the 
+</I>&gt;<i> .htaccess)
+</I>&gt;<i> ----------
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> from heracles.mysitepool import mysitepool
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>     &quot;&quot;&quot;
+</I>&gt;<i>     Standard mod_python handler code for Heracles Web Application 
+</I>&gt;<i> Framework
+</I>&gt;<i>     &quot;&quot;&quot;
+</I>&gt;<i>     mySite = mysitepool.get()
+</I>&gt;<i>     return mySite(req)
+</I>&gt;<i>     mysitepool.put(mySite)
+</I>&gt;<i>
+</I>&gt;<i> mysitepool.py
+</I>&gt;<i> -------------
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> from heracles.pool import Pool, Constructor
+</I>&gt;<i> from heracles.site import Site
+</I>&gt;<i>
+</I>&gt;<i> if not globals().has_attr(&quot;mysitepool&quot;):
+</I>&gt;<i>     global mysitepool
+</I>&gt;<i>     mysitepool = Pool(Constructor(Site), apache.mpm_query(6))
+</I>&gt;<i>
+</I>&gt;<i> pool.py
+</I>&gt;<i> -------
+</I>&gt;<i> # Credits: <A HREF="http://dustman.net/andy/python/">http://dustman.net/andy/python/</A>
+</I>&gt;<i>
+</I>&gt;<i> from Queue import Queue, Full, Empty
+</I>&gt;<i>
+</I>&gt;<i> class Pool(Queue):
+</I>&gt;<i>     &quot;&quot;&quot;Manage a fixed-size pool of reusable, identical objects.&quot;&quot;&quot;
+</I>&gt;<i>     def __init__(self, constructor, poolsize=5):
+</I>&gt;<i>         Queue.__init__(self, poolsize)
+</I>&gt;<i>         self.constructor = constructor
+</I>&gt;<i>     def get(self, block=1):
+</I>&gt;<i>         &quot;&quot;&quot;Get an object from the pool or a new one if empty.&quot;&quot;&quot;
+</I>&gt;<i>         try:
+</I>&gt;<i>             return self.empty() and self.constructor() or 
+</I>&gt;<i> Queue.get(self, block)
+</I>&gt;<i>         except Empty:
+</I>&gt;<i>             return self.constructor()
+</I>&gt;<i>     def put(self, obj, block=1):
+</I>&gt;<i>         &quot;&quot;&quot;Put an object into the pool if it is not full. The caller 
+</I>&gt;<i> must
+</I>&gt;<i>         not use the object after this.&quot;&quot;&quot;
+</I>&gt;<i>         try:
+</I>&gt;<i>             return self.full() and None or Queue.put(self, obj, block)
+</I>&gt;<i>         except Full:
+</I>&gt;<i>             pass
+</I>&gt;<i>
+</I>&gt;<i> class Constructor:
+</I>&gt;<i>     &quot;&quot;&quot;Returns a constructor that returns apply(function, args, kwargs)
+</I>&gt;<i>     when called.&quot;&quot;&quot;
+</I>&gt;<i>     def __init__(self, function, *args, **kwargs):
+</I>&gt;<i>         self.f = function
+</I>&gt;<i>         self.args = args
+</I>&gt;<i>         self.kwargs = kwargs
+</I>&gt;<i>     def __call__(self):
+</I>&gt;<i>         return apply(self.f, self.args, self.kwargs)
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Jun 6, 2005, at 5:08 PM, Graham Dumpleton wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On 07/06/2005, at 3:02 AM, Huzaifa Tapal wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> One option that I use is to create a singleton in the module that I 
+</I>&gt;&gt;&gt;<i> want to be global at the first import of that module.  So lets take 
+</I>&gt;&gt;&gt;<i> your mySitePool module for example:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> class mySitePool:
+</I>&gt;&gt;&gt;<i>    def __init__(self):
+</I>&gt;&gt;&gt;<i>          ' suite
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> ....
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> global mysitepool
+</I>&gt;&gt;&gt;<i> mysitepool = mySitePool()
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Using singleton approach as described will help, now for some really 
+</I>&gt;&gt;<i> obscure
+</I>&gt;&gt;<i> stuff in case later on you find other strange problems.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> First is that if auto reloading of modules is on and the singleton is 
+</I>&gt;&gt;<i> stored
+</I>&gt;&gt;<i> in a module which at any time might get reloaded because the file is 
+</I>&gt;&gt;<i> changed,
+</I>&gt;&gt;<i> the act of reloading will replace the singleton object, resetting it 
+</I>&gt;&gt;<i> in the
+</I>&gt;&gt;<i> process.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This means that the previously created pool object will become 
+</I>&gt;&gt;<i> inaccessible
+</I>&gt;&gt;<i> and potentially resources it uses in the way of database connections 
+</I>&gt;&gt;<i> might
+</I>&gt;&gt;<i> not get shutdown properly if that required an explicit step not 
+</I>&gt;&gt;<i> performed by
+</I>&gt;&gt;<i> normal Python object deletion.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> At the same time, a new pool object will be created and perhaps 
+</I>&gt;&gt;<i> another set
+</I>&gt;&gt;<i> of database connections. If old ones aren't cleaned up in the 
+</I>&gt;&gt;<i> inaccessible
+</I>&gt;&gt;<i> pool and new ones are created due to reloads, you might end up with 
+</I>&gt;&gt;<i> too many
+</I>&gt;&gt;<i> connections and not be able to create any more.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> To make the code durable and resistant to reloads, intended or not, 
+</I>&gt;&gt;<i> it is
+</I>&gt;&gt;<i> useful to write code as:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> if not globals().has_attr(&quot;mysitepool&quot;):
+</I>&gt;&gt;<i>   mysitepool = mySitePool()
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> What happens is that reload occurs on top of the existing module. By 
+</I>&gt;&gt;<i> seeing
+</I>&gt;&gt;<i> if the pool object already exists in globals, you simply avoid 
+</I>&gt;&gt;<i> creating it a
+</I>&gt;&gt;<i> second time.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Also note that there are some threading issues in mod_python as well, 
+</I>&gt;&gt;<i> and
+</I>&gt;&gt;<i> if you don't do this fiddle but module reloading is turned off, you 
+</I>&gt;&gt;<i> can still
+</I>&gt;&gt;<i> have a problem. This is because the threading issues can result in a 
+</I>&gt;&gt;<i> module
+</I>&gt;&gt;<i> being loaded twice by mistake, as if a reload had occurred.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> For this, see patches at:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   <A HREF="http://www.dscpl.com.au/projects/vampire/patches.html">http://www.dscpl.com.au/projects/vampire/patches.html</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018310.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+	<LI>Next message: <A HREF="018292.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18312">[ date ]</a>
+              <a href="thread.html#18312">[ thread ]</a>
+              <a href="subject.html#18312">[ subject ]</a>
+              <a href="author.html#18312">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

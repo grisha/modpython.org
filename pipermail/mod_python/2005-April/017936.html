@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] psp.PSP(req, string='hello world') causes segfault
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp.PSP%28req%2C%20string%3D%27hello%20world%27%29%20causes%20segfault&In-Reply-To=426EB7C7.4030307%40dharana.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017935.html">
+   <LINK REL="Next"  HREF="017937.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] psp.PSP(req, string='hello world') causes segfault</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp.PSP%28req%2C%20string%3D%27hello%20world%27%29%20causes%20segfault&In-Reply-To=426EB7C7.4030307%40dharana.net"
+       TITLE="[mod_python] psp.PSP(req, string='hello world') causes segfault">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Apr 26 18:12:48 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017935.html">[mod_python] psp.PSP(req, string='hello world') causes segfault
+</A></li>
+        <LI>Next message: <A HREF="017937.html">[mod_python] psp.PSP(req, string='hello world') causes segfault
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17936">[ date ]</a>
+              <a href="thread.html#17936">[ thread ]</a>
+              <a href="subject.html#17936">[ subject ]</a>
+              <a href="author.html#17936">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>The segmentation fault problems are generally caused by a mismatch in 
+versions
+of shared libraries that various packages have been compiled against. 
+The main
+culprits are libexpat, MySQL client libraries and sometimes Sleepycat 
+DBM. The
+clash is between the version expected by PHP or Apache, and that which 
+may be
+expected by a Python module being used. Because it is an environment 
+issue, it
+may well only affect you.
+
+Confirm that the problem only arises when psp module is imported. Ie., 
+comment
+out the psp import and use of psp module in handler. Ie., handler just 
+returns
+apache.OK.
+
+If it no longer fails, then add in the following imports to your 
+handler, leaving
+psp module commented out:
+
+import sys
+import os
+import marshal
+import new
+from cgi import escape
+import anydbm, whichdb
+import tempfile
+
+These are the imports in psp module. If it crashes, start commenting 
+out the
+imports bit by bit to see if one in particular is causing a problem. 
+The anydbm
+and whichdb modules could be a problem as far as shared libraries go, 
+but the
+remainder should be okay.
+
+This sort of debugging process is all I can suggest at the moment.  
+I'll try
+your actual code later when I get a chance.
+
+Graham
+
+On 27/04/2005, at 7:51 AM, dharana wrote:
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Graham Dumpleton wrote:
+</I>&gt;&gt;<i> On 27/04/2005, at 7:20 AM, dharana wrote:
+</I>&gt;&gt;&gt;<i> I'm using a custom handler which has just this:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> -- (webapps/admin/)controller.py ----------
+</I>&gt;&gt;&gt;<i> from mod_python import *
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> def handler(req):
+</I>&gt;&gt;&gt;<i>     content_file = psp.PSP(req, string='hello world')
+</I>&gt;&gt;&gt;<i>     return
+</I>&gt;&gt;<i> Unlikely to be the cause of your problem, but you could clean this up 
+</I>&gt;&gt;<i> a bit.
+</I>&gt;&gt;<i> First don't use &quot;from mod_python import *&quot;. Safer to use:
+</I>&gt;&gt;<i>   from mod_python import apache
+</I>&gt;&gt;<i>   from mod_python import psp
+</I>&gt;&gt;<i>   def handler(req):
+</I>&gt;&gt;<i>     content_file = psp.PSP(req, string='hello world')
+</I>&gt;&gt;<i>     return apache.OK
+</I>&gt;&gt;<i> Import everything from mod_python will really pollute your module.  
+</I>&gt;&gt;<i> The
+</I>&gt;&gt;<i> second thing was that you should return apache.OK and not None as 
+</I>&gt;&gt;<i> later
+</I>&gt;&gt;<i> can result in 500 HTTP error occurring.
+</I>&gt;&gt;<i> I know you are probably trying to debug the problem and have cut 
+</I>&gt;&gt;<i> things
+</I>&gt;&gt;<i> down, but I think you are also missing:
+</I>&gt;&gt;<i>   content_file.run()
+</I>&gt;&gt;<i> Without that, nothing of the template will get displayed anyway.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I had it setup like this as you know, I just tried to skip any module 
+</I>&gt;<i> loading problem and to simplify it as much as I could.
+</I>&gt;<i>
+</I>&gt;<i> I've a tail -f to the apache log file in a secondary console anyways.
+</I>&gt;<i>
+</I>&gt;<i> --- newversion.py -----------
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> from mod_python import psp
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>     content_file = psp.PSP(req, string='hello world')
+</I>&gt;<i>     content_file.run()
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i> -----------------------------
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> It still segfaults. I'm running it on a debian box, but I remember 
+</I>&gt;<i> experiencing this same problem months ago in another different server 
+</I>&gt;<i> (both hardware and distro, it was gentoo 2004). Please, can anyone 
+</I>&gt;<i> check if this happens to you too? I find it hard to believe it's 
+</I>&gt;<i> dharana-specific if it happens in two completely different servers.
+</I>&gt;<i>
+</I>&gt;<i> -
+</I>&gt;<i> dharana
+</I>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017935.html">[mod_python] psp.PSP(req, string='hello world') causes segfault
+</A></li>
+	<LI>Next message: <A HREF="017937.html">[mod_python] psp.PSP(req, string='hello world') causes segfault
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17936">[ date ]</a>
+              <a href="thread.html#17936">[ thread ]</a>
+              <a href="subject.html#17936">[ subject ]</a>
+              <a href="author.html#17936">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

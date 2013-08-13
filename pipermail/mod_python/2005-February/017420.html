@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] relative paths in templates
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20relative%20paths%20in%20templates&In-Reply-To=20050213083119.80836.qmail%40web31001.mail.mud.yahoo.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017419.html">
+   <LINK REL="Next"  HREF="017421.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] relative paths in templates</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20relative%20paths%20in%20templates&In-Reply-To=20050213083119.80836.qmail%40web31001.mail.mud.yahoo.com"
+       TITLE="[mod_python] relative paths in templates">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Feb 13 04:21:31 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017419.html">[mod_python] relative paths in templates
+</A></li>
+        <LI>Next message: <A HREF="017421.html">[mod_python] WebMail Server in mod_python?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17420">[ date ]</a>
+              <a href="thread.html#17420">[ thread ]</a>
+              <a href="subject.html#17420">[ subject ]</a>
+              <a href="author.html#17420">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 13/02/2005, at 7:31 PM, Jef Dodson wrote:
+
+&gt;<i> So, my question is this: how do I deal with the general problem of 
+</I>&gt;<i> relative paths without
+</I>&gt;<i> resorting to changing all the links in my templates or putting a 
+</I>&gt;<i> &lt;base&gt; tag in all the templates?
+</I>&gt;<i> Keep in mind that these are static paths, so changing them 
+</I>&gt;<i> programmatically is not an option in
+</I>&gt;<i> this case.  There must be some really clean and elegant way to solve 
+</I>&gt;<i> this problem using the
+</I>&gt;<i> almighty httpd.conf file, right?!  Thanks!
+</I>
+Doesn't directly help you, but still may be of interest anyway, but 
+what I do in
+Vampire is provide a configuration file mechanism which as a side 
+effect returns
+some predefined default values including base urls which can be used in 
+filling
+out templates.
+
+The idea is that one would put a configuration file in the top 
+directory of that
+part of your document tree, which notionally is the root of your web 
+application.
+Ideally this would also be where PythonHandler was defined. By default, 
+generally
+call this configuration file &quot;.vampire&quot;.
+
+In your content handler file anywhere below that root point, ie., 
+including in
+subdirectories, you then would say something like:
+
+   def handler(req):
+     config = vampire.loadConfig(req,&quot;.vampire&quot;)
+     defaults = config.defaults()
+
+The &quot;loadConfig()&quot; method will search back up the physical directory 
+hierarchy
+looking for the named configuration file. In doing that search, it is 
+able to
+derive various information which is filled out as defaults usable when 
+extracting
+items from the configuration file.
+
+Specifically, the &quot;defaults&quot; variable is a dictionary containing:
+
+       __handler_root__ --&gt; Directory where PythonHandler directive was 
+defined.
+       __config_root__ --&gt; Directory containing the config file found.
+       __config_file__ --&gt; Location of actual config file found.
+       __config_mtime__ --&gt; Modification time of the config file found.
+       __baseurl_abs__ --&gt; Base URL as absolute path.
+       __baseurl_rel__  --&gt; Base URL relative to the current request.
+
+In terms of what you are asking, the important ones here are the base 
+url values.
+They are set to the URL which would be used to address the top 
+directory of your
+application. In one it is an absolute path from the root of your whole 
+web server.
+In the other it is a relative path in respect of the directory that 
+that specific
+request applied to.
+
+In a templating scheme, one could populate the data available within 
+the template
+with these values and thus, depending on the syntax of your template 
+scheme, you
+could say the equivalent of:
+
+   '&lt;img src=&quot;%(__baseurl_rel__)s/images/my_image.gif&quot;&gt;' % defaults
+
+In other words, you write up all your templates with paths with respect 
+to the top
+level directory or your application. You use your templating syntax for 
+value
+substitution to automatically fill out the base url value base on that 
+obtained
+from the configuration search.
+
+There is also another part of what you are doing which can be aided by 
+the use
+of what can actually be placed in the configuration file itself. Rather 
+than having
+to hard code a path into all your content handlers as to the path to 
+your template
+files, you could have a configuration file which contains:
+
+   [Templates]
+
+   library = %(__config_root__)s/templates
+
+In your content handler you then say:
+
+   def handler(req):
+     config = vampire.loadConfig(req,&quot;.vampire&quot;)
+     filepath = config.get(&quot;Templates&quot;,&quot;library&quot;)
+     ...
+
+By having the location defined in the configuration file in respect of 
+the root of
+your application, you can then easily move the directory where ever you 
+want and
+just change the location reference in one place and have that change 
+reflected
+automatically through all you content handlers.
+
+There is obviously some cost in having such things be so dynamic, but 
+frankly I
+prefer making my applications easy to manage. I don't expect to be 
+slashdotted
+and if it was high load site, one would properly support it with 
+adequate machines
+and load balancing etc. :-)
+
+Graham
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017419.html">[mod_python] relative paths in templates
+</A></li>
+	<LI>Next message: <A HREF="017421.html">[mod_python] WebMail Server in mod_python?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17420">[ date ]</a>
+              <a href="thread.html#17420">[ thread ]</a>
+              <a href="subject.html#17420">[ subject ]</a>
+              <a href="author.html#17420">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

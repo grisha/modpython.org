@@ -1,0 +1,277 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Breaking things after upgrading MySQLdb (to 1.2.2)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Breaking%20things%20after%20upgrading%20MySQLdb%20%28to%201.2.2%29&In-Reply-To=88e286470706070427y5d1ebfcckdd3f4979778f176a%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023788.html">
+   <LINK REL="Next"  HREF="023791.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Breaking things after upgrading MySQLdb (to 1.2.2)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Dirk van Oosterbosch, IR labs</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Breaking%20things%20after%20upgrading%20MySQLdb%20%28to%201.2.2%29&In-Reply-To=88e286470706070427y5d1ebfcckdd3f4979778f176a%40mail.gmail.com"
+       TITLE="[mod_python] Breaking things after upgrading MySQLdb (to 1.2.2)">labs at ixopusada.com
+       </A><BR>
+    <I>Thu Jun  7 09:43:20 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023788.html">[mod_python] Breaking things after upgrading MySQLdb (to 1.2.2)
+</A></li>
+        <LI>Next message: <A HREF="023791.html">[mod_python] Breaking things after upgrading MySQLdb (to 1.2.2)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23789">[ date ]</a>
+              <a href="thread.html#23789">[ thread ]</a>
+              <a href="subject.html#23789">[ subject ]</a>
+              <a href="author.html#23789">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I'm not sure I follow, or why all this is necessary.
+
+First, what should be the interpreter_name you speak of? 'python'? / 
+usr/local/bin/python'? sol740satelite.lan' (as is stated in the  
+logs ...(pid=553, interpreter='sol740satelite.lan') ) ?
+
+Second, this directory that nobody (the User defined in httpd.conf)  
+can write to, could that just me /var/tmp ?
+
+Thirdly. Why is this necessary? Does this PythonImport statement (and  
+the module) has to stay there? Or is this just the last, obscure,  
+step in the installation process?
+
+----
+
+BTW, in the meantime, I decided to upgrade to Python 2.5.1, because I  
+thought that might fix my problems. Unfortunately, it did not. But it  
+did change the error messages I got returned. ;-)
+Still, after I restart my powerBook, the ExtractionError, with the  
+PYTHON_EGG_CACHE setting pops up.
+And then when I stop/start apache (without yet putting this module in  
+place, because I don't know what to use as interpreter_name), the  
+following error gets there (full log transscript below):
+
+ImportError: dlopen(/Users/dirk/.python-eggs/MySQL_python-1.2.2-py2.5- 
+macosx-10.3-fat.egg-tmp/_mysql.so, 2): image not found
+
+I noticed while building MySQLdb, it said something about ppc / i386  
+incompatibility, but since it continued building I ignored this  
+warning. Shouldn't I? (Cant recall the exact message, and lost the  
+information in that Terminal window after the last restart, obviously).
+
+Also I noticed that the .py modules I use with mod_python (my web- 
+app) start with #!/usr/bin/python, but there exists no python binary  
+(or symlink) in /usr/bin.
+% which python
+/usr/local/bin/python
+% ls /usr/local/bin/python
+/usr/local/bin/python@ -&gt; ../../../Library/Frameworks/ 
+Python.framework/Versions/2.5/bin/python
+
+Should I copy the /usr/local/bin/python symlink to /usr/bin/python  
+aswell?
+
+
+(
+Finally (again), the thing to note,  is that these problems with  
+importing MySQLdb only happen from within Apache/mod_python. Not from  
+the interpreter.
+% python
+Python 2.5.1 (r251:54869, Apr 18 2007, 22:08:04)
+[GCC 4.0.1 (Apple Computer, Inc. build 5367)] on darwin
+Type &quot;help&quot;, &quot;copyright&quot;, &quot;credits&quot; or &quot;license&quot; for more information.
+ &gt;&gt;&gt; import MySQLdb
+
+I read on the forum of MySQLdb at sourceforge, that others also had  
+this problem with 'ImportError: dlopen(/Users/dirk/.python-eggs/...):  
+image not found'. But they seem to experience this from the  
+interpreter as well.
+)
+
+
+dirk
+
+
+
+On 7-jun-2007, at 13:27, Graham Dumpleton wrote:
+
+&gt;<i> To get rid of this problem, create a new Python code module somewhere
+</I>&gt;<i> containing:
+</I>&gt;<i>
+</I>&gt;<i>  import os
+</I>&gt;<i>  os.environ['PYTHON_EGG_CACHE'] = '/some/path'
+</I>&gt;<i>
+</I>&gt;<i> The directory /some/path must be writable to the user that Apache  
+</I>&gt;<i> runs as.
+</I>&gt;<i>
+</I>&gt;<i> Then add to Apache global configuration:
+</I>&gt;<i>
+</I>&gt;<i>  PythonImport interpreter_name module_name
+</I>&gt;<i>
+</I>&gt;<i> Where interpreter_name is the name of the interpreter your mod_python
+</I>&gt;<i> application is running in, found by query req.interpreter in a request
+</I>&gt;<i> handler. And module_name is the name of the module you created above.
+</I>&gt;<i> If that module not in standard place, if using mod_python 3.3, use
+</I>&gt;<i> absolute path to code file instead.
+</I>
+&gt;<i> On 07/06/07, Dirk van Oosterbosch, IR labs &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">labs at ixopusada.com</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Thanks,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> but I still won't know what would have caused this.
+</I>&gt;&gt;<i> I'm not running PHP (&amp; never installed modules for it)
+</I>&gt;&gt;<i> I don't have any other Apache modules that I know of that could be  
+</I>&gt;&gt;<i> using
+</I>&gt;&gt;<i> MySQLdb.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> After I restarted my machine, it first gave:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> [Thu Jun 07 10:05:54 2007] [error] [client ::1] ExtractionError:  
+</I>&gt;&gt;<i> Can't
+</I>&gt;&gt;<i> extract file(s) to egg cache\n\nThe following error occurred while  
+</I>&gt;&gt;<i> trying to
+</I>&gt;&gt;<i> extract file(s) to the Python egg\ncache:\n\n  [Errno 13]  
+</I>&gt;&gt;<i> Permission denied:
+</I>&gt;&gt;<i> '/var/empty/.python-eggs'\n\nThe Python egg cache directory
+</I>&gt;&gt;<i> is currently set to:\n\n
+</I>&gt;&gt;<i> /var/empty/.python-eggs\n\nPerhaps your account does not
+</I>&gt;&gt;<i> have write access to this directory?  You can\nchange the cache  
+</I>&gt;&gt;<i> directory by
+</I>&gt;&gt;<i> setting the PYTHON_EGG_CACHE environment\nvariable to point to an  
+</I>&gt;&gt;<i> accessible
+</I>&gt;&gt;<i> directory.\n
+</I>
+
+
+
+[Thu Jun 07 15:09:12 2007] [notice] mod_python: Creating 8 session  
+mutexes based on 6 max processes and 25 max threads.
+[Thu Jun 07 15:09:12 2007] [notice] mod_python: using  
+mutex_directory /tmp
+[Thu Jun 07 15:09:12 2007] [notice] Apache/2.0.55 (Unix) mod_python/ 
+3.3.1 Python/2.5.1 configured -- resuming normal operations
+[Thu Jun 07 15:09:20 2007] [notice] mod_python (pid=553,  
+interpreter='sol740satelite.lan'): Importing module '/Users/dirk/ 
+Sites/www/python/translate.py'
+[Thu Jun 07 15:09:20 2007] [notice] mod_python (pid=553,  
+interpreter='sol740satelite.lan'): Importing module '/Users/dirk/ 
+Sites/www/python/LocalConf.py'
+[Thu Jun 07 15:09:20 2007] [error] [client ::1] mod_python (pid=553,  
+interpreter='sol740satelite.lan', phase='PythonTransHandler',  
+handler='translate'): Application error
+[Thu Jun 07 15:09:20 2007] [error] [client ::1] ServerName:  
+'sol740satelite.lan'
+[Thu Jun 07 15:09:20 2007] [error] [client ::1] DocumentRoot: '/Users/ 
+dirk/Sites/www'
+[Thu Jun 07 15:09:20 2007] [error] [client ::1] URI: '/'
+[Thu Jun 07 15:09:20 2007] [error] [client ::1] Location: None
+[Thu Jun 07 15:09:20 2007] [error] [client ::1] Directory: None
+[Thu Jun 07 15:09:20 2007] [error] [client ::1] Filename: None
+[Thu Jun 07 15:09:20 2007] [error] [client ::1] PathInfo: None
+[Thu Jun 07 15:09:20 2007] [error] [client ::1] Traceback (most  
+recent call last):
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;/Library/ 
+Frameworks/Python.framework/Versions/2.5/lib/python2.5/site-packages/ 
+mod_python/importer.py&quot;, line 1537, in HandlerDispatch\n     
+default=default_handler, arg=req, silent=hlist.silent)
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;/Library/ 
+Frameworks/Python.framework/Versions/2.5/lib/python2.5/site-packages/ 
+mod_python/importer.py&quot;, line 1202, in _process_target\n    module =  
+import_module(module_name, path=path)
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;/Library/ 
+Frameworks/Python.framework/Versions/2.5/lib/python2.5/site-packages/ 
+mod_python/importer.py&quot;, line 296, in import_module\n    log,  
+import_path)
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;/Library/ 
+Frameworks/Python.framework/Versions/2.5/lib/python2.5/site-packages/ 
+mod_python/importer.py&quot;, line 680, in import_module\n    execfile 
+(file, module.__dict__)
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;/Users/dirk/ 
+Sites/www/python/translate.py&quot;, line 31, in &lt;module&gt;\n    from  
+LocalConf import log_file, path_wwwroot
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;/Library/ 
+Frameworks/Python.framework/Versions/2.5/lib/python2.5/site-packages/ 
+mod_python/importer.py&quot;, line 991, in load_module\n    return  
+_global_modules_cache.import_module(self.__file)
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;/Library/ 
+Frameworks/Python.framework/Versions/2.5/lib/python2.5/site-packages/ 
+mod_python/importer.py&quot;, line 680, in import_module\n    execfile 
+(file, module.__dict__)
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;/Users/dirk/ 
+Sites/www/python/LocalConf.py&quot;, line 22, in &lt;module&gt;\n    import  
+MySQLdb # FIXME
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;build/ 
+bdist.macosx-10.3-fat/egg/MySQLdb/__init__.py&quot;, line 19, in &lt;module&gt;
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;build/ 
+bdist.macosx-10.3-fat/egg/_mysql.py&quot;, line 7, in &lt;module&gt;
+[Thu Jun 07 15:09:20 2007] [error] [client ::1]   File &quot;build/ 
+bdist.macosx-10.3-fat/egg/_mysql.py&quot;, line 6, in __bootstrap__
+[Thu Jun 07 15:09:20 2007] [error] [client ::1] ImportError: dlopen(/ 
+Users/dirk/.python-eggs/MySQL_python-1.2.2-py2.5-macosx-10.3-fat.egg- 
+tmp/_mysql.so, 2): image not found
+
+
+
+-----------------------------
+Dirk van Oosterbosch
+de Wittenstraat 225
+1052 AT Amsterdam
+the Netherlands
+
+<A HREF="http://labs.ixopusada.com">http://labs.ixopusada.com</A>
+-----------------------------
+
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070607/aef68601/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070607/aef68601/attachment-0001.html</A>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023788.html">[mod_python] Breaking things after upgrading MySQLdb (to 1.2.2)
+</A></li>
+	<LI>Next message: <A HREF="023791.html">[mod_python] Breaking things after upgrading MySQLdb (to 1.2.2)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23789">[ date ]</a>
+              <a href="thread.html#23789">[ thread ]</a>
+              <a href="subject.html#23789">[ subject ]</a>
+              <a href="author.html#23789">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

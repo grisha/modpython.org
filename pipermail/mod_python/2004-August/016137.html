@@ -1,0 +1,120 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] The right way to handle sessions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20right%20way%20to%20handle%20sessions&In-Reply-To=FBD9767A-ED3D-11D8-A444-000A95B2E4E0%40amix.dk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016057.html">
+   <LINK REL="Next"  HREF="016039.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] The right way to handle sessions</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Byron Ellacott</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20right%20way%20to%20handle%20sessions&In-Reply-To=FBD9767A-ED3D-11D8-A444-000A95B2E4E0%40amix.dk"
+       TITLE="[mod_python] The right way to handle sessions">bje at apnic.net
+       </A><BR>
+    <I>Thu Aug 19 10:03:11 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016057.html">[mod_python] The right way to handle sessions
+</A></li>
+        <LI>Next message: <A HREF="016039.html">[mod_python] PSP buffer?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16137">[ date ]</a>
+              <a href="thread.html#16137">[ thread ]</a>
+              <a href="subject.html#16137">[ subject ]</a>
+              <a href="author.html#16137">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Amir Salihefendic wrote:
+&gt;&gt;<i> def createSession(req):
+</I>&gt;&gt;<i> def getSameSession(req, SID):
+</I>&gt;<i> Argh forgot something very important (to save the damn session)!:
+</I>&gt;&gt;<i> Anyway, I am interested in knowing: What is the smartest way to 
+</I>&gt;&gt;<i> &quot;share&quot;/access same session across functions (i.e. when you are 
+</I>&gt;&gt;<i> internal &quot;redirecting&quot;)? Example of what I mean by &quot;redirecting&quot; (not 
+</I>&gt;&gt;<i> working...):
+</I>
+In case saving the session in createSession() didn't solve your problem, 
+I'd suggest collapsing the two functions into one, since you don't seem 
+to really need to distinguish between creating a session and fetching an 
+existing one, as demonstrated by your getSameSession() function not 
+checking if the session it fetches is newly created:
+
+def getSession(req):
+     sess = Session.Session(req)
+     if sess.is_new(): sess.save()
+     return sess
+
+Of course, you now have the problem that the session might have already 
+been created during the processing of this request.  I'm not very 
+familiar with the publisher approach, but I'm assuming it calls a method 
+based on the requested URL, essentially doing a dispatch for you.  This 
+is awkward when you want to have functions done outside of the 
+dispatched routine, but you can alter getSession() to help out:
+
+def getSession(req):
+     if not hasattr(req, 'session'):
+         req.session = Session.Session(req)
+         if req.session.is_new(): req.session.save()
+     return req.session
+
+You can assign to attributes of a request object, and those attributes 
+will last for the lifetime of the request (but not cross-interpreter, so 
+be careful about request phases and which configuration directives apply 
+when, if you do multi-phase handlers!).  So, you can cache the previous 
+getSession() request in the req object itself.
+
+Of course, if your problem is solved, there's not a great deal of point 
+in doing this anyway, and storing attributes in the request object is 
+probably about as unclean as calling session.unlock() to allow you to 
+fetch a session twice.
+
+-- 
+bje
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016057.html">[mod_python] The right way to handle sessions
+</A></li>
+	<LI>Next message: <A HREF="016039.html">[mod_python] PSP buffer?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16137">[ date ]</a>
+              <a href="thread.html#16137">[ thread ]</a>
+              <a href="subject.html#16137">[ subject ]</a>
+              <a href="author.html#16137">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

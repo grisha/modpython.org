@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Secure storage of sensitive variables,
+	such as passwords
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Secure%20storage%20of%20sensitive%20variables%2C%0A%09such%20as%20passwords&In-Reply-To=41A4C94E.70702%40joreybump.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016838.html">
+   <LINK REL="Next"  HREF="016840.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Secure storage of sensitive variables,
+	such as passwords</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Scott Sanders</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Secure%20storage%20of%20sensitive%20variables%2C%0A%09such%20as%20passwords&In-Reply-To=41A4C94E.70702%40joreybump.com"
+       TITLE="[mod_python] Secure storage of sensitive variables,
+	such as passwords">sanders at apache.org
+       </A><BR>
+    <I>Wed Nov 24 13:00:38 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016838.html">[mod_python] Secure storage of sensitive variables,
+	such as passwords
+</A></li>
+        <LI>Next message: <A HREF="016840.html">[mod_python] Secure storage of sensitive variables,
+	such as passwords
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16839">[ date ]</a>
+              <a href="thread.html#16839">[ thread ]</a>
+              <a href="subject.html#16839">[ subject ]</a>
+              <a href="author.html#16839">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Maybe I am less paranoid, but I just store that info in the .htaccess 
+under PythonOption directives.   If the .htaccess file were to become 
+exploited, I have bigger problems :)
+
+Scott
+
+On Nov 24, 2004, at 9:47 AM, Jorey Bump wrote:
+
+&gt;<i> I'd like to know if anyone has any recommendations for securely 
+</I>&gt;<i> storing information such as db passwords. I don't like to include 
+</I>&gt;<i> login information anywhere within the DocumentRoot, in case an 
+</I>&gt;<i> interpreter failure or server misconfiguration exposes the code. To 
+</I>&gt;<i> this end, I'm using the following system:
+</I>&gt;<i>
+</I>&gt;<i> 1. I create a different user for each VirtualHost. Within the user's 
+</I>&gt;<i> home directory, I create a site directory that serves as the 
+</I>&gt;<i> DocumentRoot.
+</I>&gt;<i>
+</I>&gt;<i> 2. I then create a Python directory in the home directory, and add it 
+</I>&gt;<i> to the VirtualHost's PYTHONPATH using:
+</I>&gt;<i>
+</I>&gt;<i>  PythonPath &quot;sys.path + ['/var/www/virtual/user/Python']&quot;
+</I>&gt;<i>
+</I>&gt;<i> Or one could do this within the script itself:
+</I>&gt;<i>
+</I>&gt;<i>  sys.path.append('/var/www/virtual/user/Python')
+</I>&gt;<i>
+</I>&gt;<i> This gives me a safe place outside of the DocumentRoot to store 
+</I>&gt;<i> settings in modules, without placing them in the default PYTHONPATH of 
+</I>&gt;<i> every other user on the system.
+</I>&gt;<i>
+</I>&gt;<i> 3. To store settings, I create a package structure:
+</I>&gt;<i>
+</I>&gt;<i>  cd ~/Python
+</I>&gt;<i>  mkdir Conf
+</I>&gt;<i>  cd Conf
+</I>&gt;<i>  touch __init__.py
+</I>&gt;<i>
+</I>&gt;<i> This allows me to create files with settings specific to an 
+</I>&gt;<i> application and import them. So, for application foo, I would create 
+</I>&gt;<i> foo.py here and list the values I need, or even wrap them up neatly in 
+</I>&gt;<i> a function:
+</I>&gt;<i>
+</I>&gt;<i>  # ~/Python/Conf/foo.py
+</I>&gt;<i>  import MySQLdb
+</I>&gt;<i>
+</I>&gt;<i>  bees = 0
+</I>&gt;<i>  eric = 0.5
+</I>&gt;<i>
+</I>&gt;<i>  def get_dbh():
+</I>&gt;<i>      &quot;&quot;&quot;
+</I>&gt;<i>      Set up db connection and return handle.
+</I>&gt;<i>      &quot;&quot;&quot;
+</I>&gt;<i>      dbhost = &quot;localhost&quot;
+</I>&gt;<i>      dbuser = &quot;cyril&quot;
+</I>&gt;<i>      dbpwd  = &quot;ladidi123&quot;
+</I>&gt;<i>      dbname = &quot;menagerie&quot;
+</I>&gt;<i>      dbh = MySQLdb.connect(dbhost, dbuser, dbpwd, dbname)
+</I>&gt;<i>      return dbh
+</I>&gt;<i>
+</I>&gt;<i> Then, in my mod_python application, I import the values:
+</I>&gt;<i>
+</I>&gt;<i>  # ~/site/foo.py
+</I>&gt;<i>  from Conf.foo import *
+</I>&gt;<i>
+</I>&gt;<i>  bees += eric
+</I>&gt;<i>  dbh = get_dbh()
+</I>&gt;<i>  # db handle is now ready to use for queries/updates
+</I>&gt;<i>
+</I>&gt;<i> I find this approach a lot simpler than using a configuration parser, 
+</I>&gt;<i> especially because there is no new syntax to learn and the resources 
+</I>&gt;<i> are immediately available to the application. Creating a package to 
+</I>&gt;<i> hold the settings also helps to avoid namespace clashes.
+</I>&gt;<i>
+</I>&gt;<i> The usual caveats apply here as they do to any embedded interpreter, 
+</I>&gt;<i> with the main concern being that other system users now theoretically 
+</I>&gt;<i> have access to the code, which must be readable by the user apache 
+</I>&gt;<i> runs as. The main payoff is that the application is a bit more 
+</I>&gt;<i> resistant to remote exploits, because the code is stored outside the 
+</I>&gt;<i> DocumentRoot.
+</I>&gt;<i>
+</I>&gt;<i> I'd be interested in how others handle sensitive information or in any 
+</I>&gt;<i> suggestions for hardening the approach I've outlined above. I 
+</I>&gt;<i> generally use Publisher in a prefork environment, if that helps.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016838.html">[mod_python] Secure storage of sensitive variables,
+	such as passwords
+</A></li>
+	<LI>Next message: <A HREF="016840.html">[mod_python] Secure storage of sensitive variables,
+	such as passwords
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16839">[ date ]</a>
+              <a href="thread.html#16839">[ thread ]</a>
+              <a href="subject.html#16839">[ subject ]</a>
+              <a href="author.html#16839">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

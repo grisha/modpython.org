@@ -1,0 +1,306 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] multiple requests to authenhandler for a single url
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20multiple%20requests%20to%20authenhandler%20for%20a%20single%20url&In-Reply-To=4343F995.8080604%40thefactz.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019185.html">
+   <LINK REL="Next"  HREF="019189.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] multiple requests to authenhandler for a single url</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20multiple%20requests%20to%20authenhandler%20for%20a%20single%20url&In-Reply-To=4343F995.8080604%40thefactz.org"
+       TITLE="[mod_python] multiple requests to authenhandler for a single url">jg.lists at sympatico.ca
+       </A><BR>
+    <I>Wed Oct  5 19:00:42 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019185.html">[mod_python] multiple requests to authenhandler for a single url
+</A></li>
+        <LI>Next message: <A HREF="019189.html">[mod_python] multiple requests to authenhandler for a single url
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19188">[ date ]</a>
+              <a href="thread.html#19188">[ thread ]</a>
+              <a href="subject.html#19188">[ subject ]</a>
+              <a href="author.html#19188">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I wonder if this is just the way apache is supposed to work? Perhaps
+it's a feature, not a bug? I can see the logic of checking the
+authorization for each subdirectory.
+
+ From the apache documentation I found the following somewhat related
+information which may give some insight...  or it may be totally
+irrelevant ;).
+
+<A HREF="http://httpd.apache.org/docs/2.0/howto/htaccess.html">http://httpd.apache.org/docs/2.0/howto/htaccess.html</A>
+&quot;&quot;&quot;
+When (not) to use .htaccess files
+
+&lt;snip /&gt;
+
+The first of these is performance. When AllowOverride  is set to allow
+the use of .htaccess files, Apache will look in every directory for
+.htaccess files. Thus, permitting .htaccess files causes a performance
+hit, whether or not you actually even use them! Also, the .htaccess file
+is loaded every time a document is requested.
+
+Further note that Apache must look for .htaccess files in all
+higher-level directories, in order to have a full complement of
+directives that it must apply. (See section on how directives are
+applied.) Thus, if a file is requested out of a directory
+/www/htdocs/example, Apache must look for the following files:
+
+/.htaccess
+/www/.htaccess
+/www/htdocs/.htaccess
+/www/htdocs/example/.htaccess
+
+And so, for each file access out of that directory, there are 4
+additional file-system accesses, even if none of those files are
+present. (Note that this would only be the case if .htaccess files were
+enabled for /, which is not usually the case.)
+See  I see that apache will attempt to read .htaccess for all the
+subdirectories in a request.
+&quot;&quot;&quot;
+
+The important point is that apache attempts to read the .htaccess file
+for each subdirectory. It's not too much of a stretch to imagine that it
+may call the auth handler once for each subdirectory in a url as well.
+
+What happens if you set &quot;AllowOverride None&quot;?
+Note that AllowOverride is only available in a &lt;Directory&gt; section.
+
+None of this is a solution to your problem, but it may spark some ideas.
+
+Regards,
+Jim
+
+
+reghigh wrote:
+&gt;<i> I am encountering the following issue (which has already been raised on 
+</I>&gt;<i> this list about a year ago~[1]) relating to multiple calls to 
+</I>&gt;<i> authenhandler. To demonstrate I have the following:
+</I>&gt;<i> 
+</I>&gt;<i> apache2 httpd.conf
+</I>&gt;<i> ******************
+</I>&gt;<i> 
+</I>&gt;<i> &lt;VirtualHost *:80&gt;
+</I>&gt;<i>   ServerName static
+</I>&gt;<i>   DocumentRoot &lt;omitted&gt;
+</I>&gt;<i> 
+</I>&gt;<i>   PythonPath &quot;['&lt;omitted&gt;'] + sys.path&quot;
+</I>&gt;<i>   PythonAuthenHandler test
+</I>&gt;<i>   PythonDebug On
+</I>&gt;<i> 
+</I>&gt;<i>   &lt;Location /&gt;
+</I>&gt;<i>       AuthType Basic
+</I>&gt;<i>       AuthName &quot;Restricted Area&quot;
+</I>&gt;<i>       Require valid-user
+</I>&gt;<i>   &lt;/Location&gt;
+</I>&gt;<i> &lt;/VirtualHost&gt;
+</I>&gt;<i> 
+</I>&gt;<i> test.py
+</I>&gt;<i> *******
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> 
+</I>&gt;<i> count = 0
+</I>&gt;<i> 
+</I>&gt;<i> def authenhandler(req):
+</I>&gt;<i> 
+</I>&gt;<i>     pw = req.get_basic_auth_pw()
+</I>&gt;<i>     user = req.user
+</I>&gt;<i>     global count
+</I>&gt;<i>     count += 1
+</I>&gt;<i>     raise Exception('%s, %s, %s, %s, %s, %s' % \
+</I>&gt;<i>         (req.handler, req.unparsed_uri,
+</I>&gt;<i>         req.path_info, req.used_path_info))
+</I>&gt;<i> 
+</I>&gt;<i> Results
+</I>&gt;<i> *******
+</I>&gt;<i> 
+</I>&gt;<i> Note output is trimmed for readability~[2]
+</I>&gt;<i> 
+</I>&gt;<i> url: <A HREF="http://static/x">http://static/x</A>
+</I>&gt;<i> 
+</I>&gt;<i> Exception: None, /x, , 2
+</I>&gt;<i> 
+</I>&gt;<i> url: <A HREF="http://static/x/y">http://static/x/y</A>
+</I>&gt;<i> 
+</I>&gt;<i> Exception: None, /y, , 2
+</I>&gt;<i> Exception: None, /x/y, /y, 2
+</I>&gt;<i> 
+</I>&gt;<i> url: <A HREF="http://static/x/y/z">http://static/x/y/z</A>
+</I>&gt;<i> 
+</I>&gt;<i> Exception: None, /z, , 2
+</I>&gt;<i> Exception: None, /y/z, /y, 2
+</I>&gt;<i> Exception: None, /x/y/z, /y/z, 2
+</I>&gt;<i> 
+</I>&gt;<i> etc
+</I>&gt;<i> 
+</I>&gt;<i> Note that this is invariant to url naming used: /&lt;1&gt;/&lt;2&gt;/.../&lt;n&gt;
+</I>&gt;<i> 
+</I>&gt;<i> produces exceptions with unparsed uri sections:
+</I>&gt;<i>   /&lt;n&gt;
+</I>&gt;<i>   /&lt;n-1&gt;/&lt;n&gt;
+</I>&gt;<i>   ......
+</I>&gt;<i> 
+</I>&gt;<i>  From now on will use notation &lt;url&gt; -&gt; (url1, url2, ....) to mean a 
+</I>&gt;<i> given url produced an exceptions in order with unparsed_uri = url1, url2 
+</I>&gt;<i> etc
+</I>&gt;<i> 
+</I>&gt;<i> Varying Location Directive
+</I>&gt;<i> ==========================
+</I>&gt;<i> 
+</I>&gt;<i> Now experimentation yielded the following. If Location directive was 
+</I>&gt;<i> changed say to
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Location /x&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Then
+</I>&gt;<i> 
+</I>&gt;<i>   /x -&gt; (/x) = 1 request
+</I>&gt;<i>   /xx -&gt; not processed by handler
+</I>&gt;<i>   /x/y -&gt; (/x/y) = 1 request
+</I>&gt;<i>   /x/x/y -&gt; (/x/y, /x/x/y) = 2 requests
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Location ~ &quot;^/[xy]&quot;&gt;
+</I>&gt;<i> (NB: this all works with &lt;LocationMatch &quot;^/[xy]&quot;&gt;)
+</I>&gt;<i> 
+</I>&gt;<i> Then
+</I>&gt;<i> 
+</I>&gt;<i>   /x -&gt; (/x) = 1R
+</I>&gt;<i>   /xx -&gt; (/xx) = 1R
+</I>&gt;<i>   /x/y -&gt; (/y, /x/y) = 2R
+</I>&gt;<i>   /x/z/ -&gt; (/x/z) = 1R
+</I>&gt;<i>   /x/y/z -&gt; (/y/z, /x/y/z) = 2R
+</I>&gt;<i>   /x/y/z/x -&gt; (/y/z/x, /x/y/z/x) = 2R
+</I>&gt;<i>   /x/y/x -&gt; (/x, /y/x, /x/y/x) = 3R
+</I>&gt;<i>   /x/y/ -&gt; (/y/, /x/y/) = 2R
+</I>&gt;<i> 
+</I>&gt;<i> This suggests that somehow the Location directive (i have also confirmed 
+</I>&gt;<i> similar behaviour using the &lt;Directory&gt;) gives rise to multiple requests 
+</I>&gt;<i> to authenhandler. However this matching to generate requests as shown 
+</I>&gt;<i> above does not occur in any simple way (it seems to match from the left 
+</I>&gt;<i> hand side of the url string but once it encounters a non-match it halts).
+</I>&gt;<i> 
+</I>&gt;<i> Multiple calls not only cause serious overhead if authenticating off a 
+</I>&gt;<i> database but also play havoc with a system based access control via urls 
+</I>&gt;<i> since you want to match against the full url but the authenhandler gets 
+</I>&gt;<i> the full url last out of all the urls it gets passed. What i want is for 
+</I>&gt;<i> the Location directive to generate a single call to the authenhandler 
+</I>&gt;<i> with the whole uri being passed.
+</I>&gt;<i> 
+</I>&gt;<i> Does anyone have any ideas what is causing this and how I could solve 
+</I>&gt;<i> the problem.
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> 
+</I>&gt;<i> Tristan
+</I>&gt;<i> 
+</I>&gt;<i> ------------------
+</I>&gt;<i> 
+</I>&gt;<i> [1] <A HREF="http://www.modpython.org/pipermail/mod_python/2004-November/016750.html">http://www.modpython.org/pipermail/mod_python/2004-November/016750.html</A>
+</I>&gt;<i> Complete summary here: <A HREF="http://www.scanmine.com/mp/mod_python_b_p.html">http://www.scanmine.com/mp/mod_python_b_p.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> [2] For example
+</I>&gt;<i> 
+</I>&gt;<i> Exception: None, /y, , 2, None
+</I>&gt;<i> Exception: None, /x/y, /y, 2, None
+</I>&gt;<i> 
+</I>&gt;<i> in full was:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;pre&gt;
+</I>&gt;<i> Mod_python error: &quot;PythonAuthenHandler test&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i> 
+</I>&gt;<i>   File 
+</I>&gt;<i> &quot;/Library/Frameworks/Python.framework/Versions/2.4/lib/python2.4/site-packages/mod_python/apache.py&quot;, 
+</I>&gt;<i> line 299, in HandlerDispatch
+</I>&gt;<i>     result = object(req)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/Users/rgrp/Sites/python/test.py&quot;, line 11, in authenhandler
+</I>&gt;<i>     raise Exception('%s, %s, %s, %s, %s' % \
+</I>&gt;<i> 
+</I>&gt;<i> Exception: None, /y, , 2, None
+</I>&gt;<i> 
+</I>&gt;<i> &lt;/pre&gt;
+</I>&gt;<i> 
+</I>&gt;<i> &lt;pre&gt;
+</I>&gt;<i> Mod_python error: &quot;PythonAuthenHandler test&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i> 
+</I>&gt;<i>   File 
+</I>&gt;<i> &quot;/Library/Frameworks/Python.framework/Versions/2.4/lib/python2.4/site-packages/mod_python/apache.py&quot;, 
+</I>&gt;<i> line 299, in HandlerDispatch
+</I>&gt;<i>     result = object(req)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/Users/rgrp/Sites/python/test.py&quot;, line 11, in authenhandler
+</I>&gt;<i>     raise Exception('%s, %s, %s, %s, %s' % \
+</I>&gt;<i> 
+</I>&gt;<i> Exception: None, /x/y, /y, 2, None
+</I>&gt;<i> 
+</I>&gt;<i> &lt;/pre&gt;
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019185.html">[mod_python] multiple requests to authenhandler for a single url
+</A></li>
+	<LI>Next message: <A HREF="019189.html">[mod_python] multiple requests to authenhandler for a single url
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19188">[ date ]</a>
+              <a href="thread.html#19188">[ thread ]</a>
+              <a href="subject.html#19188">[ subject ]</a>
+              <a href="author.html#19188">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

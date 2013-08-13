@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Python, mod_python, Apache on WIN32 - threading - solutions found
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Python%2C%20mod_python%2C%20Apache%20on%20WIN32%20-%20threading%20-%20solutions%20found&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008529.html">
+   <LINK REL="Next"  HREF="008531.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] Python, mod_python, Apache on WIN32 - threading - solutions found</H1>
+    <B>francois lepoutre</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Python%2C%20mod_python%2C%20Apache%20on%20WIN32%20-%20threading%20-%20solutions%20found&In-Reply-To="
+       TITLE="[mod_python] Python, mod_python, Apache on WIN32 - threading - solutions found">francois.lepoutre at seriatim.com
+       </A><BR>
+    <I>Wed Nov  7 12:03:26 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008529.html">[mod_python] security question
+</A></li>
+        <LI>Next message: <A HREF="008531.html">[mod_python] Sessions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8528">[ date ]</a>
+              <a href="thread.html#8528">[ thread ]</a>
+              <a href="subject.html#8528">[ subject ]</a>
+              <a href="author.html#8528">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi all,
+
+This mail is basically intended for developpers of  NT or W2K -based 
+web applications who are willing to test win+Python as a web platform
+or have difficulties in running their mod_python apps under windows.
+
+Just wanted to post a few words to say how great mod_python is and
+share a bit of code...
+
+As far we are concerned, this works great and fast.  
+Our current development combination is:
+- WIN2K server,
+- apache 1.3
+- mod_python,
+- python
+- mxodbc for db connectivity.
+
+This combo works great for database-app applications requiring a lot of buffered 
+databased-informations intensive sql querying.
+
+It took us less than 2 months to do switch a whole demanding app from 
+ms-tool based development on winK2 to apache+mod_python on winK2  .... 
+including learning python, a short and enjoyable experience :)
+
+The result is great and fast as all demanding queries are buffered in
+global dictionnaries. The only problems we have encoutered are :
+- threading,
+- threading,
+- threading.
+
+Python is threaded, apache-win is threaded .. Be aware that
+your mod_python code should also be. 
+
+It took us A COUPLE OF WEEKS to grasp pbs that occured in 
+demanding race-conditions and then solve them. 
+
+This is the reason for this mail. Intended for those with limited
+skills with thread. Programming data-intensive python+mod_python apps 
+on win32 is an easy game including for programmers with limited IT background. 
+
+BUT it is imperative to code threadsafe when coding wK2+apache+mod_python.
+
+For those with no experience with building threadsafe code
+applications (possibly the case if you work with interpreted languages),
+a few recommendations for mod_python:
+1) use as few globals as possible,
+pass over your &quot;state-variables&quot; as local python objects and keep
+shared variables to the absolute mimimum.
+
+2) make sure to avoid race-conditions on those globals
+
+if you need global (you will if you want high perfs - to store buffered database output), 
+make sure those global variables are updated in a tight block of code with a lock
+to prevent concurrent threads to access &quot;shared info&quot; whilst this
+information is beeing updated
+
+The kind of python code that helped us build threadsafe mod_python code:
+
+##################################
+# in mod_python init code
+global_data_lock = threading.RLock()
+
+##################################
+# in your mod_python code
+# run when needed
+global global_data_lock 
+global_data_lock.acquire()
+try:
+   # load or update your shared data .. dictionnaries and al
+   load_shared_data()
+finally:
+   global_data_lock.release()
+
+ 
+3 ) odbc connectivy (thru mxodbc) may or not be threadsafe
+
+Encapsulate your odbc connections in a &quot;pool&quot; of connections
+with round-robin access to them through a shared queue
+(a &quot;webwarish&quot; bit of code, my thanks to webware, 
+a great tool we'd like to investigate soon)
+
+The kind of python code that helped us build threadsafe odbc python :
+
+#################################
+# in mod_python init code
+# build a series of sleeping odbc connections
+NB_CONNECTIONS = 20
+connection_queue = Queue()
+for each_value in range(NB_CONNECTIONS):
+  database_handle = ODBC.Windows.Connect('my_dsn','my_user','my_password',0)
+  connection_queue.put(database_handle) 
+
+##################################
+# in your database code
+# use them in round-robin
+# every time
+global connection_queue
+database_handle = connection_queue.get()
+cursor_handle = database_handle.cursor()
+cursor_handle.execute(&quot;SELECT * FROM DUMMY&quot;)
+connection_queue.put(database_handle)
+
+mod_python on win32 rocks!
+
+Fran&#231;ois
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20011107/e8538e9c/attachment-0002.htm">http://mailman.modpython.org/pipermail/mod_python/attachments/20011107/e8538e9c/attachment-0002.htm</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008529.html">[mod_python] security question
+</A></li>
+	<LI>Next message: <A HREF="008531.html">[mod_python] Sessions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8528">[ date ]</a>
+              <a href="thread.html#8528">[ thread ]</a>
+              <a href="subject.html#8528">[ subject ]</a>
+              <a href="author.html#8528">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

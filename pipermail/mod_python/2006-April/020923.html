@@ -1,0 +1,693 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] ValueError with Flash 8 FileReference.upload(url)  
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ValueError%20with%20Flash%208%20FileReference.upload%28url%29%20%20&In-Reply-To=8F10456E-8E17-4260-B91E-E0D9EE82E54D%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020913.html">
+   <LINK REL="Next"  HREF="020937.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] ValueError with Flash 8 FileReference.upload(url)  </H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Alec Matusis</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ValueError%20with%20Flash%208%20FileReference.upload%28url%29%20%20&In-Reply-To=8F10456E-8E17-4260-B91E-E0D9EE82E54D%40dscpl.com.au"
+       TITLE="[mod_python] ValueError with Flash 8 FileReference.upload(url)  ">matusis at matusis.com
+       </A><BR>
+    <I>Thu Apr 20 18:06:50 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020913.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)  
+</A></li>
+        <LI>Next message: <A HREF="020937.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)  
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20923">[ date ]</a>
+              <a href="thread.html#20923">[ thread ]</a>
+              <a href="subject.html#20923">[ subject ]</a>
+              <a href="author.html#20923">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE> 
+This actually worked.
+
+My quiestion is: how can I implement a similar change in the application,
+rather than in mod_python source?
+
+The rationale is that next time we upgrade mod_python, we will forget about
+this patch, and it will break on us.
+
+Thanks!
+
+
+-----Original Message-----
+From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>] 
+Sent: Thursday, April 20, 2006 4:28 AM
+To: Alec Matusis
+Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Subject: Re: [mod_python] ValueError with Flash 8 FileReference.upload(url) 
+
+
+On 20/04/2006, at 8:53 PM, Alec Matusis wrote:
+
+&gt;<i> One more thing:
+</I>&gt;<i>
+</I>&gt;<i> I inserted the following code in util.py on line 153 where it could  
+</I>&gt;<i> not
+</I>&gt;<i> split the string:
+</I>&gt;<i>
+</I>&gt;<i>                         try:
+</I>&gt;<i>                             h, v = line.split(&quot;:&quot;, 1)
+</I>&gt;<i>                         except Exception, e:
+</I>&gt;<i>                             req.log_error('faulty line is: '+repr 
+</I>&gt;<i> (line))
+</I>&gt;<i>
+</I>&gt;<i> And the output was:
+</I>&gt;<i>
+</I>&gt;<i> [Thu Apr 20 03:47:53 2006] [error] [client 10.0.1.35] faulty line is:
+</I>&gt;<i> 'Submit Query\\r\\n'
+</I>&gt;<i> [Thu Apr 20 03:47:53 2006] [error] [client 10.0.1.35] faulty line is:
+</I>&gt;<i> '------------ae0cH2ae0KM7KM7KM7gL6KM7ei4ei4'
+</I>&gt;<i>
+</I>&gt;<i> I am not 100% sure what this means, but for some reason these two  
+</I>&gt;<i> lines were
+</I>&gt;<i> not captured by req.read() in my publisher.
+</I>&gt;<i> And, I suppose, this SubmitQuery line is wrong?
+</I>
+The request you think is the problem, possibly isn't the problem  
+then. :-)
+
+Anyway, in util.FieldStorage, instead of using code:
+
+            while line not in ('\r','\r\n'):
+                # we read the headers until we reach an empty line
+                # NOTE : a single \n would mean the entity is  
+malformed, but
+                # we're tolerating it anyway
+                h, v = line.split(&quot;:&quot;, 1)
+
+try using the following code instead:
+
+            while line not in ('\r','\r\n') and line.find(':') != -1:
+                # we read the headers until we reach an empty line
+                # NOTE : a single \n would mean the entity is  
+malformed, but
+                # we're tolerating it anyway
+                h, v = line.split(&quot;:&quot;, 1)
+
+I have no idea if this will actually work. It attempts to break out  
+of header parsing
+if it finds a line with no colon in it.
+
+This will not work for multiline headers, but then mod_python doesn't  
+work for
+them anyway:
+
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-159">http://issues.apache.org/jira/browse/MODPYTHON-159</A>
+
+Graham
+
+&gt;<i> -----Original Message-----
+</I>&gt;<i> From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>]
+</I>&gt;<i> Sent: Wednesday, April 19, 2006 5:36 PM
+</I>&gt;<i> To: Alec Matusis
+</I>&gt;<i> Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Subject: RE: [mod_python] ValueError with Flash 8  
+</I>&gt;<i> FileReference.upload(url)
+</I>&gt;<i>
+</I>&gt;<i> Please keep posts on mailing list. :-)
+</I>&gt;<i>
+</I>&gt;<i> That discussion covers two issues.
+</I>&gt;<i>
+</I>&gt;<i> 1. That in some cases it doesn't output required extra blank line.
+</I>&gt;<i> This is what the Ruby patch was about.
+</I>&gt;<i>
+</I>&gt;<i> 2. That with Win32 client, it will do a POST with zero content.
+</I>&gt;<i>
+</I>&gt;<i> As to 2, I note that your example request shows content length
+</I>&gt;<i> header of &quot;0&quot;, but then has content. I'm not sure if this is meant
+</I>&gt;<i> to be the test post or the real thing.
+</I>&gt;<i>
+</I>&gt;<i> Do you see any test POST with no actual content like they talk
+</I>&gt;<i> about? Have you perhaps captured the test POST rather than
+</I>&gt;<i> the real POST?
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> Alec Matusis wrote ..
+</I>&gt;&gt;<i> I found this discussion on Macromedia website:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i> <A HREF="http://livedocs.macromedia.com/flash/8/main/wwhelp/wwhimpl/common/">http://livedocs.macromedia.com/flash/8/main/wwhelp/wwhimpl/common/</A> 
+</I>&gt;<i> html/wwhel
+</I>&gt;&gt;<i> p.htm?context=LiveDocs_Parts&amp;file=00002225.html
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The relevant posts are
+</I>&gt;&gt;<i> No screen name said on Sep 23, 2005 at 10:15 AM
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> and Macromedia's official response, acknowledging the bug:
+</I>&gt;&gt;<i> shimi2 said on Jan 19, 2006 at 11:22 AM :
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I am not 100% sure if I encountered the same problem, but it looks  
+</I>&gt;&gt;<i> like
+</I>&gt;&gt;<i> it.
+</I>&gt;&gt;<i> It also could be that it tries to parse the empty POST request  
+</I>&gt;&gt;<i> that flash
+</I>&gt;&gt;<i> issues to test the connection if the filesize is &gt; 10KB (their  
+</I>&gt;&gt;<i> comment
+</I>&gt;&gt;<i> shimi2 said on Sep 21, 2005 at 4:45 PM and also this is evidently the
+</I>&gt;<i> first
+</I>&gt;&gt;<i> empty line in my req.read() output ? )
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> They recommend a workaround for Ruby there. Since it seems to be a  
+</I>&gt;&gt;<i> fairly
+</I>&gt;&gt;<i> common issue, would you be able to recommend a workaround for  
+</I>&gt;&gt;<i> mod_python
+</I>&gt;&gt;<i> as
+</I>&gt;&gt;<i> well?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I wouldn't like to change mod_python sources, but rather, I would  
+</I>&gt;&gt;<i> like
+</I>&gt;&gt;<i> to
+</I>&gt;&gt;<i> alter the bad HTTP request in my handler:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> try:
+</I>&gt;&gt;<i>     myform=util.FieldStorage(req)
+</I>&gt;&gt;<i> except ValueError:
+</I>&gt;&gt;<i>     altered_req = MakeGoodHTTPRequest(req)
+</I>&gt;&gt;<i>     myform=util.FieldStorage(altered_req)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> to handle
+</I>&gt;&gt;<i> ValueError: need more than 1 value to unpack
+</I>&gt;&gt;<i> that appears on line 153 in util.py ( h, v = line.split(&quot;:&quot;, 1)  
+</I>&gt;&gt;<i> causes
+</I>&gt;&gt;<i> it -
+</I>&gt;&gt;<i> looks like the line does not have a colon &quot;:&quot; )
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Could you advise on how this MakeGoodHTTPRequest should look like?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -----Original Message-----
+</I>&gt;&gt;<i> From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>]
+</I>&gt;&gt;<i> Sent: Wednesday, April 19, 2006 2:43 PM
+</I>&gt;&gt;<i> To: Alec Matusis
+</I>&gt;&gt;<i> Cc: mod_python list
+</I>&gt;&gt;<i> Subject: Re: [mod_python] ValueError with Flash 8
+</I>&gt;<i> FileReference.upload(url)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Arrrghhh, I'm going bonkers, the blank line is there now when I look
+</I>&gt;&gt;<i> at it. :-(
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Too many backslashes in there, strains the eyes.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Anyway, still sounds very much like the missing blank line seen  
+</I>&gt;&gt;<i> before.
+</I>&gt;&gt;<i> I'll have a look again later at it.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On 20/04/2006, at 6:34 AM, Graham Dumpleton wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Flash for some reason doesn't do the POST for multipart/form per
+</I>&gt;&gt;&gt;<i> standard RFCs
+</I>&gt;&gt;&gt;<i> when no content type is associated with a filename block.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> See:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>   <A HREF="http://www.modpython.org/pipermail/mod_python/2006-April/">http://www.modpython.org/pipermail/mod_python/2006-April/</A> 
+</I>&gt;&gt;&gt;<i> 020794.html
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> for previous discussion.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> See more below.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> On 19/04/2006, at 7:08 PM, Alec Matusis wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> I have been having a problem with FileReference.upload(url)  in  
+</I>&gt;&gt;&gt;&gt;<i> flash
+</I>&gt;&gt;&gt;&gt;<i> 8, and to my amazement, found these posts.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Here's the error:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> [Wed Apr 19 01:34:52 2006] [error] [client 10.0.1.39]   File
+</I>&gt;&gt;&gt;&gt;<i> &quot;/usr/local/lib/python2.4/site-packages/mod_python/util.py&quot;, line
+</I>&gt;&gt;&gt;&gt;<i> 153, in __init__
+</I>&gt;&gt;&gt;&gt;<i> [Wed Apr 19 01:34:52 2006] [error] [client 10.0.1.39]     h, v =
+</I>&gt;&gt;&gt;&gt;<i> line.split(&quot;:&quot;, 1)
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Here's what Flash sends to the server (obtained with
+</I>&gt;&gt;&gt;&gt;<i> self.req.log_error(repr(self.req.read())):
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> [Wed Apr 19 02:05:44 2006] [error] [client 10.0.1.39] ''
+</I>&gt;&gt;&gt;&gt;<i> [Wed Apr 19 02:05:44 2006] [error] [client 10.0.1.39] {'Cookie':
+</I>&gt;&gt;&gt;&gt;<i> 'cookies_enabled.matusis.com=yes', 'Cache-Control': 'no-cache',
+</I>&gt;&gt;&gt;&gt;<i> 'Connection': 'Keep-Alive', 'Content-Length': '0', 'Host':
+</I>&gt;&gt;&gt;&gt;<i> 'zz.alecm.dev.chattanga.com', 'User-Agent': 'Shockwave Flash',
+</I>&gt;&gt;&gt;&gt;<i> 'Content-Type': 'multipart/form-data;
+</I>&gt;&gt;&gt;&gt;<i> boundary=----------gL6Ef1ei4ae0ei4ae0Ef1GI3GI3GI3', 'Accept':
+</I>&gt;&gt;&gt;&gt;<i> 'text/*'}
+</I>&gt;&gt;&gt;&gt;<i> [Wed Apr 19 02:05:44 2006] [error] [client 10.0.1.39]
+</I>&gt;&gt;&gt;&gt;<i> '------------gL6Ef1ei4ae0ei4ae0Ef1GI3GI3GI3\\r\\nContent- 
+</I>&gt;&gt;&gt;&gt;<i> Disposition:
+</I>&gt;&gt;&gt;&gt;<i> form-data;
+</I>&gt;&gt;&gt;&gt;<i> name=&quot;Filename&quot;\\r\\n\\r\\naleccs.jpg\\r\\n------------
+</I>&gt;&gt;&gt;&gt;<i> gL6Ef1ei4ae0ei4ae0Ef1GI3GI3GI3\\r\\nContent-Disposition:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> See in above line how now content type but also no required extra
+</I>&gt;&gt;&gt;<i> blank line.
+</I>&gt;&gt;&gt;<i> Add a content type for that filename block and see if it works.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> form-data; name=&quot;Filedata&quot;; filename=&quot;aleccs.jpg&quot;\\r\\nContent- 
+</I>&gt;&gt;&gt;&gt;<i> Type:
+</I>&gt;&gt;&gt;&gt;<i> application/octet-
+</I>&gt;&gt;&gt;&gt;<i> stream\\r\\n\\r\\n\\xff\\xd8\\xff\\xe0\\x00\\x10JFIF\\x00\\x01\ 
+</I>&gt;&gt;&gt;&gt;<i> \x02\\x
+</I>&gt;&gt;&gt;&gt;<i> 01\\x00H\\x00H\\x00\\x00\\xff\\xed\\x08TPhotoshop
+</I>&gt;&gt;&gt;&gt;<i> 3.0\\x008BIM\\x03\\xed\\x00\\x00\\x00\\x00\\x00\\x10\\x00H\\x00\ 
+</I>&gt;&gt;&gt;&gt;<i> \x00\\
+</I>&gt;&gt;&gt;&gt;<i> x00\\x01\\x00\\x01\\x00H\\x00\\x00\\x00\\x01\\x00\\x018BIM\\x04\ 
+</I>&gt;&gt;&gt;&gt;<i> \r\\x0
+</I>&gt;&gt;&gt;&gt;<i> 0\\x00\\x00\\x00\\x00\\x04\\x00\\x00\\x00x8BIM\\x03\\xf3\\x00\ 
+</I>&gt;&gt;&gt;&gt;<i> \x00\\x0
+</I>&gt;&gt;&gt;&gt;<i> 0\\x00\\x00\\x08\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x018BIM\\x04 
+</I>&gt;&gt;&gt;&gt;<i> \\n\\
+</I>&gt;&gt;&gt;&gt;<i> x00\\x00\\x00\\x00\\x00\\x01\\x00\\x008BIM\\'\\x10\\x00\\x00\\x00 
+</I>&gt;&gt;&gt;&gt;<i> \\x00
+</I>&gt;&gt;&gt;&gt;<i> \\x00\\n\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x028BIM\ 
+</I>&gt;&gt;&gt;&gt;<i> \x03\\x
+</I>&gt;&gt;&gt;&gt;<i> f5\\x00\\x00\\x00\\x00\\x00H\\x00/
+</I>&gt;&gt;&gt;&gt;<i> ff\\x00\\x01\\x00lff\\x00\\x06\\x00\\x00\\x00\\x00\\x00\\x01\\x00/
+</I>&gt;&gt;&gt;&gt;<i> ff\\x00\\x01\\x!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> 00\\xa1\\x99\\x9a\\x00\\x06\\x00\\x00\\x00\\x00\\x00\\x01\\x002\ 
+</I>&gt;&gt;&gt;&gt;<i> \x00\\
+</I>&gt;&gt;&gt;&gt;<i> x00\\x00\\x01\\x00Z\\x00\\x00\\x00\\x06\\x00\\x00\\x00\\x00\\x00\ 
+</I>&gt;&gt;&gt;&gt;<i> \x01\
+</I>&gt;&gt;&gt;&gt;<i> \x005\\x00\\x00\\x00\\x01\\x00-
+</I>&gt;&gt;&gt;&gt;<i> \\x00\\x00\\x00\\x06\\x00\\x00\\x00\\x00\\x00\\x018BIM\\x03\\xf8\ 
+</I>&gt;&gt;&gt;&gt;<i> \x00\
+</I>&gt;&gt;&gt;&gt;<i> \x00\\x00\\x00\\x00p\\x00\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff 
+</I>&gt;&gt;&gt;&gt;<i> \\xff
+</I>&gt;&gt;&gt;&gt;<i> \\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff 
+</I>&gt;&gt;&gt;&gt;<i> \\xff
+</I>&gt;&gt;&gt;&gt;<i> \\x03\\xe8\\x00\\x00\\x00\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff 
+</I>&gt;&gt;&gt;&gt;<i> \\xff
+</I>&gt;&gt;&gt;&gt;<i> \\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff 
+</I>&gt;&gt;&gt;&gt;<i> \\xff
+</I>&gt;&gt;&gt;&gt;<i> \\x03\\xe8\\x00\\x00\\x00\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff 
+</I>&gt;&gt;&gt;&gt;<i> \\xff
+</I>&gt;&gt;&gt;&gt;<i> \\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff 
+</I>&gt;&gt;&gt;&gt;<i> \\xff
+</I>&gt;&gt;&gt;&gt;<i> \\x03\\xe8\\x00\\x00\\x00\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff 
+</I>&gt;&gt;&gt;&gt;<i> \\xff
+</I>&gt;&gt;&gt;&gt;<i> \\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff 
+</I>&gt;&gt;&gt;&gt;<i> \\xff
+</I>&gt;&gt;&gt;&gt;<i> \\x03\\xe8\\x00\\x008BIM\\x04\\x08\\x00\\x00\\x00\\x00\\x00\\x10\ 
+</I>&gt;&gt;&gt;&gt;<i> \x00\
+</I>&gt;&gt;&gt;&gt;<i> \x00\\x00\\x01\\x00\\x00\\x02@\\x00\\x00\\x02@\\x00\\x00\\x00\ 
+</I>&gt;&gt;&gt;&gt;<i> \x008BIM
+</I>&gt;&gt;&gt;&gt;<i> \\x04\\x14\\x00\\x00\\x00\\x00\\x00\\x04\\x00\\!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> x00\\x00\\x038BIM\\x04\\x0c\\x00\\x00\\x00\\x00\\x06\\xc3\\x00\ 
+</I>&gt;&gt;&gt;&gt;<i> \x00\\x
+</I>&gt;&gt;&gt;&gt;<i> 00\\x01\\x00\\x00\\x00d\\x00\\x00\\x00K\\x00\\x00\\x01,\\x00\ 
+</I>&gt;&gt;&gt;&gt;<i> \x00W\\xe
+</I>&gt;&gt;&gt;&gt;<i> 4\\x00\\x00\\x06\\xa7\\x00\\x18\\x00\\x01\\xff\\xd8\\xff\\xe0\ 
+</I>&gt;&gt;&gt;&gt;<i> \x00\\x1
+</I>&gt;&gt;&gt;&gt;<i> 0JFIF\\x00\\x01\\x02\\x01\\x00H\\x00H\\x00\\x00\\xff\\xfe\\x00&amp;File
+</I>&gt;&gt;&gt;&gt;<i> written by Adobe Photoshop\\xa8
+</I>&gt;&gt;&gt;&gt;<i> 5.0\\xff\\xee\\x00\\x0eAdobe\\x00d\\x80\\x00\\x00\\x00\\x01\\xff\ 
+</I>&gt;&gt;&gt;&gt;<i> \xdb\
+</I>&gt;&gt;&gt;&gt;<i> \x00\\x84\\x00\\x0c\\x08\\x08\\x08\\t\\x08\\x0c\\t\\t\\x0c\\x11\ 
+</I>&gt;&gt;&gt;&gt;<i> \x0b\\
+</I>&gt;&gt;&gt;&gt;<i> n\\x0b\\x11\\x15\\x0f\\x0c\\x0c\\x0f\\x15\\x18\\x13\\x13\\x15\ 
+</I>&gt;&gt;&gt;&gt;<i> \x13\\x1
+</I>&gt;&gt;&gt;&gt;<i> 3\\x18\\x11\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x11\\x0c\\x0c\\x0c\ 
+</I>&gt;&gt;&gt;&gt;<i> \x0c\\x0
+</I>&gt;&gt;&gt;&gt;<i> c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\ 
+</I>&gt;&gt;&gt;&gt;<i> \x0c\\x0
+</I>&gt;&gt;&gt;&gt;<i> c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x01\\r\\x0b\\x0b\ 
+</I>&gt;&gt;&gt;&gt;<i> \r\\x
+</I>&gt;&gt;&gt;&gt;<i> 0e\\r\\x10\\x0e\\x0e\\x10\\x14\\x0e\\x0e\\x0e\\x14\\x14\\x0e\\x0e 
+</I>&gt;&gt;&gt;&gt;<i> \\x0e
+</I>&gt;&gt;&gt;&gt;<i> \\x0e\\x14\\x11\\x0c\\x0c\\x0c\\x0c\\x0c\\x11\\x11\\x0c\\x0c\\x0c 
+</I>&gt;&gt;&gt;&gt;<i> \\x0c
+</I>&gt;&gt;&gt;&gt;<i> \\x0c\\x0c\\x11\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c 
+</I>&gt;&gt;&gt;&gt;<i> \\x0c
+</I>&gt;&gt;&gt;&gt;<i> \\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c\\x0c 
+</I>&gt;&gt;&gt;&gt;<i> \\x0c
+</I>&gt;&gt;&gt;&gt;<i> \\x0c\\x0c\\x0c\\xff\\xc0\\x00\\x11\\x08\\x00K\\x!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> 00d\\x03\\x01&quot;\\x00\\x02\\x11\\x01\\x03\\x11\\x01\\xff\\xdd\\x00\ 
+</I>&gt;&gt;&gt;&gt;<i> \x04\
+</I>&gt;&gt;&gt;&gt;<i> \x00\\x07\\xff\\xc4\\x01?
+</I>&gt;&gt;&gt;&gt;<i> \\x00\\x00\\x01\\x05\\x01\\x01\\x01\\x01\\x01\\x01\\x00\\x00\\x00 
+</I>&gt;&gt;&gt;&gt;<i> \\x00
+</I>&gt;&gt;&gt;&gt;<i> \\x00\\x00\\x00\\x03\\x00\\x01\\x02\\x04\\x05\\x06\\x07\\x08\\t\ 
+</I>&gt;&gt;&gt;&gt;<i> \n\\x0
+</I>&gt;&gt;&gt;&gt;<i> b\\x01\\x00\\x01\\x05\\x01\\x01\\x01\\x01\\x01\\x01\\x00\\x00\ 
+</I>&gt;&gt;&gt;&gt;<i> \x00\\x0
+</I>&gt;&gt;&gt;&gt;<i> 0\\x00\\x00\\x00\\x01\\x00\\x02\\x03\\x04\\x05\\x06\\x07\\x08\\t\ 
+</I>&gt;&gt;&gt;&gt;<i> \n\\x
+</I>&gt;&gt;&gt;&gt;<i> 0b\\x10\\x00\\x01\\x04\\x01\\x03\\x02\\x04\\x02\\x05\\x07\\x06\ 
+</I>&gt;&gt;&gt;&gt;<i> \x08\\x
+</I>&gt;&gt;&gt;&gt;<i> 05\\x03\\x0c3\\x01\\x00\\x02\\x11\\x03\\x04!
+</I>&gt;&gt;&gt;&gt;<i> \\x121\\x05AQa\\x13&quot;q\\x812\\x06\\x14\\x91\\xa1\\xb1B#$\\x15R\ 
+</I>&gt;&gt;&gt;&gt;<i> \xc1b34r
+</I>&gt;&gt;&gt;&gt;<i> \\x82\\xd1C\\x07%\\x92S\\xf0\\xe1\\xf1cs5\\x16\\xa2\\xb2\\x83&amp;D\ 
+</I>&gt;&gt;&gt;&gt;<i> \x93Td
+</I>&gt;&gt;&gt;&gt;<i> E\\xc2\\xa3t6\\x17\\xd2U\\xe2e\\xf2\\xb3\\x84\\xc3\\xd3u\\xe3\ 
+</I>&gt;&gt;&gt;&gt;<i> \xf3F\\'
+</I>&gt;&gt;&gt;&gt;<i> \\x94\\xa4\\x85\\xb4\\x95\\xc4\\xd4\\xe4\\xf4\\xa5\\xb5\\xc5\\xd5 
+</I>&gt;&gt;&gt;&gt;<i> \\xe5
+</I>&gt;&gt;&gt;&gt;<i> \\xf5Vfv\\x86\\x96\\xa6\\xb6\\xc6\\xd6\\xe6\\xf67GWgw\\x87\\x97\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa7\\
+</I>&gt;&gt;&gt;&gt;<i> xb7\\xc7\\xd7\\xe7\\xf7\\x11\\x00\\x02\\x02\\x01\\x02\\x04\\x04\ 
+</I>&gt;&gt;&gt;&gt;<i> \x03\\
+</I>&gt;&gt;&gt;&gt;<i> x04\\x05\\x06\\x07\\x07\\x06\\x055\\x01\\x00\\x02\\x11\\x03!
+</I>&gt;&gt;&gt;&gt;<i> 1\\x12\\x04AQaq&quot;\\x!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> 13\\x052\\x81\\x91\\x14\\xa1\\xb1B#\\xc1R\\xd1\\xf03$b\\xe1r\\x82 
+</I>&gt;&gt;&gt;&gt;<i> \\x92
+</I>&gt;&gt;&gt;&gt;<i> CS\\x15cs4\\xf1%\\x06\\x16\\xa2\\xb2\\x83\\x07&amp;5\\xc2\\xd2D\\x93T 
+</I>&gt;&gt;&gt;&gt;<i> \\xa3
+</I>&gt;&gt;&gt;&gt;<i> \\x17dEU6te\\xe2\\xf2\\xb3\\x84\\xc3\\xd3u\\xe3\\xf3F\\x94\\xa4\ 
+</I>&gt;&gt;&gt;&gt;<i> \x85\\
+</I>&gt;&gt;&gt;&gt;<i> xb4\\x95\\xc4\\xd4\\xe4\\xf4\\xa5\\xb5\\xc5\\xd5\\xe5\\xf5Vfv\ 
+</I>&gt;&gt;&gt;&gt;<i> \x86\\x9
+</I>&gt;&gt;&gt;&gt;<i> 6\\xa6\\xb6\\xc6\\xd6\\xe6\\xf6\\'7GWgw\\x87\\x97\\xa7\\xb7\\xc7\ 
+</I>&gt;&gt;&gt;&gt;<i> \xff\
+</I>&gt;&gt;&gt;&gt;<i> \xda\\x00\\x0c\\x03\\x01\\x00\\x02\\x11\\x03\\x11\\x00?
+</I>&gt;&gt;&gt;&gt;<i> \\x00\\xd6,\\x0e\\x10D\\x82\\x90\\xa1\\x80\\x10\\x04\\x02
+</I>&gt;&gt;&gt;&gt;<i> \\xc7\\x9a(\\t\\xc0M\\\\\\x82\\xac:
+</I>&gt;&gt;&gt;&gt;<i> *~\\xf6\\x02\\x1d\\x11$\\x93\\xff\\x00TP\\xba\\xa7P\\xa7\\xa6`\ 
+</I>&gt;&gt;&gt;&gt;<i> \xd9\\x
+</I>&gt;&gt;&gt;&gt;<i> 99p\\x96\\xb2\\x00`0\\\\\\xe3\\xf4Z\\xd9W\\x80\\\\G\\xd7\\xdb\ 
+</I>&gt;&gt;&gt;&gt;<i> \xac\\xb
+</I>&gt;&gt;&gt;&gt;<i> 7\\xa8b\\xe0\\x02Emf\\xf2\\x07\\x8b\\xdc[\\xbb\\xfc\\xd6%\\xa0V\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa5\\
+</I>&gt;&gt;&gt;&gt;<i> xcd\\xea_\\\\\\xfa\\xc6[\\xa3\\x1e\\xc1\\x85^\\xb0\\xda\\xbe\\x94 
+</I>&gt;&gt;&gt;&gt;<i> \\x7f
+</I>&gt;&gt;&gt;&gt;<i> *\\xd3\\xee\\xff\\x003b\\xaf\\x8b\\xf5\\xab\\xeb\\x165\\x82\\xc6\ 
+</I>&gt;&gt;&gt;&gt;<i> \xe6\
+</I>&gt;&gt;&gt;&gt;<i> \xd9f\\xa0\\x96\\xdaw\\xb4\\xc7\\xe6\\xbbz\\xd1\\xc6\\xfa\\xb1\ 
+</I>&gt;&gt;&gt;&gt;<i> \x8fc\\
+</I>&gt;&gt;&gt;&gt;<i> x98L\\x9a\\xb4\\xdc\\\\`\\x9f\\x84+\\x99_Uzg\\xa0\\xefM\\xaem\ 
+</I>&gt;&gt;&gt;&gt;<i> \x91\\xe
+</I>&gt;&gt;&gt;&gt;<i> dv\\xe2u\\xf3Q\\xfb\\xf0\\xf1f\\xfb\\xb4\\xfc\\x1e\\x8f\\xea\\xc7 
+</I>&gt;&gt;&gt;&gt;<i> \\xd6
+</I>&gt;&gt;&gt;&gt;<i> \!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> \xcc~\\xba\\xd3M\\xac\\x18\\xf9\\xf5\\x89u@\\xcb^\\xd1\\xcd\\x94\ 
+</I>&gt;&gt;&gt;&gt;<i> \xcf\
+</I>&gt;&gt;&gt;&gt;<i> \xfd6-\\xf8^=\\x8a\\xcb\\xfa?U\\xc4\\xbd\\xae!
+</I>&gt;&gt;&gt;&gt;<i> \\xd5\\xd8\\xd7\\x0e\\xe7\\x9d\\xb67O\\xe4\\x95\\xec@\\xea\\xa4\ 
+</I>&gt;&gt;&gt;&gt;<i> \x89\\
+</I>&gt;&gt;&gt;&gt;<i> x04Xc
+</I>&gt;&gt;&gt;&gt;<i> \\xc4\\xd1\\xdd\\x81n\\xa9\\x88\\xd5L\\xf2\\xa3\\xc9E\\x16\\x85\ 
+</I>&gt;&gt;&gt;&gt;<i> \xc1\\
+</I>&gt;&gt;&gt;&gt;<i> x08\\xb5\\x1c\\x85\\x02\\x12\\xa4Z\\x18\\xd5$HI%?
+</I>&gt;&gt;&gt;&gt;<i> \\xff\\xd0\\xde\\x01&quot;41\\xe0\\x9d&lt;i\\x1e)%\\xb1{p\\xc3&quot;\\x9d\\xc2 
+</I>&gt;&gt;&gt;&gt;<i> \\xc6
+</I>&gt;&gt;&gt;&gt;<i> \\xb9\\x80\\xee2\\x08-
+</I>&gt;&gt;&gt;&gt;<i> \\xdc\\xe5\\xc4\\xfdk\\xc6e\\x9ds\\x16\\xc6{\\xdc*-{\\x00\\x98-;
+</I>&gt;&gt;&gt;&gt;<i> \\x99\\xff\\x00E\\xeb\\xa6\\xab\\x08Wc,\\xf5\\x1c\\xed\\x93\\xed3 
+</I>&gt;&gt;&gt;&gt;<i> \\xac
+</I>&gt;&gt;&gt;&gt;<i> \\x8d\\xba\\xfb\\x96/
+</I>&gt;&gt;&gt;&gt;<i> Yc\\x99\\xd5Ya\\x1a\\x13\\x00\\xf9\\x16\\xff\\x00\\xe4\\x9a\\xa3\ 
+</I>&gt;&gt;&gt;&gt;<i> \xcaH
+</I>&gt;&gt;&gt;&gt;<i> \\x8e\\xdb\\xe8\\xcd\\x86
+</I>&gt;&gt;&gt;&gt;<i> \\xcf}\\xb5jcfe\\xd4\\x0e\\xe6\\xb4\\x86\\tuE\\x84H\\xe3\\xdbb\ 
+</I>&gt;&gt;&gt;&gt;<i> \xb3\\x
+</I>&gt;&gt;&gt;&gt;<i> 7fPk\\<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">xda at c</A>*\\xda\\x1a\\\\\\xe3.\\x00\\x1f\\xf3\\x15\\x8b\\x88\ 
+</I>&gt;&gt;&gt;&gt;<i> \x18\\x
+</I>&gt;&gt;&gt;&gt;<i> 8ep\\x1a\\x98\\x10\\x06\\xba\\xaa\\xb8\\xc2\\x9b2\\xacce\\xcd\ 
+</I>&gt;&gt;&gt;&gt;<i> \x15\\x8
+</I>&gt;&gt;&gt;&gt;<i> 9\\xdc\\xd2\\x04\\x8f\\x8a\\x82\\xc6\\x9e\\x9d\\x1bF\\x12\\xa28\ 
+</I>&gt;&gt;&gt;&gt;<i> \xc8\\
+</I>&gt;&gt;&gt;&gt;<i> 'g b\\xb7;\\xad\\xf4\\xf1&gt;\\xc7d\\xb4\\x13\\x11!\\xbf\!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> \xa4&lt;#cj\\xa6\\xa6h\\x98\\xcbS\\xc5l\\x89Q\\x9dTw&amp;\\xdc\\xa4bdT\ 
+</I>&gt;&gt;&gt;&gt;<i> \x08O2
+</I>&gt;&gt;&gt;&gt;<i> \\x92Ja\\x1a\\xa4\\xa5\\t$\\xa7\\xff\\xd1\\xe8\\x12L\\x9aRK%S\ 
+</I>&gt;&gt;&gt;&gt;<i> \xabW\\x
+</I>&gt;&gt;&gt;&gt;<i> eat\\xfbH\\x1e\\xea\\xc6\\xf1\\xe3\\xed\\xf7\\x1f\\xfa*\\xd4\\xa8 
+</I>&gt;&gt;&gt;&gt;<i> \\\\\
+</I>&gt;&gt;&gt;&gt;<i> \xfaEN\\xf5\\x9c\\xd6VA\\x0es\\x88\\x02\\x0e\\x9c\\x94\\x08\\xb1I 
+</I>&gt;&gt;&gt;&gt;<i> \\x06
+</I>&gt;&gt;&gt;&gt;<i> \\x88=\\x9ez\\xa7:
+</I>&gt;&gt;&gt;&gt;<i> \\xf67c\\xf6\\xed\\xf2\\x07\\xee\\xdc\\x86\\xe2\\xfa\\xec\\xf5\ 
+</I>&gt;&gt;&gt;&gt;<i> \x1e\\x
+</I>&gt;&gt;&gt;&gt;<i> fd\\x002\\x08\\x13\\xff\\x00EUc.e\\x81\\xd8v\\xb4\\xb4\\x925\ 
+</I>&gt;&gt;&gt;&gt;<i> \xf70\\x9
+</I>&gt;&gt;&gt;&gt;<i> 1\\xf9\\xc2?
+</I>&gt;&gt;&gt;&gt;<i> y+p\\xba\\x96]\\x91{\\xda+\\x1fK\\xd3\\x9d~j\\xa5h\\xdf\\xe2\\xd2 
+</I>&gt;&gt;&gt;&gt;<i> \\xab
+</I>&gt;&gt;&gt;&gt;<i> wO\\xea\\xe5\\xf8Ved_y`{\\x0b\\x05/
+</I>&gt;&gt;&gt;&gt;<i> y\\x03Wn\\x07f\\xef\\xce]10\\xbc\\xfe\\xdcz\\xdbxcZ\\x00\\xaf\ 
+</I>&gt;&gt;&gt;&gt;<i> \xe8\\x9
+</I>&gt;&gt;&gt;&gt;<i> f\\x0f\\x18V\\xeb\\xea9\\xac\\x1bY}\\x908\\x97\\x15g\\r\\x98\ 
+</I>&gt;&gt;&gt;&gt;<i> \x03T\\xd
+</I>&gt;&gt;&gt;&gt;<i> 3\\xcfBd]\\xfe\\xc7\\xb2.L\\x1c\\xb9\\x03\\xd6z\\x84i{\\xbc\\x95\ 
+</I>&gt;&gt;&gt;&gt;<i> \x8c\
+</I>&gt;&gt;&gt;&gt;<i> \x1e\\xbd\\x94\\xc7\\xc6A\\xf5k&lt;\\x93\\xc8\\xf8\\x15%1Xz\\x90S\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa0Uk,
+</I>&gt;&gt;&gt;&gt;<i> `{\\x0c\\xb5\\xc2AE\\x05$\\xb2I4\\xa4\\x92\\x9f\\xff\\xd2\\xdd% 
+</I>&gt;&gt;&gt;&gt;<i> 1*2\\xb
+</I>&gt;&gt;&gt;&gt;<i> 3\\xba\\xd6s\\xb1qKk1m\\xb2\\xd6\\x9f\\x01\\xf9\\xceEM\\xac\\x8e\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa5\
+</I>&gt;&gt;&gt;&gt;<i> \x89\\x8f\\xa3\\xec\\x05\\xdf\\xb8\\xddN\\x9f\\xf5+\\x9a\\xea\ 
+</I>&gt;&gt;&gt;&gt;<i> \xb9\\xc
+</I>&gt;&gt;&gt;&gt;<i> 3\\xaafT\\xcb\!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> \t\\xaf\\x16\\xb0\\xef\\xd1\\xcf\\xd2t\\xfer\\xa6\\xcb7H\\xf2\ 
+</I>&gt;&gt;&gt;&gt;<i> \nMo\\x1
+</I>&gt;&gt;&gt;&gt;<i> 3\\xa0\\xef\\xc1\\xd7\\xe6\\x84\\xa2LH\\x06\\x89\\xea\\xba\\x13\ 
+</I>&gt;&gt;&gt;&gt;<i> \x02@\
+</I>&gt;&gt;&gt;&gt;<i> \xc8X\\x1d\\x1b\\x9d6\\xb2\\xc7\\x96\\x0f\\xe6\\xcb\\x8e\\xdf(V\ 
+</I>&gt;&gt;&gt;&gt;<i> \xf2z\
+</I>&gt;&gt;&gt;&gt;<i> \x9dL\\x9a\\xf1\\xe2\\xcb8.\\x1fD\\x7f\\xe4\\x96C\\x88&gt;\\xcd\ 
+</I>&gt;&gt;&gt;&gt;<i> \xce#\\xf
+</I>&gt;&gt;&gt;&gt;<i> 7D\\x81\\xf8(\\xbd\\xdf\\x98\\xc1\\xb5\\xa3\\xe9x\\x9f%\\x1c0\ 
+</I>&gt;&gt;&gt;&gt;<i> \x01\\xf
+</I>&gt;&gt;&gt;&gt;<i> 3\\x1e&amp;I\\xf3$\\xfc\\x83\\x87\\xc5#\\x9c^\\xe3\\xac\\xb9\\xda\ 
+</I>&gt;&gt;&gt;&gt;<i> \xb9\\xc
+</I>&gt;&gt;&gt;&gt;<i> 9\\x89\\xdb\\x00\\'h\\x03O\\xbc\\xa6\\x1a\\xba{\\x05;
+</I>&gt;&gt;&gt;&gt;<i> ^\\xd6k\\x0e\\xe8=\\x87\\xe5S\\xdcd\\x0e\\x10\\xde\\xe2\\x1eOy\ 
+</I>&gt;&gt;&gt;&gt;<i> \x01I\\
+</I>&gt;&gt;&gt;&gt;<i> xae\\x93\\'\\xb2(w&gt;\\xaff\\xcb\\xac\\xc5q\\xfe[?\\xef\\xc0-
+</I>&gt;&gt;&gt;&gt;<i> \\xe0\\xe5\\xc5\\xe2^q\\xf2\\xaa\\xb8~i\\xd7\\xe0y]{^\\x1c\\x01\ 
+</I>&gt;&gt;&gt;&gt;<i> \x06A\
+</I>&gt;&gt;&gt;&gt;<i> \xd4\\x14\\xc2\\xba%&gt;\\xe4\\x90\\xb7$\\x92\\xe7\\xff\\xd3\\xd7%s\ 
+</I>&gt;&gt;&gt;&gt;<i> \x7fX
+</I>&gt;&gt;&gt;&gt;<i> /\\xf52v4\\xe9H\\x83\\xf3\\xe5tK\\x95\\xea_\\xd3/
+</I>&gt;&gt;&gt;&gt;<i> \\xfe\\xbb\\xbf\\xd4\\xa2\\x11&amp;\\x93\\x07q\\xc29&lt;\\x85^\\xaf\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa0yFo!
+</I>&gt;&gt;&gt;&gt;<i> 9\\x0c,{\\x9a$hJU\\xb6\\\\\\xd0~%+?
+</I>&gt;&gt;&gt;&gt;<i> \\x9cS\\??\\xff\\x00QzL\\xea\\xb8}\\x8d\\xfd\\xad\\x88\\xc666X\ 
+</I>&gt;&gt;&gt;&gt;<i> \xd7\\x
+</I>&gt;&gt;&gt;&gt;<i> 08\\xed\\x04.\\xd4\!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> \x95&gt;#cj\\xa6\\xa6h\\x98\\xcbS\\xc5l\\x89Q\\x9dTw&amp;\\xdc\\xa4bdT\ 
+</I>&gt;&gt;&gt;&gt;<i> \x08O2
+</I>&gt;&gt;&gt;&gt;<i> \\x92Ja\\x1a\\xa4\\xa5\\t$\\xa7\\xff\\xd1\\xe8\\x12L\\x9aRK%S\ 
+</I>&gt;&gt;&gt;&gt;<i> \xabW\\x
+</I>&gt;&gt;&gt;&gt;<i> eat\\xfbH\\x1e\\xea\\xc6\\xf1\\xe3\\xed\\xf7\\x1f\\xfa*\\xd4\\xa8 
+</I>&gt;&gt;&gt;&gt;<i> \\\\\
+</I>&gt;&gt;&gt;&gt;<i> \xfaEN\\xf5\\x9c\\xd6VA\\x0es\\x88\\x02\\x0e\\x9c\\x94\\x08\\xb1I 
+</I>&gt;&gt;&gt;&gt;<i> \\x06
+</I>&gt;&gt;&gt;&gt;<i> \\x88=\\x9ez\\xa7:
+</I>&gt;&gt;&gt;&gt;<i> \\xf67c\\xf6\\xed\\xf2\\x07\\xee\\xdc\\x86\\xe2\\xfa\\xec\\xf5\ 
+</I>&gt;&gt;&gt;&gt;<i> \x1e\\x
+</I>&gt;&gt;&gt;&gt;<i> fd\\x002\\x08\\x13\\xff\\x00EUc.e\\x81\\xd8v\\xb4\\xb4\\x925\ 
+</I>&gt;&gt;&gt;&gt;<i> \xf70\\x9
+</I>&gt;&gt;&gt;&gt;<i> 1\\xf9\\xc2?
+</I>&gt;&gt;&gt;&gt;<i> y+p\\xba\\x96]\\x91{\\xda+\\x1fK\\xd3\\x9d~j\\xa5h\\xdf\\xe2\\xd2 
+</I>&gt;&gt;&gt;&gt;<i> \\xab
+</I>&gt;&gt;&gt;&gt;<i> wO\\xea\\xe5\\xf8Ved_y`{\\x0b\\x05/
+</I>&gt;&gt;&gt;&gt;<i> y\\x03Wn\\x07f\\xef\\xce]10\\xbc\\xfe\\xdcz\\xdbxcZ\\x00\\xaf\ 
+</I>&gt;&gt;&gt;&gt;<i> \xe8\\x9
+</I>&gt;&gt;&gt;&gt;<i> f\\x0f\\x18V\\xeb\\xea9\\xac\\x1bY}\\x908\\x97\\x15g\\r\\x98\ 
+</I>&gt;&gt;&gt;&gt;<i> \x03T\\xd
+</I>&gt;&gt;&gt;&gt;<i> 3\\xcfBd]\\xfe\\xc7\\xb2.L\\x1c\\xb9\\x03\\xd6z\\x84i{\\xbc\\x95\ 
+</I>&gt;&gt;&gt;&gt;<i> \x8c\
+</I>&gt;&gt;&gt;&gt;<i> \x1e\\xbd\\x94\\xc7\\xc6A\\xf5k&lt;\\x93\\xc8\\xf8\\x15%1Xz\\x90S\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa0Uk,
+</I>&gt;&gt;&gt;&gt;<i> `{\\x0c\\xb5\\xc2AE\\x05$\\xb2I4\\xa4\\x92\\x9f\\xff\\xd2\\xdd% 
+</I>&gt;&gt;&gt;&gt;<i> 1*2\\xb
+</I>&gt;&gt;&gt;&gt;<i> 3\\xba\\xd6s\\xb1qKk1m\\xb2\\xd6\\x9f\\x01\\xf9\\xceEM\\xac\\x8e\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa5\
+</I>&gt;&gt;&gt;&gt;<i> \x89\\x8f\\xa3\\xec\\x05\\xdf\\xb8\\xddN\\x9f\\xf5+\\x9a\\xea\ 
+</I>&gt;&gt;&gt;&gt;<i> \xb9\\xc
+</I>&gt;&gt;&gt;&gt;<i> 3\\xaafT\\xcb\!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> \t\\xaf\\x16\\xb0\\xef\\xd1\\xcf\\xd2t\\xfer\\xa6\\xcb7H\\xf2\ 
+</I>&gt;&gt;&gt;&gt;<i> \nMo\\x1
+</I>&gt;&gt;&gt;&gt;<i> 3\\xa0\\xef\\xc1\\xd7\\xe6\\x84\\xa2LH\\x06\\x89\\xea\\xba\\x13\ 
+</I>&gt;&gt;&gt;&gt;<i> \x02@\
+</I>&gt;&gt;&gt;&gt;<i> \xc8X\\x1d\\x1b\\x9d6\\xb2\\xc7\\x96\\x0f\\xe6\\xcb\\x8e\\xdf(V\ 
+</I>&gt;&gt;&gt;&gt;<i> \xf2z\
+</I>&gt;&gt;&gt;&gt;<i> \x9dL\\x9a\\xf1\\xe2\\xcb8.\\x1fD\\x7f\\xe4\\x96C\\x88&gt;\\xcd\ 
+</I>&gt;&gt;&gt;&gt;<i> \xce#\\xf
+</I>&gt;&gt;&gt;&gt;<i> 7D\\x81\\xf8(\\xbd\\xdf\\x98\\xc1\\xb5\\xa3\\xe9x\\x9f%\\x1c0\ 
+</I>&gt;&gt;&gt;&gt;<i> \x01\\xf
+</I>&gt;&gt;&gt;&gt;<i> 3\\x1e&amp;I\\xf3$\\xfc\\x83\\x87\\xc5#\\x9c^\\xe3\\xac\\xb9\\xda\ 
+</I>&gt;&gt;&gt;&gt;<i> \xb9\\xc
+</I>&gt;&gt;&gt;&gt;<i> 9\\x89\\xdb\\x00\\'h\\x03O\\xbc\\xa6\\x1a\\xba{\\x05;
+</I>&gt;&gt;&gt;&gt;<i> ^\\xd6k\\x0e\\xe8=\\x87\\xe5S\\xdcd\\x0e\\x10\\xde\\xe2\\x1eOy\ 
+</I>&gt;&gt;&gt;&gt;<i> \x01I\\
+</I>&gt;&gt;&gt;&gt;<i> xae\\x93\\'\\xb2(w&gt;\\xaff\\xcb\\xac\\xc5q\\xfe[?\\xef\\xc0-
+</I>&gt;&gt;&gt;&gt;<i> \\xe0\\xe5\\xc5\\xe2^q\\xf2\\xaa\\xb8~i\\xd7\\xe0y]{^\\x1c\\x01\ 
+</I>&gt;&gt;&gt;&gt;<i> \x06A\
+</I>&gt;&gt;&gt;&gt;<i> \xd4\\x14\\xc2\\xba%&gt;\\xe4\\x90\\xb7$\\x92\\xe7\\xff\\xd3\\xd7%s\ 
+</I>&gt;&gt;&gt;&gt;<i> \x7fX
+</I>&gt;&gt;&gt;&gt;<i> /\\xf52v4\\xe9H\\x83\\xf3\\xe5tK\\x95\\xea_\\xd3/
+</I>&gt;&gt;&gt;&gt;<i> \\xfe\\xbb\\xbf\\xd4\\xa2\\x11&amp;\\x93\\x07q\\xc29&lt;\\x85^\\xaf\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa0yFo!
+</I>&gt;&gt;&gt;&gt;<i> 9\\x0c,{\\x9a$hJU\\xb6\\\\\\xd0~%+?
+</I>&gt;&gt;&gt;&gt;<i> \\x9cS\\xab\\xf&quot;&gt;\\xff\\x00QzL\\xea\\xb8}\\x8d\\xfd\\xad\\x88\ 
+</I>&gt;&gt;&gt;&gt;<i> \xc666X\
+</I>&gt;&gt;&gt;&gt;<i> \xd7\\x08\\xed\\x04.\\x!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> d4\\x95&gt;#cj\\xa6\\xa6h\\x98\\xcbS\\xc5l\\x89Q\\x9dTw&amp;\\xdc\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa4bdT\\x0
+</I>&gt;&gt;&gt;&gt;<i> 8O2\\x92Ja\\x1a\\xa4\\xa5\\t$\\xa7\\xff\\xd1\\xe8\\x12L\\x9aRK%S\ 
+</I>&gt;&gt;&gt;&gt;<i> \xabW
+</I>&gt;&gt;&gt;&gt;<i> \\xeat\\xfbH\\x1e\\xea\\xc6\\xf1\\xe3\\xed\\xf7\\x1f\\xfa*\\xd4\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa8\\
+</I>&gt;&gt;&gt;&gt;<i> \\\\xfaEN\\xf5\\x9c\\xd6VA\\x0es\\x88\\x02\\x0e\\x9c\\x94\\x08\ 
+</I>&gt;&gt;&gt;&gt;<i> \xb1I\\
+</I>&gt;&gt;&gt;&gt;<i> x06\\x88=\\x9ez\\xa7:
+</I>&gt;&gt;&gt;&gt;<i> \\xf67c\\xf6\\xed\\xf2\\x07\\xee\\xdc\\x86\\xe2\\xfa\\xec\\xf5\ 
+</I>&gt;&gt;&gt;&gt;<i> \x1e\\x
+</I>&gt;&gt;&gt;&gt;<i> fd\\x002\\x08\\x13\\xff\\x00EUc.e\\x81\\xd8v\\xb4\\xb4\\x925\ 
+</I>&gt;&gt;&gt;&gt;<i> \xf70\\x9
+</I>&gt;&gt;&gt;&gt;<i> 1\\xf9\\xc2?
+</I>&gt;&gt;&gt;&gt;<i> y+p\\xba\\x96]\\x91{\\xda+\\x1fK\\xd3\\x9d~j\\xa5h\\xdf\\xe2\\xd2 
+</I>&gt;&gt;&gt;&gt;<i> \\xab
+</I>&gt;&gt;&gt;&gt;<i> wO\\xea\\xe5\\xf8Ved_y`{\\x0b\\x05/
+</I>&gt;&gt;&gt;&gt;<i> y\\x03Wn\\x07f\\xef\\xce]10\\xbc\\xfe\\xdcz\\xdbxcZ\\x00\\xaf\ 
+</I>&gt;&gt;&gt;&gt;<i> \xe8\\x9
+</I>&gt;&gt;&gt;&gt;<i> f\\x0f\\x18V\\xeb\\xea9\\xac\\x1bY}\\x908\\x97\\x15g\\r\\x98\ 
+</I>&gt;&gt;&gt;&gt;<i> \x03T\\xd
+</I>&gt;&gt;&gt;&gt;<i> 3\\xcfBd]\\xfe\\xc7\\xb2.L\\x1c\\xb9\\x03\\xd6z\\x84i{\\xbc\\x95\ 
+</I>&gt;&gt;&gt;&gt;<i> \x8c\
+</I>&gt;&gt;&gt;&gt;<i> \x1e\\xbd\\x94\\xc7\\xc6A\\xf5k&lt;\\x93\\xc8\\xf8\\x15%1Xz\\x90S\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa0Uk,
+</I>&gt;&gt;&gt;&gt;<i> `{\\x0c\\xb5\\xc2AE\\x05$\\xb2I4\\xa4\\x92\\x9f\\xff\\xd2\\xdd% 
+</I>&gt;&gt;&gt;&gt;<i> 1*2\\xb
+</I>&gt;&gt;&gt;&gt;<i> 3\\xba\\xd6s\\xb1qKk1m\\xb2\\xd6\\x9f\\x01\\xf9\\xceEM\\xac\\x8e\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa5\
+</I>&gt;&gt;&gt;&gt;<i> \x89\\x8f\\xa3\\xec\\x05\\xdf\\xb8\\xddN\\x9f\\xf5+\\x9a\\xea\ 
+</I>&gt;&gt;&gt;&gt;<i> \xb9\\xc
+</I>&gt;&gt;&gt;&gt;<i> 3\\xaafT\\x!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> cb\\t\\xaf\\x16\\xb0\\xef\\xd1\\xcf\\xd2t\\xfer\\xa6\\xcb7H\\xf2\ 
+</I>&gt;&gt;&gt;&gt;<i> \nMo\
+</I>&gt;&gt;&gt;&gt;<i> \x13\\xa0\\xef\\xc1\\xd7\\xe6\\x84\\xa2LH\\x06\\x89\\xea\\xba\ 
+</I>&gt;&gt;&gt;&gt;<i> \x13\\x0
+</I>&gt;&gt;&gt;&gt;<i> 2@\\xc8X\\x1d\\x1b\\x9d6\\xb2\\xc7\\x96\\x0f\\xe6\\xcb\\x8e\\xdf 
+</I>&gt;&gt;&gt;&gt;<i> (V\\xf
+</I>&gt;&gt;&gt;&gt;<i> 2z\\x9dL\\x9a\\xf1\\xe2\\xcb8.\\x1fD\\x7f\\xe4\\x96C\\x88&gt;\\xcd\ 
+</I>&gt;&gt;&gt;&gt;<i> \xce#\
+</I>&gt;&gt;&gt;&gt;<i> \xf7D\\x81\\xf8(\\xbd\\xdf\\x98\\xc1\\xb5\\xa3\\xe9x\\x9f%\\x1c0\ 
+</I>&gt;&gt;&gt;&gt;<i> \x01\
+</I>&gt;&gt;&gt;&gt;<i> \xf3\\x1e&amp;I\\xf3$\\xfc\\x83\\x87\\xc5#\\x9c^\\xe3\\xac\\xb9\\xda\ 
+</I>&gt;&gt;&gt;&gt;<i> \xb9\
+</I>&gt;&gt;&gt;&gt;<i> \xc9\\x89\\xdb\\x00\\'h\\x03O\\xbc\\xa6\\x1a\\xba{\\x05;
+</I>&gt;&gt;&gt;&gt;<i> ^\\xd6k\\x0e\\xe8=\\x87\\xe5S\\xdcd\\x0e\\x10\\xde\\xe2\\x1eOy\ 
+</I>&gt;&gt;&gt;&gt;<i> \x01I\\
+</I>&gt;&gt;&gt;&gt;<i> xae\\x93\\'\\xb2(w&gt;\\xaff\\xcb\\xac\\xc5q\\xfe[?\\xef\\xc0-
+</I>&gt;&gt;&gt;&gt;<i> \\xe0\\xe5\\xc5\\xe2^q\\xf2\\xaa\\xb8~i\\xd7\\xe0y]{^\\x1c\\x01\ 
+</I>&gt;&gt;&gt;&gt;<i> \x06A\
+</I>&gt;&gt;&gt;&gt;<i> \xd4\\x14\\xc2\\xba%&gt;\\xe4\\x90\\xb7$\\x92\\xe7\\xff\\xd3\\xd7%s\ 
+</I>&gt;&gt;&gt;&gt;<i> \x7fX
+</I>&gt;&gt;&gt;&gt;<i> /\\xf52v4\\xe9H\\x83\\xf3\\xe5tK\\x95\\xea_\\xd3/
+</I>&gt;&gt;&gt;&gt;<i> \\xfe\\xbb\\xbf\\xd4\\xa2\\x11&amp;\\x93\\x07q\\xc29&lt;\\x85^\\xaf\ 
+</I>&gt;&gt;&gt;&gt;<i> \xa0yFo!
+</I>&gt;&gt;&gt;&gt;<i> 9\\x0c,{\\x9a$hJU\\xb6\\\\\\xd0~%+?
+</I>&gt;&gt;&gt;&gt;<i> \\x9cS\\xab\\xf9\\xd7p\\x92\\x99\\x13\\xa7&gt;d$\\xe3\\xb5\\x84\\x83 
+</I>&gt;&gt;&gt;&gt;<i> \\xcf
+</I>&gt;&gt;&gt;&gt;<i> \\x1f\\x143 &lt;<A HREF="file://!">file://!</A>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> \\xff\\x00QzL\\xea\\xb8}\\x8d\\xfd\\xad\\x88\\xc666X\\xd7\\x08\ 
+</I>&gt;&gt;&gt;&gt;<i> \xed\\x
+</I>&gt;&gt;&gt;&gt;<i> 04.\\xd4\\x95&gt;
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Any thoughts on this?
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> --Alec
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020913.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)  
+</A></li>
+	<LI>Next message: <A HREF="020937.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)  
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20923">[ date ]</a>
+              <a href="thread.html#20923">[ thread ]</a>
+              <a href="subject.html#20923">[ subject ]</a>
+              <a href="author.html#20923">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

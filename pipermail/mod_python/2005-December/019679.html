@@ -1,0 +1,350 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Getting request object
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Getting%20request%20object&In-Reply-To=200512070921.35487.blackhex%40post.cz">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019678.html">
+   <LINK REL="Next"  HREF="019692.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Getting request object</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Getting%20request%20object&In-Reply-To=200512070921.35487.blackhex%40post.cz"
+       TITLE="[mod_python] Getting request object">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Dec  7 06:29:14 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019678.html">[mod_python] Getting request object
+</A></li>
+        <LI>Next message: <A HREF="019692.html">[mod_python] Getting request object
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19679">[ date ]</a>
+              <a href="thread.html#19679">[ thread ]</a>
+              <a href="subject.html#19679">[ subject ]</a>
+              <a href="author.html#19679">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 07/12/2005, at 7:21 PM, Radek Barto&#328; wrote:
+
+&gt;<i> Hello, thanks for your reply.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> If what it is that you want is that an instance of MyClass be created
+</I>&gt;&gt;<i> specific for each request, before any URL mapping against methods is
+</I>&gt;&gt;<i> being done, then using mod_python.publisher alone the answer is  
+</I>&gt;&gt;<i> that no
+</I>&gt;&gt;<i> it cannot be done easily. Unless my brain is overlooking something
+</I>&gt;&gt;<i> obvious, you have to do something convoluted like:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> from mod_python import util, apache
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> import types
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> class Wrapper:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   def __init__(self,function):
+</I>&gt;&gt;<i>     self.__class = function.im_class
+</I>&gt;&gt;<i>     self.__name = function.im_func.__name__
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   def __call__(self,req):
+</I>&gt;&gt;<i>     instance = self.__class(req)
+</I>&gt;&gt;<i>     function = getattr(instance,self.__name)
+</I>&gt;&gt;<i>     return util.apply_fs_data(function,req.form)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> class MyClass:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   def __init__(self,req):
+</I>&gt;&gt;<i>     self.__req = req
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   def method1(self):
+</I>&gt;&gt;<i>     return &quot;method1&quot;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   def method2(self):
+</I>&gt;&gt;<i>     return &quot;method2&quot;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> class Object: pass
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> index = Object()
+</I>&gt;&gt;<i> index.method1 = Wrapper(MyClass.method1)
+</I>&gt;&gt;<i> index.method2 = Wrapper(MyClass.method2)
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  I tried this wrapper. When I typed URL <A HREF="http://localhost/test.py/">http://localhost/test.py/</A> 
+</I>&gt;<i> index page
+</I>&gt;<i> returned string representation of object so I could write __str__  
+</I>&gt;<i> function of
+</I>&gt;<i> Object class to make it working.
+</I>
+You are better off defining __call__() for the instance and not  
+__str__()
+as __call__() still allows you access to form parameters and the request
+object. Thus you might have:
+
+   class MyClass:
+
+       ...
+
+       def __call__(self):
+           return &quot;__call__&quot;
+
+...
+
+index.__call__ = Wrapper(MyClass.__call__)
+
+&gt;<i> But URLs
+</I>&gt;<i> <A HREF="http://localhost/test.py/index/method1">http://localhost/test.py/index/method1</A> and
+</I>&gt;<i> <A HREF="http://localhost/test.py/index/method2">http://localhost/test.py/index/method2</A> returned errors &quot;Not Found&quot;.
+</I>
+You might need to be running mod_python 3.2.5b for it to work, but I  
+would not
+have expected that to be the case. This code was actual code I tried  
+and tested
+before I sent it, albeit on mod_python 3.2.5b.
+
+&gt;<i>   Nevertheless I think that functionality of this wrapper was  
+</I>&gt;<i> mentioned same
+</I>&gt;<i> as functionality of my first example:
+</I>&gt;<i>
+</I>&gt;<i> class MyClass:
+</I>&gt;<i>    def __init__(self):
+</I>&gt;<i>       ...
+</I>&gt;<i>    def __str__(self):
+</I>&gt;<i>      ...
+</I>&gt;<i>    def method1(self, req):
+</I>&gt;<i>      ...
+</I>&gt;<i>    def method2(self, req):
+</I>&gt;<i>      ...
+</I>&gt;<i>
+</I>&gt;<i> index = MyClass():
+</I>
+The code I posted is not the same. In your code, there is one and  
+only one
+instance of MyClass created and all requested are handled within the
+context of the one instance. This instance of MyClass is created at the
+time the module is imported and is why it is not possible for the  
+request
+object to be available to the constructor of the class.
+
+In the code I posted, the Wrapper instance __call__() method is  
+called for
+each request and an instance of MyClass is created for each request  
+which
+is received. The distinct request object for each request is passed  
+to the
+constructor for the instance of MyClass created specifically for each  
+request.
+
+&gt;<i> I don't know much about mod_python and its publisher internal  
+</I>&gt;<i> function but
+</I>&gt;<i> this one works because I think that publisher when parse request  
+</I>&gt;<i> URL looks
+</I>&gt;<i> first for matching file in web root and then it looks into this  
+</I>&gt;<i> file for
+</I>&gt;<i> index function or for index object. If index object has defined  
+</I>&gt;<i> __str__
+</I>&gt;<i> function publisher returns string representation of this object as  
+</I>&gt;<i> reply for
+</I>&gt;<i> request. If index object has methods and URL is containing  
+</I>&gt;<i> identifier of some
+</I>&gt;<i> method publisher call it. Repair me if this is bad idea.
+</I>
+More or less. If MyClass provides __call__() it will call that in  
+preference to
+converting the instance to a string, thus triggering execution of  
+__str__().
+
+&gt;&gt;<i> Apart from that, if you were using Vampire, you could simply use  
+</I>&gt;&gt;<i> basic
+</I>&gt;&gt;<i> handlers are write:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> import vampire
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> class MyClass:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   def __init__(self,req):
+</I>&gt;&gt;<i>     self.__req = req
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   def __call__(self):
+</I>&gt;&gt;<i>     return &quot;__call__&quot;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   def method1(self):
+</I>&gt;&gt;<i>     return &quot;method1&quot;,self.__req.filename
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   def method2(self, req):
+</I>&gt;&gt;<i>     return &quot;method2&quot;,req.filename
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> handler = vampire.Publisher(MyClass)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The vampire.Publisher() wrapper class handlers both creating an  
+</I>&gt;&gt;<i> instance
+</I>&gt;&gt;<i> of the class and mapping URLs onto methods of the instance. It only
+</I>&gt;&gt;<i> supports callable methods in classes though. Ie., it will not map  
+</I>&gt;&gt;<i> URLs
+</I>&gt;&gt;<i> to __str__() or to basic data types which are a member of the class.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> This looks that it cold have functionality I want. But mayby it  
+</I>&gt;<i> will be
+</I>&gt;<i> sufficent to look how vampire gets request object and write this to  
+</I>&gt;<i> MyClass's
+</I>&gt;<i> constructor.
+</I>
+It is not that simple. The vampire.Publisher class and the code it  
+relies on
+to do what it does is not trivial. It in effect implements a complete  
+mechanism
+for mapping URLs onto objects, much like mod_python.publisher. It isn't
+just a few lines that you could emulate.
+
+&gt;&gt;<i> Note that creating an instance of a class per request could be quite
+</I>&gt;&gt;<i> inefficient. What is the original reason that you wanted to access  
+</I>&gt;&gt;<i> the
+</I>&gt;&gt;<i> request object in the constructor in the first place?
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I didn' know that when I use
+</I>&gt;<i>
+</I>&gt;<i> def index(req):
+</I>&gt;<i>    instance = MyClass(req)
+</I>&gt;<i>
+</I>&gt;<i> mod_python creates only one instance of MyClass for every request  
+</I>&gt;<i> and when I
+</I>&gt;<i> use
+</I>
+It doesn't, it is creating an instance of MyClass per request.
+
+&gt;<i> index = MyClass
+</I>&gt;<i>
+</I>&gt;<i> it creates instance for each.
+</I>
+You are starting to mix techniques here. If you are actually talking  
+about basic
+handlers and not mod_python.publisher, you can do this but for your  
+MyClass
+it will fail. If using basic handlers, you can say:
+
+   class MyClass:
+
+     def __call__(self,req):
+         ....
+
+   handler = MyClass
+
+and mod_python will create an instance of MyClass for each request  
+and then
+call the instance, thus why it must define __call__(). With basic  
+handlers as you
+seem to realise though, there is no further URL mapping done by  
+mod_python.
+
+If using mod_python.publisher, as:
+
+   index = MyClass
+
+you should I believe get NotFound as it will not automatically create  
+instances
+of classes for you if a class type is referenced. I know Nicolas hand  
+it in mind
+to perhaps support this, but personally I don't think it is a good  
+idea as it could
+introduce other problems where people think methods are not  
+accessible but
+may actually. The authorisation schemes as written also would not  
+work for the
+instance created. Ie., authorisation could only be done at file scope.
+
+&gt;<i> But creating instance isn't the purpose. Purpose
+</I>&gt;<i> is to have page witch is class. Its string representation or its  
+</I>&gt;<i> callable
+</I>&gt;<i> function returns main content with forms i. e. and its methost handles
+</I>&gt;<i> request connected with forms on main page.
+</I>&gt;<i>
+</I>&gt;<i> Hope that I make my self clear and thanks for response.
+</I>
+Not entirely, you still haven't explicitly said for what reason you  
+want to access
+the &quot;req&quot; object in the constructor of MyClass, which is basically  
+what your original
+question was about. If you can specify what information you are  
+wanting to get
+from the request object in the constructor, can perhaps say why you  
+would not
+want to do that or how you might do it.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019678.html">[mod_python] Getting request object
+</A></li>
+	<LI>Next message: <A HREF="019692.html">[mod_python] Getting request object
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19679">[ date ]</a>
+              <a href="thread.html#19679">[ thread ]</a>
+              <a href="subject.html#19679">[ subject ]</a>
+              <a href="author.html#19679">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

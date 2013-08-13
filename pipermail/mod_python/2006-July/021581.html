@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Module importing with mod_vampire
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Module%20importing%20with%20mod_vampire&In-Reply-To=26DFF514-32D6-4AD0-B13F-D2AAB3471F30%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021580.html">
+   <LINK REL="Next"  HREF="021582.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Module importing with mod_vampire</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Module%20importing%20with%20mod_vampire&In-Reply-To=26DFF514-32D6-4AD0-B13F-D2AAB3471F30%40dscpl.com.au"
+       TITLE="[mod_python] Module importing with mod_vampire">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Jul 12 07:23:35 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021580.html">[mod_python] Module importing with mod_vampire
+</A></li>
+        <LI>Next message: <A HREF="021582.html">[mod_python] Module importing with mod_vampire
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21581">[ date ]</a>
+              <a href="thread.html#21581">[ thread ]</a>
+              <a href="subject.html#21581">[ subject ]</a>
+              <a href="author.html#21581">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Whoops, didn't see you had VampireImportHooks set to On. I better think
+some more about what you are doing and refresh myself how that feature
+works.
+
+Graham
+
+On 12/07/2006, at 9:14 PM, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 12/07/2006, at 6:47 PM, apocalypznow wrote:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> Module importing with mod_vampire is not working.  I get one of  
+</I>&gt;&gt;<i> several old copies of the python program I am importing!
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Here is the relevant section of my httpd.conf file:
+</I>&gt;&gt;<i> Alias /forums &quot;/var/www/mod_python/forums&quot;
+</I>&gt;&gt;<i> &lt;Directory /var/www/mod_python/forums&gt;
+</I>&gt;&gt;<i>   SetHandler python-program
+</I>&gt;&gt;<i>   PythonHandler vampire
+</I>&gt;&gt;<i>   PythonDebug On
+</I>&gt;&gt;<i>   Options -MultiViews -Indexes
+</I>&gt;&gt;<i>   PythonPath &quot;['/var/www/mod_python/lib','/var/www/mod_python/ 
+</I>&gt;&gt;<i> forums']+sys.path&quot;
+</I>&gt;&gt;<i>   PythonOption VampireImportHooks On
+</I>&gt;&gt;<i> &lt;/Directory&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The python program in question &quot;ticket.py&quot; is in the /var/www/ 
+</I>&gt;&gt;<i> mod_python/lib folder.  I have also moved it to the /var/www/ 
+</I>&gt;&gt;<i> mod_python/forums folder.  The results are the same no matter  
+</I>&gt;&gt;<i> where it is.  The calling program is in the /var/www/mod_python/ 
+</I>&gt;&gt;<i> forums folder, and it does this:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> import ticket
+</I>&gt;&gt;<i> d = ticket.getData()
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> This is nothing to do with Vampire, it is how builtin Python  
+</I>&gt;<i> &quot;import&quot; behaves
+</I>&gt;<i> in mod_python. Specifically, when you use &quot;import&quot; the module first  
+</I>&gt;<i> loaded
+</I>&gt;<i> is the one that will be used thereafter. The reason you are seeing  
+</I>&gt;<i> several
+</I>&gt;<i> old copies is most likely because you are using a version of Apache  
+</I>&gt;<i> running
+</I>&gt;<i> with the prefork MPM and each request is being served by a  
+</I>&gt;<i> different Apache
+</I>&gt;<i> child process and which has at different times loaded different  
+</I>&gt;<i> versions of
+</I>&gt;<i> the module.
+</I>&gt;<i>
+</I>&gt;<i> If the module the &quot;import&quot; is being done in is the top level  
+</I>&gt;<i> handler module
+</I>&gt;<i> loaded by Vampire, instead of using &quot;import&quot; use:
+</I>&gt;<i>
+</I>&gt;<i>   ticket = vampire.importModule(&quot;ticket&quot;)
+</I>&gt;<i>
+</I>&gt;<i> Vampire's module importer does not look in sys.path though, so if  
+</I>&gt;<i> the &quot;ticket&quot;
+</I>&gt;<i> module is not in the same directory, you need to specify the path  
+</I>&gt;<i> to get the
+</I>&gt;<i> module from.
+</I>&gt;<i>
+</I>&gt;<i>   ticket = vampire.importModule(&quot;ticket&quot;, path=[&quot;/some/directory&quot;])
+</I>&gt;<i>
+</I>&gt;<i> Directories which modules are imported from using Vampire module  
+</I>&gt;<i> loader should
+</I>&gt;<i> not also be in sys.path as strange things can happen.
+</I>&gt;<i>
+</I>&gt;<i> BTW, you should also read:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="http://www.dscpl.com.au/articles/modpython-003.html">http://www.dscpl.com.au/articles/modpython-003.html</A>
+</I>&gt;<i>
+</I>&gt;<i> for general background information on problems with the module  
+</I>&gt;<i> importer in
+</I>&gt;<i> mod_python.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021580.html">[mod_python] Module importing with mod_vampire
+</A></li>
+	<LI>Next message: <A HREF="021582.html">[mod_python] Module importing with mod_vampire
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21581">[ date ]</a>
+              <a href="thread.html#21581">[ thread ]</a>
+              <a href="subject.html#21581">[ subject ]</a>
+              <a href="author.html#21581">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

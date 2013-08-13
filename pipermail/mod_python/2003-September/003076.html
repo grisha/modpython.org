@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python]  PythonHandler does not appear to append directory
+ to import path
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20PythonHandler%20does%20not%20appear%20to%20append%20directory%0A%20to%20import%20path&In-Reply-To=DIEMKLHLKFCCPAEPDMHKCEFFCEAA.grickert%40coldstorage.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003075.html">
+   <LINK REL="Next"  HREF="003077.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python]  PythonHandler does not appear to append directory
+ to import path</H1>
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20PythonHandler%20does%20not%20appear%20to%20append%20directory%0A%20to%20import%20path&In-Reply-To=DIEMKLHLKFCCPAEPDMHKCEFFCEAA.grickert%40coldstorage.com"
+       TITLE="[mod_python]  PythonHandler does not appear to append directory
+ to import path">grisha at modpython.org
+       </A><BR>
+    <I>Tue Sep  9 10:41:55 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003075.html">[mod_python] 
+	PythonHandler does not appear to append directory to import path
+</A></li>
+        <LI>Next message: <A HREF="003077.html">[mod_python]  PythonHandler does not appear to append directory
+ to import path
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3076">[ date ]</a>
+              <a href="thread.html#3076">[ thread ]</a>
+              <a href="subject.html#3076">[ subject ]</a>
+              <a href="author.html#3076">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Gerrat -
+
+You're right, it doesn't add the directory to the path if PythonPath is
+specified. The code that decides this has no way of knowing whether the
+handler was specified via an Apache directive or req.add_handler(). It
+just follows the rule that PythonPath overrides everything.
+
+The rationale for this all-overriding behaviour of PythonPath is that you
+can use it make sure that the directory where the handler is specified is
+_not_ in sys.path. (Otherwise, if the directive directory was _always_
+added, there would be no way to achieve this)
+
+You can do two things:
+
+1. Add directory_to_append_to_sys_path to PythonPath
+2. Get rid of PythonPath. I see a lot of people using it where they really
+don't need to. See if you _really_ need it.
+
+What *I* need to do is adjust the documentation of add_handler() to
+clarify that dir has no effect when PythonPath is specified.
+
+Grisha
+
+On Mon, 8 Sep 2003, Gerrat Rickert wrote:
+
+&gt;<i> I'm using mod_python 3.03, apache 2.047, and python 2.2.3 on a win2K machine
+</I>&gt;<i> &amp; am trying to use the publisher handler.  The problem is when I try to add
+</I>&gt;<i> an additional handler via:
+</I>&gt;<i>
+</I>&gt;<i> req.addhandler(&quot;PythonHandler&quot;, testModule, directory_to_append_to_sys_path)
+</I>&gt;<i>
+</I>&gt;<i> The error I am getting is:
+</I>&gt;<i>
+</I>&gt;<i> Mod_python error: &quot;PythonHandler testModule&quot;
+</I>&gt;<i>
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;D:\Python22\lib\site-packages\mod_python\apache.py&quot;, line 340, in
+</I>&gt;<i> HandlerDispatch
+</I>&gt;<i>     module = import_module(module_name, config)
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;D:\Python22\lib\site-packages\mod_python\apache.py&quot;, line 516, in
+</I>&gt;<i> import_module
+</I>&gt;<i>     f, p, d = imp.find_module(parts[i], path)
+</I>&gt;<i>
+</I>&gt;<i> ImportError: No module named testModule
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Looking through the HandlerDispatch function of apache.py, the relevant code
+</I>&gt;<i> is:
+</I>&gt;<i>
+</I>&gt;<i> if config.has_key(&quot;PythonPath&quot;):
+</I>&gt;<i> ...
+</I>&gt;<i> else:
+</I>&gt;<i>     dir = hlist.directory
+</I>&gt;<i>     if dir and (dir not in sys.path):
+</I>&gt;<i>         sys.path[:0] = [dir]
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> This code doesn't appear to add my directory
+</I>&gt;<i> (directory_to_append_to_sys_path) to the sys.path if I have &quot;PythonPath&quot; in
+</I>&gt;<i> my httpd.conf file.  Importing my module fails because of this.  I'm not
+</I>&gt;<i> sure if this is just a misunderstanding on my part or has already been
+</I>&gt;<i> addressed (in which case I apologize for posting).  As far as I can see, the
+</I>&gt;<i> &quot;else&quot; portion of this statement should be executed regardless of whether
+</I>&gt;<i> PythonPath is in the config file or not.  Can anyone else confirm this?
+</I>&gt;<i>
+</I>&gt;<i> Thanks,
+</I>&gt;<i> Gerrat Rickert
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003075.html">[mod_python] 
+	PythonHandler does not appear to append directory to import path
+</A></li>
+	<LI>Next message: <A HREF="003077.html">[mod_python]  PythonHandler does not appear to append directory
+ to import path
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3076">[ date ]</a>
+              <a href="thread.html#3076">[ thread ]</a>
+              <a href="subject.html#3076">[ subject ]</a>
+              <a href="author.html#3076">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

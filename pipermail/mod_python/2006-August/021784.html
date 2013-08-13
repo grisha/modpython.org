@@ -1,0 +1,227 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] For what session locking is? Do i need it while
+	using	MySQL?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20For%20what%20session%20locking%20is%3F%20Do%20i%20need%20it%20while%0A%09using%09MySQL%3F&In-Reply-To=125279903375.20060810142303%40zdisk.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021808.html">
+   <LINK REL="Next"  HREF="021785.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] For what session locking is? Do i need it while
+	using	MySQL?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20For%20what%20session%20locking%20is%3F%20Do%20i%20need%20it%20while%0A%09using%09MySQL%3F&In-Reply-To=125279903375.20060810142303%40zdisk.net"
+       TITLE="[mod_python] For what session locking is? Do i need it while
+	using	MySQL?">jpg at jgassociates.ca
+       </A><BR>
+    <I>Thu Aug 10 09:01:06 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021808.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+        <LI>Next message: <A HREF="021785.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21784">[ date ]</a>
+              <a href="thread.html#21784">[ thread ]</a>
+              <a href="subject.html#21784">[ subject ]</a>
+              <a href="author.html#21784">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Norman Tindall wrote:
+&gt;<i> Hello,
+</I>&gt;<i>    Hmm. i can`t get session model in mod_python
+</I>&gt;<i> Is it something like a pool of session or a shared object? Is potentialy any thread can
+</I>&gt;<i> access any session and they locked in a time while thread handles
+</I>&gt;<i> request?
+</I>
+Basically it's a shared object. Depending on which session class you are
+using, the actual object may be a dictionary in memory (MemorySession),
+a row in a dbm file (DbmSession) or a file on the file system
+(FileSession). A request for a particular session id (which may be in a
+thread or a separate process, depending on your apache mpm), must
+acquire a lock for that session before it can proceed. This ensures that
+only one request can read or write data for that session at time.
+
+&gt;<i>    I am writing a simple MySQL session module,
+</I>&gt;<i> in MySQL i can set SESS_ID solumn as UNIQUE and do something like this
+</I>&gt;<i> 
+</I>&gt;<i> try:
+</I>&gt;<i>          c.execute(&quot;insert into sessions ...&quot;)
+</I>&gt;<i> except MySQLdb.IntegrityError:
+</I>&gt;<i>        #  here i catch duplicate entries
+</I>&gt;<i> 
+</I>&gt;<i> Speed is a factor so.. what would be faster.. locking
+</I>&gt;<i> with _apache._global_lock(self._req.server, self._sid) OR
+</I>&gt;<i> MySQLdb.IntegrityError ??
+</I>
+My guess is acquiring the lock will be faster, but it doesn't really
+matter as using MySQLdb.IntegrityError does not do what you want. It
+only makes sure that you don't have duplicate session ids in your table.
+It does *not* protect your session data from simultaneous access by
+different requests.
+
+&gt;<i> documentation has only one row about locking
+</I>&gt;<i> &quot;When locking is on, only one session object with a particular session id can be instantiated at a time.&quot;
+</I>
+Well, that's pretty much all there is to it. :)
+
+&gt;<i> Could anyone give me a simple Entity Diagramm showing relations
+</I>&gt;<i> between  Session -  Apache threads - Random generators used in
+</I>&gt;<i> Sessions.py (they are also pooled for the numbers of MPM?)
+</I>&gt;<i> and also more detailed info of what happens when session lock aquired
+</I>
+Sorry, no pictures, but I can give you words.
+
+Here is a use case that may help clarify what is going on. Each morning
+I visit my favourite news site which can be a little slow at times. I
+like to scan the headlines and when I find something interesting I open
+that link in a separate browser tab. While that story is loading I
+continue perusing the headlines, opening stories as I go. As as result I
+might have 5 or 6 pages loading simultaneously.
+
+Now let's suppose the news site whats to keep track of the number of
+stories I've read in a simple hit counter, which is stored in a session
+for my visit. The code snippet might look like this:
+
+def handler(req):
+    session = Session.Session(req, lock=whatever)
+    try:
+        session['hits'] += 1
+    except KeyError:
+        session['hits'] = 1
+
+    ... generate the page, do some processing, whatever ...
+
+    session.save()
+    return apache.OK
+
+First, consider the possible behaviour if we don't lock the session
+(lock=0). The first page (A) is complicated and it takes a while to
+reach the session.save() code, while the second page (B) is quite simple
+and so returns quickly.
+
+1. Request 'A' arrives and 'hits' is incremented to 1.
+   'A' starts to render the page, but it's complicated and takes
+   some time.
+2. context switch
+3. Request 'B' arrives and 'hits' is incremented to 1.
+   'B' renders the page and runs session.save().
+   The request is complete.
+   The 'hits' stored in the session data store is 1.
+4. context switch
+5. 'A' finishes rendering the page, and runs session.save().
+   The hits stored in the session data store is 1.
+
+Oops. I've visited 2 pages, but the hit counter says I've only visited
+1. This is called a race condition (whichever request saves first wins)
+and is one of the things mutexes are meant to fix.
+
+Now consider the above with lock=1 (the default for Session).
+
+1. Request 'A' arrives and tries to acquire the session lock.
+   It succeeds, so processing continues.
+   'hits' is incremented to 1.
+   'A' starts to render the page, but it's complicated and takes
+   some time.
+2. context switch
+3. Request 'B' arrives and tries to acquire the session lock.
+   It fails to get the lock, so it can't proceed. (ie, it blocks).
+4. 'A' finishes rendering the page, and runs session.save().
+   The request is complete and the session machinery automatically
+   unlocks the session.
+   The hits stored in the session data store is 1.
+5. context switch
+6. 'B' now acquires the session lock.
+   It renders the page and runs session.save().
+   The request is complete and the session is unlocked.
+   The 'hits' stored in the session data store is 2.
+
+The saved number of hits is now 2, which is correct. Notice that I
+didn't mention anything about mutexes. That's really an implementation
+detail hidden from view in Session.py. We choose to use mutexes for
+session locking, but there are other possible mechanisms. The point is
+to avoid the race condition described above, which is handled for you.
+
+If you want to create your own session subclass, all you need to do is
+override the following methods (none of which touch the locking mechanism).
+
+  __init__()
+  do_load()
+  do_save()
+  do_delete()
+  do_cleanup()
+
+do_cleanup will just register a callback function which does the actual
+cleanup of expired sessions. If you are not careful you can introduce a
+race condition there which could delete a valid session. It's not
+difficult, but you do need to be careful. See the discussion in
+developer's archive that Graham mentioned.
+
+&gt;<i> Sorry i am a newbie in multi-thread and this mutex crap :)
+</I>&gt;<i> Would be nice if anyone give me a link or a name of a good books in
+</I>&gt;<i> this theme.
+</I>
+Friend, thy name is Google. :)
+
+Jim
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021808.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+	<LI>Next message: <A HREF="021785.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21784">[ date ]</a>
+              <a href="thread.html#21784">[ thread ]</a>
+              <a href="subject.html#21784">[ subject ]</a>
+              <a href="author.html#21784">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

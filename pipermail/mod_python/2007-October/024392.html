@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] how to create a 'submit' page while background
+	function runs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20to%20create%20a%20%27submit%27%20page%20while%20background%0A%09function%20runs&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024391.html">
+   <LINK REL="Next"  HREF="024393.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] how to create a 'submit' page while background
+	function runs</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Cameron McPherson</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20to%20create%20a%20%27submit%27%20page%20while%20background%0A%09function%20runs&In-Reply-To="
+       TITLE="[mod_python] how to create a 'submit' page while background
+	function runs">cameron.mcpherson at florey.edu.au
+       </A><BR>
+    <I>Tue Oct 30 10:25:48 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024391.html">[mod_python] Trouble on OSX - Leopard
+</A></li>
+        <LI>Next message: <A HREF="024393.html">[mod_python] how to create a 'submit' page while
+	background	function runs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24392">[ date ]</a>
+              <a href="thread.html#24392">[ thread ]</a>
+              <a href="subject.html#24392">[ subject ]</a>
+              <a href="author.html#24392">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I am using the mod_python publisher handler to control form data. It works fine, but
+what I want to do is create a submit 'please wait while request is processed' kind
+of page upon form submit.
+AFAIK, publisher has to either return a string to complete, or use req.write(x)
+followed by return(apache.OK) to finish. with this in mind, how can I return html
+showing a submit page, whilst running the script on the form data in the background,
+then return that html string when it's done?
+
+I've tried javascript through the form onsubmit, which is fine for most form data
+entered, except it chokes on the file upload value - it cannot pass this correctly
+to the handler req object (I need it as req.form['file']), and the inbuilt read-only
+prevents me from assigning it to a input file value using js (see below).
+
+Any ideas on implementing this are greatly appreciated.
+
+
+Cam.
+
+
+==&gt; submits sequence or file to 'ProcessForm'; calls 'submitCheck()' first
+&lt;form enctype=&quot;multipart/form-data&quot; action= &quot;./ProcessForm&quot; method=&quot;post&quot;
+onsubmit=&quot;submitCheck()&quot; name=&quot;ppg&quot;&gt;
+    &lt;p&gt;&lt;input type=&quot;textarea&quot; name=&quot;sequence&quot; maxlength=&quot;100000&quot;
+autofocus=&quot;autofocus&quot; cols=&quot;80&quot; rows=&quot;10&quot; wrap=&quot;hard&quot; /&gt;&lt;/p&gt;
+    &lt;p&gt;&lt;input type=&quot;file&quot; name=&quot;file&quot; /&gt; &amp;nbsp;&amp;nbsp;&lt;input type=&quot;submit&quot;
+value=&quot;submit&quot; /&gt; &lt;input type=&quot;reset&quot; value=&quot;reset&quot; /&gt;&lt;/p&gt;
+...
+&lt;/form&gt;
+
+==&gt; Processes form data, returns a formatted string to the client
+def ProcessForm(req): # called from 'submit'
+...
+    if not sequence: # (or =='')
+        fileitem=req.form['file']
+        if fileitem.filename:    #check that file was uploaded
+...         #process uploaded file data
+        return Display(req,probeList)
+
+==&gt; Hack job to try to make a submit page w' JS - works fine for form data
+'sequence' in the form textarea, but cannot adequately pass the file item data to
+the 'ProcessForm' script (ie: i think it's not recognised properly as a req object
+file? I've commented out the bits which dont work)
+function submitCheck() {
+    if (document.forms.ppg.sequence.value) {
+    var seq=document.forms.ppg.sequence.value
+    var fil=document.forms.ppg.file.value
+    var gen=document.forms.ppg.gene_id.value
+    var num=document.forms.ppg.number_probes.value
+    var smin=document.forms.ppg.size_min.value
+    var smax=document.forms.ppg.size_max.value
+    var tmin=document.forms.ppg.tm_min.value
+    var tmax=document.forms.ppg.tm_max.value
+    var gmin=document.forms.ppg.gc_min.value
+    var gmax=document.forms.ppg.gc_max.value
+    var subS1=&quot;&lt;html&gt;\n&lt;head&gt;\n&lt;link rel=\&quot;stylesheet\&quot; type=\&quot;text/css\&quot;
+href=\&quot;./assets/style/style.css\&quot; /&gt;\n&lt;/head&gt;\n&lt;body&gt;\n&lt;h3
+style=\&quot;text-decoration:blink;\&quot;&gt;Please wait while your request is
+processed...&lt;/h3&gt;&quot;;
+    var subS2=&quot;&lt;/form&gt;\n&lt;/body&gt;\n&lt;/html&gt;&quot;;
+    document.write(subS1);
+    document.write(&quot;&lt;form enctype=\&quot;multipart/form-data\&quot; action=\&quot;./ProcessForm\&quot;
+method=\&quot;post\&quot; onsubmit=\&quot;submitResult()\&quot; name=\&quot;ppgSubmit\&quot;&gt;&quot;);
+    document.write(&quot;&lt;input type=\&quot;hidden\&quot; name=\&quot;sequence\&quot; value=&quot;+seq+&quot;&gt;&quot;);
+    //document.write(&quot;&lt;input type=\&quot;file\&quot; name=\&quot;file\&quot; value=&quot;+fil+&quot;&gt;&quot;);
+    //document.write(&quot;&lt;input type=\&quot;hidden\&quot; name=\&quot;file\&quot; value=&quot;+fil+&quot;&gt;&quot;);
+    document.write(&quot;&lt;input type=\&quot;hidden\&quot; name=\&quot;gene_id\&quot; value=&quot;+gen+&quot;&gt;&quot;);
+    document.write(&quot;&lt;input type=\&quot;hidden\&quot; name=\&quot;number_probes\&quot; value=&quot;+num+&quot;&gt;&quot;);
+    document.write(&quot;&lt;input type=\&quot;hidden\&quot; name=\&quot;size_min\&quot; value=&quot;+smin+&quot;&gt;&quot;);
+    document.write(&quot;&lt;input type=\&quot;hidden\&quot; name=\&quot;size_max\&quot; value=&quot;+smax+&quot;&gt;&quot;);
+    document.write(&quot;&lt;input type=\&quot;hidden\&quot; name=\&quot;tm_min\&quot; value=&quot;+tmin+&quot;&gt;&quot;);
+    document.write(&quot;&lt;input type=\&quot;hidden\&quot; name=\&quot;tm_max\&quot; value=&quot;+tmax+&quot;&gt;&quot;);
+    document.write(&quot;&lt;input type=\&quot;hidden\&quot; name=\&quot;gc_min\&quot; value=&quot;+gmin+&quot;&gt;&quot;);
+    document.write(&quot;&lt;input type=\&quot;hidden\&quot; name=\&quot;gc_max\&quot; value=&quot;+gmax+&quot;&gt;&quot;);
+    document.write(subS2);
+    document.forms.ppgSubmit.submit();
+    //alert(fil);
+    }
+}
+
+
+
+
+
+
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024391.html">[mod_python] Trouble on OSX - Leopard
+</A></li>
+	<LI>Next message: <A HREF="024393.html">[mod_python] how to create a 'submit' page while
+	background	function runs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24392">[ date ]</a>
+              <a href="thread.html#24392">[ thread ]</a>
+              <a href="subject.html#24392">[ subject ]</a>
+              <a href="author.html#24392">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

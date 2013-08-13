@@ -1,0 +1,197 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] psp_site example doesn't work
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp_site%20example%20doesn%27t%20work&In-Reply-To=16885.11826.768433.372438%40greenmonster.local">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017232.html">
+   <LINK REL="Next"  HREF="017209.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] psp_site example doesn't work</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp_site%20example%20doesn%27t%20work&In-Reply-To=16885.11826.768433.372438%40greenmonster.local"
+       TITLE="[mod_python] psp_site example doesn't work">nicolas.lehuen at gmail.com
+       </A><BR>
+    <I>Mon Jan 24 14:58:59 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017232.html">[mod_python] psp_site example doesn't work
+</A></li>
+        <LI>Next message: <A HREF="017209.html">[mod_python] psp_site example doesn't work
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17208">[ date ]</a>
+              <a href="thread.html#17208">[ thread ]</a>
+              <a href="subject.html#17208">[ subject ]</a>
+              <a href="author.html#17208">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Mon, 24 Jan 2005 12:19:46 -0500, Daniel Popowich
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">dpopowich at comcast.net</A>&gt; wrote:
+&gt;<i> 
+</I>&gt;<i> I agree with Nicolas that this is a &quot;bug&quot;.  Perhaps not a bug in the
+</I>&gt;<i> classic sense: something not working as advertised, but a design
+</I>&gt;<i> issue so gnarly, that it smells like bug.
+</I>&gt;<i> 
+</I>&gt;<i> Thank you Jorey for your detailed email, but I have to disagree with
+</I>&gt;<i> you when you wrote:
+</I>&gt;<i> 
+</I>&gt;<i>     This is consistent with normal Python behaviour, where an
+</I>&gt;<i>     interpreter loads modules from the current directory or
+</I>&gt;<i>     PYTHONPATH. [1]
+</I>&gt;<i> 
+</I>&gt;<i> I came to mod_python after *many* years of intensive python
+</I>&gt;<i> programming and as a newbie to mod_python was caught by this issue for
+</I>&gt;<i> days.  The way mod_python imports files all at the same root level is
+</I>&gt;<i> very UN-pythonic.  After much hair-pulling I finally realized I needed
+</I>&gt;<i> to roll my own for mpservlets.
+</I>&gt;<i> 
+</I>&gt;<i> I do think it's possible to patch publisher and keep it backwards
+</I>&gt;<i> compatible.  In mpservlets, I do something like this:
+</I>&gt;<i> 
+</I>&gt;<i>     cache = {}
+</I>&gt;<i>     ...
+</I>&gt;<i>     fname = full path of source file to be loaded, say, req.filename
+</I>&gt;<i>     ...
+</I>&gt;<i>     # check cache
+</I>&gt;<i>     code = cache.get(fname)
+</I>&gt;<i>     if not code:
+</I>&gt;<i>         code = {}
+</I>&gt;<i>         execfile(fname, code)
+</I>&gt;<i>         cache[fname] = code
+</I>&gt;<i>     # search code dictionary for what I'm after, e.g.:
+</I>&gt;<i>     handler = code.get('handler')
+</I>&gt;<i>     if not handler:
+</I>&gt;<i>        raise apache.SERVER_RETURN, apache.http_not_found
+</I>&gt;<i>     handler(req)
+</I>&gt;<i> 
+</I>&gt;<i> You get the idea...
+</I>&gt;<i>
+</I>&gt;<i> Since publisher should &quot;own&quot; the modules it will import (if well
+</I>&gt;<i> designed, IMHO, the files exist for mod_python, not general use) and
+</I>&gt;<i> knows exactly what it's looking for in the modules, I see no reason
+</I>&gt;<i> why such a caching scheme can't work.
+</I>
+That's what I also use, with locks to ensure thread safety, and it
+works without a hitch on a production server. I do totally agree with
+you when you write that published modules should not be mixed with
+general purpose modules. Published modules and 'standard' modules do
+not share the same semantics :
+
+- published modules can be reloaded as soon as they are modified, or
+loaded multiple times if you use the forked MPM ; the code it contains
+must be aware of this fact, which is generally not true for standard
+modules.
+- some objects from the published modules are accessible through HTTP.
+This means that those modules are potentially subject to security
+problems. In mod_python.publisher, a non-callable object is simply
+transformed into a string and returned to the HTTP client. It's not a
+good idea, therefore, to have a variable named
+MY_VERY_SECRET_PRIVATE_KEY in the module... It's not even a good idea
+to import it ! Granted, some other publishers may secure what is
+accessible through HTTP and what is not (mine does), but anyway, it's
+a good idea to distinguish between published modules and the others.
+- I personnaly think it's a good thing for published modules not to be
+compiled into a .pyc or .pyo file. Like for the previous point, my
+concern is about security : .pyc and .pyo file should not be
+accessible through HTTP, lest you want your code be dissassembled and
+your private key exposed. A simple .htaccess directive can solve this,
+but what about the zillion people who will forget about it ?
+ 
+&gt;<i> There is an issue of both the python module infrastructure and
+</I>&gt;<i> mod_python having their own copies of the same module if your
+</I>&gt;<i> publisher source file is imported by another module, e.g., index.py is
+</I>&gt;<i> imported by foo.py.  With mpservlets I took the path of enforcing
+</I>&gt;<i> servlets to be in a file that cannot be imported by other modules
+</I>&gt;<i> (they have to be named .mps); this did two things: 1) prevents the
+</I>&gt;<i> double caching problem and 2) promotes the separation of interface
+</I>&gt;<i> code from business logic code.
+</I>
+I totally agree with your design decision. My application are
+separated between published modules which contain all the HTML and
+interface logic, and standard, imported backend modules which contain
+all the application logic. Much cleaner this way.
+
+&gt;<i> I also agree with Nicolas that there seems to be a message being sent
+</I>&gt;<i> when you consider mpservlets, Vampire, his own handler and PSP are all
+</I>&gt;<i> doing their own importing mechanism.  Let's face it, importing in
+</I>&gt;<i> vanilla python is not the most clear-cut source-inclusion scheme
+</I>&gt;<i> around (this is the ONLY area where I think java got it right over
+</I>&gt;<i> python); when you imbed it in a process like apache...ouch...
+</I>&gt;<i> 
+</I>&gt;<i> As for Nicholas' suggestion of removing publisher from the
+</I>&gt;<i> project...that may be a bit drastic.  That being said, I've never
+</I>&gt;<i> thought it an intuitive place to start for newbies.
+</I>
+That was a bit provocative, I agree ;).
+
+&gt;<i> But if mpservlets was adopted into the main-stream distro...!  :-)
+</I>
+I'd say, why not ? I think it's a good thing mod_python is designed
+the way it is. mod_python.apache provides a very low-level interface
+to the Apache mod API. We can then add higher level interfaces on top
+:<i> mod_python.publisher, mpservlets, Vampire... We could even package
+</I>in a WSGI implementation !
+
+However, I think mod_python should provide a default high level
+implementation, a little bit more convenient than
+mod_python.publisher. For starters, I think, like Graham, that the
+fact that the publisher want you to return document instead of writing
+them to the request object is a bit surprising for the newbie, and
+hampers the transition from handlers to published objects. Maybe by
+working together on the python-dev list, we could design a new
+publisher for mod_python ?
+
+Regards,
+Nicolas
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017232.html">[mod_python] psp_site example doesn't work
+</A></li>
+	<LI>Next message: <A HREF="017209.html">[mod_python] psp_site example doesn't work
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17208">[ date ]</a>
+              <a href="thread.html#17208">[ thread ]</a>
+              <a href="subject.html#17208">[ subject ]</a>
+              <a href="author.html#17208">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

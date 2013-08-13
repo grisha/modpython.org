@@ -1,0 +1,187 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Is this related to not having support to upload
+	afile?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Is%20this%20related%20to%20not%20having%20support%20to%20upload%0A%09afile%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020756.html">
+   <LINK REL="Next"  HREF="020758.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Is this related to not having support to upload
+	afile?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Is%20this%20related%20to%20not%20having%20support%20to%20upload%0A%09afile%3F&In-Reply-To="
+       TITLE="[mod_python] Is this related to not having support to upload
+	afile?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Apr  3 22:52:55 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020756.html">[mod_python] Is this related to not having support to upload a
+	file?
+</A></li>
+        <LI>Next message: <A HREF="020758.html">[mod_python] [SPAM] Is this related to not having support to upload
+	a file??
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20757">[ date ]</a>
+              <a href="thread.html#20757">[ thread ]</a>
+              <a href="subject.html#20757">[ subject ]</a>
+              <a href="author.html#20757">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote ..
+&gt;<i> Alberto Ruiz wrote ..
+</I>&gt;<i> &gt; Like I mentioned in earlier threads, this code used to work in a Debian
+</I>&gt;<i> &gt; system, but now it doesn't work on FreeBSD with modpython 2.7.11.
+</I>&gt;<i> &gt; I'm getting the following error.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Mod_python error: &quot;PythonHandler mod_python.publisher&quot;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Traceback (most recent call last):
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   File &quot;/usr/local/lib/python2.4/site-packages/mod_python/apache.py&quot;,
+</I>&gt;<i> &gt; line 193, in Dispatch
+</I>&gt;<i> &gt;     result = object(req)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   File &quot;/usr/local/lib/python2.4/site-packages/mod_python/publisher.py&quot;,
+</I>&gt;<i> &gt; line 106, in handler
+</I>&gt;<i> &gt;     val = File(field)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   File &quot;/usr/local/lib/python2.4/site-packages/mod_python/publisher.py&quot;,
+</I>&gt;<i> &gt; line 322, in __init__
+</I>&gt;<i> &gt;     for m in field.file.__methods__:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; AttributeError: 'file' object has no attribute '__methods__'
+</I>&gt;<i>
+</I>&gt;<i> ...
+</I>&gt;<i>
+</I>&gt;<i> The problem is nothing to do with your code and there is nothing
+</I>&gt;<i> you can do in your code to get around it.
+</I>&gt;<i> 
+</I>&gt;<i> The problem is that in mod_python.publisher it uses:
+</I>&gt;<i> 
+</I>&gt;<i> class File:
+</I>&gt;<i>     &quot;&quot;&quot; Like a file, but also has headers and filename
+</I>&gt;<i>     &quot;&quot;&quot;
+</I>&gt;<i> 
+</I>&gt;<i>     def __init__(self, field):
+</I>&gt;<i>                  
+</I>&gt;<i>         # steal all the file-like methods
+</I>&gt;<i>         for m in field.file.__methods__:
+</I>&gt;<i>             self.__dict__[m] = getattr(field.file, m)
+</I>&gt;<i> 
+</I>&gt;<i> __methods__ is from Python 1.5 and therefore will no longer work if you
+</I>&gt;<i> are using a newer version of Python.
+</I>&gt;<i> 
+</I>&gt;<i>   __methods__
+</I>&gt;<i>     List of the methods of many built-in object types, e.g., [].__methods__
+</I>&gt;<i>     yields ['append', 'count', 'index', 'insert', 'pop', 'remove', 'reverse',
+</I>&gt;<i> 'sort'].
+</I>&gt;<i> 
+</I>&gt;<i> You might be able to modify mod_python 2.7.X source code to do it
+</I>&gt;<i> differently. You might be able to use something like:
+</I>&gt;<i> 
+</I>&gt;<i>         # steal all the file-like methods
+</I>&gt;<i>         #for m in field.file.__methods__:
+</I>&gt;<i>         #    self.__dict__[m] = getattr(field.file, m)
+</I>&gt;<i> 
+</I>&gt;<i>         for k in field.file.__dict__:
+</I>&gt;<i>             if k[:2] != '__':
+</I>&gt;<i>                 v = getattr(field.file, k)
+</I>&gt;<i>                 if callable(v):
+</I>&gt;<i>                     self.__dict__[k] = v
+</I>&gt;<i> 
+</I>&gt;<i> The file in mod_python source code that needs to be modified is:
+</I>&gt;<i> 
+</I>&gt;<i>  lib/python/mod_python/publisher.py
+</I>
+BTW, if you can't modify the source code, for example it is on an ISPs
+box, instead add the following at the start of your published code file
+where you want to use a form upload. Note that this is a mega hack as
+you are patching mod_python on the fly and change may affect other users
+if you get it wrong.
+
+from mod_python import apache
+
+# Don't use import to avoid bug in mod_python.
+_publisher = apache.import_module(&quot;mod_python.publisher&quot;)
+
+class _MyHackFileClass:
+    &quot;&quot;&quot; Like a file, but also has headers and filename
+    &quot;&quot;&quot;
+
+    def __init__(self, field):
+
+        # steal all the file-like methods
+        #for m in field.file.__methods__:
+        #    self.__dict__[m] = getattr(field.file, m)
+
+        for k in field.file.__dict__:
+            if k[:2] != '__':
+                v = getattr(field.file, k)
+                if callable(v):
+                    self.__dict__[k] = v
+
+        self.headers = field.headers
+        self.filename = field.filename
+
+_publisher.File = _MyHackFileClass
+
+# Now comes your original code.
+
+Graham
+
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020756.html">[mod_python] Is this related to not having support to upload a
+	file?
+</A></li>
+	<LI>Next message: <A HREF="020758.html">[mod_python] [SPAM] Is this related to not having support to upload
+	a file??
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20757">[ date ]</a>
+              <a href="thread.html#20757">[ thread ]</a>
+              <a href="subject.html#20757">[ subject ]</a>
+              <a href="author.html#20757">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

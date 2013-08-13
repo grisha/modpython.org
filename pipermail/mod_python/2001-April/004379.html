@@ -1,0 +1,214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Persistent variable?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Persistent%20variable%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004376.html">
+   <LINK REL="Next"  HREF="004381.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Persistent variable?</H1>
+    <B>nineclue at bigfoot.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Persistent%20variable%3F&In-Reply-To="
+       TITLE="[mod_python] Persistent variable?">nineclue at bigfoot.com
+       </A><BR>
+    <I>Sat Apr 14 11:07:12 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004376.html">[mod_python] some issues
+</A></li>
+        <LI>Next message: <A HREF="004381.html">[mod_python] Persistent variable again...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4379">[ date ]</a>
+              <a href="thread.html#4379">[ thread ]</a>
+              <a href="subject.html#4379">[ subject ]</a>
+              <a href="author.html#4379">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>Greetings...
+
+I'm trying to implement custom session handler like PHP.
+I think persistent variables that share between subinterpreters would
+be nice to hold session variables.
+When I tried, I think persistent variables are not shared to
+subinterpreter.
+
+Sorry for my poor English... And thanks in advance for any comment or
+answer.
+
+Suhku Huh
+
+Followings are my custom handler.
+
+from mod_python import apache
+from base64 import decodestring, encodestring
+from cPickle import loads, dumps
+import pg
+
+PG_DB = 'pyweb'
+_SESSION_PATH = ( '/cluelabs', )
+_MODPYTHONID = 'MODPYTHONID'
+
+session_data = {}
+
+class session_var:
+	def __init__(self, con, id = None):
+		self.con = con
+		if id:
+			self.new = 0
+			r = self.con.query(&quot;select val from session where sess_id = '%s'&quot; % id)
+			if not r.ntuples():
+				self.data = {}
+			else:
+				val = r.getresult()[0][0]
+				self.data = loads(decodestring(val))
+		else:
+			import md5, time
+
+			self.new = 1
+			id =  md5.new(str(time.time())).hexdigest()
+			self.data = {}
+		self.id = id
+	def __del__(self):
+		if len(self.data) == 0:
+			return
+		self.save()
+	def __getitem__(self, name):
+		if self.data.has_key(name):
+			return self.data[name]
+		else:
+			return None
+	def __setitem__(self, name, value):
+		self.data[name] = value
+	def __delitem__(self, name):
+		try:
+			del self.name[name]
+		except:
+			pass
+	def __len__(self):
+		return len(self.data)
+	def has_key(self, name):
+		return self.data.has_key(name)
+	def save(self):
+		if self.new:
+			self.con.query(&quot;insert into session values ('%s', '%s')&quot; % (self.id, encodestring(dumps(self.data))))
+		else:
+			self.con.query(&quot;update session set val = '%s', create_time = current_timestamp where sess_id = '%s'&quot; % (encodestring(dumps(self.data)), self.id))
+		
+def _get_cookie(req):
+	if req.headers_in.has_key('Cookie'):
+		ret = {}
+		cookies = req.headers_in['Cookie'].split(';')
+		for cookie in cookies:
+			equal_pos = cookie.index('=')
+			key, value = cookie[:equal_pos], cookie[equal_pos+1:]
+			ret[key.strip()] = value.strip()
+		return ret
+	else:
+		return None
+
+def _start_session(req, con):
+	global session_data
+
+	py_log = open('/home/nineclue/py_log', 'a')
+	py_log.write('Session_data length : %d\n' % len(session_data))
+	py_log.close()
+	if req.cookie and req.cookie.has_key(_MODPYTHONID):
+		req.session_var = session_data[req.cookie[_MODPYTHONID]]
+	else:
+		req.session_var = session_var(con)
+		req.headers_out.add('Set-Cookie', '%s = %s' % (_MODPYTHONID, req.session_var.id))
+		req.send_http_header()
+		session_data[req.session_var.id] = req.session_var
+
+def _get_con():
+	global pg_con
+
+	try:
+		con = pg_con
+	except NameError:
+		pg_con = pg.connect(PG_DB)
+		con = pg_con
+	
+	return con
+
+def handler(req):
+	global session_data
+
+	if req.cookie:
+		for key in req.cookie.keys():
+			req.write('Cookie (%s) : (%s)&lt;BR&gt;' % (key, req.cookie[key]))
+	req.write('Session Variable has %d items' % len(session_data))
+	if req.session_var.has_key('count'):
+		req.session_var['count'] = req.session_var['count'] + 1
+	else:
+		req.session_var['count'] = 0
+	req.write('Counter : %02d' % req.session_var['count'])
+	return apache.OK
+
+def headerparserhandler(req):
+	name_split = req.uri.rfind('/')
+	req.path, req.pname = req.uri[:name_split], req.uri[name_split + 1:]
+
+	req.cookie = _get_cookie(req)
+	if req.path in _SESSION_PATH:
+		con = _get_con()
+		_start_session(req, con)
+
+	return apache.OK
+
+When I try, counters are correctly increased at first time but Key error
+is raised after and py_log (used at _start_session function) shows length
+of session_data is 0.
+
+I'm using Apache 1.3.19 with statistically compiled mod_python 2.7.2
+Python/2.0 (thread enabled) in Mandrake 7.1.
+ 
+
+
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004376.html">[mod_python] some issues
+</A></li>
+	<LI>Next message: <A HREF="004381.html">[mod_python] Persistent variable again...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4379">[ date ]</a>
+              <a href="thread.html#4379">[ thread ]</a>
+              <a href="subject.html#4379">[ subject ]</a>
+              <a href="author.html#4379">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

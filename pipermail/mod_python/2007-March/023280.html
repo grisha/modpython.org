@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] reloading issue
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20reloading%20issue&In-Reply-To=200703131320.00612.mlists%40e-beyond.de">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023278.html">
+   <LINK REL="Next"  HREF="023281.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] reloading issue</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20reloading%20issue&In-Reply-To=200703131320.00612.mlists%40e-beyond.de"
+       TITLE="[mod_python] reloading issue">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Tue Mar 13 16:22:38 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023278.html">[mod_python] reloading issue
+</A></li>
+        <LI>Next message: <A HREF="023281.html">[mod_python] reloading issue
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23280">[ date ]</a>
+              <a href="thread.html#23280">[ thread ]</a>
+              <a href="subject.html#23280">[ subject ]</a>
+              <a href="author.html#23280">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 13/03/07, me &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mlists at e-beyond.de</A>&gt; wrote:
+&gt;<i> Hi there,
+</I>&gt;<i>
+</I>&gt;<i> I've got an issue with mod_python. There is a script (index.py) wich is
+</I>&gt;<i> processed when I go to <A HREF="http://www.xyz.somewhere/">http://www.xyz.somewhere/</A> but when I reload
+</I>&gt;<i> the page 3-4 times I'll receive the error below. It doesn't matter if the page
+</I>&gt;<i> is reloaded fast or slowly.
+</I>&gt;<i> The only point that may be an problem (but I didn't think so) is a factory
+</I>&gt;<i> which should provide the classes for the modules (not the python-modules) of
+</I>&gt;<i> the site.
+</I>&gt;<i>
+</I>&gt;<i> thanks for your help!!
+</I>&gt;<i> marc
+</I>&gt;<i>
+</I>&gt;<i> mod_python: 3.3.1
+</I>&gt;<i> python 2.4
+</I>&gt;<i>
+</I>&gt;<i> The Factory:
+</I>&gt;<i> class ContentFactory:
+</I>&gt;<i>   def factory(self,className, *args):
+</I>&gt;<i>     aClass = getattr(__import__(__name__), className)
+</I>
+Why are you using __name__ as argument to __import__ here as that
+would mean you are trying to import the same module as the code is in,
+although that will not actually work as you think as modules like your
+index.py file are imported by special mod_python module importer and
+__name__ will not be 'index' but  in this case
+'_mp_977643700f732f7a07a576608a2136c2'. Since the mod_python module
+importer will not find a .py file by that name, it will fallback to
+Python importer which I would have though would have failed to find
+it.
+
+Are you really wanting to import the same module as the code is in?
+
+Rather than using __import__() you might be better off looking at the
+apache.import_module() function as described in:
+
+  <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html">http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html</A>
+
+This will give you better control over module importing as file can be
+specified by full path. Also allows automatic module reloading.
+
+Graham
+
+&gt;<i>     return apply(aClass, args)
+</I>&gt;<i>
+</I>&gt;<i> The error-message:
+</I>&gt;<i> MOD_PYTHON ERROR
+</I>&gt;<i>
+</I>&gt;<i> ProcessId:      29986
+</I>&gt;<i> Interpreter:    'www.xyz.somehwere'
+</I>&gt;<i>
+</I>&gt;<i> ServerName:     'www.xyz.somehwere'
+</I>&gt;<i> DocumentRoot:   '/www/www.xyz.somehwere/htdocs'
+</I>&gt;<i>
+</I>&gt;<i> URI:            '/'
+</I>&gt;<i> Location:       '/'
+</I>&gt;<i> Directory:      None
+</I>&gt;<i> Filename:       '/www/www.xyz.somehwere/htdocs/index.py'
+</I>&gt;<i> PathInfo:       ''
+</I>&gt;<i>
+</I>&gt;<i> Phase:          'PythonHandler'
+</I>&gt;<i> Handler:        'mod_python.publisher'
+</I>&gt;<i>
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line 1537,
+</I>&gt;<i> in HandlerDispatch
+</I>&gt;<i>     default=default_handler, arg=req, silent=hlist.silent)
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line 1229,
+</I>&gt;<i> in _process_target
+</I>&gt;<i>     result = _execute_target(config, req, object, arg)
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line 1128,
+</I>&gt;<i> in _execute_target
+</I>&gt;<i>     result = object(arg)
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/publisher.py&quot;, line 213,
+</I>&gt;<i> in handler
+</I>&gt;<i>     published = publish_object(req, object)
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/publisher.py&quot;, line 425,
+</I>&gt;<i> in publish_object
+</I>&gt;<i>     return publish_object(req,util.apply_fs_data(object, req.form, req=req))
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/util.py&quot;, line 554, in
+</I>&gt;<i> apply_fs_data
+</I>&gt;<i>     return object(**args)
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/www/www.xyz.somehwere/htdocs/index.py&quot;, line 6, in index
+</I>&gt;<i>     return c.getResponse()
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/www/www.xyz.somehwere/htdocs/_module/Content.py&quot;, line 28, in
+</I>&gt;<i> getResponse
+</I>&gt;<i>     return Template ( file = self.req.document_root()
+</I>&gt;<i> + '/_templates/standard.tmpl', searchList = [{ 'authenticated':
+</I>&gt;<i> self.authenticated , 'content' : self._processContent()}] )
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/www/www.xyz.somehwere/htdocs/_module/Content.py&quot;, line 23, in
+</I>&gt;<i> _processContent
+</I>&gt;<i>     contentRunner = cp.factory('MainIndex',self.req)
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/www/www.xyz.somehwere/htdocs/_module/ContentFactory.py&quot;, line 6, in
+</I>&gt;<i> factory
+</I>&gt;<i>     aClass = getattr(__import__(__name__), className)
+</I>&gt;<i>
+</I>&gt;<i> AttributeError: 'module' object has no attribute 'MainIndex'
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> MODULE CACHE DETAILS
+</I>&gt;<i>
+</I>&gt;<i> Accessed:       Tue Mar 13 13:08:47 2007
+</I>&gt;<i> Generation:     1
+</I>&gt;<i>
+</I>&gt;<i> _mp_977643700f732f7a07a576608a2136c2 {
+</I>&gt;<i>   FileName:     '/www/www.xyz.somehwere/htdocs/index.py'
+</I>&gt;<i>   Instance:     1
+</I>&gt;<i>   Generation:   1
+</I>&gt;<i>   Modified:     Tue Mar 13 09:10:38 2007
+</I>&gt;<i>   Imported:     Tue Mar 13 12:41:52 2007
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023278.html">[mod_python] reloading issue
+</A></li>
+	<LI>Next message: <A HREF="023281.html">[mod_python] reloading issue
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23280">[ date ]</a>
+              <a href="thread.html#23280">[ thread ]</a>
+              <a href="subject.html#23280">[ subject ]</a>
+              <a href="author.html#23280">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

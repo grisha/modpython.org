@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20child%20process%20XXXX%20still%20did%20not%20exit%2C%0A%09sending%20a%20SIGTERM&In-Reply-To=1136330656.26679%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019856.html">
+   <LINK REL="Next"  HREF="019862.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martin Blais</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20child%20process%20XXXX%20still%20did%20not%20exit%2C%0A%09sending%20a%20SIGTERM&In-Reply-To=1136330656.26679%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM">blais at furius.ca
+       </A><BR>
+    <I>Tue Jan  3 23:50:10 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019856.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+        <LI>Next message: <A HREF="019862.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19857">[ date ]</a>
+              <a href="thread.html#19857">[ thread ]</a>
+              <a href="subject.html#19857">[ subject ]</a>
+              <a href="author.html#19857">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 1/3/06, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+&gt;<i> Graham Dumpleton wrote ..
+</I>&gt;<i> &gt; Martin Blais wrote ..
+</I>&gt;<i> &gt; &gt; After much hacking (all day today), I added the explicit
+</I>&gt;<i> &gt; &gt; Py_EndInterpreter calls and it still hangs on destruction.
+</I>&gt;<i> &gt; &gt; Specifically, it hangs on PyImport_Cleanup() in Py_EndInterpreter().
+</I>&gt;<i> &gt; &gt; I'm having trouble pinpointing exactly which symbol makes it hang.  It
+</I>&gt;<i> &gt; &gt; seems to happen when cleaning the logging module.  I saw that logging
+</I>&gt;<i> &gt; &gt; register an atexit hook, tried to remove that, does not fix the
+</I>&gt;<i> &gt; &gt; problem.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Hmmm, you have gotten ahead of me. I was going to work out some code to
+</I>&gt;<i> &gt; end each interpreter explicitly this morning.
+</I>&gt;<i>
+</I>&gt;<i> FWIW, I would have stuck the following just prior to get_interpreter()
+</I>&gt;<i> call in python_finalize() to try and debug which intepreter it may have
+</I>&gt;<i> been getting stuck in. It is a bit tricky as it makes use of the thread
+</I>&gt;<i> state object that make_interpreter() left inaccessible from when the
+</I>&gt;<i> interepreter was first created. In general, this code probably will not
+</I>&gt;<i> work for more complicated systems where additional C code had
+</I>&gt;<i> created additional thread states associated with an intepreter as the
+</I>&gt;<i> Py_EndInterpreter() call expects there to be only one remaining. Note
+</I>&gt;<i> this assumes that multiple interpreter fix I reference is applied.
+</I>
+Hehe it seems we have been walking on the same paths, indeed.
+
+On my side, I changed the code to remove that original thread-state
+right after a new interpreter is created.  I traced all the tstate
+creations and made sure to not have any extra thread-states lying
+around.  Will submit patch when I clean up the stuff.   However, I
+found that trying to do remove the original thread-state from the
+first interpreter results in some other error (PyDict_??? ... related
+to modules, lost my log file).  In the end I just decided to leave it
+for now, and not to explicitly end the main_interpreter (because at
+that point it has two thread-states).  I thought of doing like you did
+for the main_interpreter, with the original tstate.
+
+Anyway, in any case, it hangs in my own custom interpreter, and not in
+the main_interpreter.
+
+My main problem is getting more info at that point, because even if I
+attach a gdb to the cihld process, apache insists on sending it
+SIGKILL 10 seconds later.  I just had an idea on the way to dinner,
+that I could &quot;simulate&quot; finalisation by calling python_finalize from
+the handler by returning a special signal number, just for this
+purpose.
+
+One other thing I did is reproduce Py_EndInterpreter within
+mod_python, and it hangs on PyImport_Cleanup().  I turned up
+Py_VerboseFlag and it seems to stop at the logging module.  logging
+has some atexit calls, so I tried clearing that but it did not stop
+the problem.  Need to look further, this is a tough bugger of a bug.
+
+About the thread-state creation: it might be faster to eventually use
+the pooling solution, rather than creating new tstates all the time,
+the thread-state creation is light, but there is a small lock in
+there.
+
+cheers,
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019856.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+	<LI>Next message: <A HREF="019862.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19857">[ date ]</a>
+              <a href="thread.html#19857">[ thread ]</a>
+              <a href="subject.html#19857">[ subject ]</a>
+              <a href="author.html#19857">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

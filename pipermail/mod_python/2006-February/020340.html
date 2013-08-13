@@ -1,0 +1,250 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> SSL-data access from verious handlers.  was:
+	Re:[mod_python] problem w/ authen handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=SSL-data%20access%20from%20verious%20handlers.%20%20was%3A%0A%09Re%3A%5Bmod_python%5D%20problem%20w/%20authen%20handler&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020407.html">
+   <LINK REL="Next"  HREF="020341.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>SSL-data access from verious handlers.  was:
+	Re:[mod_python] problem w/ authen handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Bud P. Bruegger</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=SSL-data%20access%20from%20verious%20handlers.%20%20was%3A%0A%09Re%3A%5Bmod_python%5D%20problem%20w/%20authen%20handler&In-Reply-To="
+       TITLE="SSL-data access from verious handlers.  was:
+	Re:[mod_python] problem w/ authen handler">bud at comune.grosseto.it
+       </A><BR>
+    <I>Fri Feb 17 09:26:49 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020407.html">[mod_python] req.user and SSL?
+</A></li>
+        <LI>Next message: <A HREF="020341.html">SSL-data access from verious handlers.  was:	Re:[mod_python]
+	problem w/ authen handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20340">[ date ]</a>
+              <a href="thread.html#20340">[ thread ]</a>
+              <a href="subject.html#20340">[ subject ]</a>
+              <a href="author.html#20340">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote ..
+ &gt; The macros supposedly try and make it type safe, so haven't quite worked
+ &gt; out how you are meant to use them yet. In part it looks like compile time
+ &gt; binding is required, which would be an issue with Python. What you might
+ &gt; be able to do though is write a little C based Python module which did
+ &gt; the lookup and calling of &quot;ssl_var_lookup()&quot; for you by going direct to
+ &gt; the Apache runtime library calls. May work. :-)
+
+See if you can get the attached code (2 files) to work for you. You will 
+need to
+modify the setup.py to point to appropriate include and library directories and
+correct name for APR libraries on your platform.
+
+The code all compiles, but since I don't have mod_ssl setup I get back nothing.
+The first argument to each method must be the request object. It will crash if
+it isn't as haven't been able to have check in code that it is in fact a 
+request
+object because undefined as am not linking against mod_python .so.
+
+The handler I was using was as follows, but you should be able to adapt it.
+
+import _mp_mod_ssl
+import vampire
+
+class _Object:
+
+   def is_https(self,req):
+     return _mp_mod_ssl.is_https(req)
+
+   def var_lookup(self,req,name):
+     return _mp_mod_ssl.var_lookup(req,name)
+
+handler = vampire.Publisher(_Object())
+
+Let me know how you go. Is an interesting problem which is why I decided
+to play with it when I should have been doing real work. :-)
+
+Graham
+
+
+
+
+-------------------------------------------------------------------------------------------------
+Ing. Bud P. Bruegger, Ph.D.                 +39-0564-488577 
+(voice),  -21139 (fax)
+Servizio Elaborazione Dati                    e-mail:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at comune.grosseto.it</A>
+Comune di Grosseto                            jabber:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at jabber.no</A>
+Via Ginori, 
+43                                      <A HREF="http://www.comune.grosseto.it/cie/">http://www.comune.grosseto.it/cie/</A>
+58100 Grosseto (Tuscany, 
+Italy)           <A HREF="http://www.comune.grosseto.it/interopEID/">http://www.comune.grosseto.it/interopEID/</A> 
+-------------- next part --------------
+#include &lt;Python.h&gt;
+
+#include &lt;apr.h&gt;
+#include &lt;mod_python.h&gt;
+
+typedef int (*ssl_is_https_t)(conn_rec*);
+
+static PyObject* is_https(PyObject* module, PyObject* args)
+{
+  requestobject* request_object = 0;
+  ssl_is_https_t ssl_is_https = 0;
+  int result = 0;
+
+  if (!PyArg_ParseTuple(args,&quot;O&quot;,&amp;request_object))
+    return 0;
+
+#if 0
+  /* How to ensure symbol is resolved. */
+  if (!MpRequest_Check(request_object))
+    PyErr_SetString(PyExc_TypeError,&quot;not a request object&quot;);
+#endif
+
+  ssl_is_https = (ssl_is_https_t)apr_dynamic_fn_retrieve(&quot;ssl_is_https&quot;);
+
+  if (ssl_is_https == 0)
+    return Py_BuildValue(&quot;i&quot;,0);
+
+  result = ssl_is_https(request_object-&gt;request_rec-&gt;connection);
+
+  return Py_BuildValue(&quot;i&quot;,result);
+}
+
+typedef char* (*ssl_var_lookup_t)(apr_pool_t*,
+ server_rec*, conn_rec*, request_rec*, char*);
+
+static PyObject* var_lookup(PyObject* module, PyObject* args)
+{
+  requestobject* request_object = 0;
+  char* variable_name = 0;
+  ssl_var_lookup_t ssl_var_lookup = 0;
+  char* variable_value = 0;
+  PyObject* result = 0;
+
+  if (!PyArg_ParseTuple(args,&quot;Os&quot;,&amp;request_object,&amp;variable_name))
+    return 0;
+
+#if 0
+  /* How to ensure symbol is resolved. */
+  if (!MpRequest_Check(request_object))
+    PyErr_SetString(PyExc_TypeError,&quot;not a request object&quot;);
+#endif
+
+  ssl_var_lookup = (ssl_var_lookup_t)apr_dynamic_fn_retrieve(&quot;ssl_var_lookup&quot;);
+
+  if (ssl_var_lookup == 0)
+  {
+    Py_XINCREF(Py_None);
+      
+    return Py_None;
+  }
+
+  variable_value = ssl_var_lookup(
+   request_object-&gt;request_rec-&gt;pool,
+   request_object-&gt;request_rec-&gt;server,
+   request_object-&gt;request_rec-&gt;connection,
+   request_object-&gt;request_rec,
+   variable_name);
+
+  result = Py_BuildValue(&quot;s&quot;,variable_value);
+
+  free(variable_value);
+
+  return result;
+}
+
+static struct PyMethodDef mp_mod_ssl_methods[] = {
+  { &quot;is_https&quot;, is_https, 1 },
+  { &quot;var_lookup&quot;, var_lookup, 1 },
+  { NULL, NULL },
+};
+
+void init_mp_mod_ssl(void)
+{
+  PyObject* module;
+
+  module = Py_InitModule(&quot;_mp_mod_ssl&quot;,mp_mod_ssl_methods);
+
+  if (module == 0)
+    Py_FatalError(&quot;can't initialise module _mp_mod_ssl&quot;);
+}
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: setup.py
+Type: application/octet-stream
+Size: 605 bytes
+Desc: not available
+Url : <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060217/befe5232/setup.obj">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060217/befe5232/setup.obj</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020407.html">[mod_python] req.user and SSL?
+</A></li>
+	<LI>Next message: <A HREF="020341.html">SSL-data access from verious handlers.  was:	Re:[mod_python]
+	problem w/ authen handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20340">[ date ]</a>
+              <a href="thread.html#20340">[ thread ]</a>
+              <a href="subject.html#20340">[ subject ]</a>
+              <a href="author.html#20340">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PSP Response
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PSP%20Response&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018114.html">
+   <LINK REL="Next"  HREF="018116.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PSP Response</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PSP%20Response&In-Reply-To="
+       TITLE="[mod_python] PSP Response">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue May 17 20:15:26 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018114.html">[mod_python] PSP Response
+</A></li>
+        <LI>Next message: <A HREF="018116.html">[mod_python] ModPython 3.1.4 patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18115">[ date ]</a>
+              <a href="thread.html#18115">[ thread ]</a>
+              <a href="subject.html#18115">[ subject ]</a>
+              <a href="author.html#18115">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Jeremy Kohansimeh wrote ..
+&gt;<i> Hello,
+</I>&gt;<i> 
+</I>&gt;<i> The following fragment of code will sometimes return a response and other
+</I>&gt;<i> times just hang:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;code&gt;
+</I>&gt;<i> def genGraphWAnnotsHTMLResponse( req, frames):
+</I>&gt;<i> &quot;&quot;&quot;generates HTML response for request to graph&quot;&quot;&quot;
+</I>&gt;<i> 
+</I>&gt;<i> session = req.session
+</I>&gt;<i> seg_facade = session.seg_facade
+</I>&gt;<i> 
+</I>&gt;<i> column_header, data = genSegmentAnnotsHTML( frames, session.chrom_num,
+</I>&gt;<i> seg_facade)
+</I>&gt;<i> 
+</I>&gt;<i> vars = { 'p_extend' : seg_facade.p_extend, \
+</I>&gt;<i> 'p_break' : seg_facade.p_break, \
+</I>&gt;<i> 'plot_image' : os.path.join( '../../images', session.original_image), \
+</I>&gt;<i> 'session' : session.id(), \
+</I>&gt;<i> 'cols' : column_header.__str__(), \
+</I>&gt;<i> 'data' : data.__str__() }
+</I>&gt;<i> 
+</I>&gt;<i> return psp.PSP( req, filename=ZOOM_WANNOTS_TMPL, vars=vars)
+</I>&gt;<i> &lt;/code&gt;
+</I>&gt;<i> 
+</I>&gt;<i> The path from the handler to here appears to be working fine. I did some
+</I>&gt;<i> debugging and can tell that the problem is somewhere in the psp.PSP call.
+</I>&gt;<i> I 
+</I>&gt;<i> think it may have something to do with the interpreter, but that is just
+</I>&gt;<i> a 
+</I>&gt;<i> wild guess. Has anyone had similar issues?
+</I>
+One problem you can hit with this code, and for which there has
+been a little discussion about over the last few days in the dev
+area, is that the following code will hang if your PSP page tries
+to reference the &quot;session&quot; object. The problem is that the PSP
+class ignores the fact of whether or not you may have created
+your own session object and will create its own if &quot;session&quot; is
+referenced from the PSP page, with the session object it thus
+creates being stored as &quot;session&quot; with the execution environment
+of PSP so as to be accessible from your page.
+
+Now you actually set &quot;session&quot; in your vars to the session ID
+which if you try to access in the page will trigger the creation
+of the second session object, although your session ID setting
+will override PSPs attempt to set &quot;session&quot; to the session object
+it creates. Either way, the attempt to create a second session
+object for the same request can result in a deadlock.
+
+I would suggest you try not using the &quot;session&quot; variable in
+your vars, but use &quot;my_session_id&quot; for the session ID and if
+you do need access to the session object you create in
+PSP, set it as the &quot;my_session&quot; variable. Ie., avoid using
+&quot;session&quot; name as that triggers the deadlock where you have
+already created the session object.
+
+The suggestion being dicussed in dev area is that the PSP
+code check for the existance of &quot;req.session&quot; and if it
+exists and PSP page tries to access &quot;session&quot;, that session be set
+to &quot;req.session&quot; rather than creating a new session object.
+If this change were made for future version of mod_python,
+you wouldn't need to set &quot;session&quot; in the vars as PSP will
+do it automatically for you. In your page you could then say
+&quot;session.id()&quot; to get the session ID.
+
+Would this explain your problems and does avoiding using
+&quot;session&quot; variable name in vars fix the problem?
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018114.html">[mod_python] PSP Response
+</A></li>
+	<LI>Next message: <A HREF="018116.html">[mod_python] ModPython 3.1.4 patches
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18115">[ date ]</a>
+              <a href="thread.html#18115">[ thread ]</a>
+              <a href="subject.html#18115">[ subject ]</a>
+              <a href="author.html#18115">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

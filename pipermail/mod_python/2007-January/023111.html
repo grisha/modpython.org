@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Is it  possible to stop  file uploading?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Is%20it%20%20possible%20to%20stop%20%20file%20uploading%3F&In-Reply-To=1169675593.23605%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023093.html">
+   <LINK REL="Next"  HREF="023094.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Is it  possible to stop  file uploading?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Is%20it%20%20possible%20to%20stop%20%20file%20uploading%3F&In-Reply-To=1169675593.23605%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Is it  possible to stop  file uploading?">nlv11281 at natlab.research.philips.com
+       </A><BR>
+    <I>Thu Jan 25 01:30:17 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023093.html">[mod_python] Is it  possible to stop  file uploading?
+</A></li>
+        <LI>Next message: <A HREF="023094.html">[mod_python] modpy3.2 + apache2.2 + odbc + dbisam -
+	substitutetocgi ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23111">[ date ]</a>
+              <a href="thread.html#23111">[ thread ]</a>
+              <a href="subject.html#23111">[ subject ]</a>
+              <a href="author.html#23111">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>In addition to Graham's (as usual much more useful and less cryptic) 
+response, I think you can detect the request for a '100-continue' 
+because the browser sends out a &quot;Expect: continue&quot; or something like 
+that (don't have the exact information here, but RFC2068 will help you 
+out).
+
+The only way to stop the client from sending you data once the 
+100-continue has been sent is to close the underlying socket connection. 
+It is good practice to send a &quot;Connection: Close&quot; header along with your 
+error response. The underlying socket is available as req.connection if 
+i'm not mistaken. This is not very &quot;nice&quot; to the client, and should be 
+used only if you expect really big downloads. You might want to check 
+the Content-Length of the upload - if it is less than say 16k, it is 
+probably more efficient to just &quot;eat&quot; the data even though you're not 
+going to process it.
+
+--
+Mike Looijmans
+Philips Natlab / Topic Automation
+
+
+Graham Dumpleton wrote:
+&gt;<i> Mike Looijmans wrote ..
+</I>&gt;<i> 
+</I>&gt;&gt;&gt;<i>1.When a user uploads file, using FORM ( POST method), is there a  possibility
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>to stop 
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>uploading, if the file extension  is not among those  allowed? 
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Yes. Write out an error and close the HTTP connection.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Actually, whether you can stop the client sending any of the actual data
+</I>&gt;<i> contained in the body of the POST request depends on a few issues.
+</I>&gt;<i> 
+</I>&gt;<i> First off, if the client is using the HTTP 1.0 protocol the answer is that you
+</I>&gt;<i> cannot. This is because with HTTP 1.0 protocol the client will immediately
+</I>&gt;<i> start sending the body of the POST. Thus even if the server side returns an
+</I>&gt;<i> error status based on looking at only the URL for the request, the client will
+</I>&gt;<i> already have potentially sent all the actual data. The return of the error from
+</I>&gt;<i> a handler on the server should result in the connection being dropped and so
+</I>&gt;<i> the server will not read the data, but this will not have prevented some amount
+</I>&gt;<i> of bandwidth being used up by the client to send the data anyway. How much data
+</I>&gt;<i> the client will have sent will depend on how much will get buffered by the
+</I>&gt;<i> connection before it would have detected the connection had closed.
+</I>&gt;<i> 
+</I>&gt;<i> If the client is using the HTTP/1.1 protocol it gets more interesting. This is
+</I>&gt;<i> because HTTP/1.1 implements a mechanism whereby a client can request that the
+</I>&gt;<i> server send a 100 continue status response before it will actually start
+</I>&gt;<i> sending the body of the POST request. This is something that is dealt with at a
+</I>&gt;<i> lower layer than mod_python so you don't have to worry about it yourself. How
+</I>&gt;<i> it works with mod_python though, is that the very first time that the handler
+</I>&gt;<i> calls req.read(), the lower level layers will take that as meaning you are
+</I>&gt;<i> ready to start consuming the data and so Apache will send back a 100 continue
+</I>&gt;<i> response to the client and it will only then start sending the data. If rather
+</I>&gt;<i> than call req.read(), the handler returns an error response instead, then the
+</I>&gt;<i> client will see the error response and will stop before it has even sent the
+</I>&gt;<i> body of the POST request.
+</I>&gt;<i> 
+</I>&gt;<i> So, although with both HTTP 1.0 and 1.1, the way to end the request early is to
+</I>&gt;<i> send the error response, only with HTTP 1.1 protocol may you be able to get the
+</I>&gt;<i> client to stop before it has actually sent any data at all. This though can
+</I>&gt;<i> only be achieved if you can determine whether the request should be aborted
+</I>&gt;<i> from just the URL and the request headers. If the only way you can work out if
+</I>&gt;<i> the request is to be aborted is from the actual body of the POST request, then
+</I>&gt;<i> none of this applies and the client is always going to send some amount of
+</I>&gt;<i> the data anyway.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;&gt;<i>2.
+</I>&gt;&gt;&gt;<i>Is there a good/recommended way how to find out the file extension?
+</I>&gt;&gt;&gt;<i>I use a handler that can find the extension( using  util.FieldStorage(req))
+</I>&gt;&gt;&gt;<i>but it does not stop uploading in progress but uploads the whole file
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>first.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Create a FieldStorage instance, and pass it the callbacks for file 
+</I>&gt;&gt;<i>processing. You'll be called while the file stream is being read, and 
+</I>&gt;&gt;<i>you can check the extension at that time.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> As pointed out above though, if the extension is being derived from the
+</I>&gt;<i> filename attribute of the Content-Disposition header within a part of the
+</I>&gt;<i> multipart/mixed body of the POST request, this means that req.read() would have
+</I>&gt;<i> had to have been called and so none of the above applies and the client has had
+</I>&gt;<i> to send some of the data anyway.
+</I>&gt;<i> 
+</I>&gt;<i> All you can achieve by using the file callbacks is to detect that the extension
+</I>&gt;<i> is unacceptable before the client has sent too much data by sending back
+</I>&gt;<i> the error response. You can't stop all of it being sent and how much will still
+</I>&gt;<i> be sent will depend a bit of buffering within the network, by Apache and how
+</I>&gt;<i> big a chunks of data FieldStorage consumes in one go.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023093.html">[mod_python] Is it  possible to stop  file uploading?
+</A></li>
+	<LI>Next message: <A HREF="023094.html">[mod_python] modpy3.2 + apache2.2 + odbc + dbisam -
+	substitutetocgi ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23111">[ date ]</a>
+              <a href="thread.html#23111">[ thread ]</a>
+              <a href="subject.html#23111">[ subject ]</a>
+              <a href="author.html#23111">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

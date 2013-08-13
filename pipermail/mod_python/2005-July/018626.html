@@ -1,0 +1,212 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Articles on module importing.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Articles%20on%20module%20importing.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018625.html">
+   <LINK REL="Next"  HREF="018633.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Articles on module importing.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Articles%20on%20module%20importing.&In-Reply-To="
+       TITLE="[mod_python] Articles on module importing.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Jul  7 20:14:20 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018625.html">[mod_python] Apache2 + mod_python + DragonFly?
+</A></li>
+        <LI>Next message: <A HREF="018633.html">[mod_python] Articles on module importing.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18626">[ date ]</a>
+              <a href="thread.html#18626">[ thread ]</a>
+              <a href="subject.html#18626">[ subject ]</a>
+              <a href="author.html#18626">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Jorey Bump wrote ..
+&gt;<i> 
+</I>&gt;<i> Most (but not all) of the issues you raise concern writing handlers. I'd
+</I>&gt;<i> hate to see someone leave with the wrong impression about how to deal 
+</I>&gt;<i> with these issues in their applications, when the advice given is more
+</I>&gt;<i> appropriate at the handler level.
+</I>
+If you feel that this primarily only affects those who are writing their own
+high level handlers, as opposed to those who might instead be using the
+mod_python.publisher handler, then I would suggest you are wrong.
+
+The current mod_python.publisher handler uses the import_module()
+function internally to load modules and so it is just as much afflicted by many
+of these problems, more so when within a published module the code uses
+the import_module() explicitly and even if only the &quot;import&quot; statement is
+used within that module.
+
+&gt;<i> I think that defining the higher level problems and goals now will help
+</I>&gt;<i> to arrive at solutions that might not necessarily involve fixing current
+</I>&gt;<i> components.
+</I>&gt;<i> 
+</I>&gt;<i> For example, let's imagine that all of mod_python's import problems can
+</I>&gt;<i> be solved with some kind of magic bullet:
+</I>&gt;<i> 
+</I>&gt;<i> 1. We want the PythonPath extended automatically based on the location
+</I>&gt;<i> of a file.
+</I>
+This is not a goal or requirement, it is indicative of a solution. To provide
+the desired behaviour doesn't require PythonPath be extended as there are
+actually better ways of achieving the same thing and still maintain the
+required transparency that you require.
+
+The real goal you are probably alluding to is that within a Python code
+file serving as a handler you want the &quot;import&quot; statement to be able to
+pick up a module that resides in the same directory. Yes?
+
+At the moment, if using mod_python.publisher this only works where the
+published module is in the same directory as where the PythonHandler
+directive was specified, it does not work where the published module is
+in a subdirectory. Thus, should the ability to use the &quot;import&quot; statement
+in this way also work for a published module in a subdirectory of where
+the handler directive was originally defined?
+
+&gt;<i> 2. We want imported modules to be unloaded/reloaded automatically if 
+</I>&gt;<i> modified or replaced in any way.
+</I>
+What sort of imported modules though? Should this only apply to modules
+imported by import_module() whether as a high level handler or explicitly
+by the user or within something like mod_python.publisher? Should it also
+apply to modules imported using the &quot;import&quot; statement for (1) above?
+Should there be depth based dependency checking such that if some
+grand child module imported at global scope within a high level handler
+is changed, that all parents of the module up to the high level handler
+should be automatically reloaded?
+
+&gt;<i> 3. Imports of application code should be handled in a way that supports
+</I>&gt;<i> the packaging and portablility of an application.
+</I>
+Packages are a big problem when it comes to making automatic module
+reloading work properly. I have probably put in a few days worth of
+effort just into this particular issue of late and still don't have a workable
+solution. I got to the point where I could finally see what might yield
+a workable solution and then stopped as the code was getting overly
+complicated, so much so that one had to question whether it was worth
+the trouble.
+
+The problem with packages is that although simple packages where
+module imports fall into a strict tree and parents import all their children
+at the outset can be made to work, if you want to support multi level
+dependency checking for changes in the module reloading scheme, it
+gets really hard after that. This is because the module imports within a
+package can result in a graph of dependencies inclusive of cycles. The 
+final solution which I stopped short of implementing entailed having to
+treat a package as a complete blob and if any file within the package
+changed, you had to force reloading of every file within the package
+and anything that relied on any part of the package.
+
+At some point there is going to have to be a major decision made as
+to whether import_module() should support packages or not. This will
+be a trade off between a great deal more complexity in the module
+importing system or not supporting packages, thereby forcing someone
+to use the bog standard &quot;import&quot; mechanisms in Python for packages
+and thus give up any form of automatic module reloading.
+
+&gt;<i> I know you didn't want to go into the mechanics of fixing the module 
+</I>&gt;<i> import mechanism, and I offer this only as an example to highlight the
+</I>&gt;<i> benefits of determining *what* to fix before deciding *how* to fix it.
+</I>&gt;<i> A  scheme such as the one I outline offers backwards compatibility for 
+</I>&gt;<i> legacy applications at the expense of adding some code that offers 
+</I>&gt;<i> important new functionality. 
+</I>
+If one kept everything backward compatable you will still have a broken
+system as some problems cannot be fixed except by breaking backward
+compatability. The best one could achieve in some areas is to have the
+new system be incompatible, but provide a option which allows the old
+behaviour to be selectively turned on for parts of the document tree. This
+would allow old code to work, but at the same time would open up the
+code to some of the existing problems.
+
+One does has to look at what the high level goals are and I don't mind
+a bit of discussion on this. It gets to a point though that it becomes
+really hard to enumerate the goals without showing how they would
+be achieved. Past discussions have degenerated into mail storms
+because without an explaination of the problem, as well as a specific plan
+in front of people as to how it could be fixed and how it would work to
+focus on, it would just diverge into half a dozen different conversations
+ranging from taking issue with whether it was a problem in the first
+place to one of a number of solutions that didn't really address the
+problem because the person proposing it didn't really understand the
+problem.
+
+Thus my experience from past discussions on this was that there are a
+great deal more issues and questions to be answered than most appreciate.
+Some others have tended to focus on a specific aspect of one issue not
+realising that there are half a dozen other factors that need to be considered
+on that one point.
+
+&gt;<i> Hopefully, any changes to mod_python can be
+</I>&gt;<i> done in a similar way that doesn't threaten to fork the code.
+</I>
+I am not out to fork the mod_python code. I am very conscious of
+maintaining backward compatability and I want to see mod_python
+fixed. It has been slow progress though in getting some users to
+even accept what the problems are and that they do exist and that
+they aren't some figment of my crazed imagination. It is has been
+even harder getting some to accept some of the solutions I have
+been proposing. They seem to think I am going to break everything
+or inforce some new world order. I have almost given up trying a
+few times. My SO is very patient, but she has a limit when it comes
+to spending so much time on something which isn't what I am
+mean't to be focusing on. :-(
+
+
+Graham
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018625.html">[mod_python] Apache2 + mod_python + DragonFly?
+</A></li>
+	<LI>Next message: <A HREF="018633.html">[mod_python] Articles on module importing.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18626">[ date ]</a>
+              <a href="thread.html#18626">[ thread ]</a>
+              <a href="subject.html#18626">[ subject ]</a>
+              <a href="author.html#18626">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] restricting access to certain
+	variables	usingmod_python.publisher
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20restricting%20access%20to%20certain%0A%09variables%09usingmod_python.publisher&In-Reply-To=1110848874.26770%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017643.html">
+   <LINK REL="Next"  HREF="017644.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] restricting access to certain
+	variables	usingmod_python.publisher</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20restricting%20access%20to%20certain%0A%09variables%09usingmod_python.publisher&In-Reply-To=1110848874.26770%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] restricting access to certain
+	variables	usingmod_python.publisher">list at joreybump.com
+       </A><BR>
+    <I>Mon Mar 14 21:16:21 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017643.html">[mod_python] restricting access to certain variables
+	usingmod_python.publisher
+</A></li>
+        <LI>Next message: <A HREF="017644.html">[mod_python] restricting access to certain
+	variablesusingmod_python.publisher
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17646">[ date ]</a>
+              <a href="thread.html#17646">[ thread ]</a>
+              <a href="subject.html#17646">[ subject ]</a>
+              <a href="author.html#17646">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+
+&gt;<i> The only workaround you would have in the short term is not to use
+</I>&gt;<i> an &quot;index.py&quot; file and always name it something different.
+</I>
+Always good advice. The only time I would even consider using a module 
+named index.py would be as in Jan's example, where one might want to run 
+an entire site with mod_python transparently.
+
+&gt;<i> This is actually a security hole because any __auth__ stuff would
+</I>&gt;<i> be visible and thus people could work out login/passwd. This may
+</I>&gt;<i> require another security fix release of mod_python. :-(
+</I>
+No argument here, any information leak is a security hole and should be 
+fixed. But, even with __auth__, there's no good reason to store login 
+details in the module or anywhere within the DocumentRoot, for that matter.
+
+&gt;<i> Jan Huelsbergen wrote ..
+</I>&gt;<i> 
+</I>&gt;&gt;<i>The mod_python.publisher documentation states at
+</I>&gt;&gt;<i><A HREF="http://modpython.org/live/current/doc-html/hand-pub-alg-trav.html">http://modpython.org/live/current/doc-html/hand-pub-alg-trav.html</A> that
+</I>&gt;&gt;<i>if
+</I>&gt;&gt;<i>&quot;Any of the traversed object's names begin with an underscore (&quot;_&quot;).&quot; 
+</I>&gt;&gt;<i>they are not accsessable through the web, yet, when I put a 
+</I>&gt;&gt;<i>_foo = 'bar'
+</I>&gt;&gt;<i>in my index.py, <A HREF="http://my.site/_foo">http://my.site/_foo</A> returns 'bar'. 
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Am I missinterpreting the documentation? 
+</I>&gt;&gt;<i>How to protect a variable from outside access?
+</I>
+I've been creating all of my mod_python applications as packages that 
+sit in a directory outside of the DocumentRoot. I use the PythonPath 
+directive to append the directory to the module search path. Then I 
+import enough of the package to bootstrap my published module, which 
+might contain a single function that acts as a frontend to a dispatcher.
+
+It might sound like a lot of work, but with good planning it can set a 
+solid foundation for future projects, thus saving a *lot* of time in the 
+long run. By using this approach, along with dotted notation imports, 
+explicit restriction of *from imported objects with __all__, and 
+enclosing almost everything in functions, I haven't been affected by any 
+of the recent security issues, including this one.  You can even take 
+this to an extreme and obfuscate your login details and imported names 
+so that they would not be human readable or even grepped (haven't gone 
+there, yet).
+
+Example:
+
+~/python/
+     domain/
+         __init__.py
+         database.py
+         html.py
+         foo/
+             __init__.py
+             database.py
+             form.py
+         bar/
+             __init.py
+             database.py
+             util.py
+
+Then the published module might look like this:
+
+  #foo.py
+  import domain.foo
+
+  def start(req):
+      &quot;&quot;&quot;
+      Public interface to application backend.
+      &quot;&quot;&quot;
+      return domain.foo.dispatch(req)
+
+Nothing's exposed, lots of reusable code, provides for separation 
+between modules, and results in excellent caching of imported modules 
+and database connections. The only downside is that it makes you more 
+dependent on a test environment, because it is sometimes necessary to 
+restart apache to force a reload of imported modules that have been 
+updated.
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017643.html">[mod_python] restricting access to certain variables
+	usingmod_python.publisher
+</A></li>
+	<LI>Next message: <A HREF="017644.html">[mod_python] restricting access to certain
+	variablesusingmod_python.publisher
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17646">[ date ]</a>
+              <a href="thread.html#17646">[ thread ]</a>
+              <a href="subject.html#17646">[ subject ]</a>
+              <a href="author.html#17646">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

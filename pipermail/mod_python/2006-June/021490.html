@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Seg Fault when using session object
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Seg%20Fault%20when%20using%20session%20object&In-Reply-To=f4b5a9620606260758x1e5e89d0tf292543a60c4af9c%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021485.html">
+   <LINK REL="Next"  HREF="021491.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Seg Fault when using session object</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Emlyn Jones</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Seg%20Fault%20when%20using%20session%20object&In-Reply-To=f4b5a9620606260758x1e5e89d0tf292543a60c4af9c%40mail.gmail.com"
+       TITLE="[mod_python] Seg Fault when using session object">emlynj at gmail.com
+       </A><BR>
+    <I>Mon Jun 26 13:29:02 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021485.html">[mod_python] Seg Fault when using session object
+</A></li>
+        <LI>Next message: <A HREF="021491.html">[mod_python] Seg Fault when using session object
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21490">[ date ]</a>
+              <a href="thread.html#21490">[ thread ]</a>
+              <a href="subject.html#21490">[ subject ]</a>
+              <a href="author.html#21490">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 6/26/06, Emlyn Jones &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">emlynj at gmail.com</A>&gt; wrote:
+&gt;<i> On 6/26/06, Emlyn Jones &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">emlynj at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; On Monday 26 Jun 2006 01:13, Graham Dumpleton wrote:
+</I>&gt;<i> &gt; &gt; Emlyn Jones wrote ..
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Hello,
+</I>&gt;<i> &gt; &gt; &gt; I've got this simple piece of mod_python/psp; If I uncomment the
+</I>&gt;<i> &gt; &gt; &gt; foo=session line I get a seg fault. Has anyone seen this before and can
+</I>&gt;<i> &gt; &gt; &gt; direct me towards finding out what the problem is please?
+</I>&gt;<i> &gt; &gt; &gt; I'm running Apache/2.0.50, mod_python 3.2.8 and Python 2.4.
+</I>&gt;<i> &gt; &gt; &gt; I've confirmed that it isn't the known expat and mysql/php problems.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &lt;%
+</I>&gt;<i> &gt; &gt; &gt; #foo = session
+</I>&gt;<i> &gt; &gt; &gt; done_login = False
+</I>&gt;<i> &gt; &gt; &gt; if(form.has_key(&quot;username&quot;)):
+</I>&gt;<i> &gt; &gt; &gt; username = form[&quot;username&quot;]
+</I>&gt;<i> &gt; &gt; &gt; password = form[&quot;password&quot;]
+</I>&gt;<i> &gt; &gt; &gt; req.write(&quot;%s&quot; % (username,))
+</I>&gt;<i> &gt; &gt; &gt; %&gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; What PSP does is that if it sees that the variable &quot;session&quot; is referenced
+</I>&gt;<i> &gt; &gt; from inside of PSP code, then it will do what is necessary to create the
+</I>&gt;<i> &gt; &gt; session, or if the session already exists, it will retrieve it from the
+</I>&gt;<i> &gt; &gt; session database.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Two problems could be occurring here. The first is that if this is
+</I>&gt;<i> &gt; &gt; occurring on the very first time the session needs to be created, that the
+</I>&gt;<i> &gt; &gt; session database it tries to use is corrupt in some way and therefore
+</I>&gt;<i> &gt; &gt; crashing. The second is that the session already exists in the database,
+</I>&gt;<i> &gt; &gt; but something was stored in the session object that probably shouldn't have
+</I>&gt;<i> &gt; &gt; and when the session object is being restored, it is triggering some code
+</I>&gt;<i> &gt; &gt; (possibly C code) which is then subsequently crashing.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; First thing you need to do is get out of PSP and write a simple handler
+</I>&gt;<i> &gt; &gt; that creates a session object just to validate that sessions work and that
+</I>&gt;<i> &gt; &gt; the session database is okay. Use a handler such as:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; from mod_python import Session
+</I>&gt;<i> &gt; &gt; from mod_python import apache
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; def handler(req):
+</I>&gt;<i> &gt; &gt; session = Session.Session(req)
+</I>&gt;<i> &gt; &gt; session['data'] = 1
+</I>&gt;<i> &gt; &gt; session.save()
+</I>&gt;<i> &gt; &gt; req.content_type = 'text/plain'
+</I>&gt;<i> &gt; &gt; req.write('hello')
+</I>&gt;<i> &gt; &gt; return apache .OK
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; If this dies, then there is possibly a problem with the session
+</I>&gt;<i> &gt; &gt; database, or your Python DBM modules are stuffed somehow. You need to
+</I>&gt;<i> &gt; &gt; work out what type of session database is being used. It will probably
+</I>&gt;<i> &gt; &gt; be DBM database and it will be stored in &quot;/tmp&quot; as &quot;/tmp/mp_sess.dbm&quot;. I
+</I>&gt;<i> &gt; &gt; am guessing you aren't on Win32 as in that case an in memory session
+</I>&gt;<i> &gt; &gt; database is being used and it would be almost impossible to crash. Which
+</I>&gt;<i> &gt; &gt; is might be is dictated by the MPM which Apache was configured with.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Assuming it is DBM, check who owns the database in &quot;/tmp&quot;. The owner
+</I>&gt;<i> &gt; &gt; should match the user that Apache runs as. If you have multiple versions
+</I>&gt;<i> &gt; &gt; of Apache running and they run as different users, you could have problems
+</I>&gt;<i> &gt; &gt; because of that. If it is the wrong user and you only have one Apache
+</I>&gt;<i> &gt; &gt; instance, you could try deleting the database and restarting Apache.
+</I>&gt;<i> &gt; &gt; If you have multiple versions of Apache running as different users, you
+</I>&gt;<i> &gt; &gt; may have to use PythonOption to change location where session database
+</I>&gt;<i> &gt; &gt; is stored. See documentation for mod_python.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; If this is all okay, may be what you are storing in the session object.
+</I>&gt;<i> &gt; &gt; This is where you need to show your code as to what you are sticking in the
+</I>&gt;<i> &gt; &gt; session object before we can really comment. Also read:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; <A HREF="http://www.dscpl.com.au/articles/modpython-005.html">http://www.dscpl.com.au/articles/modpython-005.html</A>
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Hi Graham, thanks for the reply and explanation.
+</I>&gt;<i> &gt; That simple handler does die. The dbm file in /tmp checks out ok, it's the
+</I>&gt;<i> &gt; correct user and I haven't actually managed to store anything in it yet. This
+</I>&gt;<i> &gt; is the first use of it; In fact, If I rename it (the dbm file) and restart
+</I>&gt;<i> &gt; apache it doesn't get recreated so I guess that leaves me with the python DBM
+</I>&gt;<i> &gt; modules.
+</I>&gt;<i> &gt; I'll have a dig around and see what I can come up with.
+</I>&gt;<i> &gt; I do vaguely remember a caffeine fuelled evening running into problems with
+</I>&gt;<i> &gt; sleepycat which sounds like it might be connected (maybe library versions?).
+</I>&gt;<i> &gt; Is there any extra debugging info I can turn on to point me in the right
+</I>&gt;<i> &gt; direction? Otherwise I suppose it's trying to test out the dbm stuff in a
+</I>&gt;<i> &gt; python shell first and take it from there.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Cheers,
+</I>&gt;<i> &gt; Emlyn.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> Hello,
+</I>&gt;<i> I'm not sure if I'm heading in the right direction here.
+</I>&gt;<i> I can see from a python shell that the dbm module is using the
+</I>&gt;<i> &quot;Berkeley DB&quot; library (dbm.library).
+</I>&gt;<i> lsof -p &lt;http pid&gt; | grep dbm shows that it is linked to libgdbm.so.3.0.0.
+</I>&gt;<i> I'm a little confused but could this be the root of my problems?
+</I>&gt;<i>
+</I>&gt;<i> Cheers,
+</I>&gt;<i> Emlyn.
+</I>&gt;<i>
+</I>&gt;<i> /usr/lib/libgdbm.so.3.0.0
+</I>&gt;<i>
+</I>Ok, now I'm really stuck.
+I've rebuilt a vanilla version of Python2.4 and recompiled Apache and
+mod_python. I then removed the existing dbm file in /tmp and restarted
+everything.
+Still get a seg fault when I try to use the session. No new dbm file
+has been created.
+Is there a way to make mod_python/psp use a FileSession instead of
+DBM? At least then I can confirm that it is some kind of dbm problem.
+Maybe there are some tests I can do from the shell to see if the dbm
+stuff is working in python (a simple test of creating a new db and
+saving stuff to it suggests that it is)?
+It's definitely not what I'm storing in the session, I can't get close
+to storing anything.
+Any more pointers would save what little hair I have left.
+
+Cheers,
+Emlyn.
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021485.html">[mod_python] Seg Fault when using session object
+</A></li>
+	<LI>Next message: <A HREF="021491.html">[mod_python] Seg Fault when using session object
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21490">[ date ]</a>
+              <a href="thread.html#21490">[ thread ]</a>
+              <a href="subject.html#21490">[ subject ]</a>
+              <a href="author.html#21490">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

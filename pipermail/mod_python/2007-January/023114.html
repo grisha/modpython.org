@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Is it  possible to stop  file uploading?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Is%20it%20%20possible%20to%20stop%20%20file%20uploading%3F&In-Reply-To=298EE92A-9D5E-4654-AE3C-67F4ABD4BD63%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023113.html">
+   <LINK REL="Next"  HREF="023118.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Is it  possible to stop  file uploading?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Is%20it%20%20possible%20to%20stop%20%20file%20uploading%3F&In-Reply-To=298EE92A-9D5E-4654-AE3C-67F4ABD4BD63%40dscpl.com.au"
+       TITLE="[mod_python] Is it  possible to stop  file uploading?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Jan 25 04:49:16 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023113.html">[mod_python] Is it  possible to stop  file uploading?
+</A></li>
+        <LI>Next message: <A HREF="023118.html">[mod_python] How to pass values
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23114">[ date ]</a>
+              <a href="thread.html#23114">[ thread ]</a>
+              <a href="subject.html#23114">[ subject ]</a>
+              <a href="author.html#23114">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Actually, there is another interesting way one can stop it without
+resorting to specific status values. Ie., can be done for OK response
+as well. That is:
+
+         &amp;&amp; (!apr_table_get(r-&gt;subprocess_env, &quot;nokeepalive&quot;)
+
+In other words, in your request handler have:
+
+   req.subprocess_env[&quot;nokeepalive&quot;] = &quot;1&quot;
+
+Graham
+
+On 25/01/2007, at 8:37 PM, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 25/01/2007, at 8:14 PM, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">export at hope.cz</A> wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Graham and Mike
+</I>&gt;&gt;<i> Thank you for help and some explanation about my question.
+</I>&gt;&gt;<i> Mike you say:&quot;It is good practice to send a &quot;Connection: Close&quot;  
+</I>&gt;&gt;<i> header along with your
+</I>&gt;&gt;<i> error response&quot;,
+</I>&gt;&gt;<i> But how shall I send that?Can you please send detail?
+</I>&gt;&gt;<i> Thank you again for help
+</I>&gt;<i>
+</I>&gt;<i> Probably simpler to return an error status of HTTP_BAD_REQUEST. This
+</I>&gt;<i> is one of the error status values which is guaranteed to always  
+</I>&gt;<i> result in the
+</I>&gt;<i> connection being closed even if keep alive was requested. There are  
+</I>&gt;<i> others
+</I>&gt;<i> which do the same, but I guess it depends on what one classifies a  
+</I>&gt;<i> request
+</I>&gt;<i> to upload an unsupported file type as.
+</I>&gt;<i>
+</I>&gt;<i> Overall the logic for determining if keep alive is maintained is  
+</I>&gt;<i> quite convoluted.
+</I>&gt;<i>
+</I>&gt;<i> #define ap_status_drops_connection(x) \
+</I>&gt;<i>                                    (((x) ==  
+</I>&gt;<i> HTTP_BAD_REQUEST)           || \
+</I>&gt;<i>                                     ((x) ==  
+</I>&gt;<i> HTTP_REQUEST_TIME_OUT)      || \
+</I>&gt;<i>                                     ((x) ==  
+</I>&gt;<i> HTTP_LENGTH_REQUIRED)       || \
+</I>&gt;<i>                                     ((x) ==  
+</I>&gt;<i> HTTP_REQUEST_ENTITY_TOO_LARGE) || \
+</I>&gt;<i>                                     ((x) ==  
+</I>&gt;<i> HTTP_REQUEST_URI_TOO_LARGE) || \
+</I>&gt;<i>                                     ((x) ==  
+</I>&gt;<i> HTTP_INTERNAL_SERVER_ERROR) || \
+</I>&gt;<i>                                     ((x) ==  
+</I>&gt;<i> HTTP_SERVICE_UNAVAILABLE) || \
+</I>&gt;<i>                                     ((x) == HTTP_NOT_IMPLEMENTED))
+</I>&gt;<i>
+</I>&gt;<i>     /* The following convoluted conditional determines whether or not
+</I>&gt;<i>      * the current connection should remain persistent after this  
+</I>&gt;<i> response
+</I>&gt;<i>      * (a.k.a. HTTP Keep-Alive) and whether or not the output message
+</I>&gt;<i>      * body should use the HTTP/1.1 chunked transfer-coding.  In  
+</I>&gt;<i> English,
+</I>&gt;<i>      *
+</I>&gt;<i>      *   IF  we have not marked this connection as errored;
+</I>&gt;<i>      *   and the response body has a defined length due to the  
+</I>&gt;<i> status code
+</I>&gt;<i>      *       being 304 or 204, the request method being HEAD, already
+</I>&gt;<i>      *       having defined Content-Length or Transfer-Encoding:  
+</I>&gt;<i> chunked, or
+</I>&gt;<i>      *       the request version being HTTP/1.1 and thus capable of  
+</I>&gt;<i> being set
+</I>&gt;<i>      *       as chunked [we know the (r-&gt;chunked = 1) side-effect  
+</I>&gt;<i> is ugly];
+</I>&gt;<i>      *   and the server configuration enables keep-alive;
+</I>&gt;<i>      *   and the server configuration has a reasonable inter- 
+</I>&gt;<i> request timeout;
+</I>&gt;<i>      *   and there is no maximum # requests or the max hasn't been  
+</I>&gt;<i> reached;
+</I>&gt;<i>      *   and the response status does not require a close;
+</I>&gt;<i>      *   and the response generator has not already indicated close;
+</I>&gt;<i>      *   and the client did not request non-persistence  
+</I>&gt;<i> (Connection: close);
+</I>&gt;<i>      *   and    we haven't been configured to ignore the buggy twit
+</I>&gt;<i>      *       or they're a buggy twit coming through a HTTP/1.1 proxy
+</I>&gt;<i>      *   and    the client is requesting an HTTP/1.0-style keep-alive
+</I>&gt;<i>      *       or the client claims to be HTTP/1.1 compliant (perhaps  
+</I>&gt;<i> a proxy);
+</I>&gt;<i>      *   THEN we can be persistent, which requires more headers be  
+</I>&gt;<i> output.
+</I>&gt;<i>      *
+</I>&gt;<i>      * Note that the condition evaluation order is extremely  
+</I>&gt;<i> important.
+</I>&gt;<i>      */
+</I>&gt;<i>
+</I>&gt;<i>     if ((r-&gt;connection-&gt;keepalive != AP_CONN_CLOSE)
+</I>&gt;<i>         &amp;&amp; ((r-&gt;status == HTTP_NOT_MODIFIED)
+</I>&gt;<i>             || (r-&gt;status == HTTP_NO_CONTENT)
+</I>&gt;<i>             || r-&gt;header_only
+</I>&gt;<i>             || apr_table_get(r-&gt;headers_out, &quot;Content-Length&quot;)
+</I>&gt;<i>             || ap_find_last_token(r-&gt;pool,
+</I>&gt;<i>                                   apr_table_get(r-&gt;headers_out,
+</I>&gt;<i>                                                 &quot;Transfer-Encoding&quot;),
+</I>&gt;<i>                                   &quot;chunked&quot;)
+</I>&gt;<i>             || ((r-&gt;proto_num &gt;= HTTP_VERSION(1,1))
+</I>&gt;<i>                 &amp;&amp; (r-&gt;chunked = 1))) /* THIS CODE IS CORRECT, see  
+</I>&gt;<i> above. */
+</I>&gt;<i>         &amp;&amp; r-&gt;server-&gt;keep_alive
+</I>&gt;<i>         &amp;&amp; (r-&gt;server-&gt;keep_alive_timeout &gt; 0)
+</I>&gt;<i>         &amp;&amp; ((r-&gt;server-&gt;keep_alive_max == 0)
+</I>&gt;<i>             || (r-&gt;server-&gt;keep_alive_max &gt; r-&gt;connection- 
+</I>&gt;<i> &gt;keepalives))
+</I>&gt;<i>         &amp;&amp; !ap_status_drops_connection(r-&gt;status)
+</I>&gt;<i>         &amp;&amp; !wimpy
+</I>&gt;<i>         &amp;&amp; !ap_find_token(r-&gt;pool, conn, &quot;close&quot;)
+</I>&gt;<i>         &amp;&amp; (!apr_table_get(r-&gt;subprocess_env, &quot;nokeepalive&quot;)
+</I>&gt;<i>             || apr_table_get(r-&gt;headers_in, &quot;Via&quot;))
+</I>&gt;<i>         &amp;&amp; ((ka_sent = ap_find_token(r-&gt;pool, conn, &quot;keep-alive&quot;))
+</I>&gt;<i>             || (r-&gt;proto_num &gt;= HTTP_VERSION(1,1)))) {
+</I>&gt;<i>         int left = r-&gt;server-&gt;keep_alive_max - r-&gt;connection- 
+</I>&gt;<i> &gt;keepalives;
+</I>&gt;<i>
+</I>&gt;<i>         r-&gt;connection-&gt;keepalive = AP_CONN_KEEPALIVE;
+</I>&gt;<i>         r-&gt;connection-&gt;keepalives++;
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023113.html">[mod_python] Is it  possible to stop  file uploading?
+</A></li>
+	<LI>Next message: <A HREF="023118.html">[mod_python] How to pass values
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23114">[ date ]</a>
+              <a href="thread.html#23114">[ thread ]</a>
+              <a href="subject.html#23114">[ subject ]</a>
+              <a href="author.html#23114">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

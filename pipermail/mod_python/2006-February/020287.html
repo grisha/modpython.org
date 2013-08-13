@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] High traffic recommendations
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20High%20traffic%20recommendations&In-Reply-To=1140023633.8217.56.camel%40localhost.localdomain">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020285.html">
+   <LINK REL="Next"  HREF="020297.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] High traffic recommendations</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20High%20traffic%20recommendations&In-Reply-To=1140023633.8217.56.camel%40localhost.localdomain"
+       TITLE="[mod_python] High traffic recommendations">jpg at jgassociates.ca
+       </A><BR>
+    <I>Wed Feb 15 15:40:57 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020285.html">[mod_python] High traffic recommendations
+</A></li>
+        <LI>Next message: <A HREF="020297.html">[mod_python] High traffic recommendations
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20287">[ date ]</a>
+              <a href="thread.html#20287">[ thread ]</a>
+              <a href="subject.html#20287">[ subject ]</a>
+              <a href="author.html#20287">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Marc D. Murray wrote:
+&gt;<i> Thank you all for Your tips and responses. 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i>Is this server live on the internet or in a stand alone lab?
+</I>&gt;&gt;<i>Is it possible that there maybe a new virus attaching your machine
+</I>&gt;&gt;<i>when it connected to the net
+</I>&gt;<i> 
+</I>&gt;<i> It's live on the 'net. But I hope it's not a virus on Debian. Cuz I have
+</I>&gt;<i> no anti-virus on any of my Debian Boxes :)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i>And what do you get in error logs? Does it crash while processing your
+</I>&gt;&gt;<i>code or on directly in Apache?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Where did you see DBNoMemory and who reported it? What drivers do you
+</I>&gt;&gt;<i>use and how do you handle db connections?
+</I>&gt;<i> 
+</I>&gt;<i> The  DB Errors were from the bsddb.DBEnv runninng out of connections.
+</I>&gt;<i> Not sure why this would happen as it was supposedly designed for many
+</I>&gt;<i> connections. 
+</I>&gt;<i> But I'm currently using a global bsddb.DBEnv connection to a folder that
+</I>&gt;<i> holds many *.bdb files. These are opened stuffed into a queue. The are
+</I>&gt;<i> closed if older than 2 hrs.
+</I>&gt;<i> I don't get these errors  anymore. 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i>How does Apache behave WRT memory ? There are known memory leaks in
+</I>&gt;&gt;<i>mod_python version prior to 3.2.7, so 
+</I>&gt;<i> 
+</I>&gt;<i> Each apache process hovers between 3.2 and 4.7 % (readin from top). I
+</I>&gt;<i> ran some tests on my local server using /usr/sbin/ab, but it never went
+</I>&gt;<i> down. Not even when requests set to 50000. 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i>I would advise you to upgrade to 3.2.7 if you can
+</I>&gt;<i> 
+</I>&gt;<i> Now this is something I've been thinking of. I'll look into it later
+</I>&gt;<i> tonite. 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;&gt;<i>      MaxRequestsPerChild  500
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Make that 10000 or so. This low a number is only required if your
+</I>&gt;&gt;<i>system is leaking lots of resources (which mod_python does not do).
+</I>&gt;<i> 
+</I>&gt;<i> Now I'm confused. Does it leak or not? How do I test for that?
+</I>
+It depends on how you define &quot;lots&quot;. There is an issue in 3.1.4 with the 
+use of PythonOption causing a leak. Each instance of PythonOption in 
+your apache configuration leaks 25 bytes for each request. This will 
+obviously only become a problem if your MaxRequestPerChild set at a very 
+high number (or 0).
+
+IIRC the other issue was a problem with garbage collecting circular 
+references for the request object. Nicolas may have a better 
+recollection, but it seems to me this was mainly a problem when 
+registering a cleanup that held a reference to the request object. This 
+was a more serious leak and could cause problems in the sort of time 
+frame you are seeing.
+
+There can also be related issue if a segfault occurs in the cleanup 
+phase as a result of holding a reference to the request object which has 
+already been garbage collected. The client would still see the result 
+and not be aware of the problem, but the cleanup code never closes the 
+db connection because it segfaults. A segfault would also explain why 
+your memory use seems stable. It's sort of like having a really low 
+MaxRequestsPerChild setting. ;)
+
+A segfault in the cleanup code is obviously a real performance killer, 
+so check that code carefully. As Nicolas suggested, you may want to post 
+the code for your DBMSession subclass.
+
+At any rate, 3.2.7 fixes these issues, and an upgrade is in order.
+
+Jim
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020285.html">[mod_python] High traffic recommendations
+</A></li>
+	<LI>Next message: <A HREF="020297.html">[mod_python] High traffic recommendations
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20287">[ date ]</a>
+              <a href="thread.html#20287">[ thread ]</a>
+              <a href="subject.html#20287">[ subject ]</a>
+              <a href="author.html#20287">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

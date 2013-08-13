@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] ReportLab integration
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ReportLab%20integration&In-Reply-To=29a6ca010610161651j4d7a5b38t316624aa2a7cea5c%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022347.html">
+   <LINK REL="Next"  HREF="022349.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] ReportLab integration</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Steil</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ReportLab%20integration&In-Reply-To=29a6ca010610161651j4d7a5b38t316624aa2a7cea5c%40mail.gmail.com"
+       TITLE="[mod_python] ReportLab integration">jim at qlf.com
+       </A><BR>
+    <I>Tue Oct 17 00:31:36 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022347.html">[mod_python] SQLAlchemy logging with mod_python
+</A></li>
+        <LI>Next message: <A HREF="022349.html">[mod_python] ReportLab integration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22348">[ date ]</a>
+              <a href="thread.html#22348">[ thread ]</a>
+              <a href="subject.html#22348">[ subject ]</a>
+              <a href="author.html#22348">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Hey, that did it!
+
+I changed the Cache-Control header to '' and now it works.  I will run it
+through more tests tomorrow, but for now it appears to be working.  Also, if
+I set the Content-Disposition to attachment, I get the filename that I
+specify in the filename parameter.  The filename doesn't seem to come
+through if I specify inline.  
+
+Colin, I can't thank you enough for the help.  This will make it really easy
+to build dynamic pdf's and get them out to our users, and now I don't have
+to have them all pre-generated and stored on our servers.
+
+	-Jim
+
+-----Original Message-----
+From: Colin Bean [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ccbean at gmail.com</A>] 
+Sent: Monday, October 16, 2006 6:52 PM
+To: Jim Steil
+Subject: Re: [mod_python] ReportLab integration
+
+Hi Jim,
+
+Well, I uncovered some weird behavior within IE, and I think I found
+part of the problem.  I wrote a standalone module (without publisher)
+that read a pdf off disk and sent the string value to the request, to
+try to simulate your module's behavior.  This is on Apache 2.2.0,
+mod_python 3.2.10 on Fedora Core 5, tested with IE 6 and firefox.
+
+It basically goes back to that comment in Graham's code about how
+setting the cache-control header caused IE to not display the PDF.
+While you never set these by hand, you do use a session cookie, which
+sets the Cache-Control header to 'no-cache=&quot;set-cookie&quot;', and
+apparently this is enough to break IE.  In my test handler, the pdf
+displayed fine in the browser when I didn't use a session, but would
+only give me a &quot;save to disk&quot; dialog when I did.
+
+So you might try removing any session code from your example to see if
+it would work (I'm guessing you'll need some kind of authentication in
+the future so this is probably not going to be a long-term solution,
+but it should at least confirm that this is the problem).  Forgive my
+ignorance of publisher; I forget if it automatically creates a
+session.  If it does, the only way to get this to work would be as a
+standalone handler.
+
+Another option I found, which worked but seems sketchy was to set the
+Cache-Control header to an empty string right before sending the
+headers.  When I did this, the PDF displayed fine, and the pysid
+headers where still there, but I'd image that the cache-control header
+was there for a reason and I'm sure this could break in unexpected
+ways.
+
+Finally, the content-dispositon thing doesn't really matter -- it does
+give you a nice filename when you choose &quot;save as&quot;, but it didn't
+affect whether or not IE would display the pdf right.  So sorry to put
+you through all that other stuff ;)
+
+Hopefully some of that made sense, let me know if you get this working.
+
+-Colin
+
+
+On 10/16/06, Jim Steil &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jim at qlf.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Here is the latest:  But, same result on IE 7 and IE 6.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>             -Jim
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> HTTP/1.1 200 OK
+</I>&gt;<i>
+</I>&gt;<i> Date: Mon, 16 Oct 2006 21:49:27 GMT
+</I>&gt;<i>
+</I>&gt;<i> Server: Apache/2.0.55 (Win32) mod_python/3.2.2b Python/2.4.3 PHP/5.1.6
+</I>&gt;<i>
+</I>&gt;<i> Cache-Control: no-cache=&quot;set-cookie&quot;
+</I>&gt;<i>
+</I>&gt;<i> Set-Cookie: pysid=37d5aa6545f4c7595fcdd2c315b4a70f; path=/
+</I>&gt;<i>
+</I>&gt;<i> Set-Cookie: pysid=00ce18b00a3f3ea621ed5ac955c7aed7; path=/
+</I>&gt;<i>
+</I>&gt;<i> Content-length: 81355
+</I>&gt;<i>
+</I>&gt;<i> Content-Disposition: inline;filename=&quot;optimizer.pdf&quot;
+</I>&gt;<i>
+</I>&gt;<i> Connection: close
+</I>&gt;<i>
+</I>&gt;<i> Content-Type: application/pdf
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Jim Steil
+</I>&gt;<i>  IT Manager
+</I>&gt;<i>  Quality Liquid Feeds
+</I>&gt;<i>  (608) 935-2345
+</I>&gt;<i>
+</I>&gt;<i> (608) 341-9896 cell
+</I>&gt;<i>
+</I>&gt;<i>  ________________________________
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> From: Colin Bean [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ccbean at gmail.com</A>]
+</I>&gt;<i>  Sent: Monday, October 16, 2006 4:47 PM
+</I>&gt;<i>  To: Jim Steil
+</I>&gt;<i>  Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i>  Subject: Re: [mod_python] ReportLab integration
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Also, try putting the file name in quotes.  I think this is needed per the
+</I>&gt;<i> RFC.
+</I>&gt;<i>  I just checked an example where the Content-Disposition header was set
+</I>to:
+&gt;<i>  attachment; filename=&quot;foo.dwf&quot;
+</I>&gt;<i>  which worked.  That wasn't done in mod_python, however; I'm still looking
+</I>&gt;<i> at a mod_python example.
+</I>&gt;<i>
+</I>&gt;<i>  -Colin
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022347.html">[mod_python] SQLAlchemy logging with mod_python
+</A></li>
+	<LI>Next message: <A HREF="022349.html">[mod_python] ReportLab integration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22348">[ date ]</a>
+              <a href="thread.html#22348">[ thread ]</a>
+              <a href="subject.html#22348">[ subject ]</a>
+              <a href="author.html#22348">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

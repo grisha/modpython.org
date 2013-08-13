@@ -1,0 +1,122 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Patch to allow kwargs in publisher.py
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Patch%20to%20allow%20kwargs%20in%20publisher.py&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="013077.html">
+   <LINK REL="Next"  HREF="013079.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Patch to allow kwargs in publisher.py</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>rmunn at pobox.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Patch%20to%20allow%20kwargs%20in%20publisher.py&In-Reply-To="
+       TITLE="[mod_python] Patch to allow kwargs in publisher.py">rmunn at pobox.com
+       </A><BR>
+    <I>Wed Oct  2 01:27:51 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="013077.html">[mod_python] Redirect from publisher - again...
+</A></li>
+        <LI>Next message: <A HREF="013079.html">[mod_python] Documentation patch for kwargs change in publisher.py
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13078">[ date ]</a>
+              <a href="thread.html#13078">[ thread ]</a>
+              <a href="subject.html#13078">[ subject ]</a>
+              <a href="author.html#13078">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>While playing around with my brand new install of mod_python 3.0.0 beta
+2, I discovered that publisher.py does not handle the **kwargs syntax in
+functions it's dispatching to. Apparently I'm not the only one who wants
+that feature added:
+
+<A HREF="http://www.modpython.org/pipermail/mod_python/2002-June/002171.html">http://www.modpython.org/pipermail/mod_python/2002-June/002171.html</A>
+
+It seems like the Right Thing for publisher.py's handler() func to do
+would be to check whether the function accepts the **kwargs syntax
+before stripping out unexpected args. Presumably if the user asked for
+**kwargs-style args to be passed, he is expecting to receive all the
+GET/POST arguments in the **kwargs dictionary. It would be intuitive
+(it's what I was expecting to happen, actually, and I was surprised that
+it didn't) and useful. And since it hadn't been done yet, I went ahead
+and did it -- it was surprisingly simple. Here's a patch. It seems to
+work fine for me -- I can't say I've given it a foolproof amount of
+testing, but every test I threw at it seemed to do what I expected.
+
+-- 
+Robin Munn
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rmunn at pobox.com</A>
+
+
+--- lib/python/mod_python/publisher.py	2002-09-12 13:24:05.000000000 -0500
++++ lib/python/mod_python/publisher.py.new	2002-10-02 01:07:46.000000000 -0500
+@@ -180,10 +180,17 @@
+             fc = object.im_func.func_code
+             expected = fc.co_varnames[1:fc.co_argcount]
+ 
+-        # remove unexpected args
+-        for name in args.keys():
+-            if name not in expected:
+-                del args[name]
++        # does it want keyword args?
++        # co_flags &amp; 0x04 is set if a function wants *args syntax
++        # co_flags &amp; 0x08 is set if a function wants **kwargs syntax
++        if fc.co_flags &amp; 0x08:
++            # don't strip unexpected args if function wants **kwargs
++            pass
++        else:
++            # remove unexpected args
++            for name in args.keys():
++                if name not in expected:
++                    del args[name]
+ 
+         result = apply(object, (), args)
+ 
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="013077.html">[mod_python] Redirect from publisher - again...
+</A></li>
+	<LI>Next message: <A HREF="013079.html">[mod_python] Documentation patch for kwargs change in publisher.py
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13078">[ date ]</a>
+              <a href="thread.html#13078">[ thread ]</a>
+              <a href="subject.html#13078">[ subject ]</a>
+              <a href="author.html#13078">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

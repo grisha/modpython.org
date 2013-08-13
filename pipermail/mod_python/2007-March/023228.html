@@ -1,0 +1,274 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache/mod_python process sizes. Help wanted.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023227.html">
+   <LINK REL="Next"  HREF="023229.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache/mod_python process sizes. Help wanted.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To="
+       TITLE="[mod_python] Apache/mod_python process sizes. Help wanted.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Mar  2 19:14:53 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023227.html">[mod_python] PSP Templating
+</A></li>
+        <LI>Next message: <A HREF="023229.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23228">[ date ]</a>
+              <a href="thread.html#23228">[ thread ]</a>
+              <a href="subject.html#23228">[ subject ]</a>
+              <a href="author.html#23228">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>This email is to enlist the help of mod_python users out there to  
+hopefully
+disprove a possible misconception that exists and which is often used
+to malign mod_python and label it a bad solution to the problem of  
+hosting
+web applications. If intrigued, keep reading, especially as the  
+results may
+end up showing that you might be able to improve the memory use profile
+of your own Apache installation.
+
+The actual claim which would be nice to disprove is that mod_python
+consumes huge amounts of memory.
+
+The first part of this issue I want to look at and get data on is how  
+much
+memory is used by an Apache child process immediately after Apache is
+started and before any actual request or additional Python modules are
+imported.
+
+What I am trying to determine is by how much is the process size caused
+not by mod_python, but by the fact that standard Python installations  
+tend
+not to be built with the '-enable-shared' option. To be more  
+specific, that the
+Python library is static rather than being a shared library.
+
+The reason this can be an issue is that when creating the mod_python.so
+module which is loaded into Apache, if the Python library is static  
+rather
+than shared, then libtool will actually incorporate the contents of  
+the Python
+static library into mod_python.so itself. This alone will cause the  
+size of the
+mod_python.so file to be much larger.
+
+The next factor is in what way particular operating systems will  
+treat the
+memory consumed by the mod_python.so file when loaded into memory
+as shared data
+
+The best scenario would be that the memory would be shared between all
+Apache child processes. Thus, even if mod_python.so is bigger than it
+needs to be due to there only being a static Python library, at least  
+there is
+only one copy in memory.
+
+The worst case and one which apparently can happen on some platforms,
+is that because the objects in the Python static library are not  
+relocatable
+objects, when mapped into memory, the required address translations
+will result in a copy on write of the memory used by the Python library
+object files in memory. This will result in the Python library parts  
+of the
+mod_python.so file not being able to be shared across all Apache child
+processes and thus Apache as a whole could consume huge amounts as
+each Apache child process would effectively have its own copy in memory
+of the Python library.
+
+What I am therefore after is a selection of data for various  
+platforms and
+the different ways that Python can be built, showing size of  
+mod_python.so,
+whether Python library is static or shared, how much memory Apache child
+processes take when mod_python not loaded and then how much when
+it is loaded.
+
+Note that I am not interested in this for Win32 or MacOS systems, but  
+the
+Linux/BSD/Solaris/HPUX platforms.
+
+Thus:
+
+1. Operating System
+
+For example:
+
+   Mac OS X 10.4 (PowerPC)
+
+2. Size of mod_python.so.
+
+For example:
+
+$ ls -las mod_python.so
+744 -rwxr-xr-x   1 grahamd  admin  378280 Dec 10 17:24 mod_python.so
+
+3. Size of Python library. This should exist in the 'lib/pythonX.Y/ 
+config'
+directory of your Python installation. Ie., at same directory level  
+as your
+'site-packages' directory. It would be called 'libpythonX.Y.a',  
+'libpythonX.Y.so'
+or 'libpythonX.Y.sl'.
+
+MacOS is a bit different as it uses what it calls frameworks, ie., a  
+fancy shared
+library, and they are named differently, but as an example:
+
+$ ls -las Python
+2144 -rwxr-xr-x   1 root  wheel  1097268 Sep 13 12:12 Python
+
+On UNIX platforms, use 'ls -las libpython*'.
+
+4. Confirm whether mod_python.so uses Python library as static  
+library or
+shared library. On UNIX systems you can use the 'ldd' command on
+mod_python.so to determine this.
+
+MacOS is a bit different again here and uses 'otool' command instead and
+output looks a fair bit different, but as example:
+
+	$ otool -L mod_python.so mod_python.so:
+         /usr/lib/libSystem.B.dylib (compatibility version 1.0.0,  
+current version 88.1.6)
+         /System/Library/Frameworks/Python.framework/Versions/2.3/ 
+Python (compatibility version 2.3.0, current version 2.3.5)
+         /System/Library/Frameworks/CoreServices.framework/Versions/A/ 
+CoreServices (compatibility version 1.0.0, current version 18.0.0)
+         /System/Library/Frameworks/Foundation.framework/Versions/C/ 
+Foundation (compatibility version 300.0.0, current version 567.27.0)
+         /usr/lib/libmx.A.dylib (compatibility version 1.0.0, current  
+version 92.0.0)
+
+5. Work out how much memory Apache uses when mod_python is not being
+loaded. One can use 'top' for this. Hopefully others may suggest  
+better ways.
+
+For example:
+
+   PID COMMAND      %CPU   TIME   #TH #PRTS #MREGS RPRVT  RSHRD   
+RSIZE  VSIZE
+   277 httpd        0.0%  0:00.00   1     8    26    72K  1.88M    
+496K  29.3M
+   276 httpd        0.0%  0:00.00   1     8    26    76K  1.88M    
+500K  29.3M
+   275 httpd        0.0%  0:00.00   1     8    26    76K  1.88M    
+500K  29.3M
+   274 httpd        0.0%  0:00.00   1     8    26    76K  1.88M    
+500K  29.3M
+   273 httpd        0.0%  0:00.00   1     8    26    72K  1.88M    
+500K  29.3M
+   272 httpd        0.0%  0:00.01   1    11    27    76K  1.89M   
+1.07M  29.3M
+
+6. Work out how much memory Apache uses when mod_python is loaded
+but before any requests have occurred. Ensure that no PythonImport
+directives have been used.
+
+For example:
+
+	  PID COMMAND      %CPU   TIME   #TH #PRTS #MREGS RPRVT  RSHRD   
+RSIZE  VSIZE
+   291 httpd        0.0%  0:00.00   1     8    36   120K  2.77M    
+700K  30.3M
+   290 httpd        0.0%  0:00.00   1     8    36   124K  2.77M    
+704K  30.3M
+   289 httpd        0.0%  0:00.00   1     8    36   124K  2.77M    
+704K  30.3M
+   288 httpd        0.0%  0:00.00   1     8    36   124K  2.77M    
+704K  30.3M
+   287 httpd        0.0%  0:00.00   1     8    36   120K  2.77M    
+704K  30.3M
+   286 httpd        0.0%  0:00.07   1    11    36    40K  2.77M   
+1.81M  30.3M
+
+Thus on MacOS where shared library for Python is used, process specific
+memory use does go up, but no but that much. One sees a bigger jump
+in shared memory use because of shared Python library.
+
+If eager, use a hello world mod_python example and trigger one request
+against it and see how size changes.
+
+7. If you are also loading lots of other Apache modules, such as  
+mod_perl,
+module for PHP etc, list any significant ones so we might understand  
+what
+else may be using memory. Ideally, do the tests with as little  
+modules loaded
+as possible.
+
+So, what do other people get?
+
+Is that fact that Python installations often only provide a static  
+Python
+library the culprit?
+
+Is there a better way of analysing memory use than this?
+
+It would be great if someone has the time and resources to actually  
+build
+up two Python versions, one with static and shared libraries, then build
+mod_python.so and compare for each. Being on the same platform
+may help in comparing them. I can't really do this on MacOS and don't
+have access to other platforms to test.
+
+Thanks in advance.
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023227.html">[mod_python] PSP Templating
+</A></li>
+	<LI>Next message: <A HREF="023229.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23228">[ date ]</a>
+              <a href="thread.html#23228">[ thread ]</a>
+              <a href="subject.html#23228">[ subject ]</a>
+              <a href="author.html#23228">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

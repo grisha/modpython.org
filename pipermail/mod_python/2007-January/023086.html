@@ -1,0 +1,240 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] how to run multiple subinterpreters from mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20to%20run%20multiple%20subinterpreters%20from%20mod_python&In-Reply-To=1169614428.18296%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023083.html">
+   <LINK REL="Next"  HREF="023088.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] how to run multiple subinterpreters from mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Suresh Lakshmanan</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20to%20run%20multiple%20subinterpreters%20from%20mod_python&In-Reply-To=1169614428.18296%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] how to run multiple subinterpreters from mod_python">suresh.lakshmanan at gmail.com
+       </A><BR>
+    <I>Wed Jan 24 04:23:41 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023083.html">[mod_python] how to run multiple subinterpreters from mod_python
+</A></li>
+        <LI>Next message: <A HREF="023088.html">[mod_python] how to run multiple subinterpreters from mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23086">[ date ]</a>
+              <a href="thread.html#23086">[ thread ]</a>
+              <a href="subject.html#23086">[ subject ]</a>
+              <a href="author.html#23086">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Graham,
+my libxx makes openssl calls to do some crypto stuff. only a few http
+requests land up on that code path.
+
+i made this test...
+for a url say, <A HREF="http://myserver/myapp/test.">http://myserver/myapp/test.</A> i put sleep in the python handler
+code.
+
+//python handler for the above url
+{
+    import time
+    log('before sleep')
+    time.sleep(60)
+    log('after sleep')
+}
+
+when multiple clients access the url, the calls are serialized. the second
+client waits for a minute and then comes to this handler.
+why is this so? that's why i was lead to believe that the requests were
+serialized.
+
+am i missing something in the config?
+
+this is httpd -l output. worker.c is compiled in
+Compiled in modules:
+  core.c
+  mod_authn_file.c
+  mod_authn_default.c
+  mod_authz_host.c
+  mod_authz_groupfile.c
+  mod_authz_user.c
+  mod_authz_default.c
+  mod_auth_basic.c
+  mod_auth_digest.c
+  mod_include.c
+  mod_filter.c
+  mod_deflate.c
+  mod_log_config.c
+  mod_env.c
+  mod_expires.c
+  mod_setenvif.c
+  mod_proxy.c
+  mod_proxy_connect.c
+  mod_proxy_ftp.c
+  mod_proxy_http.c
+  mod_proxy_ajp.c
+  mod_proxy_balancer.c
+  mod_ssl.c
+  worker.c
+  http_core.c
+  mod_mime.c
+  mod_status.c
+  mod_autoindex.c
+  mod_asis.c
+  mod_negotiation.c
+  mod_dir.c
+  mod_actions.c
+  mod_userdir.c
+  mod_alias.c
+  mod_rewrite.c
+  mod_so.c
+
+On 1/24/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Suresh Lakshmanan wrote ..
+</I>&gt;<i> &gt; Hi Graham,
+</I>&gt;<i> &gt; I'm not very familiar with the apache MPM model. Thanks for your
+</I>&gt;<i> references,
+</I>&gt;<i> &gt; im able to get an idea of how the subinterpreters work in mod_python.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; My python application is a django based application. It uses a few
+</I>&gt;<i> python
+</I>&gt;<i> &gt; modules like
+</I>&gt;<i> &gt; PIL (python imaging library), dnspython, django, libxx (our c++
+</I>&gt;<i> extension
+</I>&gt;<i> &gt; written in python)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Multiple requests to my django application (running inside apache with
+</I>&gt;<i> &gt; mod_python) are serialized and they execute one by one.
+</I>&gt;<i> &gt; Lot of them get 503 responses.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Here's my apache conf.
+</I>&gt;<i>
+</I>&gt;<i> Does running:
+</I>&gt;<i>
+</I>&gt;<i>   httpd -l
+</I>&gt;<i>
+</I>&gt;<i> actually show worker.c in the list of files. Ie. to confirm that worker
+</I>&gt;<i> MPM is
+</I>&gt;<i> actually compiled in.
+</I>&gt;<i>
+</I>&gt;<i> &gt; # worker MPM
+</I>&gt;<i> &gt; # StartServers: initial number of server processes to start
+</I>&gt;<i> &gt; # MaxClients: maximum number of simultaneous client connections
+</I>&gt;<i> &gt; # MinSpareThreads: minimum number of worker threads which are kept spare
+</I>&gt;<i> &gt; # MaxSpareThreads: maximum number of worker threads which are kept spare
+</I>&gt;<i> &gt; # ThreadsPerChild: constant number of worker threads in each server
+</I>&gt;<i> process
+</I>&gt;<i> &gt; # MaxRequestsPerChild: maximum number of requests a server process
+</I>&gt;<i> serves
+</I>&gt;<i> &gt; &lt;IfModule worker.c&gt;
+</I>&gt;<i> &gt; StartServers         1
+</I>&gt;<i> &gt; MaxClients          64
+</I>&gt;<i> &gt; MinSpareThreads     64
+</I>&gt;<i> &gt; MaxSpareThreads     64
+</I>&gt;<i> &gt; ThreadsPerChild     64
+</I>&gt;<i> &gt; MaxRequestsPerChild  0
+</I>&gt;<i> &gt; ServerLimit          1
+</I>&gt;<i>
+</I>&gt;<i> This is what I was talking about with limiting the maximum number of child
+</I>&gt;<i> process to 1. Because you have this, if a single request takes some time
+</I>&gt;<i> to
+</I>&gt;<i> execute and the point it is waiting or taking time in is in C/C++ code in
+</I>&gt;<i> a
+</I>&gt;<i> external Python module, and that module doesn't properly release the
+</I>&gt;<i> Python
+</I>&gt;<i> GIL, all other requests will bank up behind that one request waiting for
+</I>&gt;<i> it to
+</I>&gt;<i> return out of the C/C++ code.
+</I>&gt;<i>
+</I>&gt;<i> In your libxx module, do you perform things in the C++ code that take a
+</I>&gt;<i> while
+</I>&gt;<i> or do you make calls to stuff which can block. Do you ensure that you wrap
+</I>&gt;<i> time
+</I>&gt;<i> consuming operations of code that can block in:
+</I>&gt;<i>
+</I>&gt;<i>     Py_BEGIN_ALLOW_THREADS
+</I>&gt;<i>     ... blocking or time consuming operation.
+</I>&gt;<i>     Py_END_ALLOW_THREADS
+</I>&gt;<i>
+</I>&gt;<i> &gt; &lt;/IfModule&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &lt;Location &quot;/reg/&quot;&gt;
+</I>&gt;<i> &gt;     SetEnv PYTHONHOME &quot;/usr/local/bin/python2.4&quot;
+</I>&gt;<i>
+</I>&gt;<i> This will not actually do anything for mod_python itself. Would only
+</I>&gt;<i> affect CGI
+</I>&gt;<i> scripts which are written in Python.
+</I>&gt;<i>
+</I>&gt;<i> &gt;     SetHandler python-program
+</I>&gt;<i> &gt;     PythonPath &quot;['/usr/local/pi/applications/',
+</I>&gt;<i> &gt; '/usr/local/pi/nodes/data/regist
+</I>&gt;<i> &gt; ration', '/usr/local/pi/pimgr/lib', '/usr/local/pi/pimgr/lib/ca' ,
+</I>&gt;<i> &gt; '/usr/local/p
+</I>&gt;<i> &gt; i/pimgr/lib/MySQLdb'] + sys.path&quot;
+</I>&gt;<i> &gt;     PythonHandler django.core.handlers.modpython
+</I>&gt;<i> &gt;     SetEnv PINET_HOME
+</I>&gt;<i> &gt; &quot;/usr/local/pi/nodes/data/registration/pimgr/reg/ca/config
+</I>&gt;<i> &gt; &quot;
+</I>&gt;<i> &gt;     SetEnv PIMGR_PATH &quot;/usr/local/pi/nodes/data/registration/pimgr&quot;
+</I>&gt;<i> &gt;     SetEnv DJANGO_SETTINGS_MODULE pimgr.settings
+</I>&gt;<i> &gt;     PythonDebug On
+</I>&gt;<i> &gt; &lt;/Location&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>-- 
+&quot;Little by little, through patience and repeated effort, the mind will
+become stilled in the Self.&quot; - Bhagawad Gita
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070124/d2f1c50c/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070124/d2f1c50c/attachment.html</A>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023083.html">[mod_python] how to run multiple subinterpreters from mod_python
+</A></li>
+	<LI>Next message: <A HREF="023088.html">[mod_python] how to run multiple subinterpreters from mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23086">[ date ]</a>
+              <a href="thread.html#23086">[ thread ]</a>
+              <a href="subject.html#23086">[ subject ]</a>
+              <a href="author.html#23086">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

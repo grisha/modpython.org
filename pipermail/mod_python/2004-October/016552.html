@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Any thoughts on the import problems?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Any%20thoughts%20on%20the%20import%20problems%3F&In-Reply-To=20041002200803.GT17925%40tummy.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016549.html">
+   <LINK REL="Next"  HREF="016548.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Any thoughts on the import problems?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Any%20thoughts%20on%20the%20import%20problems%3F&In-Reply-To=20041002200803.GT17925%40tummy.com"
+       TITLE="[mod_python] Any thoughts on the import problems?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Oct  3 10:55:58 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016549.html">[mod_python] Any thoughts on the import problems?
+</A></li>
+        <LI>Next message: <A HREF="016548.html">[mod_python] ServerName, UseCanonicalName, and mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16552">[ date ]</a>
+              <a href="thread.html#16552">[ thread ]</a>
+              <a href="subject.html#16552">[ subject ]</a>
+              <a href="author.html#16552">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 03/10/2004, at 6:08 AM, Sean Reifschneider wrote:
+
+&gt;<i> I just wanted to follow up on my previous message:
+</I>&gt;<i>
+</I>&gt;<i>     
+</I>&gt;<i> <A HREF="http://www.modpython.org/pipermail/mod_python/2004-September/">http://www.modpython.org/pipermail/mod_python/2004-September/</A> 
+</I>&gt;<i> 016289.html
+</I>&gt;<i>
+</I>&gt;<i> Any thoughts on what that problem is or how to approach it in
+</I>&gt;<i> mod_python?  I've looked at the mod_python code a bit, but really don't
+</I>&gt;<i> understand enough of it to be able to gain any traction.
+</I>
+Looking at your previous post, can't see why you are expecting not to  
+get the
+error:
+
+    Mod_python error: &quot;PythonHandler foo::handler&quot;
+
+    Traceback (most recent call last):
+
+      File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line
+    299, in HandlerDispatch
+        result = object(req)
+
+      File &quot;/home/httpd/modpythonpublishertest/py/foo.py&quot;, line 5, in
+    handler
+        module.function(req)
+
+      File &quot;/home/httpd/modpythonpublishertest/py/package/module.py&quot;,  
+line
+    4, in function
+        mod_python.util.FieldStorage(request)
+
+    AttributeError: 'module' object has no attribute 'util'
+
+I am sure others would have pointed out the obvious that module.py  
+isn't self
+contained as far as importing what it requires. Ie., in:
+
+       import mod_python
+
+       def function(request):
+          mod_python.util.FieldStorage(request)
+
+you should have:
+
+   import mod_python.util
+
+and not just:
+
+   import mod_python
+
+I am perhaps missing the point of what you are trying to demonstrate,  
+but you
+shouldn't rely on mod_python module to have automatically imported util  
+as a
+sub module or for some other module to have already loaded it as then  
+you get
+order dependencies.
+
+That said, I have had strange problems with mod_python.publisher  
+before, where
+even though I had all the correct imports, it would come up with a  
+similar error
+for it, but only in the case where the handler had been modified and  
+thus
+mod_python had decided to reload it.
+
+Note that the situtation was where I was using my own handler which so  
+happened
+to have:
+
+   import mod_python.publisher
+
+This was so I could use the authorisation mechanisms in that module  
+explicitly in
+my own handler.
+
+It was a very strange situation that I could never work out and which  
+may have been
+complicated by the fact that mod_python.publisher was specified as a  
+handler using
+SetHandler in a different part of the directory hierarchy.
+
+Because I had no control over the Apache web server and could not  
+simply stop and
+start it when I sometimes got this, I would add something like the  
+following evil
+lines into the start of the handler file which was the problem.
+
+   import sys
+   try: del sys.modules[&quot;mod_python.publisher&quot;]
+   except: pass
+
+This would precede the import of mod_python.publisher and thus when the  
+import was
+reached, the fact that it had been explicitly removed out of  
+sys.modules would
+caused it to be reimported correctly.
+
+Yes, I realise that deleting modules out of sys.modules isn't the most  
+sensible
+thing to do, but sometimes I find it quite useful. What I use is a  
+special set of
+functions callable by mod_python.publisher which give me things back  
+like the
+current sys.path and list of modules loaded under sys.modules. I then  
+have a purge
+method which I can use to add in code to delete any modules I want to  
+delete
+straight out of sys.modules. This might be used where you import a  
+module but at
+run time it has errors. Because &quot;import&quot; was used, your normal course  
+of action
+is normally to restart Apache, something which in the environment I am  
+in I could
+not do. Thus, instead of a restart of Apache, I delete the offending  
+modules out
+of sys.modules and then touch the handler module which uses the import  
+so it gets
+reloaded and import is rerun.
+
+Okay, it is a hack, but if you are careful, can be a lifesaver. :-)
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016549.html">[mod_python] Any thoughts on the import problems?
+</A></li>
+	<LI>Next message: <A HREF="016548.html">[mod_python] ServerName, UseCanonicalName, and mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16552">[ date ]</a>
+              <a href="thread.html#16552">[ thread ]</a>
+              <a href="subject.html#16552">[ subject ]</a>
+              <a href="author.html#16552">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

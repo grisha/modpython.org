@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20RE%3A%20Bug%20in%20mod_python.c%20causing%0A%09multiple/redundantinterpreter%20creation.&In-Reply-To=93CD6910-1FCB-11D9-9AA7-000393DCF16E%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016647.html">
+   <LINK REL="Next"  HREF="016645.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20RE%3A%20Bug%20in%20mod_python.c%20causing%0A%09multiple/redundantinterpreter%20creation.&In-Reply-To=93CD6910-1FCB-11D9-9AA7-000393DCF16E%40dscpl.com.au"
+       TITLE="[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Oct 17 16:54:08 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016647.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+        <LI>Next message: <A HREF="016645.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16644">[ date ]</a>
+              <a href="thread.html#16644">[ thread ]</a>
+              <a href="subject.html#16644">[ subject ]</a>
+              <a href="author.html#16644">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 17/10/2004, at 9:32 AM, Graham Dumpleton wrote:
+
+&gt;<i> I knew there was an issue with apache.py as well, with there being no 
+</I>&gt;<i> locking,
+</I>&gt;<i> but didn't mention it in my email with the fix as I wanted to check 
+</I>&gt;<i> that that
+</I>&gt;<i> was the source of the other problem I was seeing and make sure I came 
+</I>&gt;<i> up with
+</I>&gt;<i> a proper fix.
+</I>
+Turns out I had made the fix to the import_module() method as the first 
+thing I
+did, looks like I forgot. This is actually the way I uncovered that 
+there was still
+a further problem and thus the bug with creation of multiple 
+interpreters. I spent
+a good few hours tracking the problem done and then coming up with a 
+fix. Drove me
+nuts for a while as I knew exactly what I had to do to fix it but the 
+result would
+just hang. Finally realised the locking had to be done outside of the 
+GIL locking
+and not inside. Putting it inside later resulted in deadlock.
+
+Anyway, the fix to apache.py I am running with at the moment is:
+
+try:
+   from threading import Lock
+except:
+   class Lock:
+     def acquire(self): pass
+     def release(self): pass
+
+_lock = Lock()
+
+...
+
+def import_module(module_name, autoreload=1, log=0, path=None):
+   _lock.acquire()
+   try:
+     return _unsafe_import_module(module_name, \
+         autoreload=autoreload,log=log,path=path)
+   finally:
+     _lock.release()
+
+def _unsafe_import_module(module_name, autoreload=1, log=0, path=None):
+     &quot;&quot;&quot;
+     Get the module to handle the request. If
+     autoreload is on, then the module will be reloaded
+     if it has changed since the last import.
+     &quot;&quot;&quot;
+
+     ...
+
+Ie., create the lock in a way that will work if no threading or using 
+Python 2.2
+and then rename existing import_module() and wrap that in safe locking 
+version.
+
+Have done away with the funny check against reloading as doesn't seem 
+necessary
+because of the way apache.py is initially loaded. Theoretically it 
+could get
+screwed if someone did an import_module() call for &quot;mod_python.apache&quot; 
+but that
+is unlikely.
+
+This obviously is to be used in conjunction with the mod_python.c fix 
+already
+posted.
+
+I also worked out what the other strange thing that was happening and 
+which had
+me worried. Namely, even though I had fixed it so that only one 
+interpreter
+was being created per process, was still seeing the apache.py module 
+get loaded
+more than once. Turned out to be that there were still two interpreters 
+being
+created. These were the one for the machine host and then later on the 
+one
+for the &quot;main_interpreter&quot;. If PythonInterpreter was set to 
+&quot;main_interpreter&quot;
+then only saw apache.py being loaded once as one would expect.
+
+I am happy now that everything is working okay with these two changes 
+and I
+believe I can safely release another version of Vampire which works 
+properly
+in multithreaded environment. I will just need to include details of 
+these bugs
+so people are aware of them and can fix them if they want to.
+
+Next question is whether or not if I write a reimplemented 
+import_module() method
+which fixes the mod_python.publisher single module name instance 
+problem and which
+can optionally reload into a fresh module to avoid problems with code 
+being changed
+from underneath a separate executing thread, whether anyone is 
+interested. I may
+have to provide actual examples of the latter problem, as not sure 
+people may
+have been convinced of my previous description of the problem.
+
+The other option I am investigating is how to integrate 
+mod_python.publisher style
+functionality into the structure of Vampire. This would avoid 
+suggesting that
+import_module() be rewritten as have already solved the problems in the 
+Vampire
+module loading mechanism. The only thing is that I am not too keen on 
+some aspects
+of how mod_python.publisher works so have to come up with a mechanism 
+for doing it
+which sits right with my personal view on things. :-)
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016647.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+	<LI>Next message: <A HREF="016645.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16644">[ date ]</a>
+              <a href="thread.html#16644">[ thread ]</a>
+              <a href="subject.html#16644">[ subject ]</a>
+              <a href="author.html#16644">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

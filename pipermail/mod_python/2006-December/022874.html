@@ -1,0 +1,275 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Input filter
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Input%20filter&In-Reply-To=4591264D.4904.19067E8%40export.hope.cz">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022872.html">
+   <LINK REL="Next"  HREF="022871.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Input filter</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Input%20filter&In-Reply-To=4591264D.4904.19067E8%40export.hope.cz"
+       TITLE="[mod_python] Input filter">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Dec 26 17:09:29 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022872.html">[mod_python] Input filter
+</A></li>
+        <LI>Next message: <A HREF="022871.html">[mod_python] Which hadler to use
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22874">[ date ]</a>
+              <a href="thread.html#22874">[ thread ]</a>
+              <a href="subject.html#22874">[ subject ]</a>
+              <a href="author.html#22874">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 26/12/2006, at 11:40 PM, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">export at hope.cz</A> wrote:
+
+&gt;<i> Graham,
+</I>&gt;<i> Thank you for your reply.
+</I>&gt;<i> I studied the example  at <A HREF="http://www.modpython.org/pipermail/">http://www.modpython.org/pipermail/</A> 
+</I>&gt;<i> mod_python/2006- April/020870.html
+</I>&gt;<i>
+</I>&gt;<i> Now I understand a little more.
+</I>&gt;<i>
+</I>&gt;<i> There an author uses
+</I>&gt;<i> streambuffer = filter.req.streambuffer
+</I>&gt;<i>
+</I>&gt;<i> So, I think that streambuffer is a method of request(req) object.
+</I>&gt;<i> Am I right?
+</I>
+No.
+
+An important thing to know about filters is that the filter function can
+be called more than once for the same request. That is, it processes  
+data
+in chunks.
+
+Also, for each of those calls of the filter function, although the  
+'filter' object
+is a distinct object each time, the 'filter.req' object is the same  
+for all requests.
+As a consequence, it is possible to cache data within the  
+'filter.req' object
+so that it is available across invocations of the filter functions.
+
+With that in mind, look at the code again and you will see that  
+within the
+'try' block the filter function tries to access  
+'filter.req.streambuffer'. That will
+fail on the first call of the filter function for the request as that  
+attribute will
+not exist. As a result, the 'except' block is run which initialises the
+attribute with an instance of a StringIO object.
+
+Having ensure that the attribute exists, on each call to the filter  
+function
+the chunks of data are added to the StringIO object instance until no  
+more
+data is found. At that time the data in the StringIO object is turned  
+back
+into one string and processed.
+
+In output filter examples all processing of the data is done in  
+memory. This
+isn't want you want, so you would instead substitute  
+'filter.req.streambuffer'
+with an open file handle and thus write each chunk of data out to  
+disk and
+close the handle when done.
+
+Writing out to disk was what Tramline was doing, with it then only  
+passing
+through a header to subsequent request handler containing a value to
+identify the file on disk.
+
+&gt;<i> Is there a description of  all request (req) methods.I could not  
+</I>&gt;<i> find it in mod_python doc.
+</I>
+Those you need to know about are:
+
+   <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-mprequest.html">http://www.modpython.org/live/current/doc-html/pyapi-mprequest.html</A>
+
+If you can't find it in there, it probably isn't actually an  
+attribute or method.
+
+&gt;<i> Is there any advantage to use
+</I>&gt;<i> filter.req.streambuffer
+</I>&gt;<i> instead of
+</I>&gt;<i> filter.read()  ?
+</I>
+Read over description above and check code again. The 'filter.read()'  
+method
+is still used, with data being accumulated in  
+'filter.req.streambuffer' as
+described.
+
+&gt;<i> Yet, after studing the filter examples,
+</I>&gt;<i> I do not understand how to verify that input data( from POST  
+</I>&gt;<i> request)  is written directly to disk and not loaded to RAM first  
+</I>&gt;<i> and only after  the whole file is uploaded then write to disk
+</I>&gt;<i>
+</I>&gt;<i> Can you please explain?
+</I>
+You really need to dig through the code examples and understand how
+filters work. If you can work that out and see where the data is  
+going you
+should be able to work that out yourself. Obviously the output filter  
+examples
+you are using aren't even opening files on disk to write to so  
+nothing can
+be getting to disk in those.
+
+BTW, did you investigate the other option I pointed out in the  
+response to
+your first email some time back. Ie., the file callbacks in  
+FieldStorage class?
+Or are you trying to use mod_python.publisher and was that not an
+option?
+
+The examples how to use FieldStorage so as to intercept uploaded files
+and have them sent direct to disk can be found at:
+
+   <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-util-fstor-">http://www.modpython.org/live/current/doc-html/pyapi-util-fstor-</A> 
+examples.html
+
+BTW, are you the same person as 'Lad' posting on comp.lang.python
+asking about this? I don't want to be answering in two different  
+places if
+you are the same person.
+
+Graham
+
+&gt;<i> Thank you
+</I>&gt;<i> La.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I specifically said in my email:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    Just because Tramline is intended more for cases where Apache is
+</I>&gt;<i> &gt;    front ending a backend application doesn't mean it isn't a valid
+</I>&gt;<i> &gt; example
+</I>&gt;<i> &gt;    of input filters, you would just need to adapt the ideas to your
+</I>&gt;<i> &gt; needs.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; So I already said that it isn't exactly what you require. What you
+</I>&gt;<i> &gt; should do
+</I>&gt;<i> &gt; is read through the code and the mod_python documentation and learn
+</I>&gt;<i> &gt; from it so you can work out how you can customise it to do what you
+</I>&gt;<i> &gt; want.
+</I>&gt;<i> &gt; You do not need to be using mod_proxy to use input filters,  
+</I>&gt;<i> Tramline was
+</I>&gt;<i> &gt; using it for specific reasons of its own.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The relevant part of the mod_python documentation is:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-filter.html">http://www.modpython.org/live/current/doc-html/pyapi-filter.html</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The example is for an output filter, but input filters work almost
+</I>&gt;<i> &gt; the same.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Also look back through past mailing lists post by using search  
+</I>&gt;<i> box on
+</I>&gt;<i> &gt; the
+</I>&gt;<i> &gt; mod_python web site. A slightly more complicated example of an  
+</I>&gt;<i> output
+</I>&gt;<i> &gt; filter is:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    <A HREF="http://www.modpython.org/pipermail/mod_python/2006-April/">http://www.modpython.org/pipermail/mod_python/2006-April/</A> 
+</I>&gt;<i> 020870.html
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Overall though, the Tramline code is the most complicated example  
+</I>&gt;<i> of an
+</I>&gt;<i> &gt; input filter I have seen.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt;&gt;&gt; Can anyone give me an example of an Input filter?
+</I>&gt;<i> &gt; &gt;&gt;&gt; I would like to check if a  file being uploaded is large and  
+</I>&gt;<i> if so,
+</I>&gt;<i> &gt; &gt;&gt;&gt; I would like to write the file
+</I>&gt;<i> &gt; &gt;&gt;&gt; directly on hard disk not to memory.
+</I>&gt;<i> &gt; &gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt; Did you look at Tramline as I suggested the last time you  
+</I>&gt;<i> asked about
+</I>&gt;<i> &gt; &gt;&gt; file uploads?
+</I>&gt;<i> &gt; &gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt; Tramline is an input filter and also seeks to solve the  
+</I>&gt;<i> problem of
+</I>&gt;<i> &gt; &gt;&gt; how
+</I>&gt;<i> &gt; &gt;&gt; to handle large file uploads.
+</I>&gt;<i> &gt; &gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt; The URL for Tramline is:
+</I>&gt;<i> &gt; &gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt;    <A HREF="http://www.infrae.com/download/tramline">http://www.infrae.com/download/tramline</A>
+</I>&gt;<i> &gt; &gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt; Just because Tramline is intended more for cases where Apache is
+</I>&gt;<i> &gt; &gt;&gt; front ending a backend application doesn't mean it isn't a valid
+</I>&gt;<i> &gt; &gt;&gt; example
+</I>&gt;<i> &gt; &gt;&gt; of input filters, you would just need to adapt the ideas to your
+</I>&gt;<i> &gt; &gt;&gt; needs.
+</I>&gt;<i> &gt; &gt;&gt;
+</I>&gt;<i> &gt; &gt;&gt; Graham
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i>
+</I>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20061227/4d7da990/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20061227/4d7da990/attachment-0001.html</A>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022872.html">[mod_python] Input filter
+</A></li>
+	<LI>Next message: <A HREF="022871.html">[mod_python] Which hadler to use
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22874">[ date ]</a>
+              <a href="thread.html#22874">[ thread ]</a>
+              <a href="subject.html#22874">[ subject ]</a>
+              <a href="author.html#22874">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,124 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Using shared memory to do global persistence
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20shared%20memory%20to%20do%20global%20persistence&In-Reply-To=200306250732.15699.jgardner%40jonathangardner.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002803.html">
+   <LINK REL="Next"  HREF="002810.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Using shared memory to do global persistence</H1>
+    <B>Greg Stein</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20shared%20memory%20to%20do%20global%20persistence&In-Reply-To=200306250732.15699.jgardner%40jonathangardner.net"
+       TITLE="[mod_python] Using shared memory to do global persistence">gstein at lyra.org
+       </A><BR>
+    <I>Thu Jun 26 11:36:42 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002803.html">[mod_python] Using shared memory to do global persistence
+</A></li>
+        <LI>Next message: <A HREF="002810.html">[mod_python] Using shared memory to do global persistence
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2809">[ date ]</a>
+              <a href="thread.html#2809">[ thread ]</a>
+              <a href="subject.html#2809">[ subject ]</a>
+              <a href="author.html#2809">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>APR has facilities to do shared memory in a portable fashion; APR is part of
+Apache 2.0, so there isn't much reason to go grab any other library.
+
+You can also use APRUTIL's apr_rmm.h to manage sub-allocations within the
+shared memory segments. The problem is that a shared memory segment could be
+mapped to different addresses in different processes. Thus, you want to hold
+onto offsets into a shared memory segment. apr_rmm.h helps with managing
+these subblocks and working with offsets rather than direct pointers. Note
+that apr_rmm also handles locking so that you can have multiple processes
+allocating (simultaneously) from a shared mem segment.
+
+You can then layer additional Python facilities on top of this substrate.
+
+Cheers,
+-g
+
+On Wed, Jun 25, 2003 at 07:32:14AM -0700, Jonathan Gardner wrote:
+&gt;<i> -----BEGIN PGP SIGNED MESSAGE-----
+</I>&gt;<i> Hash: SHA1
+</I>&gt;<i> 
+</I>&gt;<i> I am thinking of implementing a shared memory module that does more than just 
+</I>&gt;<i> &quot;read&quot; and &quot;write&quot;. Instead, I want something more transparent to the 
+</I>&gt;<i> developer, so that you say &quot;Go get this dict at this shared memory key&quot; or 
+</I>&gt;<i> &quot;Create a new dict in shared memory at this key&quot;, and have the entire dict 
+</I>&gt;<i> available like a namespace.
+</I>&gt;<i> 
+</I>&gt;<i> Obvious applications would include the ever-present problem of shared data 
+</I>&gt;<i> between apache mod_python processes. This would solve it once and for all. 
+</I>&gt;<i> Perhaps one day we could get it working with RPC and have processes on 
+</I>&gt;<i> seperate machines sharing data as well.
+</I>&gt;<i> 
+</I>&gt;<i> The scope of this project would be implimenting new types that derive from all 
+</I>&gt;<i> of the basic types so that:
+</I>&gt;<i> 
+</I>&gt;<i> 1) When accessing the data in the type, it would gain a lock on the shared 
+</I>&gt;<i> memory segment that stores its data using a semaphore, read the data and 
+</I>&gt;<i> unserialize it, then return that data.
+</I>&gt;<i> 2) When storing the data in that type, it would gain a lock on the shared 
+</I>&gt;<i> memory segment, then store the data over the existing data.
+</I>&gt;<i> 
+</I>&gt;<i> I am thinking there are really two ways to go about this.
+</I>&gt;<i> 1) Implementing it all in Python. The idea here would be that we would 
+</I>&gt;<i> serialize and unserialize the data using cPickle.
+</I>&gt;<i> 2) Implementing it all in C. The idea here is that we would reuse the same 
+</I>&gt;<i> data structures that the basic data types use. We would store and read the 
+</I>&gt;<i> binary data behind the basic data types so that they can be as easily stored 
+</I>&gt;<i> in shared memory as they are stored in real memory.
+</I>&gt;<i> 
+</I>&gt;<i> Does anyone know if something like this is implemented or in the process of 
+</I>&gt;<i> being implemented? Does anyone want to join me in this endeavor? 
+</I>&gt;<i> 
+</I>&gt;<i> - -- 
+</I>&gt;<i> Jonathan Gardner &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jgardner at jonathangardner.net</A>&gt;
+</I>&gt;<i> (was <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jgardn at alumni.washington.edu</A>)
+</I>&gt;<i> Live Free, Use Linux!
+</I>&gt;<i> -----BEGIN PGP SIGNATURE-----
+</I>&gt;<i> Version: GnuPG v1.2.1 (GNU/Linux)
+</I>&gt;<i> 
+</I>&gt;<i> iD8DBQE++bJuWgwF3QvpWNwRAq0pAJ4ipACeWt63fSbtheNmxQfc217sQwCgj4D7
+</I>&gt;<i> /ID5Uq/oK8hAYQfmvvIGliE=
+</I>&gt;<i> =4zo4
+</I>&gt;<i> -----END PGP SIGNATURE-----
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+-- 
+Greg Stein, <A HREF="http://www.lyra.org/">http://www.lyra.org/</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002803.html">[mod_python] Using shared memory to do global persistence
+</A></li>
+	<LI>Next message: <A HREF="002810.html">[mod_python] Using shared memory to do global persistence
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2809">[ date ]</a>
+              <a href="thread.html#2809">[ thread ]</a>
+              <a href="subject.html#2809">[ subject ]</a>
+              <a href="author.html#2809">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,252 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache/mod_python process sizes. Help wanted.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=99C69BF9-B599-4BBD-9018-174FC9884492%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023234.html">
+   <LINK REL="Next"  HREF="023235.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache/mod_python process sizes. Help wanted.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache/mod_python%20process%20sizes.%20Help%20wanted.&In-Reply-To=99C69BF9-B599-4BBD-9018-174FC9884492%40dscpl.com.au"
+       TITLE="[mod_python] Apache/mod_python process sizes. Help wanted.">list at joreybump.com
+       </A><BR>
+    <I>Sat Mar  3 15:54:49 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023234.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+        <LI>Next message: <A HREF="023235.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23233">[ date ]</a>
+              <a href="thread.html#23233">[ thread ]</a>
+              <a href="subject.html#23233">[ subject ]</a>
+              <a href="author.html#23233">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+
+&gt;<i> 1. Operating System
+</I>
+Slackware Linux 10.2
+
+$ uname -a
+Linux degas 2.4.31 #21 Sun Jun 5 19:19:51 PDT 2005 i686 unknown unknown 
+GNU/Linux
+
+&gt;<i> 2. Size of mod_python.so.
+</I>
+$ ls -las /usr/local/apache2/modules/mod_python.so
+1192 -rwxr-xr-x  1 root root 1213776 2007-02-01 11:44 
+/usr/local/apache2/modules/mod_python.so
+
+&gt;<i> 3. Size of Python library. This should exist in the 'lib/pythonX.Y/config'
+</I>&gt;<i> directory of your Python installation. Ie., at same directory level as your
+</I>&gt;<i> 'site-packages' directory. It would be called 'libpythonX.Y.a', 
+</I>&gt;<i> 'libpythonX.Y.so'
+</I>&gt;<i> or 'libpythonX.Y.sl'.
+</I>
+ls -las /usr/lib/python2.4/config/libpython2.4.a
+1700 -rw-r--r--  1 root root 1733986 2005-04-11 01:32 
+/usr/lib/python2.4/config/libpython2.4.a
+
+&gt;<i> 4. Confirm whether mod_python.so uses Python library as static library or
+</I>&gt;<i> shared library. On UNIX systems you can use the 'ldd' command on
+</I>&gt;<i> mod_python.so to determine this.
+</I>
+$ ldd /usr/local/apache2/modules/mod_python.so
+         libpthread.so.0 =&gt; /lib/libpthread.so.0 (0x40144000)
+         libdl.so.2 =&gt; /lib/libdl.so.2 (0x40196000)
+         libutil.so.1 =&gt; /lib/libutil.so.1 (0x4019a000)
+         libm.so.6 =&gt; /lib/libm.so.6 (0x4019e000)
+         libc.so.6 =&gt; /lib/libc.so.6 (0x401c1000)
+         /lib/ld-linux.so.2 (0x80000000)
+
+&gt;<i> 5. Work out how much memory Apache uses when mod_python is not being
+</I>&gt;<i> loaded. One can use 'top' for this. Hopefully others may suggest better 
+</I>&gt;<i> ways.
+</I>
+Comment out mod_python in httpd.conf:
+
+# Include conf/local/mod_python.conf
+
+Fully stop then start apache:
+
+# /etc/rc.d/rc.apache stop
+# /etc/rc.d/rc.apache start
+
+$ top -U nobody
+top - 15:26:01 up 93 days,  5:49,  1 user,  load average: 0.00, 0.07, 0.08
+Tasks:  69 total,   2 running,  67 sleeping,   0 stopped,   0 zombie
+Cpu(s):   0.0% user,   0.0% system,   0.0% nice, 100.0% idle
+Mem:    904440k total,   448276k used,   456164k free,    38520k buffers
+Swap:  1951856k total,    32408k used,  1919448k free,   111932k cached
+
+   PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+31424 nobody    11   0  7572 7572 7444 S  0.0  0.8   0:00.00 httpd
+31425 nobody    13   0  7572 7572 7448 S  0.0  0.8   0:00.00 httpd
+31426 nobody    13   0  7572 7572 7448 S  0.0  0.8   0:00.00 httpd
+31427 nobody    14   0  7572 7572 7448 S  0.0  0.8   0:00.00 httpd
+31428 nobody    17   0  7572 7572 7448 S  0.0  0.8   0:00.00 httpd
+
+
+&gt;<i> 6. Work out how much memory Apache uses when mod_python is loaded
+</I>&gt;<i> but before any requests have occurred. Ensure that no PythonImport
+</I>&gt;<i> directives have been used.
+</I>
+Enable mod_python in httpd.conf:
+
+Include conf/local/mod_python.conf
+
+Fully stop then start apache:
+
+# /etc/rc.d/rc.apache stop
+# /etc/rc.d/rc.apache start
+
+$ top -U nobody
+
+top - 15:28:43 up 93 days,  5:51,  1 user,  load average: 0.00, 0.04, 0.07
+Tasks:  78 total,   1 running,  77 sleeping,   0 stopped,   0 zombie
+Cpu(s):   0.4% user,   0.1% system,   0.0% nice,  99.5% idle
+Mem:    904440k total,   461256k used,   443184k free,    39208k buffers
+Swap:  1951856k total,    32408k used,  1919448k free,   113432k cached
+
+   PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+31480 nobody    11   0  9164 9164 8956 S  0.0  1.0   0:00.00 httpd
+31481 nobody    11   0  9164 9164 8960 S  0.0  1.0   0:00.01 httpd
+31482 nobody    13   0  9164 9164 8960 S  0.0  1.0   0:00.00 httpd
+31483 nobody    13   0  9164 9164 8960 S  0.0  1.0   0:00.00 httpd
+31484 nobody    14   0  9164 9164 8960 S  0.0  1.0   0:00.00 httpd
+
+&gt;<i> If eager, use a hello world mod_python example and trigger one request
+</I>&gt;<i> against it and see how size changes.
+</I>
+top - 15:29:18 up 93 days,  5:52,  1 user,  load average: 0.00, 0.03, 0.07
+Tasks:  78 total,   2 running,  76 sleeping,   0 stopped,   0 zombie
+Cpu(s):   4.7% user,   0.3% system,   0.0% nice,  95.0% idle
+Mem:    904440k total,   465304k used,   439136k free,    39272k buffers
+Swap:  1951856k total,    32408k used,  1919448k free,   113432k cached
+
+   PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+31480 nobody    14   0 13248  12m 8836 S  5.0  1.5   0:00.15 httpd
+
+&gt;<i> 7. If you are also loading lots of other Apache modules, such as mod_perl,
+</I>&gt;<i> module for PHP etc, list any significant ones so we might understand what
+</I>&gt;<i> else may be using memory. Ideally, do the tests with as little modules 
+</I>&gt;<i> loaded
+</I>&gt;<i> as possible.
+</I>
+# /usr/local/apache2/bin/httpd -M
+Loaded Modules:
+  core_module (static)
+  mpm_prefork_module (static)
+  http_module (static)
+  so_module (static)
+  authn_file_module (shared)
+  authn_default_module (shared)
+  authz_host_module (shared)
+  authz_groupfile_module (shared)
+  authz_user_module (shared)
+  authz_default_module (shared)
+  auth_basic_module (shared)
+  auth_digest_module (shared)
+  filter_module (shared)
+  deflate_module (shared)
+  log_config_module (shared)
+  logio_module (shared)
+  env_module (shared)
+  mime_magic_module (shared)
+  cern_meta_module (shared)
+  expires_module (shared)
+  headers_module (shared)
+  setenvif_module (shared)
+  ssl_module (shared)
+  mime_module (shared)
+  dav_module (shared)
+  status_module (shared)
+  autoindex_module (shared)
+  asis_module (shared)
+  info_module (shared)
+  cgi_module (shared)
+  dav_fs_module (shared)
+  vhost_alias_module (shared)
+  negotiation_module (shared)
+  dir_module (shared)
+  actions_module (shared)
+  userdir_module (shared)
+  alias_module (shared)
+  rewrite_module (shared)
+  php5_module (shared)
+  python_module (shared)
+
+&gt;<i> So, what do other people get?
+</I>&gt;<i> 
+</I>&gt;<i> Is that fact that Python installations often only provide a static Python
+</I>&gt;<i> library the culprit?
+</I>
+Not sure, but I noticed something else that I found interesting: Without 
+mod_python loaded, starting with a complete stop of apache, start, then 
+several restarts, the top output showed httpd growing by 8 bytes with 
+each restart. After loading mod_python, then repeating the process, 
+httpd grew 628 bytes with each restart. Not a lot, but significantly 
+more than 8 bytes. What are the long term implications of this?
+
+&gt;<i> Is there a better way of analysing memory use than this?
+</I>
+Here's Jim's suggestion for pmap:
+
+$ pmap -d 31480 | grep python
+40cd5000    1020 r-x-- 0000000000000000 008:00002 mod_python.so
+40dd4000     164 rw--- 00000000000ff000 008:00002 mod_python.so
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023234.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+	<LI>Next message: <A HREF="023235.html">[mod_python] Apache/mod_python process sizes. Help wanted.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23233">[ date ]</a>
+              <a href="thread.html#23233">[ thread ]</a>
+              <a href="subject.html#23233">[ subject ]</a>
+              <a href="author.html#23233">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

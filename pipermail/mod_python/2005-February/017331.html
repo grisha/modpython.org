@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Force reload?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Force%20reload%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017351.html">
+   <LINK REL="Next"  HREF="017335.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Force reload?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Force%20reload%3F&In-Reply-To="
+       TITLE="[mod_python] Force reload?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Feb  3 23:22:22 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017351.html">[mod_python] Custom handler thread safety
+</A></li>
+        <LI>Next message: <A HREF="017335.html">[mod_python] Force reload?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17331">[ date ]</a>
+              <a href="thread.html#17331">[ thread ]</a>
+              <a href="subject.html#17331">[ subject ]</a>
+              <a href="author.html#17331">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Shawn Harrison wrote ..
+&gt;<i> I'm curious about this. I just whacked up the following function over
+</I>&gt;<i> lunch today, following my own advice, and tested it a bit just now. The
+</I>&gt;<i> function seems to work just fine in all the use cases (though I didn't
+</I>&gt;<i> do formal unit testing).
+</I>&gt;<i> 
+</I>&gt;<i> Is there any reason I'm not seeing why this function won't solve the 
+</I>&gt;<i> reload problem, if used in place of all import statements in the 
+</I>&gt;<i> application?
+</I>
+It will not work where there are multiple levels of imports. Consider the following
+where &quot;a.py&quot; is the top level content handler that all access are done through it.
+
+  # module c.py
+
+  ...
+
+  # module b.py
+
+  from mod_python import apache
+
+  c = apache.import_module(&quot;c&quot;,autoreload=1)
+
+  ...
+
+  # module a.py
+
+  from mod_python import apache
+
+  b = apache.import_module(&quot;b&quot;,autoreload=1)
+
+When &quot;a.py&quot; is loaded internally by mod_python, it is also done by the
+apache.import_module() method.
+
+If you modify &quot;a.py&quot;, mod_python will detect it and it will get reloaded
+automatically provide PythonAutoReload is &quot;On&quot;.
+
+If you modify &quot;b.py&quot; nothing happens. This is because there is no depth
+search to determine that anything used by &quot;a.py&quot; was modified.
+
+This at least will be the case where the import is done at global scope.
+If on the other hand you had the following:
+
+  # module a.py
+
+  from mod_python import apache
+
+  def handler(req):
+    b = apache.import_module(&quot;b&quot;,autoreload=1)
+
+This will work better as each time the handler is called to process the
+request, it effectively asks for the sub module. If &quot;b.py&quot; hasn't changed,
+then it comes from the cache. If &quot;b.py&quot; has changed, then it will be
+reloaded.
+
+If &quot;c.py&quot; is now modified, again, nothing gets reloaded. To fix this would
+mean that every function in &quot;b.py&quot; that you might call that uses stuff
+from &quot;c.py&quot; would have to be changed to ask for the &quot;c&quot; module each
+time. Where &quot;b.py&quot; is a bunch of utility functions, this becomes a mess.
+It also precludes simple global data in &quot;b&quot; that is somehow dependent
+on &quot;c&quot;, as it isn't easy to refresh global data in &quot;b&quot; which is based on &quot;c&quot;
+in each function if &quot;c&quot; happened to get reloaded.
+
+The current mechanisms available are thus not very effective in assisting
+with the problem.
+
+I could mention Vampire yet again and how it has solved this problem
+and many other module loading issues, but based on the continuing
+followups which show that no one has read what I said, I will refrain
+from doing so ..... ;-(
+
+Graham
+  
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017351.html">[mod_python] Custom handler thread safety
+</A></li>
+	<LI>Next message: <A HREF="017335.html">[mod_python] Force reload?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17331">[ date ]</a>
+              <a href="thread.html#17331">[ thread ]</a>
+              <a href="subject.html#17331">[ subject ]</a>
+              <a href="author.html#17331">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20UnicodeDecodeError%20with%0A%09util.FieldStorage%28req%29.Field.value&In-Reply-To=200706201923.46099.ah%40hatzis.de">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023903.html">
+   <LINK REL="Next"  HREF="023916.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martin</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20UnicodeDecodeError%20with%0A%09util.FieldStorage%28req%29.Field.value&In-Reply-To=200706201923.46099.ah%40hatzis.de"
+       TITLE="[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value">gzlist at googlemail.com
+       </A><BR>
+    <I>Sat Jun 23 14:13:32 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023903.html">[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value
+</A></li>
+        <LI>Next message: <A HREF="023916.html">[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23904">[ date ]</a>
+              <a href="thread.html#23904">[ thread ]</a>
+              <a href="subject.html#23904">[ subject ]</a>
+              <a href="author.html#23904">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Have seen that Graham has responded now, but a few things need clarifying.
+
+On 20/06/07, Anastasios Hatzis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ah at hatzis.de</A>&gt; wrote:
+&gt;<i> So, when calling this page the HTML output for first section is rendered with
+</I>&gt;<i> umlaut (&#228;, &#252;, ...). Value is &lt;type 'str'&gt; ... well, why not, as long as it is
+</I>&gt;<i> UTF-8...
+</I>
+Important to remember that the utf-8 encoding is not python 'unicode'
+- to get a utf-8 byte-string into a unicode object, you must decode
+it.
+
+&gt;<i> I do not understand why I'm getting this error. How does 'ascii' come into
+</I>&gt;<i> this?
+</I>
+Do sys.getdefaultencoding() from within mod_python on your server, you
+should see that is 'ascii'. This is the right thing - unless you
+specify an explict codec, python will use the 'lowest common
+denominator' codec (that only deals with the range(0,128) and throws
+an exception otherwise) rather than risk silent corruption.
+
+So, let's re-create your problem in the console:
+
+&gt;&gt;&gt;<i> import unicodedata
+</I>&gt;&gt;&gt;<i> unicodedata.name(u&quot;\u00e4&quot;)
+</I>'LATIN SMALL LETTER A WITH DIAERESIS'
+&gt;&gt;&gt;<i> u&quot;\u00e4&quot;.encode('utf8')
+</I>'\xc3\xa4'
+&gt;&gt;&gt;<i> u&quot;something&quot; + _
+</I>Traceback (most recent call last):
+  File &quot;&lt;stdin&gt;&quot;, line 1, in ?
+UnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 0: ordinal
+not in range(128)
+
+Whenever you try to treat string objects as unicode objects or visa
+versa, python has to implictly encode or decode something. Generally
+you want to be explict about which you are using, and not mix them
+together. For instance, you might get bytes from the wire, decode, do
+program logic on unicode, encode to file.
+
+&gt;<i> How do I know which encoding is really applied (in param.value and in
+</I>&gt;<i> msg)?
+</I>
+This is the fun bit - you don't. If the page the form the data is
+coming from is a specific encoding, the form will generally be posted
+with the same encoding - but you can't rely on this. One thing not to
+do is trust that byte strings you are given are in some encoding, and
+then put them straight in output page/file/database.
+
+So, while I don't know the specifics of the PSP handler, you should in
+general rather than doing:
+&gt;<i> msg = u''
+</I>&gt;<i> for param in store.list:
+</I>&gt;<i>     msg += param.name + ': ' + param.value + '\r\n' # UnicodeDecodeError!
+</I>
+Instead do something like:
+buf = []
+for param in store.list:
+    buf.extend([param.name, ': ', param.value, '\r\n']) # operating on bytes
+try:
+    msg = &quot;&quot;.join(buf).decode('utf-8') # creating msg as a unicode object
+except UnicodeDecodeError:
+    # really need to send a nice message back to the poster of the form
+    # telling them to fix their encoding, but this will do instead
+    raise apache.SERVER_RETURN(apache.HTTP_BAD_REQUEST)
+
+And then if you need to put msg in the output page, you'd do
+msg.encode('utf-8') before writing it out.
+
+Martin
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023903.html">[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value
+</A></li>
+	<LI>Next message: <A HREF="023916.html">[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23904">[ date ]</a>
+              <a href="thread.html#23904">[ thread ]</a>
+              <a href="subject.html#23904">[ subject ]</a>
+              <a href="author.html#23904">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

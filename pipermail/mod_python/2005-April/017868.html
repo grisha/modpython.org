@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Dictionary persistance weirdness
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Dictionary%20persistance%20weirdness&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017872.html">
+   <LINK REL="Next"  HREF="017869.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Dictionary persistance weirdness</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Gonzalo Sainz-Tr&#225;paga</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Dictionary%20persistance%20weirdness&In-Reply-To="
+       TITLE="[mod_python] Dictionary persistance weirdness">gomo at datafull.com
+       </A><BR>
+    <I>Sat Apr  9 15:38:35 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017872.html">[mod_python] How to stop reimporting modules
+</A></li>
+        <LI>Next message: <A HREF="017869.html">[mod_python] All spawned threads in Restricted Exection Mode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17868">[ date ]</a>
+              <a href="thread.html#17868">[ thread ]</a>
+              <a href="subject.html#17868">[ subject ]</a>
+              <a href="author.html#17868">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+I'm building my first application with mod_python. I am using Ian
+Bicking's SQLObject, validators and HTMLfill among other tools.
+I built a custom handler that parses the url and loads an external
+module, passing it a request object and eventually, an ID integer that
+is extracted from the URI.
+
+Example:
+<A HREF="http://site.com/race.py/4/signup">http://site.com/race.py/4/signup</A> will trigger &quot;import race;
+race.signup(4,req)&quot; and that function will provide a form in order for
+people to sign themselves up for race 4.
+
+Form handling and data parsing (for POST or GET data) is done in
+separate modules that are imported when needed, so race.py actually
+imports formgen.py and formgen.py imports VarsWrapper (from wrappers.py)
+in order to parse data for his form and tell whether he needs to print
+an error message, or the input is valid.
+
+The process works fine up to races.py: it gets the POSTed data fine, but
+then if I try to pass the variables received to the form handler, the
+handler will only receive them correctly on the first call to it after a
+server restart. For later calls, the form handler sticks to the values
+received on his first request.
+
+Code snippets:
+
+-- race.py -------------------------
+def signup(id,req):
+    from formgen import FormInscripcion
+
+    v = VarsWrapper(req)
+    c = v.get_vars()
+
+    f = FormInscripcion(id)
+    
+    tpl.locals.contenido = f.handle(c)
+    return tpl.get_html()
+
+
+-- formgen.py -------------------------
+
+class FormInscripcion:
+(...)
+    def handle(self,vars):
+        # check for sent data
+        if ('id_regata',str(self.id_regata)) in vars.items():
+            return self._post(vars) # triggers a data handler
+        else: 
+            return self._form() # shows the clean form
+(...)
+
+
+-- wrappers.py -------------------------
+class VarsWrapper:
+    def __init__(self,req):
+        self.fs = util.FieldStorage(req)
+
+    def get_vars():
+        d = {}
+        for each in self.fs.list:
+            self.d[x.name] = x.value
+        return d
+
+
+So again, the problem arises when calling FormInscripcion.handle() for
+the 2nd time or more: it will stick to the data received on the 1st
+request passed to it. If i print the variable dictionary (c in race.py,
+vars in formgen.py) after the form, c will change with new POST data, as
+vars will stay constant after the 1st request.
+The weird thing is that i'm passing data from pyhandler.py to race.py in
+the same way that i'm passing it from race.py to formgen.py, and it
+refuses to work correctly in the latter.
+I have already tried pretty much every single possible cause for this
+oddity with no consistent results, so i'm pretty confident that there's
+something i'm missing that's not inherent to my app's logic, but to my
+app's login combined with some mod_python specific complication.
+In short: i'm going nuts!
+Sorry for all the writing, but I really hope somebody can help me.
+Thanks in advance,
+
+-- 
+Gonzalo Sainz-Tr&#225;paga (GomoX)
+GnuPG Fingerprint: A0AF 3BBF EB93 7EFE 6628  C5A5 F073 9442 6DE4 A497
+Public Key: <A HREF="http://pgp.mit.edu:11371/pks/lookup?op=get&amp;search=0x6DE4A497">http://pgp.mit.edu:11371/pks/lookup?op=get&amp;search=0x6DE4A497</A>
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: not available
+Type: application/pgp-signature
+Size: 189 bytes
+Desc: This is a digitally signed message part
+Url : <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20050409/d59b9ae4/attachment.bin">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20050409/d59b9ae4/attachment.bin</A>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017872.html">[mod_python] How to stop reimporting modules
+</A></li>
+	<LI>Next message: <A HREF="017869.html">[mod_python] All spawned threads in Restricted Exection Mode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17868">[ date ]</a>
+              <a href="thread.html#17868">[ thread ]</a>
+              <a href="subject.html#17868">[ subject ]</a>
+              <a href="author.html#17868">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

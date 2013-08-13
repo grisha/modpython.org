@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Cookies and sessions trouble
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookies%20and%20sessions%20trouble&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018078.html">
+   <LINK REL="Next"  HREF="018074.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Cookies and sessions trouble</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Wouter van Marle</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookies%20and%20sessions%20trouble&In-Reply-To="
+       TITLE="[mod_python] Cookies and sessions trouble">wouter at squirrel-systems.com
+       </A><BR>
+    <I>Thu May 12 22:31:49 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018078.html">[mod_python] SimpleXMLRPCServer causing seg fault?
+</A></li>
+        <LI>Next message: <A HREF="018074.html">[mod_python] Cookies and sessions trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18073">[ date ]</a>
+              <a href="thread.html#18073">[ thread ]</a>
+              <a href="subject.html#18073">[ subject ]</a>
+              <a href="author.html#18073">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi all,
+
+As described in a previous thread (&quot; mod_python session trouble&quot;) I've
+had some problems with the sessions. Now there is some progress, though
+not really great...
+My website is run from a set of python scripts, serving up different
+pages, pretty much all from psp templates. To keep track of the user,
+I'm using a session (for current session info) and a more persistent
+cookie for longer term storage called &quot;basic&quot;.
+
+Now what I found:
+- the homepage is run from &quot;main.py&quot;, together with a few other pages.
+Within these pages the session is passed on nicely, and if that doesn't
+work, the &quot;basic&quot; cookie is accessed for the information.
+- main.py contains a function (get_session(req)) to read the session,
+and if expires read the cookie. Works nicely. Returns the session.
+
+Except:
+- when calling &quot;req.session main.get_session(req)&quot; from my script
+user.py (via a hyperlink in the homepage) I get all kinds of errors,
+that are not consequent! Sometimes it complains it can not find the very
+function, another time it complains about unbound variables in this
+function, sometimes it runs and returns a session. Reloading the
+homepage and then moving to one of the subpages served by the other
+script (user.py).
+- when trying to read the cookies from user.py, I can not get my
+original cookies. The session appears to be new all the time
+(req.session.is_new returns &quot;True&quot;), and I can not read by &quot;basic&quot;
+cookie that is happily visible from functions that are in main.py. As a
+result I can not read the user's session settings, nor their defaults,
+and the script falls back to system defaults.
+
+I've also done some testing, and here a small script showing part of the
+strange behaviour.
+When starting up the very first time, you have no cookies (makes sense),
+and &quot;language&quot; is set to system default &quot;en&quot;. However if you start
+switching it through the links, the language is NOT saved in the
+session, nor a &quot;basic&quot; cookie is set at all. This cookie is supposed to
+be set in the home function, to store the current user settings for
+later use.
+
+----------------- BEGIN test.py
+from mod_python import Cookie
+from mod_python import Session
+
+import time
+
+def home (req):
+    req.content_type = &quot;text/html; charset=utf-8&quot;
+    username = &quot;&quot;
+    if not hasattr(req, &quot;session&quot;):
+        req.session = get_session(req)
+    language = req.session[&quot;language&quot;]
+    req.write(&quot;home got language: &quot;+language+&quot;&lt;br&gt;&quot;)
+    # update the cookie on the user's side
+    value = {&quot;language&quot;: language, &quot;username&quot;: username}
+    Cookie.add_cookie(req,
+                      Cookie.MarshalCookie(&quot;basic&quot;, value, &quot;gezellig&quot;,
+                                           expires = time.time() +
+7776000 # 90 days
+                                           ))
+    req.write(&quot;Language switcher: &lt;a href=./en&gt;en&lt;/a&gt;  &lt;a
+href=./cn&gt;cn&lt;/a&gt;&lt;br&gt;&quot;)
+
+def en(req):
+    if not hasattr(req, &quot;session&quot;):
+        req.session = get_session(req)
+    req.session[&quot;language&quot;] = &quot;en&quot;
+    req.session.save()
+    home(req)
+    return 
+
+def cn(req):
+    if not hasattr(req, &quot;session&quot;):
+        req.session = get_session(req)
+    req.session[&quot;language&quot;] = &quot;cn&quot;
+    req.session.save()
+    home(req)
+    return 
+
+def get_session(req):
+    # gets the current session, checks if complete, if not reads
+defaults from
+    # the cookies.
+    sess = Session.Session(req)
+    req.content_type = &quot;text/html; charset=utf-8&quot;
+    # read user's settings from their cookies
+    language = &quot;en&quot; # system default
+    cookies = Cookie.get_cookies(req, Cookie.MarshalCookie,
+                                 secret = &quot;gezellig&quot;)
+    req.write(&quot;found cookies: &quot;+str(cookies)+&quot;&lt;br&gt;&quot;)
+    if cookies.has_key(&quot;basic&quot;):
+        # the basic info is stored in a cookie named &quot;basic&quot;
+        basiccookie = cookies[&quot;basic&quot;]
+        if type(basiccookie) is Cookie.MarshalCookie:
+            try:
+                language = basiccookie.value[&quot;language&quot;]
+            except:
+                pass
+    req.write(&quot;get_session got language: &quot;+language+&quot;&lt;br&gt;&quot;)
+    sess[&quot;language&quot;] = language
+    return sess
+-------------------------- END test.py
+
+
+Wouter.
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018078.html">[mod_python] SimpleXMLRPCServer causing seg fault?
+</A></li>
+	<LI>Next message: <A HREF="018074.html">[mod_python] Cookies and sessions trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18073">[ date ]</a>
+              <a href="thread.html#18073">[ thread ]</a>
+              <a href="subject.html#18073">[ subject ]</a>
+              <a href="author.html#18073">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

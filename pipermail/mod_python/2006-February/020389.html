@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] shared memory and module import problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20shared%20memory%20and%20module%20import%20problems&In-Reply-To=1ee0630e0602210622l327f87efw1dc3f30656d9f6a4%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020401.html">
+   <LINK REL="Next"  HREF="020390.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] shared memory and module import problems</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Marc D. Murray</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20shared%20memory%20and%20module%20import%20problems&In-Reply-To=1ee0630e0602210622l327f87efw1dc3f30656d9f6a4%40mail.gmail.com"
+       TITLE="[mod_python] shared memory and module import problems">marcdm at phronein.com
+       </A><BR>
+    <I>Tue Feb 21 10:11:23 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020401.html">[mod_python] shared memory and module import problems
+</A></li>
+        <LI>Next message: <A HREF="020390.html">[mod_python] callable __auth__
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20389">[ date ]</a>
+              <a href="thread.html#20389">[ thread ]</a>
+              <a href="subject.html#20389">[ subject ]</a>
+              <a href="author.html#20389">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>If u can, you might want to have a look at memcached
+<A HREF="http://www.danga.com/memcached/">http://www.danga.com/memcached/</A>
+
+It's pretty fast, it's an external process to Apache and there's a
+simple python client available.
+
+I use it to cache rendered pages then my handler checks for the page
+there before trying to re-generate it.
+
+.hth
+
+/Marc DM
+
+On Tue, 2006-02-21 at 06:22 -0800, Kevin J. Smith wrote:
+&gt;<i> Hi,
+</I>&gt;<i> 
+</I>&gt;<i> I have a page controller that all handlers import with &quot;from
+</I>&gt;<i> myapp.gui.pagecontroller import PageController&quot;.  Each handler is a
+</I>&gt;<i> class derived from the PageController.
+</I>&gt;<i> 
+</I>&gt;<i> In the page controller, I have attempted to set up a shared memory
+</I>&gt;<i> cache for all the controllers with code very similar to the
+</I>&gt;<i> following: 
+</I>&gt;<i> 
+</I>&gt;<i> #...
+</I>&gt;<i> import threading
+</I>&gt;<i> 
+</I>&gt;<i> CACHE_LOCK = threading.Lock()
+</I>&gt;<i> cache = {}
+</I>&gt;<i> 
+</I>&gt;<i> def _fillCache():
+</I>&gt;<i>     cache['one'] = '1'
+</I>&gt;<i>     cache['two'] = '2'
+</I>&gt;<i> 
+</I>&gt;<i> class PageController:
+</I>&gt;<i> # ...
+</I>&gt;<i>     def __init__(self): 
+</I>&gt;<i>         #....
+</I>&gt;<i>         if not len(cache.keys()):
+</I>&gt;<i>             CACHE_LOCK.acquire()
+</I>&gt;<i>             _fillCache()
+</I>&gt;<i>             CACHE_LOCK.release()
+</I>&gt;<i>         #...
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> However, I have discovered that this module is continually reimported
+</I>&gt;<i> because it ALWAYS calls the _fillCache() function despite all the
+</I>&gt;<i> handlers running within the same interpreter. 
+</I>&gt;<i> 
+</I>&gt;<i> I have upgraded to mod_python 3.2.7 noticing that in the change log
+</I>&gt;<i> there is a lot about fixing module import problems but my app is still
+</I>&gt;<i> behaving the same way.
+</I>&gt;<i> 
+</I>&gt;<i> The flow of my app is that all requests are handled by a
+</I>&gt;<i> frontController handler (this is explicitly set in the httpd config)
+</I>&gt;<i> which, after checking the session and authentication and what-not and
+</I>&gt;<i> based on the request path, forwards the request onto one of my
+</I>&gt;<i> pageController handlers via util.redirect().  If I have followed
+</I>&gt;<i> Graham's notes about module importing correctly, the frontController
+</I>&gt;<i> and pageController classes would be imported via import_module()
+</I>&gt;<i> whereas the actual pageController module is imported via the regular
+</I>&gt;<i> python import mechanism. 
+</I>&gt;<i> 
+</I>&gt;<i> I have spent some time reading about the various &quot;uniquenesses&quot; of
+</I>&gt;<i> module importing within mod_python but it hurt my head slightly and I
+</I>&gt;<i> didn't know if most of it reflected the state of affairs in version
+</I>&gt;<i> 3.2.7.  From reading Graham's page I don't believe I should have a
+</I>&gt;<i> problem with the PageController handler continually being reimported
+</I>&gt;<i> but it certainly appears to be doing just that.
+</I>&gt;<i> 
+</I>&gt;<i> Can someone shed some light on what I may be doing wrong or a possible
+</I>&gt;<i> solution to setting up a shared cache within an interpreter?  I know
+</I>&gt;<i> that if I run similar code outside of mod_python my cache design works
+</I>&gt;<i> fine. 
+</I>&gt;<i> 
+</I>&gt;<i> Cheers
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020401.html">[mod_python] shared memory and module import problems
+</A></li>
+	<LI>Next message: <A HREF="020390.html">[mod_python] callable __auth__
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20389">[ date ]</a>
+              <a href="thread.html#20389">[ thread ]</a>
+              <a href="subject.html#20389">[ subject ]</a>
+              <a href="author.html#20389">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

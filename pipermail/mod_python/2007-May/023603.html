@@ -1,0 +1,136 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] import_module is case sensitive even if the OS isn't
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20import_module%20is%20case%20sensitive%20even%20if%20the%20OS%20isn%27t&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023609.html">
+   <LINK REL="Next"  HREF="023604.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] import_module is case sensitive even if the OS isn't</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>simon holness</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20import_module%20is%20case%20sensitive%20even%20if%20the%20OS%20isn%27t&In-Reply-To="
+       TITLE="[mod_python] import_module is case sensitive even if the OS isn't">simon.holness at gmail.com
+       </A><BR>
+    <I>Fri May 11 16:47:24 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023609.html">[mod_python] lookup_uri
+</A></li>
+        <LI>Next message: <A HREF="023604.html">[mod_python] import_module is case sensitive even if the OS isn't
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23603">[ date ]</a>
+              <a href="thread.html#23603">[ thread ]</a>
+              <a href="subject.html#23603">[ subject ]</a>
+              <a href="author.html#23603">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I've found an apparent issue with apache.import_module() - it seems to
+key the module on a case sensitive path/name even if the operating
+system (i.e. windows) doesn't. Thus a module can be wrongly loaded
+twice by using different capitalisation in different import requests.
+
+For most applications this will not be an issue since the separately
+loaded modules will be distinct. If, however, and application is
+relying on a module being loaded only once per interpreter (yeah,
+guess which case I've got) it can cause problems.
+
+This can be trivially reproduced by importing the same module twice
+with differing pathnames.
+
+e.g.
+
+mytest.psp
+-------------------------
+&lt;%
+mod1 = apache.import_module(&quot;c:\\work\\Webroot\\mymodule.py&quot;) # nb cap W
+mod2 = apache.import_module(&quot;c:\\work\\webroot\\mymodule.py&quot;)
+%&gt;
+&lt;html&gt;
+&lt;head&gt;&lt;title&gt;&lt;/title&gt;&lt;/head&gt;
+&lt;body&gt;go read your apache error log to see what got loaded&lt;/body&gt;
+&lt;/html&gt;
+------------------------
+mymodule.py
+------------------------
+# I'm a very boring module
+pass
+------------------------
+
+error.log contains
+------------------------
+....
+... Importing module 'c:\\work\\Webroot\\mymodule.py'
+... Importing module 'c:\\work\\webroot\\mymodule.py'
+
+This, obviously, won't be an issue on any case-sensitive OS (*nix).
+
+Having had a quick look at the code (and run a very simple test) it
+appears that altering importer.py line 454 to
+
+file = os.path.normcase(os.path.normpath(file))
+
+fixes the issue.
+I haven't looked to see if there are other places where the path would
+need to be normalised. Possibly in _setup_current_cache() ?
+
+normcase() should be safe &amp; correct on both types of system.
+
+Cheers
+Simon Holness
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023609.html">[mod_python] lookup_uri
+</A></li>
+	<LI>Next message: <A HREF="023604.html">[mod_python] import_module is case sensitive even if the OS isn't
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23603">[ date ]</a>
+              <a href="thread.html#23603">[ thread ]</a>
+              <a href="subject.html#23603">[ subject ]</a>
+              <a href="author.html#23603">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

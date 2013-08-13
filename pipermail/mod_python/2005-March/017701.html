@@ -1,0 +1,310 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Trouble fetching POST arguments
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Trouble%20fetching%20POST%20arguments&In-Reply-To=1111028454.9005%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017699.html">
+   <LINK REL="Next"  HREF="017703.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Trouble fetching POST arguments</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Davin Boling</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Trouble%20fetching%20POST%20arguments&In-Reply-To=1111028454.9005%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Trouble fetching POST arguments">davin at wordpainter.net
+       </A><BR>
+    <I>Wed Mar 16 23:18:42 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017699.html">[mod_python] Trouble fetching POST arguments
+</A></li>
+        <LI>Next message: <A HREF="017703.html">[mod_python] Trouble fetching POST arguments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17701">[ date ]</a>
+              <a href="thread.html#17701">[ thread ]</a>
+              <a href="subject.html#17701">[ subject ]</a>
+              <a href="author.html#17701">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Found it, and damn was it ever an obsure one. Basicly, Apache+mod_python 
+gets confused when you try to do a POST to a URI which corresponds to a 
+real directory on the filesystem.
+
+
+I understand that's a bit hard to follow, so I'll provide the following 
+example:
+
+1) DocumentRoot is /home/foobar/public_html/python
+2) In this directory, you have a folder named &quot;htdocs&quot;.
+3) Inside this directory, you have a number of HTML templates which are 
+combined to form the full document.
+4) The handler is written so that when a client requests 
+foobar.com/htdocs, they aren't served a real file on the filesystem, but 
+a dynamic document generated from the templates in the corresponding 
+filesystem directory.
+5) THE PROBLEM: User attempts to post action=&quot;<A HREF="http://foobar.com/htdocs&quot;.">http://foobar.com/htdocs&quot;.</A>
+6) Unexplainable GET-&gt;POST calamity rears its ugly head.
+7) SOLUTION: Add a trailing slash. It's the proper syntax anyway! 
+action=&quot;<A HREF="http://foobar.com/htdocs/&quot;">http://foobar.com/htdocs/&quot;</A>
+8) BETTER SOLUTION: Don't be a halfass, store your templates somewhere 
+on the filesystem that isn't accessible by the web. Even if the 
+templates don't contain any secure information, it's good to get in the 
+practice.
+
+
+
+Graham Dumpleton wrote:
+&gt;<i> Are you going direct to the server, or via a web proxy? Just a thought.
+</I>&gt;<i> I have never heard of web proxies change POST requests to GET, but
+</I>&gt;<i> I have had problems with web proxy caches before. This is why I
+</I>&gt;<i> tend to explicitly use:
+</I>&gt;<i> 
+</I>&gt;<i>   req.headers_out['Pragma'] = 'no-cache'
+</I>&gt;<i>   req.headers_out['Cache-Control'] = 'no-cache'
+</I>&gt;<i>   req.headers_out['Expires'] = '-1'
+</I>&gt;<i> 
+</I>&gt;<i> When a handler is processing forms, whether it be GET or POST.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> 
+</I>&gt;<i> Davin Boling wrote ..
+</I>&gt;<i> 
+</I>&gt;&gt;<i>I had already established that the method type is somehow getting 
+</I>&gt;&gt;<i>switched in the non-working handler. As much as it's hell-bent to force
+</I>&gt;&gt;<i>me to use a GET for my form, I'd much rather figure out why it's forcing
+</I>&gt;&gt;<i>a GET when I'm telling it to use a POST.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>1) I can make a script from scratch that accepts a POST operation just
+</I>&gt;&gt;<i>fine. That's the one that I provided a moment ago.
+</I>&gt;&gt;<i>2) req.read() isn't working on the bad handler, even if I put it at the
+</I>&gt;&gt;<i>top of the bad handler. That was my first hint that something was 
+</I>&gt;&gt;<i>strange, and by logging req.method I was able to find out that Apache 
+</I>&gt;&gt;<i>wants to use GET instead of POST with my non-working handler. It doesn't
+</I>&gt;&gt;<i>make sense, since I'm using the exact same form that worked with the 
+</I>&gt;&gt;<i>smaller (working) handler.
+</I>&gt;&gt;<i>3) Before anyone asks, I'm manually killing my browser cache between 
+</I>&gt;&gt;<i>submissions just to be safe. The strange behavior is exhibited in both
+</I>&gt;&gt;<i>Mozilla and IE.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Graham Dumpleton wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>The content length will not be set for a GET, thus I had in mine:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>    if req.method == &quot;POST&quot;:
+</I>&gt;&gt;&gt;<i>      length = int(req.headers_in[&quot;content-length&quot;])
+</I>&gt;&gt;&gt;<i>      template.req_read.content = req.read(length)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>I believe that for a POST, content length must be provided by the
+</I>&gt;&gt;&gt;<i>client, certainly for the content types that FieldStorage is designed
+</I>&gt;&gt;&gt;<i>to work with.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Davin Boling wrote ..
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>(forgive the double-mail Graham, replied direct and didn't hit the list
+</I>&gt;&gt;&gt;&gt;<i>by accident)
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>I took your suggestion involving time.sleep, but it made no difference.
+</I>&gt;&gt;&gt;&gt;<i>As for grabbing the content-length in the method you described...the
+</I>&gt;&gt;&gt;&gt;<i>plot thickens!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>Using your code at the very beginning of the handler(req):, I get the
+</I>&gt;&gt;&gt;&gt;<i>following exception:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>Mod_python error: &quot;PythonHandler handler&quot;
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>Traceback (most recent call last):
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line
+</I>&gt;&gt;&gt;&gt;<i>299, in HandlerDispatch
+</I>&gt;&gt;&gt;&gt;<i>    result = object(req)
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  File &quot;/home/davin/public_html/demo/handler/__init__.py&quot;, line 83,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>in
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>handler
+</I>&gt;&gt;&gt;&gt;<i>    length = int(req.headers_in[&quot;content-length&quot;])
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>KeyError: 'content-length'
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>Graham Dumpleton wrote:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>Davin Boling wrote ..
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>I've got an example that works correctly already. The problem is that
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>in
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>the larger handler that I've written, SOMETHING is breaking. I can't
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>understand at all why req.read() returns nothing on a POST when it's
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>the
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>very first thing I assign to a variable. I'm about to go on a commenting
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>crusade to narrow down where the problem is.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>This is my &quot;from scratch&quot; handler, which works correctly...just to
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>show
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>that I know how to handle a POST:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>from mod_python import apache
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>def handler(req):
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>   head = &quot;&quot;&quot;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>          &lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>          &lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>           &quot;<A HREF="http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;">http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;</A>&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>           &lt;html&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>           &lt;head&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>           &lt;title&gt;Debug&lt;/title&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>           &lt;/head&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>           &lt;body&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>          &quot;&quot;&quot;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>   data = req.read()
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>   method = req.method
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>   req.content_type = &quot;text/html&quot;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>   req.write(head + data + method + '&lt;/body&gt;&lt;/html&gt;')
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>   return apache.OK
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>Get the content length out of the headers and supply it to req.read()
+</I>&gt;&gt;&gt;&gt;&gt;<i>and see if that makes a difference. Ie.,
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>     length = int(req.headers_in[&quot;content-length&quot;])
+</I>&gt;&gt;&gt;&gt;&gt;<i>     data = req.read(length)
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>Also note what documentation says about timeouts.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> read([len])
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>   Reads at most len bytes directly from the client, returning a  string
+</I>&gt;&gt;&gt;&gt;&gt;<i>   with the data read. If the len argument is negative or omitted,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>reads
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>   all data given by the client.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>   This function is affected by the Timeout Apache configuration  directive.
+</I>&gt;&gt;&gt;&gt;&gt;<i>   The read will be aborted and an IOError  raised if the Timeout is
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>reached
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>   while reading client data.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>   This function relies on the client providing the Content-length
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>header.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>   Absence of the Content-length header will be treated as  if
+</I>&gt;&gt;&gt;&gt;&gt;<i>   Content-length: 0 was supplied.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>   Incorrect Content-length may cause the function to try to read 
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>more
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>   data than available, which will make the function block until a
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>Timeout
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>   is reached.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>One would expect an IOError according to this if a timeout occured,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>but
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>maybe it isn't being generated for some reason.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>You might also add:
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> time.sleep(10)
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>at the start of your handler and see if it makes a difference. Ie.,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>try
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>and
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>determine if it is the time the client takes to send the post data.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>Graham
+</I>&gt;&gt;&gt;&gt;&gt;<i>    
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017699.html">[mod_python] Trouble fetching POST arguments
+</A></li>
+	<LI>Next message: <A HREF="017703.html">[mod_python] Trouble fetching POST arguments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17701">[ date ]</a>
+              <a href="thread.html#17701">[ thread ]</a>
+              <a href="subject.html#17701">[ subject ]</a>
+              <a href="author.html#17701">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

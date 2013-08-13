@@ -1,0 +1,351 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] [patch] make autoreload more useful
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5Bpatch%5D%20make%20autoreload%20more%20useful&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001542.html">
+   <LINK REL="Next"  HREF="001544.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] [patch] make autoreload more useful</H1>
+    <B>Martin Pool</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5Bpatch%5D%20make%20autoreload%20more%20useful&In-Reply-To="
+       TITLE="[mod_python] [patch] make autoreload more useful">mbp at samba.org
+       </A><BR>
+    <I>Wed May 29 18:24:40 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001542.html">[mod_python] [PATCH] more httpd-2.0.36
+</A></li>
+        <LI>Next message: <A HREF="001544.html">[mod_python] [patch] make autoreload more useful
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1543">[ date ]</a>
+              <a href="thread.html#1543">[ thread ]</a>
+              <a href="subject.html#1543">[ subject ]</a>
+              <a href="author.html#1543">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Here is a patch intended to make automatic reload work &quot;properly&quot; in
+mod_python: if you change *any* Python source file, then all of them
+will be reloaded.  
+
+I think this basically gives the behaviour developers would
+intuitively expect: you can just go ahead and edit and the server will
+reload as necessary without you needing to remember to kill/restart
+Apache.  So the development experience is as immediate as CGI or PHP.
+
+You might ask why it's necessary to reload everything, and not just
+the changed module.  The reason is that some other module might still
+hold a reference to an object or function inside the changed module,
+and that object will still refer to the old code.  
+
+Indeed this will still be a problem if you put a reference to your
+code into sys, or one of the other modules that is not reloaded.  I
+can't see a clean way to handle that without restarting the whole
+interpreter, but I suspect it's a not a very common case.
+
+Of course stat()ing every loaded python file on every mod_python
+request has a small performance hit, but I don't think it will be a
+problem during development, and the whole thing should be turned off
+in production.
+
+I owe a debt to the PyUnit developers for documenting their solution
+and therefore saving me a couple of false starts.
+
+The patch is rough as anything and badly needs to be cleaned up and
+tested more thoroughly before it being merged or used in production.
+(The reload stuff really belongs in a separate module.)  I thought I'd
+send it out and see if anyone had any comments, and in particular if
+Grisha would take it in principle.  
+
+I've tested this a bit on python2.1 and it seems to work well.  I
+might inadvertently have bugs on 1.5, but they can easily be cleaned
+up.
+
+-- 
+Martin 
+tab tab ding!
+
+
+
+
+
+--- /home/mbp/work/mod_python-2.7.8/lib/python/mod_python/apache.py	Sat Apr 20 04:20:40 2002
++++ /usr/lib/python2.1/site-packages/mod_python/apache.py	Wed May 29 18:03:08 2002
+@@ -53,6 +53,7 @@
+ import imp
+ import types
+ import _apache
++import __builtin__
+ 
+ # a small hack to improve PythonPath performance. This
+ # variable stores the last PythonPath in raw (unevaled) form.
+@@ -62,6 +63,92 @@
+ def _cleanup_request(_req):
+     _req._Request = None
+ 
++
++# The idea of rolling back imports comes from Steve Purcell's
++# PyUnit GUI &lt;pyunit.sf.net&gt;, but the implementation is new by Martin Pool.
++
++# The basic idea is that we want to delete everything from sys.modules
++# when the user's code changes, except for system modules.  This is
++# necessary because otherwise one module that has not changed may
++# still be holding references to code objects from a module that has
++# changed.  We have to actually delete them and start again rather
++# than using reload(), because otherwise the first one reloaded may
++# grab references from something that will be reloaded later on.
++
++# Of course this will be a little slow, but it's only used in
++# development so it doesn't really matter.
++_orig_sys_modules = None
++
++def _notice(s, *args):
++    _apache.log_error(s % args, APLOG_NOERRNO|APLOG_NOTICE)
++
++
++def save_orig_modules():
++    global _orig_sys_modules
++    _orig_sys_modules = sys.modules.copy()
++
++
++def check_for_reload(path=None):
++    &quot;&quot;&quot;Check all non-system modules; if any have changed, reload all&quot;&quot;&quot;
++    for module_name, module in sys.modules.items():
++        if _orig_sys_modules.has_key(module_name):
++            continue
++
++        if not module:
++            continue                    # some are None (??)
++
++        file = module.__dict__.get('__file__')
++        oldmtime = module.__dict__.get(&quot;__mtime__&quot;, 0)
++        if not oldmtime:
++            # If the oldmtime is 0, then it wasn't loaded
++            # through _apache_importer, and so we can't work out if it's
++            # older or not.
++            continue
++
++        mtime = module_mtime(module)
++        # If the file no longer exists, mtime will be 0 and we'll
++        # reload it.
++        if mtime &gt; oldmtime or mtime == 0:
++            _apache.log_error(&quot;mod_python: %s has been changed; mtime=%d oldmtime=%d&quot; %
++                              (file, mtime, oldmtime),
++                              APLOG_NOERRNO|APLOG_NOTICE)
++            return reload_user_modules()
++        
++
++def reload_user_modules():
++    &quot;&quot;&quot;Reload all modules except system modules&quot;&quot;&quot;
++    _apache.log_error(&quot;mod_python: discard user modules&quot;,
++                      APLOG_NOERRNO|APLOG_NOTICE)
++    for module_name in sys.modules.keys():
++        if not _orig_sys_modules.has_key(module_name):
++            del sys.modules[module_name]
++
++
++def _get_sub_module(top_module, module_name):
++    module = top_module
++    for part in string.split(module_name, '.')[1:]:
++        module = getattr(module, part)
++    return module
++
++def _apache_importer(module_name, globals=None, locals=None, fromlist=None):
++    # Just defer to the built-in importer, but annotate the returned module with
++    # its modification time
++    parent_module = _original_import(module_name, globals, locals, fromlist)
++    
++    if '.' in module_name:
++        submodule = _get_sub_module(parent_module, module_name)
++    else:
++        submodule = parent_module
++        
++    if _debug:
++        s = 'mod_python: importing %s got parent %s, sub %s' % (module_name, `parent_module`,
++                                                                `submodule`)
++        _apache.log_error(s, APLOG_NOERRNO|APLOG_NOTICE)
++    submodule.__mtime__ = module_mtime(submodule)
++    _notice(&quot;submodule mtime is %d&quot; % submodule.__mtime__)
++    return parent_module
++
++
+ class Request:
+     &quot;&quot;&quot; This is a normal Python Class that can be subclassed.
+         However, most of its functionality comes from a built-in
+@@ -285,6 +372,8 @@
+             etb = None
+             # we do not return anything
+ 
++
++
+ def import_module(module_name, req=None, path=None):
+     &quot;&quot;&quot;
+     Get the module to handle the request. If
+@@ -299,52 +388,27 @@
+         debug = config.has_key(&quot;PythonDebug&quot;)
+         if config.has_key(&quot;PythonAutoReload&quot;):
+             autoreload = int(config[&quot;PythonAutoReload&quot;])
+- 
+-    # (Re)import
+-    if sys.modules.has_key(module_name):
+-        
+-        # The module has been imported already
+-        module = sys.modules[module_name]
+-
+-        # but is it in the path?
+-        file = module.__dict__.get(&quot;__file__&quot;)
+-        if not file or (path and not os.path.dirname(file) in path):
+-                raise SERVER_RETURN, HTTP_NOT_FOUND
+-
+-        if autoreload:
+-            oldmtime = module.__dict__.get(&quot;__mtime__&quot;, 0)
+-            mtime = module_mtime(module)
+-        else:
+-            mtime, oldmtime = 0, 0
+-
+-    else:
+-        mtime, oldmtime = 0, -1
+- 
+-    if mtime &gt; oldmtime:
+-
+-        # Import the module
+-        if debug:
+-            s = 'mod_python: (Re)importing %s from %s' % (module_name, path)
+-            _apache.log_error(s, APLOG_NOERRNO|APLOG_NOTICE)
+-
+-        parts = string.split(module_name, '.')
+-        for i in range(len(parts)):
+-            f, p, d = imp.find_module(parts[i], path)
+-            try:
+-                mname = string.join(parts[:i+1], &quot;.&quot;)
+-                module = imp.load_module(mname, f, p, d)
+-            finally:
+-                if f: f.close()
+-            if hasattr(module, &quot;__path__&quot;):
+-                path = module.__path__
+ 
+-        if mtime == 0:
+-            mtime = module_mtime(module)
+-
+-        module.__mtime__ = mtime
+- 
++    # mbp -- for debugging
++    ##    _apache.log_error(&quot;sys.modules is: %s&quot; % sys.modules,
++    ##                      APLOG_NOERRNO|APLOG_NOTICE)
++
++    if autoreload:
++        # just check *all* modules, and discard non-system modules if
++        # any have changed
++        check_for_reload(path)
++
++    # the __import__ function returns the *top-level module*, not the one
++    # we actually asked for.  after importing, we need to walk down to
++    # get the real thing.
++    _notice(&quot;import_module %s&quot; % module_name)
++    top_module = __import__(module_name)
++    _notice(&quot;import_module %s got top %s&quot; % (module_name, top_module))
++    module = _get_sub_module(top_module, module_name)
++    _notice(&quot;import_module for %s returned %s&quot; % (module_name, module))
+     return module
+ 
++
+ def module_mtime(module):
+     &quot;&quot;&quot;Get modification time of module&quot;&quot;&quot;
+     mtime = 0
+@@ -377,6 +441,8 @@
+        class passing the request as single argument
+     &quot;&quot;&quot;
+ 
++    _notice(&quot;resolve obj %s in %s&quot; % (object_str, module))
++
+     obj = module
+ 
+     for obj_str in  string.split(object_str, '.'):
+@@ -609,6 +675,14 @@
+     &quot;&quot;&quot; 
+         This function is called by the server at startup time
+     &quot;&quot;&quot;
++    global _original_import, _debug
++    
++    # keep this in case we want it
++    _original_import = __builtin__.__import__
++    _notice(&quot;about to hook importer&quot;)
++    __builtin__.__import__ = _apache_importer
++    _notice(&quot;importer hooked&quot;)
++    _debug = 1
+ 
+     return CallBack()
+ 
+@@ -618,6 +692,14 @@
+ parse_qs = _apache.parse_qs
+ parse_qsl = _apache.parse_qsl
+ 
++## Keep track of modules already loaded; anything after this is fair game
++## to be reloaded
++save_orig_modules()
++
++# XXX: We perhaps ought to hook reload() as well to make sure it's
++# consistent, but at the moment I think it does no harm to let it
++# default.
++
+ ## Some constants
+ 
+ HTTP_CONTINUE                     = 100
+@@ -708,28 +790,4 @@
+ REQ_EXIT = &quot;REQ_EXIT&quot;         
+ SERVER_RETURN = _apache.SERVER_RETURN
+ PROG_TRACEBACK = &quot;PROG_TRACEBACK&quot;
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+ 
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001542.html">[mod_python] [PATCH] more httpd-2.0.36
+</A></li>
+	<LI>Next message: <A HREF="001544.html">[mod_python] [patch] make autoreload more useful
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1543">[ date ]</a>
+              <a href="thread.html#1543">[ thread ]</a>
+              <a href="subject.html#1543">[ subject ]</a>
+              <a href="author.html#1543">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

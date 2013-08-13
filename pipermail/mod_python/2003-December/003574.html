@@ -1,0 +1,116 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Sessions and problems with cookie path attribute
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20and%20problems%20with%20cookie%20path%20attribute&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003572.html">
+   <LINK REL="Next"  HREF="003579.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Sessions and problems with cookie path attribute</H1>
+    <B>Daniel J. Popowich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20and%20problems%20with%20cookie%20path%20attribute&In-Reply-To="
+       TITLE="[mod_python] Sessions and problems with cookie path attribute">dpopowich at mtrsd.k12.ma.us
+       </A><BR>
+    <I>Fri Dec 19 16:31:45 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003572.html">[mod_python] Newbie questions 2
+</A></li>
+        <LI>Next message: <A HREF="003579.html">[mod_python] Sessions and problems with cookie path attribute
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3574">[ date ]</a>
+              <a href="thread.html#3574">[ thread ]</a>
+              <a href="subject.html#3574">[ subject ]</a>
+              <a href="author.html#3574">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+I had a serious problem getting sessions to work with an app I'm
+writing (modpython 3.1.2b, httpd-2.0.40, python 2.3.2) and after
+browsing the archives I've seen others getting bitten by the same
+problem...
+
+Session ids are stored on the client as a cookie with name pysid.
+This is fine and the cookie gets stored, but the path attribute can
+get badly mangled by the code in Session.BaseSession.make_cookie(), in
+particular, this section:
+
+        if config.has_key(&quot;ApplicationPath&quot;):
+            c.path = config[&quot;ApplicationPath&quot;]
+        else:
+            docroot = self._req.document_root()
+            # the path where *Handler directive was specified
+            dirpath = self._req.hlist.directory 
+            c.path = dirpath[len(docroot):]
+
+If you don't have AppliationPath set as a PythonOption and your
+handler isn't in a &lt;Directory&gt; under DocumentRoot you're probably
+going to have trouble.  Two scenarios hurt me:
+
+  1.  using a handler inside a &lt;Location&gt;.  There is no path.  My
+      browser (galeon 1.2.7) hung for infinity on reloads.  Never
+      could figure out why.
+
+  2.  using mod_python under UserDir directories.  I do this for
+      prototyping because it's so easy to tweak a .htaccess file under
+      a ~username/public_html subdirectory and you don't have to
+      restart/reload apache to see your changes.  In this situation
+      the length of DocumentRoot has no relationship to the URIs so
+      the path attribute of the cookie gets oddly chopped at the
+      head.  I kept getting new sessions because the browser wasn't
+      sending the cookie because of paths not matching the uri.
+
+I believe the same problem will occur under certain circumstances if
+Alias directives affect mod_python usage although I haven't tested
+this.
+
+I think the ELSE clause above is trying to do something that can't be
+done easily: extract the leading uri of the handler.  With Alias,
+UserDir and Location directives, it's pretty difficult.  Is it
+possible?  Perhaps the code shouldn't try to be so clever.  Default
+the path to &quot;/&quot; unless the Session constructor overrides the value??
+
+My temporary fix is to always explicitly use ApplicationPath.  Setting
+it to &quot;/&quot; is certainly general enough for my prototyping.
+
+Minimally, I think the documentation for Session should devote some
+space to addressing and clarifying this issue.
+
+------------------
+Daniel Popowich
+Network Specialist
+-------------------------------------
+Mohawk Trail Regional School District
+24 Ashfield Rd.
+Shelburne Falls, MA 01370
+413.625.0192 x22
+-------------------------------------
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003572.html">[mod_python] Newbie questions 2
+</A></li>
+	<LI>Next message: <A HREF="003579.html">[mod_python] Sessions and problems with cookie path attribute
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3574">[ date ]</a>
+              <a href="thread.html#3574">[ thread ]</a>
+              <a href="subject.html#3574">[ subject ]</a>
+              <a href="author.html#3574">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

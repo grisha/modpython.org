@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Speaking of Output Filters....
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Speaking%20of%20Output%20Filters....&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020837.html">
+   <LINK REL="Next"  HREF="020840.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Speaking of Output Filters....</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Lee Brown</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Speaking%20of%20Output%20Filters....&In-Reply-To="
+       TITLE="[mod_python] Speaking of Output Filters....">administrator at leebrown.org
+       </A><BR>
+    <I>Mon Apr 10 08:08:54 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020837.html">[mod_python] mod_python / memcahced for on-the-fly
+	renderingoflatex in html
+</A></li>
+        <LI>Next message: <A HREF="020840.html">[mod_python] Speaking of Output Filters....
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20836">[ date ]</a>
+              <a href="thread.html#20836">[ thread ]</a>
+              <a href="subject.html#20836">[ subject ]</a>
+              <a href="author.html#20836">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Greetings!
+
+I am probably remiss for not having shared this before now.  Here are two
+output filters for mod_python that I have developed.
+
+The first filter, xsltfilter.py, transforms XML into XHTML (or whatever else
+you may desire) via an XSLT template.  The second filter, xincludefilter.py,
+processes xinclude elements imbedded in XHTML.  Both are meant as a simple
+means of providing &quot;quasi-dynamic&quot; web content.  Benchmarks on my hardware
+show throughputs of 100 to 500+ pages per second using these filters.
+
+Dependencies:
+lxml:  an ElemenTree-like binding for the libxml2/libxslt libraries (see
+<A HREF="http://www.codespeak.net/lxml">http://www.codespeak.net/lxml</A>)
+
+In the &quot;main&quot; Apache config:
+
+AddHandler mod_python .py
+PythonPath &quot; ...(as needed)... &quot;
+PythonOutputFilter xsltfilter XSLTFILTER
+PythonOutputFilter xincludefilter XINCLUDEFILTER
+
+In the appropriate Apache VHOST section:
+
+AddType text/html .xml .xhtml
+
+&lt;Directory &quot; .(as needed). &quot;&gt;
+	AddOutputFilter XSLTFILTER .xml
+	AddOutputFilter XINCLUDEFILTER .xhtml
+	..
+&lt;/Directory&gt;
+
+File xsltfilter.py:  (Note - Could probably stand some refactoring)
+
+from mod_python import apache
+import lxml.etree
+from cStringIO import StringIO
+
+xsltfile = open('/path/to/my/template.xslt', 'rU')
+xsltstring = xsltfile.read()
+xsltfile.close()
+
+styledoc = lxml.etree.parse(StringIO(xsltstring))
+transformer = lxml.etree.XSLT(styledoc)
+
+def outputfilter (filter):
+    xmlstring = filter.read()
+    doc = lxml.etree.parse(StringIO(xmlstring))
+    doc.xinclude()
+    result = str(transformer(doc))
+    filter.write(result)
+    filter.close()
+
+File xincludefilter.py:  (Note - Could probabaly stand some refactoring)
+
+from mod_python import apache
+import lxml.etree
+from cStringIO import StringIO
+
+xsltstring = &quot;&quot;&quot;&lt;?xml version=&quot;1.0&quot; encoding=&quot;ISO-8859-1&quot;?&gt;
+&lt;xsl:stylesheet version=&quot;1.0&quot; 
+  xmlns=&quot;<A HREF="http://www.w3.org/1999/xhtml&quot;">http://www.w3.org/1999/xhtml&quot;</A> 
+  xmlns:xsl=&quot;<A HREF="http://www.w3.org/1999/XSL/Transform&quot;">http://www.w3.org/1999/XSL/Transform&quot;</A>&gt;
+  
+  &lt;xsl:output method=&quot;xml&quot; version=&quot;1.0&quot; encoding=&quot;ISO-8859-1&quot; 
+    indent=&quot;yes&quot; omit-xml-declaration=&quot;yes&quot; 
+    doctype-public=&quot;-//W3C//DTD xhtml 1.0 Strict//EN&quot; 
+    doctype-system=&quot;<A HREF="http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;/">http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;/</A>&gt;
+  
+  &lt;xsl:template match=&quot;/&quot;&gt;
+    &lt;xsl:apply-templates select=&quot;@*|node()&quot;/&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match=&quot;@*|node()&quot;&gt;
+    &lt;xsl:copy&gt;
+      &lt;xsl:apply-templates select=&quot;@*|node()&quot;/&gt;
+    &lt;/xsl:copy&gt;
+  &lt;/xsl:template&gt;
+
+&lt;/xsl:stylesheet&gt;
+&quot;&quot;&quot;
+
+styledoc = lxml.etree.parse(StringIO(xsltstring))
+transformer = lxml.etree.XSLT(styledoc)
+
+def outputfilter (filter):
+    xmlstring = filter.read()
+    doc = lxml.etree.parse(StringIO(xmlstring))
+    doc.xinclude()
+    result = str(transformer(doc))
+    filter.write(result)
+    filter.close()
+
+Best Regards,
+Lee E. Brown
+(<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">leebrown at leebrown.org</A>)
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060410/330343b8/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060410/330343b8/attachment-0001.html</A>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020837.html">[mod_python] mod_python / memcahced for on-the-fly
+	renderingoflatex in html
+</A></li>
+	<LI>Next message: <A HREF="020840.html">[mod_python] Speaking of Output Filters....
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20836">[ date ]</a>
+              <a href="thread.html#20836">[ thread ]</a>
+              <a href="subject.html#20836">[ subject ]</a>
+              <a href="author.html#20836">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

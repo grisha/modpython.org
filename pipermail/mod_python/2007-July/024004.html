@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Using Templates
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20Templates&In-Reply-To=1184241127.18468.32.camel%40localhost.localdomain">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024003.html">
+   <LINK REL="Next"  HREF="024007.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Using Templates</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20Templates&In-Reply-To=1184241127.18468.32.camel%40localhost.localdomain"
+       TITLE="[mod_python] Using Templates">jpg at jgassociates.ca
+       </A><BR>
+    <I>Thu Jul 12 11:07:37 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024003.html">[mod_python] Using Templates
+</A></li>
+        <LI>Next message: <A HREF="024007.html">[mod_python] Using Templates
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24004">[ date ]</a>
+              <a href="thread.html#24004">[ thread ]</a>
+              <a href="subject.html#24004">[ subject ]</a>
+              <a href="author.html#24004">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>ron banks wrote:
+&gt;<i> Graham,
+</I>&gt;<i> 
+</I>&gt;<i> Thanks for the reply. I do realize that the '=' is wrong. When removed
+</I>&gt;<i> the browser just hangs without reporting errors.
+</I>
+It occurs to me that you may have a session deadlock. Do you use the 
+&quot;session&quot; variable name anywhere in any of your psp templates, or is it 
+just in setStrDate?
+
+The rule is that you should only create one session instance per 
+request. When a session instance is created it is locked for the 
+duration of the request to protect your data. If you attempt to create a 
+second instance the request will appear to hang as the 2nd session waits 
+for the lock to be released, which of course never happens.
+
+There is some &quot;magic&quot; in psp where it will create a session instance if 
+it finds a variable named &quot;session&quot; anywhere in the template. It will 
+check to see if it can find req.session first, so if you need to create 
+a session outside of psp make sure you assign it to req.session. This is 
+probably a good habit to get into even if you aren't using the psp handler.
+
+&gt;<i> What I am not getting
+</I>&gt;<i> is how to properly set the 'strDate' variable in:
+</I>
+Actually, I think you are setting it properly. ;)
+
+&gt;<i> ----------------Month.tmpl------------------
+</I>&gt;<i> &lt;%=loadMonth(req, strDate)%&gt;
+</I>&gt;<i>                   ^^^^^^^
+</I>&gt;<i> 
+</I>&gt;<i> with this function:
+</I>&gt;<i> ---------------setStrDate-------------------
+</I>&gt;<i> def setStrDate(req):
+</I>&gt;<i> 	session = Session.Session(req)
+</I>&gt;<i> 	if session.is_new():
+</I>&gt;<i> 		strDate = &quot;&quot;
+</I>&gt;<i> 	else:
+</I>&gt;<i> 		strDate = getSessionVariable(session, 'currDate')
+</I>&gt;<i> 	req.content_type = 'text/html'
+</I>&gt;<i> 	tmpl = psp.PSP(req, filename='Month.tmpl')
+</I>&gt;<i> 	tmpl.run(vars = {'strDate': strDate})
+</I>&gt;<i> 	return &quot;&quot;
+</I>&gt;<i> 
+</I>&gt;<i> called from:
+</I>&gt;<i> ----------------Month.psp------------------
+</I>&gt;<i> &lt;%
+</I>&gt;<i> from mod_python import apache, psp
+</I>&gt;<i> from loadCalendar import setStrDate
+</I>&gt;<i> %&gt;
+</I>&gt;<i> &lt;%=setStrDate(req)%&gt;
+</I>&gt;<i> 
+</I>&gt;<i> How should this be done? This is a first experiment for me utilizing
+</I>&gt;<i> templates. What I am trying to do is to set a session variable
+</I>&gt;<i> 'currDate' with a new date through ajax methods and load a page with the
+</I>&gt;<i> same loadMonth function which builds a calendar populated with records
+</I>&gt;<i> from a database backend. I have worked out almost everything else and
+</I>&gt;<i> have only a couple of problems before I can move forward.
+</I>
+You're on the right track. I would suggest that you simplify 
+setStrDate() so that it only does one thing. You might also consider 
+renaming it to getStrDate as that seems to be it's function. Move the 
+things not related to the date to another function. It'll make your 
+program logic easier to understand. It might not see like a big deal 
+right now, but if need to come back and modify the code 6 months from 
+now you'll thank me. ;)
+
+Your code might look more like this:
+
+---------------getStrDate-------------------
+def getStrDate(req):
+	if not hasattr(req, 'session'):
+		req.session = Session.Session(req)
+	if req.session.is_new():
+  		strDate = &quot;&quot;
+  	else:
+  		strDate = getSessionVariable(req.session, 'currDate')
+  	return strDate
+
+
+----------------Month.tmpl------------------
+&lt;%
+loadMonth(req, strDate)
+%&gt;
+
+
+----------------Month.psp------------------
+&lt;%
+from mod_python import apache, psp
+from loadCalendar import getStrDate
+
+strDate = getStrDate(req)
+
+tmpl = psp.PSP(req, filename='Month.tmpl')
+tmpl.run(vars = {'strDate': strDate})
+
+%&gt;
+
+&gt;<i> I either need to figure out how to utilize a template system as
+</I>&gt;<i> described which I think might be preferable in this situation or
+</I>&gt;<i> possibly reload the same page letting the loadMonth function pick up the
+</I>&gt;<i> changed session variable and building the page based on the new date.
+</I>&gt;<i> I'm not sure how to reload the page. Should I use some type of redirect
+</I>&gt;<i> from the server side or javascript from the client side? I have only
+</I>&gt;<i> started to experiment with these methods. I can't seem to get the
+</I>&gt;<i> redirect to do anything yet.  With the javascript reload the session
+</I>&gt;<i> variable seems to go away.
+</I>
+This may be related to the way you are using sessions. Once we've 
+determined if you have a deadlock we can deal with this issue.
+
+Do you save the session anywhere, or are you depending on psp? Psp will 
+only save the session if it finds the &quot;session&quot; variable name in your 
+template. Otherwise you'll need to save it explicitly somewhere with 
+session.save().
+
+&gt;<i> Is this because of the new request or
+</I>&gt;<i> something? Maybe a better method is to control session information in
+</I>&gt;<i> the database and just use javascript. I don't know what differences in
+</I>&gt;<i> speed would be. What do you think?
+</I>
+Use the mod_python session machinery until you've got it working. Adding 
+another layer of complexity won't help at this point.
+
+As I mull this over I'm convinced you're problem lies with the way you 
+are using sessions, and not with psp templates.
+
+Jim
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024003.html">[mod_python] Using Templates
+</A></li>
+	<LI>Next message: <A HREF="024007.html">[mod_python] Using Templates
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24004">[ date ]</a>
+              <a href="thread.html#24004">[ thread ]</a>
+              <a href="subject.html#24004">[ subject ]</a>
+              <a href="author.html#24004">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

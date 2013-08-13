@@ -1,0 +1,278 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: best practices; was &quot;is mod_python borked?&quot;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20best%20practices%3B%20was%20%22is%20mod_python%20borked%3F%22&In-Reply-To=eih5mj%249qa%241%40sea.gmane.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022473.html">
+   <LINK REL="Next"  HREF="022476.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: best practices; was &quot;is mod_python borked?&quot;</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20best%20practices%3B%20was%20%22is%20mod_python%20borked%3F%22&In-Reply-To=eih5mj%249qa%241%40sea.gmane.org"
+       TITLE="[mod_python] Re: best practices; was &quot;is mod_python borked?&quot;">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Nov  4 00:53:19 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022473.html">[mod_python] Re: best practices; was &quot;is mod_python borked?&quot;
+</A></li>
+        <LI>Next message: <A HREF="022476.html">[mod_python] Re: best practices; was &quot;is mod_python borked?&quot;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22474">[ date ]</a>
+              <a href="thread.html#22474">[ thread ]</a>
+              <a href="subject.html#22474">[ subject ]</a>
+              <a href="author.html#22474">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 04/11/2006, at 3:43 PM, Steve Holden wrote:
+
+&gt;<i> Graham Dumpleton wrote:
+</I>&gt;&gt;<i> On 04/11/2006, at 1:31 AM, Sells, Fred wrote:
+</I>&gt;&gt;&gt;<i> The following is extracted from Graham's reply with questions of  
+</I>&gt;&gt;&gt;<i> my  own
+</I>&gt;&gt;&gt;<i> added.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Note that I use Apache 2.x and python 2.3 and mod_python 3.1.3  
+</I>&gt;&gt;&gt;<i> on  linux.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> As long as you don't run up against the trailing slash and base   
+</I>&gt;&gt;&gt;&gt;<i> url issues.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> ;-)
+</I>&gt;&gt;&gt;<i> I gues I haven't hit them, not sure what they are, are they  
+</I>&gt;&gt;&gt;<i> documented
+</I>&gt;&gt;&gt;<i> somewhere. Isn't there an Apache module that fixes this?
+</I>&gt;&gt;<i> You can read a bit about it at:
+</I>&gt;&gt;<i>   <A HREF="http://www.modpython.org/pipermail/mod_python/2006-March/">http://www.modpython.org/pipermail/mod_python/2006-March/</A> 
+</I>&gt;&gt;<i> 020501.html
+</I>&gt;<i> Wasn't this kind of stuff why publisher was designed in the first  
+</I>&gt;<i> place? I remember having a dialog with Grisha about similar topics,  
+</I>&gt;<i> and his reply essentially being &quot;Most of the web stuff I do uses  
+</I>&gt;<i> CGI&quot; :)
+</I>
+Not having myself really qualified which part of that mail message I  
+referred
+to was what I saw as the problem, am not sure how your comment relates
+and which bit you are saying publisher was designed for in the first  
+place. :-)
+
+In terms of what I had in mind as being an issue, there are few parts  
+to it.
+
+For the first, when a request arrives against a physical directory  
+and there is
+no trailing slash on the URL, Apache (unless it is disabled), will  
+send a redirect
+back to the browser forcing it send the request again but with a  
+trailing slash
+added. By doing this, it is helping the browser to understand what  
+the effective
+base URL is such that if relative URLs are then used to address other  
+resources
+within that directory, it will be able to construct the URL properly.
+
+Thus, if we have a filesystem structure:
+
+   /some/path/directory
+   /some/path/directory/index.html
+   /some/path/directory/file-1.html
+
+and we pretend that the URL to access it is the same. If a URL  
+arrives which
+is:
+
+   /some/path/directory
+
+then Apache sends a redirect back to the browser asking it to re- 
+request the
+resource with the URL:
+
+   /some/path/directory/
+
+Where the DirectoryIndex directive is set and it contains  
+'index.html', Apache
+will now internally map the request, with trailing slash, to the  
+'index.html' file
+and serve up that page as the response content.
+
+If that page then has a relative link in it for 'file-1.html', the  
+browser will if told
+to follow that link, will request:
+
+   /some/path/directory/file-1.html
+
+If this trailing slash redirection for the directory wasn't done, and  
+the URL of:
+
+   /some/path/directory
+
+without the trailing slash were allowed to map to 'index.html', then  
+the browser
+when trying to follow the link would actually request:
+
+   /some/path/file-1.html
+
+as it wouldn't know that 'file-1.html' was actual a contained item  
+underneath the
+context of the resource, as opposed to a sibling.
+
+Now when we look at how URLs are matched to object hierarchies in  
+publisher,
+something which if I understand the history correctly, follows from  
+the bobo
+publisher in what became Zope, it doesn't try and view the object  
+hierarchy in
+the same way as a directory structure and doesn't do any trailing  
+slash redirection
+to establish directory contexts when it perhaps should.
+
+Thus if I have:
+
+   class dummy:
+
+     def __call__(req): return &quot;&lt;a href='file_1'&gt;file_1&lt;/a&gt;&quot;
+     def file_1(req): return &quot;file_1&quot;
+
+   directory = dummy()
+
+and I access this through publisher such that trailing part of the  
+URL looks like:
+
+   /directory
+
+although the __call__ method acts like the index page for that level  
+in the
+hierarchy, publisher doesn't look at it that way and simply accepts  
+the URL
+without the trailing slash. Thus, if the link is now followed in that  
+page, it will
+end up mapping to:
+
+   /file_1
+
+and not to:
+
+   /directory/file_1
+
+Now although publisher doesn't force the browser to re-request for  
+the __call__()
+method, it will accept a trailing slash on the URL still and when  
+that is done then
+the link in the page does correctly resolve the correct resource.
+
+Thus, everything can be made to work as long as whenever the target  
+is a __call__()
+method, that a trailing slash is always used on the URL. However, if  
+the user sees
+the URL and manually removes the trailing slash himself, then the  
+links in then page
+break.
+
+So whereas one should be able to use fixed relative links in a page  
+generated from
+a __call__() method called by publisher, one is instead forced to  
+either make them
+absolute path links, or dynamically determine what the relative link  
+should be by looking
+at the URL and what is determinable about where the point sits in the  
+object hierarchy.
+
+This issue is further complicated by how publisher automatically maps  
+a request
+against a physical directory when SetHandler is used to the index.py  
+file, and when
+it maps a request against a physical file, whether SetHandler or  
+AddHandler is used,
+against the index() method contained within it.
+
+Not only does one have to deal with the fact that publisher will  
+accept a URL with
+out without a trailing slash and doesn't force a trailing slash to be  
+added in
+appropriate contexts, you end up, as explained in the referenced  
+email, with multiple
+URLs that can map to the same resource. If all these URLs were at the  
+same context
+level that wouldn't really matter, but they aren't and have differing  
+numbers of slashes
+within the URL, further making the process of working with relative  
+URLs a mess.
+
+In summary, the problems I see are publisher not doing the trailing  
+slash redirect
+where appropriate and how automatic mapping to the index file and  
+index function
+are done resulting in different URLs working with different base URL  
+contexts.
+
+Having said all that, what did you mean when saying 'why publisher  
+was designed
+in the first place'? I have no issue with the object traversal, just  
+how it deals with
+nodes within the hierarchy.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022473.html">[mod_python] Re: best practices; was &quot;is mod_python borked?&quot;
+</A></li>
+	<LI>Next message: <A HREF="022476.html">[mod_python] Re: best practices; was &quot;is mod_python borked?&quot;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22474">[ date ]</a>
+              <a href="thread.html#22474">[ thread ]</a>
+              <a href="subject.html#22474">[ subject ]</a>
+              <a href="author.html#22474">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

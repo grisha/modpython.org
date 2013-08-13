@@ -1,0 +1,231 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> SSL-data access from verious handlers. was: Re: [mod_python]
+	problem w/ authen handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=SSL-data%20access%20from%20verious%20handlers.%20was%3A%20Re%3A%20%5Bmod_python%5D%0A%09problem%20w/%20authen%20handler&In-Reply-To=5.2.1.1.0.20050523130057.032fefc8%40mail.comune.grosseto.it">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018156.html">
+   <LINK REL="Next"  HREF="018158.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>SSL-data access from verious handlers. was: Re: [mod_python]
+	problem w/ authen handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=SSL-data%20access%20from%20verious%20handlers.%20was%3A%20Re%3A%20%5Bmod_python%5D%0A%09problem%20w/%20authen%20handler&In-Reply-To=5.2.1.1.0.20050523130057.032fefc8%40mail.comune.grosseto.it"
+       TITLE="SSL-data access from verious handlers. was: Re: [mod_python]
+	problem w/ authen handler">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon May 23 08:05:22 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018156.html">SSL-data access from verious handlers.  was: Re:
+	[mod_python] problem w/ authen handler
+</A></li>
+        <LI>Next message: <A HREF="018158.html">SSL-data access from verious handlers.  was: Re:
+	[mod_python] problem w/ authen handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18157">[ date ]</a>
+              <a href="thread.html#18157">[ thread ]</a>
+              <a href="subject.html#18157">[ subject ]</a>
+              <a href="author.html#18157">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 23/05/2005, at 9:03 PM, Bud P. Bruegger wrote:
+
+&gt;<i> At 20.47 23/05/2005 +1000, Graham Dumpleton wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On 23/05/2005, at 6:55 PM, Bud P. Bruegger wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> The concept of Loginhandler is really interesting.  My doubt is 
+</I>&gt;&gt;&gt;<i> whether it would execute before mod-rewrite clicks in?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Since it is essentially executed as part of the content handler phase 
+</I>&gt;&gt;<i> it
+</I>&gt;&gt;<i> would be after mod_rewrite. Overall, not sure you will be able to do 
+</I>&gt;&gt;<i> what
+</I>&gt;&gt;<i> you want in mod_python as it doesn't give fine enough control. 
+</I>&gt;&gt;<i> Probably
+</I>&gt;&gt;<i> simpler for you to write your own DSO in C which does it.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> hmm, I like the idea of python to be able to flexibly apply regular 
+</I>&gt;<i> expressions and similar to massage ID strings and also to rapidly 
+</I>&gt;<i> integrate additional eID types.
+</I>&gt;<i>
+</I>&gt;<i> Considering that I'm not the first person who wanted access to SSL 
+</I>&gt;<i> data from mod-python, would it be possible/desirable to extend 
+</I>&gt;<i> mod-python to see these?  Alternatively, would it be possible to 
+</I>&gt;<i> access internals with python's ctypes module?
+</I>
+A bit of information that may be useful, or may not.
+
+ From looking at code for mod_python and mod_ssl, when registering a 
+handler hook
+you can specify its relative location as first, middle or last. Both 
+mod_ssl and
+mod_python specify it as middle for the fixup handler. Ie.,
+
+     ap_hook_fixups        (ssl_hook_Fixup,         NULL,NULL, 
+APR_HOOK_MIDDLE);
+
+     /* [8] fixups */
+     ap_hook_fixups(PythonFixupHandler,
+                    NULL, NULL, APR_HOOK_MIDDLE);
+
+It is in the SSL fixup handler that it pushes all the variable into the 
+environment.
+If you aren't seeing the variables in the common vars in the fixup 
+handler, then the
+SSL fixup handler is being called after the mod_python fixup handler.
+
+The issue thus is whether you can control the order in any way such 
+that you can
+guarantee that the SSL fixup handler is executed before that for 
+mod_python. If
+you can do this, you can ensure that common vars is set and can be used 
+by your
+Python handler.
+
+The Apache documentation says:
+
+   Controlling hook calling order
+
+   In the example above, we didn't use the three arguments in  the hook 
+registration function
+   that control calling order.  There are two mechanisms for doing this. 
+The first, rather
+   crude, method, allows us to specify roughly where the hook is  run 
+relative to other modules.
+   The final argument control this.  There are three possible values: 
+HOOK_FIRST,  HOOK_MIDDLE
+   and HOOK_LAST.
+
+   All modules using any particular value may be run in any  order 
+relative to each other,
+   but, of course, all modules using  HOOK_FIRST will be run before 
+HOOK_MIDDLE  which are
+   before HOOK_LAST. Modules that don't care  when they are run should 
+use HOOK_MIDDLE.
+
+   Note that there are two more values,  HOOK_REALLY_FIRST and 
+HOOK_REALLY_LAST. These
+   should only be used by the hook exporter.
+
+Thus, within a single level, eg, middle, can be run in any order.
+
+As far as controlling order within a level, the documentation goes on 
+further to say:
+
+   The other method allows finer control. When a module knows  that it 
+must be run before
+   (or after) some other modules, it  can specify them by name. The 
+second (third) argument
+   is a  NULL-terminated array of strings consisting of the names of  
+modules that must be
+   run before (after) the current module. For example, suppose we want 
+&quot;mod_xyz.c&quot; and
+   &quot;mod_abc.c&quot; to run  before we do, then we'd hook as follows:
+
+     static void register_hooks()
+     {
+       static const char * const aszPre[] = { &quot;mod_xyz.c&quot;, &quot;mod_abc.c&quot;, 
+NULL };
+
+       ap_hook_do_something(my_something_doer, aszPre, NULL, 
+HOOK_MIDDLE);
+     }
+
+   Note that the sort used to achieve this is stable, so  ordering set 
+by HOOK_ORDER
+   is preserved, as far  as is possible.
+
+This though isn't of any use here as at point that mod_python is 
+registering hooks it isn't
+going to know anything about dependencies.
+
+Overall, what would be most useful I guess is if mod_python provided a 
+way of saying
+whether a handler should be executed as first, middle or last. If this 
+ability existed
+you could specify your handler to be run within the last group of the 
+fixuphandlers,
+thus ensuring that it is run after the SSL middle fixuphandler where 
+common vars would
+be primed.
+
+The only other I can think of is you play around with 
+req.add_handler(). This allows you
+to add additional handlers to be executed within a certain phase. What 
+I can't work out
+from the source code at the moment though is that if you were to add a 
+handler to the
+PythonFixupHandler phase from the fixuphandler itself, whether it would 
+be executed before
+mod_python returns control back to Apache, or whether control would go 
+back to Apache,
+it would then execute SSL fixup handler and then return into mod_python 
+to execute the
+newly specified fixup handler.
+
+Anyway, if you can understand what I am talking about, you might play 
+with req.add_handler()
+and let us know what you find. I think though it is still going to be 
+executed before the
+SSL fixup handler which sets up the vars.
+
+Graham
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018156.html">SSL-data access from verious handlers.  was: Re:
+	[mod_python] problem w/ authen handler
+</A></li>
+	<LI>Next message: <A HREF="018158.html">SSL-data access from verious handlers.  was: Re:
+	[mod_python] problem w/ authen handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18157">[ date ]</a>
+              <a href="thread.html#18157">[ thread ]</a>
+              <a href="subject.html#18157">[ subject ]</a>
+              <a href="author.html#18157">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

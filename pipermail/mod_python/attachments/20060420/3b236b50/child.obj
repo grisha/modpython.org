@@ -1,0 +1,109 @@
+from mod_python import apache
+
+import os
+
+try:
+  import threading
+except:
+  import dummy_threading as threading
+
+name = os.path.basename(__file__)
+
+if "initialised" not in globals():
+
+  apache.log_error("Initialising %s" % name)
+
+  # Set a flag so we know initialisation has been done.
+
+  initialised = True
+
+  # Initialise module reload counters. Okay for the
+  # module reload counter to be an actual integer as it
+  # is only modified during an import and thus can't be
+  # changed while it is being copied.
+
+  reload_count_1 = 0
+  reload_count_2 = 1
+
+  # Initialise request counter. Use a thread lock on
+  # this as multiple requests in multithreaded MPM may
+  # want to modify it at the same and also at the same
+  # time as being cloned into a new module. The data
+  # also has to be stored in come sort of container with
+  # reference to same container being what is copied.
+
+  request_lock = threading.Lock()
+  request_data = { "request_count": 0 }
+
+  # Initialise some global data.
+
+  transfer_lock = threading.Lock()
+  transfer_data = { "transfer_count": 0, "request_count": 0 }
+
+def __clone__(module):
+
+  # Make sure initialisation flag as preserved.
+
+  module.initialised = initialised
+
+  # Only modified during import, so simply copy it.
+
+  module.reload_count_1 = reload_count_1
+
+  # This time increment reload counter during cloning.
+
+  module.reload_count_2 = reload_count_2 + 1
+
+  # We aren't modifying the request counter and it is in
+  # a container anyway, so can simply copy references to
+  # both the lock and container.
+
+  module.request_lock = request_lock
+  module.request_data = request_data
+
+  # This time an example of needing to lock a structure
+  # due to a need to actually translate data from an
+  # existing structure into a new one. Copy the lock and
+  # leave the data in a temporary place ready for copying.
+
+  module.transfer_lock = transfer_lock
+  module.temporary_transfer_data = transfer_data
+  module.transfer_data = {}
+
+# Increment first example of reload counter.
+
+reload_count_1 = reload_count_1 + 1
+
+# Now transfer data from data structure from old module
+# if it is necessary.
+
+if "temporary_transfer_data" in globals():
+  try:
+    transfer_lock.acquire()
+    transfer_count = temporary_transfer_data["transfer_count"]
+    transfer_data["transfer_count"] = transfer_count + 1
+    transfer_data["request_count"] = 0
+  finally:
+    # Other cleanup may be required on failure depending
+    # on what is actually being done.
+    del temporary_transfer_data
+    transfer_lock.release()
+
+def index():
+  try:
+    request_lock.acquire()
+    request_count_1 = request_data["request_count"] + 1
+    request_data["request_count"] = request_count_1
+  finally:
+    request_lock.release()
+
+  try:
+    transfer_lock.acquire()
+    transfer_count = transfer_data["transfer_count"]
+    request_count_2 = transfer_data["request_count"] + 1
+    transfer_data["request_count"] = request_count_2
+  finally:
+    transfer_lock.release()
+
+  return (name, reload_count_1, reload_count_2,
+          request_count_1, request_count_2, transfer_count)

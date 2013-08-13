@@ -1,0 +1,245 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Bug%20in%20mod_python.c%20causing%20multiple/redundant%0A%09interpreter%20creation.&In-Reply-To=20041009081038.1F587C6B8%40postfix3-2.free.fr">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016626.html">
+   <LINK REL="Next"  HREF="016636.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Bug%20in%20mod_python.c%20causing%20multiple/redundant%0A%09interpreter%20creation.&In-Reply-To=20041009081038.1F587C6B8%40postfix3-2.free.fr"
+       TITLE="[mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Oct 17 00:04:32 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016626.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+        <LI>Next message: <A HREF="016636.html">[mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16634">[ date ]</a>
+              <a href="thread.html#16634">[ thread ]</a>
+              <a href="subject.html#16634">[ subject ]</a>
+              <a href="author.html#16634">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 09/10/2004, at 6:10 PM, Nicolas Lehuen wrote:
+
+&gt;<i> Hi Graham, what are the pros and cons of using the imp module versus an
+</I>&gt;<i> execfile call or an exec call ?
+</I>&gt;<i>
+</I>&gt;<i> Using Apache 2.0.52 on win32, with a multithreaded MPM, I have noticed  
+</I>&gt;<i> a few
+</I>&gt;<i> problem with mod_python.publisher which reloads the same module many  
+</I>&gt;<i> times
+</I>&gt;<i> when many threads try to load it concurrently. It seems that either
+</I>&gt;<i> mod_python.publisher or the imp module does not properly handle this
+</I>&gt;<i> situation. The result is that I have many instances of the same module  
+</I>&gt;<i> in
+</I>&gt;<i> memory, so I got many connection pools instead of only one and so on.  
+</I>&gt;<i> That's
+</I>&gt;<i> why I decided to fix this and other problems (the famous 'only one  
+</I>&gt;<i> index.py
+</I>&gt;<i> in your application') by reimplementing my own variant of the  
+</I>&gt;<i> publisher.
+</I>
+Found it.
+
+ From what I can tell, there is actually a bug in mod_python.c which is
+causing the problem you describe as &quot;reloads the same module many times
+when many threads try to load it concurrently&quot;.
+
+I am going to describe it quickly as it is getting late for me and I  
+need
+some sleep. Have attached a patch for people to evaluate and try. Note  
+that
+the patch also includes a Mac OS X specific fix. That fix is harmless in
+itself so just leave it in. The important changes are where APR mutex is
+created and then locked/unlocked.
+
+The basic problem revolves around the Python dictionary used to hold the
+set of interpreters. The code in mod_python.c is trying to use the  
+Python
+GIL to provide exclusive access to that dictionary and any subsequent
+creation of an interpreter.
+
+The only catch is that in creating a new interpreter, the Python core  
+is,
+in someway I don't understand, swapping thread states at some point  
+which
+is allowing other threads to acquire the GIL. This is allowing other  
+threads
+to check the set of interpreters for the same interpreter that is  
+currently
+being constructed and since it isn't there yet, then also goes onto  
+create
+it as well.
+
+The result is you get many threads in the same process creating the same
+named interpreter and loading the top level handler defined by the  
+directive
+PythonHandler (or other earlier handler). Thus you see all the logged
+messages about (re)importing the handler, as each thread has managed to
+get to the point of doing it.
+
+What should have happened is that if the lock was truly exclusive, the
+subsequent threads would have waited until the first had actually  
+finished
+creating the interpreter in the first place.
+
+The patch for the problem is below. What I do is create an APR mutex and
+lock that around the outside of the acquisition of the GIL, the GIL  
+still
+being required.
+
+In all the debugging I have in place in my code, I still note something
+else not quite right in respect of the mod_python.apache module being
+reloaded more than once by a thread. I'll dig further into that  
+tomorrow.
+
+
+
+*** mod_python.c.dist	Fri Sep 24 15:11:32 2004
+--- mod_python.c	Sat Oct 16 22:36:30 2004
+***************
+*** 31,36 ****
+--- 31,38 ----
+    * (In a Python dictionary) */
+   static PyObject * interpreters = NULL;
+
++ static apr_thread_mutex_t* interpreters_lock = 0;
++
+   apr_pool_t *child_init_pool = NULL;
+
+   /**
+***************
+*** 124,129 ****
+--- 126,133 ----
+           name = MAIN_INTERPRETER;
+
+   #ifdef WITH_THREAD
++     apr_thread_mutex_lock(interpreters_lock);
++
+       PyEval_AcquireLock();
+   #endif
+
+***************
+*** 149,154 ****
+--- 153,160 ----
+
+   #ifdef WITH_THREAD
+       PyEval_ReleaseLock();
++
++     apr_thread_mutex_unlock(interpreters_lock);
+   #endif
+
+       if (! idata) {
+***************
+*** 469,474 ****
+--- 475,483 ----
+       const char *userdata_key = &quot;python_init&quot;;
+       apr_status_t rc;
+
++     /* fudge for Mac OS X with Apache 1.3 where Py_IsInitialized()  
+broke */
++     static int initialized = 0;
++
+       apr_pool_userdata_get(&amp;data, userdata_key, s-&gt;process-&gt;pool);
+       if (!data) {
+           apr_pool_userdata_set((const void *)1, userdata_key,
+***************
+*** 490,502 ****
+       }
+
+       /* initialize global Python interpreter if necessary */
+!     if (! Py_IsInitialized())
+       {
+
+           /* initialze the interpreter */
+           Py_Initialize();
+
+   #ifdef WITH_THREAD
+           /* create and acquire the interpreter lock */
+           PyEval_InitThreads();
+   #endif
+--- 499,514 ----
+       }
+
+       /* initialize global Python interpreter if necessary */
+!     if (initialized == 0 || ! Py_IsInitialized())
+       {
++         initialized = 1;
+
+           /* initialze the interpreter */
+           Py_Initialize();
+
+   #ifdef WITH_THREAD
++          
+apr_thread_mutex_create(&amp;interpreters_lock,APR_THREAD_MUTEX_UNNESTED,p);
++
+           /* create and acquire the interpreter lock */
+           PyEval_InitThreads();
+   #endif
+
+
+
+
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016626.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+	<LI>Next message: <A HREF="016636.html">[mod_python] Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16634">[ date ]</a>
+              <a href="thread.html#16634">[ thread ]</a>
+              <a href="subject.html#16634">[ subject ]</a>
+              <a href="author.html#16634">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

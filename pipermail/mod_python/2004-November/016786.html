@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python]  Hello all,
+	Questions about Mod Python sessions on Linux
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20Hello%20all%2C%0A%09Questions%20about%20Mod%20Python%20sessions%20on%20Linux&In-Reply-To=41928709.7080708%40qalabs.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016783.html">
+   <LINK REL="Next"  HREF="016789.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python]  Hello all,
+	Questions about Mod Python sessions on Linux</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>michael bayer</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%20Hello%20all%2C%0A%09Questions%20about%20Mod%20Python%20sessions%20on%20Linux&In-Reply-To=41928709.7080708%40qalabs.com"
+       TITLE="[mod_python]  Hello all,
+	Questions about Mod Python sessions on Linux">mike_mp at zzzcomputing.com
+       </A><BR>
+    <I>Wed Nov 10 18:09:43 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016783.html">[mod_python] 
+	Hello all, Questions about Mod Python sessions on Linux
+</A></li>
+        <LI>Next message: <A HREF="016789.html">[mod_python]  Hello all,	Questions about Mod Python sessions
+	on Linux
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16786">[ date ]</a>
+              <a href="thread.html#16786">[ thread ]</a>
+              <a href="subject.html#16786">[ subject ]</a>
+              <a href="author.html#16786">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>seems like you are trying to store a Python module in the Session, and 
+Pickle isnt able to do that.
+
+regardless of which platforms this may or may not work on, it generally 
+doesn't make sense to store a module in the session, since a Python 
+module and its instance variables, assuming normal usage via &quot;import&quot;, 
+are all shared amongst many requests and possibly across multiple 
+concurrent threads, whereas the Session stores information specific to 
+one user and that user's subset of requests.
+
+you probably want to figure out what application state it is exactly 
+you want to store on a per-session basis, and stick it into an object 
+instance that you can safely pickle away.
+
+if you are unsure what object in your Session is a module, you can 
+always try walking through all the elements in the session and test 
+obj.__class__.__name__ == 'module' to see who the offending element is.
+
+On Nov 10, 2004, at 4:24 PM, Trevor West wrote:
+
+&gt;<i> Setups for use in the below discussion:
+</I>&gt;<i> Machine 1:
+</I>&gt;<i> Windows 2000
+</I>&gt;<i> Apache 2.0.52
+</I>&gt;<i> Mod Python 3.1.3
+</I>&gt;<i> MySQL_Python
+</I>&gt;<i> Python 2.3
+</I>&gt;<i> wxPython
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Machine 2:
+</I>&gt;<i> Fedora Core 2
+</I>&gt;<i> Apache 2.0.52
+</I>&gt;<i> Mod Python 3.1.3
+</I>&gt;<i> MySQL_Python
+</I>&gt;<i> Python 2.3
+</I>&gt;<i> wxPython
+</I>&gt;<i>
+</I>&gt;<i> I'm writing a thin-client to a wxPython application and when I run the 
+</I>&gt;<i> thin client on Machine 1(the windows box) everything works great, no 
+</I>&gt;<i> problem. While when I try to move it to what is now the production 
+</I>&gt;<i> box, Machine 2 (linux box), I get this error:
+</I>&gt;<i>
+</I>&gt;<i> Mod_python error: &quot;PythonHandler mod_python.publisher&quot;
+</I>&gt;<i>
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/local/lib/python2.3/site-packages/mod_python/apache.py&quot;, 
+</I>&gt;<i> line 299, in HandlerDispatch
+</I>&gt;<i>    result = object(req)
+</I>&gt;<i>
+</I>&gt;<i>  File 
+</I>&gt;<i> &quot;/usr/local/lib/python2.3/site-packages/mod_python/publisher.py&quot;, line 
+</I>&gt;<i> 136, in handler
+</I>&gt;<i>    result = util.apply_fs_data(object, req.form, req=req)
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/local/lib/python2.3/site-packages/mod_python/util.py&quot;, 
+</I>&gt;<i> line 361, in apply_fs_data
+</I>&gt;<i>    return object(**args)
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/local/apache2/htdocs/test/mptest.py&quot;, line 42, in login
+</I>&gt;<i>    sess.save()
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/local/lib/python2.3/site-packages/mod_python/Session.py&quot;, 
+</I>&gt;<i> line 204, in save
+</I>&gt;<i>    self.do_save(dict)
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/local/lib/python2.3/site-packages/mod_python/Session.py&quot;, 
+</I>&gt;<i> line 329, in do_save
+</I>&gt;<i>    dbm[self._sid] = cPickle.dumps(dict)
+</I>&gt;<i>
+</I>&gt;<i>  File &quot;/usr/local/lib/python2.3/copy_reg.py&quot;, line 69, in _reduce_ex
+</I>&gt;<i>    raise TypeError, &quot;can't pickle %s objects&quot; % base.__name__
+</I>&gt;<i>
+</I>&gt;<i> TypeError: can't pickle module objects
+</I>&gt;<i>
+</I>&gt;<i> So, as far as I can tell, on my Windows box I'm able to add class 
+</I>&gt;<i> instances to the session (in this case, I'm sure it's my database 
+</I>&gt;<i> class that is causing this) but on Linux, it won't add it to the 
+</I>&gt;<i> session.
+</I>&gt;<i>
+</I>&gt;<i> If anyone can give him a heads up that would be great. I've been 
+</I>&gt;<i> beating my head against the wall with the linux box because the 
+</I>&gt;<i> windows setup was SO easy, and being a big linux fan I was 
+</I>&gt;<i> disappointed in the strange problems I've run into.
+</I>&gt;<i>
+</I>&gt;<i> Anyway, thanks in advance.
+</I>&gt;<i>
+</I>&gt;<i> Trevor West
+</I>&gt;<i> ------------------------
+</I>&gt;<i> Developer for QA Labs
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016783.html">[mod_python] 
+	Hello all, Questions about Mod Python sessions on Linux
+</A></li>
+	<LI>Next message: <A HREF="016789.html">[mod_python]  Hello all,	Questions about Mod Python sessions
+	on Linux
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16786">[ date ]</a>
+              <a href="thread.html#16786">[ thread ]</a>
+              <a href="subject.html#16786">[ subject ]</a>
+              <a href="author.html#16786">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

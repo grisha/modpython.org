@@ -1,0 +1,243 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Some observations after writing my own modpython
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Some%20observations%20after%20writing%20my%20own%20modpython&In-Reply-To=465D2A6D.2090101%40rogerbinns.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023745.html">
+   <LINK REL="Next"  HREF="023746.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Some observations after writing my own modpython</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Some%20observations%20after%20writing%20my%20own%20modpython&In-Reply-To=465D2A6D.2090101%40rogerbinns.com"
+       TITLE="[mod_python] Some observations after writing my own modpython">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Wed May 30 20:22:27 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023745.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+        <LI>Next message: <A HREF="023746.html">[SPAM] [mod_python] Error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23750">[ date ]</a>
+              <a href="thread.html#23750">[ thread ]</a>
+              <a href="subject.html#23750">[ subject ]</a>
+              <a href="author.html#23750">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 30/05/07, Roger Binns &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rogerb at rogerbinns.com</A>&gt; wrote:
+&gt;<i> -----BEGIN PGP SIGNED MESSAGE-----
+</I>&gt;<i> Hash: SHA1
+</I>&gt;<i>
+</I>&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i> &gt; Maybe you would like to review my code for me. :-)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;  <A HREF="http://www.modwsgi.org">http://www.modwsgi.org</A>
+</I>&gt;<i>
+</I>&gt;<i> I've taken a quick look but am not too familiar with what it is doing.
+</I>
+Wow, when I suggested that it was more 'tongue in cheek', if you
+understand the expression. In other words I never actually expected to
+hear anything back from you about it. Much thanks.
+
+&gt;<i> (Pretty much all the Python wrapping of other libraries I do is to
+</I>&gt;<i> deliberately ignore Python &quot;standards&quot; and follow what the libraries do
+</I>&gt;<i> instead :-)
+</I>
+For Apache, I definitely feel that is the best approach. How
+mod_python wraps it differently is a pain as you can't just point
+people at the Apache documentation.
+
+&gt;<i> I am somewhat baffled as to why you have the &quot;daemon&quot; mode.  Surely
+</I>&gt;<i> ProxyPass would be sufficient.  And if it wasn't then fastcgi/scgi
+</I>&gt;<i> should be.
+</I>
+The complaints one keep seeing about fastcgi/scgi is that it is a pain
+to setup both in the fact that you need to install separate backend
+packages and also in the configuration. You also see various
+complaints about it those process will just die or will hang around
+and not die.
+
+The whole point of having such a feature in mod_wsgi is so that you
+don't have to install a separate backend framework, so the exact same
+script file as for embedded mode can be used and to make the
+configuration as simple as possible. Also, because Apache creates and
+manages the daemon processes just like any other Apache child process,
+you are guaranteed that you will not get daemon processes hanging
+around and causing problems, plus Apache can restart them
+automatically if they die.
+
+Overall, the intent is to make it as secure, simple and uncomplicated
+as possible for web hosting companies so they can see it as a viable
+option for hosting Python web applications.
+
+This doesn't mean it will be suitable for all use cases, but it goes a
+lot further than any other single solution. The only real case where
+it still may not be completely suitable for is where a user wants to
+be able to run different versions of Python to that which the web
+hosting company might want to provide. This is where a ProxyPass or
+fastcgi/scgi solution would work, but if using ProxyPass, you could
+equally proxy to a second Apache instance for the user, and running as
+the user, which is itself running mod_wsgi in embedded mode.
+
+&gt;<i> I'm astounded at how much effort you have put into being compatible
+</I>&gt;<i> across so many Apache versions and packaging tweaks on the various
+</I>&gt;<i> distributions.
+</I>&gt;<i>
+</I>&gt;<i> You've also got a lot of options and complexity for those options, such
+</I>&gt;<i> as optionally disabling protection against stdio usage and signals.  My
+</I>&gt;<i> own tastes are towards insisting on standards compliance and not have
+</I>&gt;<i> more code (and hence more complexity and possibility for bugs).
+</I>
+The problem is that WSGI as a standard is incomplete. There is nothing
+in the standard to say that applications shouldn't be using things
+like standard input and output, but if you don't your WSGI application
+isn't strictly portable. Thus I enforce certain rules which promote
+portability, but you still have to provide a way out for those people
+using some non portable application. Because so many WSGI capable
+applications weren't originally designed for WSGI but made to work on
+it later, there are plenty of non portable WSGI applications or
+applications which do nasty things that interfere with Apache.
+
+Anyway, again, it is all about providing a system which is going to be
+safe to use in shared web hosting environments where users can't
+create havoc. At the same time, it is configurable enough that people
+running their own web servers can change the behaviour if need be.
+
+&gt;<i> At line 729 after the PyErr_Fetch, I believe you should use
+</I>&gt;<i> PyErr_Normalize to set unset value/tracebacks.
+</I>
+Presume you mean PyErr_NormalizeException(). Okay, didn't know about
+that function so will need to look in to it.
+
+&gt;<i> The Log_output function has lots of scary string arithmetic and memory
+</I>&gt;<i> allocations.  Wouldn't the various apr_str functions do the trick?
+</I>
+There are no APR functions in Apache 1.3. It doesn't have some
+equivalents as ap_ functions but not as many. Also, the apr_ functions
+mean you are using the Apache memory pools. I didn't want to use the
+memory pools as then the cumulative memory used is held until the end
+of the request, whereas using malloc/free means only hold memory for
+just the period I need to.
+
+&gt;<i> The if(*msg) in Log_write is redundant since format &quot;s&quot; to
+</I>&gt;<i> PyArg_ParseTuple will always fill in the char*.
+</I>
+True. Probably my paranoid programming style and never remembering
+that 's' will not pass a None line 'z' will. :-)
+
+&gt;<i> You may find it worthwhile using PyObject_CallFunction instead of
+</I>&gt;<i> BuildValue and CallObject.  You have one less thing to track refcounts
+</I>&gt;<i> for and one less line of code.
+</I>
+Probably just did it that way as that is what the basic Python
+documentation examples use and so have always done that.
+
+&gt;<i> Input_read also has the string arithmetic and memory allocations.  Why
+</I>&gt;<i> not use the Python PyString or apr routines for all of those?
+</I>
+No apr routines for similar reasons to log output. I do use PyString
+objects for part of it, but only as the final buffer which I use
+traditional memory routines to copy into.
+
+&gt;<i> For the various objects that have a request_rec*, I don't see how they
+</I>&gt;<i> deal with outliving the request_req.
+</I>
+They don't and since I keep pushing this idea that mod_wsgi is meant
+to be as secure and robust as possible to satisfy web hosting
+companies, maybe I should.
+
+Strictly speaking though, a WSGI application should not be retaining
+references to the WSGI environment, the start_response function or
+anything else provided as part of the request. If it does, then it is
+incorrect.
+
+&gt;<i> A lot of the config values will accept nonsensical values for booleans
+</I>&gt;<i> because the config routines effectively do a caseless compare for &quot;off&quot;
+</I>&gt;<i> and treat everything else as on, including &quot;0&quot;, &quot;1&quot; etc.  I'd suggest
+</I>&gt;<i> tightening that up to only accept the values you want rather than
+</I>&gt;<i> anything.  (You know someday someone will make a configuration mistake
+</I>&gt;<i> and get unexpected behaviour and take ages to track down that &quot;0&quot; didn't
+</I>&gt;<i> actually turn something off or &quot;1&quot; didn't turn it on).
+</I>
+This just follows what all the core Apache modules do, ie., they all
+have very loose checking on configuration values for flags.
+
+&gt;<i> &gt; Trying to cache values,
+</I>&gt;<i> &gt; especially when they aren't all read only and can be updated by other
+</I>&gt;<i> &gt; Apache functions, just makes the job of writing a hand coded wrapper
+</I>&gt;<i> &gt; even more work so I don't begrudge the original author for not doing
+</I>&gt;<i> &gt; it.
+</I>&gt;<i>
+</I>&gt;<i> For OOR you just have to stash the Python object pointer somewhere in
+</I>&gt;<i> the Apache object and so the pool note functions would work.  I don't
+</I>&gt;<i> see anywhere that values are cached, unless you mean something like
+</I>&gt;<i> getting the same PyString objects out when setting a setting field.
+</I>&gt;<i> That certainly is going too far.
+</I>
+Maybe I misunderstand what you are talking about, or to what level you
+are applying it. What I thought you meant is that if one access an
+attribute of request_rec, such as content type, that you create a
+Python string object and return it, but that you also remember that
+Python string instance so the next time content type is access in same
+request, that Python string instance which is being held is return
+instead of having to create a new one. The problem I saw with doing
+this is that calling ap_set_content_type() changes the content type in
+the request, and thus you have to know when things like this can
+change values so you discard that cache value. I'll have to go back
+and reread what you said about OOR.
+
+Anyway, thanks greatly for reviewing my code and commenting on it.
+Just about everyone grabs the code and uses it, rather than digging
+into what it does and giving any feedback and how to make it better.
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023745.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+	<LI>Next message: <A HREF="023746.html">[SPAM] [mod_python] Error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23750">[ date ]</a>
+              <a href="thread.html#23750">[ thread ]</a>
+              <a href="subject.html#23750">[ subject ]</a>
+              <a href="author.html#23750">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

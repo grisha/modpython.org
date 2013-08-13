@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] kid template decorator [prev: Current Working
+	Directory not set?]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20kid%20template%20decorator%20%5Bprev%3A%20Current%20Working%0A%09Directory%20not%20set%3F%5D&In-Reply-To=c298f2d70601280150j58153b9fq%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020151.html">
+   <LINK REL="Next"  HREF="020155.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] kid template decorator [prev: Current Working
+	Directory not set?]</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20kid%20template%20decorator%20%5Bprev%3A%20Current%20Working%0A%09Directory%20not%20set%3F%5D&In-Reply-To=c298f2d70601280150j58153b9fq%40mail.gmail.com"
+       TITLE="[mod_python] kid template decorator [prev: Current Working
+	Directory not set?]">nicolas.lehuen at gmail.com
+       </A><BR>
+    <I>Sat Jan 28 04:57:53 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020151.html">[mod_python] kid template decorator [prev: Current Working
+	Directory not set?]
+</A></li>
+        <LI>Next message: <A HREF="020155.html">[mod_python] kid template decorator [prev: Current Working
+	Directory not set?]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20152">[ date ]</a>
+              <a href="thread.html#20152">[ thread ]</a>
+              <a href="subject.html#20152">[ subject ]</a>
+              <a href="author.html#20152">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>One last thing my decorator does is set the content-type header based
+on the template name. My templates are all named whatever.tmpl.txt or
+whatever.tmpl.html, so that :
+
+1) The templates can reside in the same directory as the controllers
+and still be denied access thanks to a regexp-based FilesMatch rule in
+the .htaccess file.
+2) The fact that controllers and decorators reside in the same
+directory simplifies path management (I don't give any relative path
+to find the template). Granted, it can be a bit of a mess for
+application with a great number of templates, so in that case I have a
+dedicated templates directory.
+2) The decorator can set the content-type based on the extension of
+the template, thanks to the standard mimetypes.guess_type function.
+
+Regards,
+Nicolas
+
+2006/1/28, Nicolas Lehuen &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nicolas.lehuen at gmail.com</A>&gt;:
+&gt;<i> Hi,
+</I>&gt;<i>
+</I>&gt;<i> I'm using something similar with a custom-made templating system
+</I>&gt;<i> (which looks a bit like Velocity).
+</I>&gt;<i>
+</I>&gt;<i> I have used req.filename rather than __file__ to get the path of the
+</I>&gt;<i> file requested, because the decorator function is stored in a separate
+</I>&gt;<i> library module, which means that __file__ always return the path to
+</I>&gt;<i> the library module and not the path to the published module.
+</I>&gt;<i>
+</I>&gt;<i> One could also use stack inspection to get the proper path but
+</I>&gt;<i> req.filename is quite reliable as far as the publisher is concerned.
+</I>&gt;<i>
+</I>&gt;<i> Just a small detail : you can test whether a path is absolute or
+</I>&gt;<i> relative thanks to os.path.isabs, so you can only provide one path
+</I>&gt;<i> parameter and let Python decide of its relativeness.
+</I>&gt;<i>
+</I>&gt;<i> Regards,
+</I>&gt;<i> Nicolas
+</I>&gt;<i>
+</I>&gt;<i> 2006/1/28, Sean Jamieson &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">sean at barriescene.com</A>&gt;:
+</I>&gt;<i> &gt; OK, so here is my decorator solution:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; # @template decorator
+</I>&gt;<i> &gt; def template( relpath = 'templates', template=None, abspath=None ):
+</I>&gt;<i> &gt;     def decor( func ):
+</I>&gt;<i> &gt;         if abspath:
+</I>&gt;<i> &gt;             path = abspath
+</I>&gt;<i> &gt;         else:
+</I>&gt;<i> &gt;             path = os.path.join( os.path.dirname( __file__ ), relpath )
+</I>&gt;<i> &gt;         if template:
+</I>&gt;<i> &gt;             path = os.path.join( path, template )
+</I>&gt;<i> &gt;         else:
+</I>&gt;<i> &gt;             path = os.path.join( path, '%s_%s.kid' %
+</I>&gt;<i> &gt; (func.__module__.split('.')[-1], func.func_name) )
+</I>&gt;<i> &gt;         def template_wrapper( *args, **kwargs ):
+</I>&gt;<i> &gt;             kwargs['req'].content_type = 'text/html'
+</I>&gt;<i> &gt;             values = func( *args, **kwargs )
+</I>&gt;<i> &gt;             return Template( file=path, **values )
+</I>&gt;<i> &gt;         # just so debug output makes sense
+</I>&gt;<i> &gt;         template_wrapper.func_name = '%s(%s)' % (
+</I>&gt;<i> &gt; template_wrapper.func_name, func.func_name )
+</I>&gt;<i> &gt;         return template_wrapper
+</I>&gt;<i> &gt;     return decor
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; @template()
+</I>&gt;<i> &gt; def index( req ):
+</I>&gt;<i> &gt;     title = 'some title'
+</I>&gt;<i> &gt;     message = 'Keep it simple, stupid.'
+</I>&gt;<i> &gt;     return vars()
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ... or something like that...
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Comments?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Sean
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020151.html">[mod_python] kid template decorator [prev: Current Working
+	Directory not set?]
+</A></li>
+	<LI>Next message: <A HREF="020155.html">[mod_python] kid template decorator [prev: Current Working
+	Directory not set?]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20152">[ date ]</a>
+              <a href="thread.html#20152">[ thread ]</a>
+              <a href="subject.html#20152">[ subject ]</a>
+              <a href="author.html#20152">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Lost Session
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Lost%20Session&In-Reply-To=b07823bd05062009181dd0e134%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018435.html">
+   <LINK REL="Next"  HREF="018439.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Lost Session</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Lost%20Session&In-Reply-To=b07823bd05062009181dd0e134%40mail.gmail.com"
+       TITLE="[mod_python] Lost Session">jg.lists at sympatico.ca
+       </A><BR>
+    <I>Mon Jun 20 12:59:06 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018435.html">[mod_python] Lost Session
+</A></li>
+        <LI>Next message: <A HREF="018439.html">[mod_python] mod_python and execfile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18437">[ date ]</a>
+              <a href="thread.html#18437">[ thread ]</a>
+              <a href="subject.html#18437">[ subject ]</a>
+              <a href="author.html#18437">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Any chance you are calling req.write('stuff') before Session.Session()? 
+If so, the reqponse header will already have been sent, so the cookie 
+Session() creates never makes it to the browser.
+
+Jim
+
+
+Jeremy Kohansimeh wrote:
+&gt;<i> I followed Jim's suggestion to see if the pysid cookie for the requests 
+</I>&gt;<i> are the same and they are not.  Do you have any other tips for debugging 
+</I>&gt;<i> this?  I am calling the save function before I start writing a response 
+</I>&gt;<i> to the browser (I know there can be some conflict in saving a session if 
+</I>&gt;<i> something has already been written to the browser since the pysid cookie 
+</I>&gt;<i> can no longer be set).
+</I>&gt;<i> 
+</I>&gt;<i> Jeremy
+</I>&gt;<i> 
+</I>&gt;<i> On 6/20/05, *Jim Gallacher* &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jg.lists at sympatico.ca</A> 
+</I>&gt;<i> &lt;mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jg.lists at sympatico.ca</A>&gt;&gt; wrote:
+</I>&gt;<i> 
+</I>&gt;<i>     Jeremy Kohansimeh wrote:
+</I>&gt;<i>      &gt; Hello,
+</I>&gt;<i>      &gt;
+</I>&gt;<i>      &gt; I am having trouble recovering a session.  On the initial request, I
+</I>&gt;<i>      &gt; create some entries for the session and then save it (I have
+</I>&gt;<i>     confirmed
+</I>&gt;<i>      &gt; that there is data in the session before I save it and that the
+</I>&gt;<i>     save()
+</I>&gt;<i>      &gt; function is being called).  On subsequent requests, the session
+</I>&gt;<i>     object
+</I>&gt;<i>      &gt; that I have created is not reinstated, instead a new one is
+</I>&gt;<i>     created (I
+</I>&gt;<i>      &gt; have coonfirmed this with the is_new() function).  I have checked my
+</I>&gt;<i>      &gt; browser and there is a pysid cookie being set on the first request.
+</I>&gt;<i> 
+</I>&gt;<i>     Is pysid the same for subsequent requests? I think something got out of
+</I>&gt;<i>     sync.
+</I>&gt;<i> 
+</I>&gt;<i>      &gt; Does anyone have any tips to debug this?  I am really at a loss
+</I>&gt;<i>     for what
+</I>&gt;<i>      &gt; is going on.
+</I>&gt;<i>      &gt;
+</I>&gt;<i>      &gt; Here is the code that I use to reinstate/create a session:
+</I>&gt;<i>      &gt;
+</I>&gt;<i>      &gt; def handler(req, **kw):
+</I>&gt;<i>      &gt;     &quot;&quot;&quot;handles initial requests&quot;&quot;&quot;
+</I>&gt;<i>      &gt;
+</I>&gt;<i>      &gt;     f = open( LOGFILE, 'a+')
+</I>&gt;<i>      &gt;
+</I>&gt;<i>      &gt;     req.sess = Session.Session( req)
+</I>&gt;<i> 
+</I>&gt;<i>     Session.Session() loads the session if it exists, otherwise creates a
+</I>&gt;<i>     new one, as well as a new session cookie / session id. The new session
+</I>&gt;<i>     *does not* automatically get saved. You need to call req.sess.save() at
+</I>&gt;<i>     some point. I know you know this. ;)
+</I>&gt;<i> 
+</I>&gt;<i>      &gt;
+</I>&gt;<i>      &gt;     if not req.sess.is_new():
+</I>&gt;<i>      &gt;         # this is an old session, so load it up
+</I>&gt;<i>      &gt;         req.sess.load()
+</I>&gt;<i> 
+</I>&gt;<i>     req.sess.load() is redundant.
+</I>&gt;<i> 
+</I>&gt;<i>      &gt;         f.write( 'old session\n')
+</I>&gt;<i>      &gt;     else:
+</I>&gt;<i>      &gt;         f.write( 'new session\n')
+</I>&gt;<i> 
+</I>&gt;<i>     It's a new session (for whatever reason) with a new pysid in the cookie
+</I>&gt;<i>     sent to the client, but we never call req.sess.save() in this request.
+</I>&gt;<i>     Henceforth, every request will generate a new session.
+</I>&gt;<i> 
+</I>&gt;<i>     Regards,
+</I>&gt;<i>     Jim
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> ------------------------------------------------------------------------
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018435.html">[mod_python] Lost Session
+</A></li>
+	<LI>Next message: <A HREF="018439.html">[mod_python] mod_python and execfile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18437">[ date ]</a>
+              <a href="thread.html#18437">[ thread ]</a>
+              <a href="subject.html#18437">[ subject ]</a>
+              <a href="author.html#18437">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

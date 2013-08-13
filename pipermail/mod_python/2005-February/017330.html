@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Force reload?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Force%20reload%3F&In-Reply-To=42027BDE.2040001%40tbc.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017322.html">
+   <LINK REL="Next"  HREF="017328.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Force reload?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Shawn Harrison</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Force%20reload%3F&In-Reply-To=42027BDE.2040001%40tbc.net"
+       TITLE="[mod_python] Force reload?">harrison at tbc.net
+       </A><BR>
+    <I>Thu Feb  3 22:49:19 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017322.html">[mod_python] Force reload?
+</A></li>
+        <LI>Next message: <A HREF="017328.html">[mod_python] Force reload?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17330">[ date ]</a>
+              <a href="thread.html#17330">[ thread ]</a>
+              <a href="subject.html#17330">[ subject ]</a>
+              <a href="author.html#17330">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Shawn Harrison wrote [02/03/05 1:30 PM]:
+&gt;<i> I should have mentioned that you could also just use PythonDebug On 
+</I>&gt;<i> and then you're using req.get_config(), and this would be global. 
+</I>&gt;<i> Whereas if you define your own PythonOption you can turn on/off 
+</I>&gt;<i> debugging for different parts of your application and you'll be using
+</I>&gt;<i>  req.get_option().
+</I>&gt;<i> 
+</I>
+First of all, I should introduce myself before continuing with this
+thread. I joined the list this past week; I've been actively developing
+with mod_python for about a year and loving it. I'm a project manager by
+day, a web and database developer by night.
+
+I'm interested in this discussion about forcing reload, because I've
+been using &quot;apachectl restart&quot; to handle this issue and am ready to do
+something better.
+
+David Geller wrote [02/03/05 1:34 PM]:
+&gt;<i> The way that python handles import is problematic for persistent 
+</I>&gt;<i> interpreters such as implemented by mod_python. There doesn't, to me,
+</I>&gt;<i>  seem any foolproof, *simple* way to solve reimportation issues in 
+</I>&gt;<i> all circumstances, EXCEPT for what Daniel proposes, other than by 
+</I>&gt;<i> restarting the server. It is such a pain to make some source changes,
+</I>&gt;<i>  *think* you have reloaded affected modules, and then find out that 
+</I>&gt;<i> the changes haven't taken effect! I have used this method for awhile
+</I>&gt;<i>  now, and for debugging/development it seems to work ...
+</I>
+I'm curious about this. I just whacked up the following function over
+lunch today, following my own advice, and tested it a bit just now. The 
+function seems to work just fine in all the use cases (though I didn't 
+do formal unit testing).
+
+Is there any reason I'm not seeing why this function won't solve the 
+reload problem, if used in place of all import statements in the 
+application?
+
+def import_(modname, req=None, pythonopt=None, reloadp=False):
+     &quot;&quot;&quot;Imports the given module and, if directed, reloads it.
+         (Required:)
+             modname   -- the name of the module to import
+         (Optional:)
+             req       -- a mod_python req object
+                          (needed to check Apache directives)
+             pythonopt -- the name of a PythonOption debug flag
+                          for your app
+             reloadp   -- a direct boolean instruction to reload or not.
+
+         If a True value is given for reloadp, the module will be
+         reloaded. Otherwise, if only the module name is given, the
+	module will only be imported and not reloaded. But if req is
+	given, it will be used to check the Apache directives to see
+	whether reload() should be done. If pythonopt is also given, the
+	value of the named PythonOption will be used (The PythonOption
+	can be named anything; it must have the value 'On' or 'True' or
+	'1' in order to be True); otherwise, the value of PythonDebug
+	will be used if it exists. (The value of PythonDebug is either
+	'1' or '0'.)
+     &quot;&quot;&quot;
+
+     # shamelessly stolen from the Python documentation....
+     mod = __import__(modname)
+     components = modname.split('.')
+     for comp in components[1:]:
+         mod = getattr(mod, comp)
+
+     # decide whether to reload()
+     if req:
+         if pythonopt and req.get_options().has_key(pythonopt):
+             opt = req.get_options()[pythonopt]
+             if opt == 'On' or opt == 'True' or opt == '1':
+                 reloadp = True
+         elif req.get_config().has_key('PythonDebug'):
+             if req.get_config()['PythonDebug'] == '1':
+                 reloadp = True
+     if reloadp == True:
+         reload(mod)
+
+     return mod
+
+# Tested with Apache/2.0.52 (Win32) mod_python/3.1.3 Python/2.3.4 Server
+-- 
+Shawn Harrison
+________________
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">harrison at tbc.net</A>
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017322.html">[mod_python] Force reload?
+</A></li>
+	<LI>Next message: <A HREF="017328.html">[mod_python] Force reload?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17330">[ date ]</a>
+              <a href="thread.html#17330">[ thread ]</a>
+              <a href="subject.html#17330">[ subject ]</a>
+              <a href="author.html#17330">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

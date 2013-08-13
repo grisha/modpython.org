@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] in modpython ,how to restrict the upload file size?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20in%20modpython%20%2Chow%20to%20restrict%20the%20upload%20file%20size%3F&In-Reply-To=2612593E-9AAA-4D5C-9193-360FAE375731%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023157.html">
+   <LINK REL="Next"  HREF="023159.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] in modpython ,how to restrict the upload file size?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Clodoaldo</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20in%20modpython%20%2Chow%20to%20restrict%20the%20upload%20file%20size%3F&In-Reply-To=2612593E-9AAA-4D5C-9193-360FAE375731%40dscpl.com.au"
+       TITLE="[mod_python] in modpython ,how to restrict the upload file size?">clodoaldo.pinto.neto at gmail.com
+       </A><BR>
+    <I>Sat Feb  3 08:41:16 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023157.html">[mod_python] in modpython ,how to restrict the upload file size?
+</A></li>
+        <LI>Next message: <A HREF="023159.html">[mod_python] in modpython ,how to restrict the upload file size?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23158">[ date ]</a>
+              <a href="thread.html#23158">[ thread ]</a>
+              <a href="subject.html#23158">[ subject ]</a>
+              <a href="author.html#23158">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2007/2/2, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+&gt;<i> I haven't said anything because I have been too busy and also because
+</I>&gt;<i> this topic has been covered before on the mailing list and it is in the
+</I>&gt;<i> archives. The only trick is working out the right search terms to
+</I>&gt;<i> find the
+</I>&gt;<i> answer. To save you the trouble:
+</I>&gt;<i>
+</I>&gt;<i>    <A HREF="http://www.modpython.org/pipermail/mod_python/2006-April/020867.html">http://www.modpython.org/pipermail/mod_python/2006-April/020867.html</A>
+</I>&gt;<i>
+</I>&gt;<i> Also see:
+</I>&gt;<i>
+</I>&gt;<i>    <A HREF="http://www.modpython.org/pipermail/mod_python/2006-July/021610.html">http://www.modpython.org/pipermail/mod_python/2006-July/021610.html</A>
+</I>&gt;<i>
+</I>&gt;<i> Ie. you can always just use Apache LimitRequestBody directive. And:
+</I>&gt;<i>
+</I>&gt;<i>    <A HREF="http://www.modpython.org/pipermail/mod_python/2006-July/021611.html">http://www.modpython.org/pipermail/mod_python/2006-July/021611.html</A>
+</I>&gt;<i>
+</I>&gt;<i> Ie., used for fixuphandler approach, don't use HTTP_BAD_REQUEST, but
+</I>&gt;<i> HTTP_REQUEST_ENTITY_TOO_LARGE. Also see comments about
+</I>&gt;<i> length being required.
+</I>
+Thanks for the tips. Based on those posts I produced this fixup handler:
+
+#
+# _upload_limit.py
+#
+from mod_python import apache
+
+UPLOAD_LIMIT = 1 * 1024 * 1024
+
+def fixuphandler(req):
+
+   if req.method == 'POST':
+
+      length = req.headers_in.get('Content-Length')
+      if length is None:
+
+         req.status = apache.HTTP_LENGTH_REQUIRED
+         req.log_error('fixupHandler: %s %s' % \
+            (req.status, 'HTTP_LENGTH_REQUIRED'))
+         return apache.DONE
+
+      elif int(length) &gt; UPLOAD_LIMIT:
+
+         req.status = apache.HTTP_REQUEST_ENTITY_TOO_LARGE
+         req.log_error('fixupHandler: %s %s' % \
+            (req.status, 'HTTP_REQUEST_ENTITY_TOO_LARGE'))
+         req.content_type = 'text/html'
+         html = &quot;&quot;&quot;\
+         &lt;html&gt;&lt;body&gt;
+         &lt;p&gt;Failed upload: too large.&lt;/p&gt;
+         &lt;p&gt;Size limit: %s bytes.&lt;/p&gt;
+         &lt;p&gt;&lt;a href=&quot;javascript:history.back();&quot;&gt;Go Back&lt;/a&gt;&lt;/p&gt;
+         &lt;/body&gt;&lt;/html&gt;
+         &quot;&quot;&quot; % UPLOAD_LIMIT
+         req.write(html)
+         return apache.DONE
+
+   return apache.OK
+#############################
+
+httpd.conf:
+
+    &lt;Directory /var/www/html/carroarodo.com&gt;
+       SetHandler mod_python
+       PythonHandler ~/_publisher.py
+       PythonOption mod_python.importer.path &quot;['~/mod']&quot;
+       PythonFixupHandler _upload_limit
+    &lt;/Directory&gt;
+
+BTW apache.DONE is not documented in the current manual. This Google
+search returns nothing:
+apache.DONE site:modpython.org/live/current/doc-html/
+
+Regards,
+-- 
+Clodoaldo Pinto Neto
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023157.html">[mod_python] in modpython ,how to restrict the upload file size?
+</A></li>
+	<LI>Next message: <A HREF="023159.html">[mod_python] in modpython ,how to restrict the upload file size?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23158">[ date ]</a>
+              <a href="thread.html#23158">[ thread ]</a>
+              <a href="subject.html#23158">[ subject ]</a>
+              <a href="author.html#23158">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

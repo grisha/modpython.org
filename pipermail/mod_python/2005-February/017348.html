@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Custom handler thread safety
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Custom%20handler%20thread%20safety&In-Reply-To=20050204200008.77E96B9FC%40fiona.siteprotect.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017342.html">
+   <LINK REL="Next"  HREF="017350.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Custom handler thread safety</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Custom%20handler%20thread%20safety&In-Reply-To=20050204200008.77E96B9FC%40fiona.siteprotect.com"
+       TITLE="[mod_python] Custom handler thread safety">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Feb  4 23:38:43 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017342.html">[mod_python] Custom handler thread safety
+</A></li>
+        <LI>Next message: <A HREF="017350.html">[mod_python] Custom handler thread safety
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17348">[ date ]</a>
+              <a href="thread.html#17348">[ thread ]</a>
+              <a href="subject.html#17348">[ subject ]</a>
+              <a href="author.html#17348">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I'll try and get back to your original problem. I probably digressed
+and certainly said some things already that most likely aren't relevant
+at all. I should have perhaps read the email properly. My excuse is that
+I was having a busy day that day. :-)
+
+On 05/02/2005, at 6:56 AM, Huzaifa Tapal wrote:
+&gt;&gt;<i> Is the Python database connection object internally thread safe?
+</I>&gt;<i>
+</I>&gt;<i> -- not its not.
+</I>
+I should have phrased this question a bit better. Does the database
+interface code support having multiple connection objects active at
+the same time, where each may be held by a distinct thread with that
+thread doing whatever it wants with its own connection object?
+
+Thus, a single database connection object doesn't necessarily have
+to be thread safe in itself, as long as there can be multiple connection
+objects each being used at the same time by different threads.
+
+Anyway, in your original email you said:
+
+   Just to be safe, I implemented thread locking into the handler
+   before any request is processed.
+
+That to me says what you did was to make sure only one request at a
+time could actually do anything. Thus all requests were serialised.
+If this was the case, you wouldn't have had any thread problems because
+there wouldn't have actually been multiple requests active, a latter
+request would have sat there until the previous one finished.
+
+If this is true, using a multithreaded MPM would also have just made
+things worse. You would have been better of using Apache in &quot;prefork&quot;
+mode as then each request in each process could have at least run in
+parallel.
+
+Next you said:
+
+   We are gaining huge performance increases by caching our template
+   objects and db connection objects.
+
+Which is logical, as you have avoided the startup cost with creating
+a database connection for each request, as well as the cost of loading
+a template on every request. This would be true whether or not you are
+using threads.
+
+Your next comment was:
+
+   The problem I am running into is that if I run through the 
+application,
+   each request takes on average 300 ms to process.&#160; However, when we
+   benchmark with 20 concurrent users, the average goes up to around
+   2200 ms.&#160; I am very sure that this is due to a thread locking
+   shared objects in memory which results in another thread waiting for
+   the lock to be released.
+
+If each thread was trying to acquire the same lock before going into a
+handler and only releasing it when exiting the handler, thus serialising
+requests, what you are seeing would be expected. In short you were
+simply overloading your servers ability to respond quickly enough. Add
+even more concurrent users and the average would like keep growing.
+
+Finally you said:
+
+   If I take the thread locking mechanism out then we run into problems
+   with there being too many connections being made to the MySQL db if
+   the cached connection is being used and then the db starts dropping
+   connections.
+
+If there was indeed a lock around any handler call and you took it out,
+you would at least still need to thread protect your database connection
+pool/cache.
+
+You might need to explain how you manage your database connections.
+
+I haven't done database connection pooling in mod_python when using
+threads yet but there are others here who have and may suggest the best 
+ways
+of doing it.
+
+To me the simplest way would be to create a set of database connection
+objects at startup and place these in a Queue.Queue object. As each 
+request
+comes in, it can get an available database connection off the queue,
+use it then put it back. In practice, it probably needs to be a bit more
+robust than that.
+
+Anyway, confirm exactly what you meant by having thread locking going
+into the handler and describe how you are managing the database
+connections. Do you create a certain number of database connections at
+startup, or on demand as required, but only up to a certain maximum?
+Is your connection caching mechanism thread protected in any way?
+
+Sorry again for getting off the track. :-)
+
+Graham
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017342.html">[mod_python] Custom handler thread safety
+</A></li>
+	<LI>Next message: <A HREF="017350.html">[mod_python] Custom handler thread safety
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17348">[ date ]</a>
+              <a href="thread.html#17348">[ thread ]</a>
+              <a href="subject.html#17348">[ subject ]</a>
+              <a href="author.html#17348">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

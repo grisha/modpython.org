@@ -1,0 +1,137 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_* performance
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_%2A%20performance&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010970.html">
+   <LINK REL="Next"  HREF="010976.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] mod_* performance</H1>
+    <B>Eric Radman</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_%2A%20performance&In-Reply-To="
+       TITLE="[mod_python] mod_* performance">theman at eradman.com
+       </A><BR>
+    <I>Mon Dec 22 11:16:46 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010970.html">[mod_python] newbie
+</A></li>
+        <LI>Next message: <A HREF="010976.html">[mod_python] mod_* performance
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10974">[ date ]</a>
+              <a href="thread.html#10974">[ thread ]</a>
+              <a href="subject.html#10974">[ subject ]</a>
+              <a href="author.html#10974">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Guys,
+
+I had been blaming bad performance with concurrent connections on
+mod_python, when in fact an Apache config change can make all the
+difference. The key is to limit the number of Apache processes based on
+the RAM and average concurrency load that you have.
+
+I found the mod_perl suffers from the same performance characteristics
+becuase it's Apache behavior that impacts the performance on
+simultinious connections, not mod_python or mod_perl.
+
+I changed the MaxClients parameter in apache2.conf from 50 to 8:
+
+&lt;IfModule prefork.c&gt;
+StartServers         1
+MinSpareServers      1
+MaxSpareServers     10
+MaxClients           8
+MaxRequestsPerChild  0
+&lt;/IfModule&gt;
+
+7k mod_python page with SQL caching:
+
+Reqests  Concurrency   Req/Sec  Connect Time
+400      1             136.54   7.324
+400      5             131.29   38.085
+400      15            126.28   118.780
+400      50            96.73    516.883 
+400      100           71.92    1390.431
+
+To quote Stas Bekman &lt;stas at stason.org&gt;
+&quot;&quot;&quot;
+MinSpareServers, MaxSpareServers and StartServers are only important for
+user response times. Sometimes users will have to wait a bit.
+
+The important parameters are MaxClients and MaxRequestsPerChild.
+MaxClients should be not too big, so it will not abuse your machine's
+memory resources, and not too small, for if it is your users will be
+forced to wait for the children to become free to serve them.
+MaxRequestsPerChild should be as large as possible, to get the full
+benefit of mod_perl, but watch your server at the beginning to make sure
+your scripts are not leaking memory, thereby causing your server (and
+your service) to die very fast.
+&quot;&quot;&quot;
+
+7k PHP page with standard connection pooling:
+
+Reqests  Concurrency   Req/Sec  Connect Time
+400      1             29.60    33.785
+400      5             15.32    65.291
+400      15            23.13    43.242
+400      50            21.45    2656.869
+400      100           23.21    4308.698
+
+What we see here is that connect time (which translates into perceived
+latency) really suffers in PHP when you hit it with a large number of
+concurrent connections.
+
+This one little tweak makes mod_perl and mod_python immune to http DOS
+attacks. With the poper coding an increase of 300%-350% is possible over
+PHP.
+
+Eric Radman
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010970.html">[mod_python] newbie
+</A></li>
+	<LI>Next message: <A HREF="010976.html">[mod_python] mod_* performance
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10974">[ date ]</a>
+              <a href="thread.html#10974">[ thread ]</a>
+              <a href="subject.html#10974">[ subject ]</a>
+              <a href="author.html#10974">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

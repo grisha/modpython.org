@@ -1,0 +1,258 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Template Class
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Template%20Class&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000798.html">
+   <LINK REL="Next"  HREF="000801.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Template Class</H1>
+    <B>Deneb</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Template%20Class&In-Reply-To="
+       TITLE="[mod_python] Template Class">deneb at unixwave.org
+       </A><BR>
+    <I>Sun May 27 22:12:38 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000798.html">[mod_python] Cookies, Redirects &amp; Headers - Oh My!
+</A></li>
+        <LI>Next message: <A HREF="000801.html">[mod_python] Session data
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#800">[ date ]</a>
+              <a href="thread.html#800">[ thread ]</a>
+              <a href="subject.html#800">[ subject ]</a>
+              <a href="author.html#800">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+all just yesterday i finished well a Template Class in order to use it
+with modpython, higly ispired from PHPlib Template class, which is 
+suitable for all purpose. Actually i use it in some of my projects.
+A correct example on how it works, can be found in the PHPlib docs,
+at phplib.netuse.de. 
+I hope that you find this useful. The code is in the attach.
+ 
+Cheers,
+deneb.
+ 
+-------------- next part --------------
+#!/usr/bin/python
+&quot;&quot;&quot; 
+/*
+ *  PyTemplate - a Simple Python Template Class
+ *  Copyright (C) 2001 Giorgio Zoppi &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">deneb at unixwave.org</A>&gt;
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
+This Template file was strictly ported form PHPLIB Template class.
+Begin from the port:
+28 May 2001
+
+&quot;&quot;&quot;
+import sys
+import re
+import os
+import string
+
+from stat import *
+from types import *
+
+class PyTemplate:
+    &quot;&quot;&quot;A simple Template class&quot;&quot;&quot;
+    __classname='PyTemplate'
+    &quot;&quot;&quot;0 -&gt; False, 1-&gt; True&quot;&quot;&quot;
+    __debug	=	1
+    __root	=	os.getcwd();
+    __unknowns    =       &quot;remove&quot;
+    __file	= {}
+    __varkeys     = {}
+    __varvals     = {}
+    __halt_on_error = &quot;yes&quot;
+    __last_error    = &quot;&quot;
+    
+    def __init__(self,root,unknows=&quot;remove&quot;):
+        self.set_root(root)
+	self.set_unknowns(unknows)
+	
+    def set_root(self,root):
+	&quot;&quot;&quot;I check if the directory exists&quot;&quot;&quot;
+	mode = os.stat(root)[ST_MODE]
+	if S_ISDIR(mode):
+	    &quot;&quot;&quot;0 -&gt; False, 1-&gt; True&quot;&quot;&quot;
+	    self.__root=root
+	    return 1
+	return 0
+    def set_unknowns(self,unk):
+	self.__unknowns=unk
+    def set_file(self,handle,myfile=''):
+        if not (type(handle) is DictType):
+	    if (myfile==''):
+		return 0
+	    else:
+		self.__file[handle]=self.__filename(myfile)
+	else:
+	    for (h,f) in handle.items():
+		self.__file[h]=self.__filename(f)
+		    
+    def set_block(self,parent,handle,name=''):
+	if not(self.__loadfile(parent)):
+	    return 0
+	if (name==''):
+	    name=handle
+	vstr=self.get_var(parent)
+	str2 = ''
+	for value in vstr:
+	    str2 = str2 + value
+	reg=r&quot;&lt;!--\s+BEGIN &quot;+handle+&quot;\s+--&gt;(.*)&lt;!--\s+END &quot;+ handle+ &quot;\s+--&gt;&quot;
+	matchreg=re.compile(reg,re.S|re.M)
+	m=matchreg.findall(str2)
+	vname='{' + name + '}'
+	vstr2=matchreg.sub(vname,str2)
+	self.set_var(name,'')
+	self.set_var(handle,m[0])
+	self.set_var(parent,vstr2)
+    
+    def set_var(self,varname1,value=''):
+	if not (type(varname1) is DictType):
+	    self.__varkeys[varname1]=self.__varname(varname1)
+	    self.__varvals[varname1]=value
+	else:
+	    for vname in varname1.keys():
+		self.__varkeys[vname]=self.__varname(vname) 
+		self.__varvals[vname]=varname1[vname]
+		
+	    
+    def subst(self,handle):
+	if not(self.__loadfile(handle)):
+	    return 0
+	
+	vstr=self.get_var(handle)
+	regstr = ''
+	for values in vstr:
+	    regstr= regstr + values
+	vvals= self.__varvals.keys()
+	kvals= self.__varkeys.keys()
+	key1,key2='',''
+	i,j=0,0
+	len1,len2=len(vvals),len(kvals)
+	while ((i&lt;len1) and (j&lt;len2)):
+		key2 = vvals[i]
+		key1 = kvals[j]
+		vareg=re.compile(self.__varkeys[key1])
+    		regstr=vareg.sub(self.__varvals[key2],regstr)
+		i,j=i+1,j+1
+	return regstr    
+    def	psubst(self,handle):
+	print self.subst(handle)
+	return 0
+    def tmpl2str(self,varname):
+	return self.finish(self.get_var(varname))
+    def parse(self,target,handle, append):
+	if not (type(handle) is DictType):
+    		vstr=self.subst(handle)
+	        if (append==1):
+		    mvar = self.get_var(target) + vstr
+		    self.set_var(target,mvar)
+		else:
+		    self.set_var(target,vstr)
+	else:	
+		vstr = ''	
+		for (hname,hvalue) in handle.items():
+		    vstr=self.subst(hvalue)  
+		    self.set_var(target,vstr)
+	#print t.varvals	    
+	return vstr
+    def get_vars(self): 
+	for kname in self.__varkeys.keys():
+	    result[kname]=self.__varvals[kname]
+	return result
+    def get_var(self,varname):
+        if not (type(varname) is DictType):
+ 	    return self.__varvals[varname]
+	     
+	else:
+	    for vname in varname.keys():
+		result[vname]=self.__varvals[vname]
+	return result
+    &quot;&quot;&quot;def get_undefined --&gt; not implemented&quot;&quot;&quot;	    
+    def finish(self,vstr):
+        regstr1=re.compile('{\[^}+}')
+	if (self.__unknowns==&quot;comment&quot;):
+	    regstr1.sub(&quot;&lt;!--Template not defined --&gt;&quot;,vstr)
+	elif (self.__unknowns==&quot;remove&quot;):
+	    regstr1.sub(&quot;&quot;,vstr);
+	else:
+	    self.__unknowns= &quot;keep&quot; &quot;&quot;&quot;Nothing to do&quot;&quot;&quot;
+	return vstr	    
+    def p(self,varname):
+	print self.finish(self.get_var(varname))
+    def get(self,varname):
+	return self.finish(self.get_var(varname))
+    def __filename(self,filename):
+	slice=string.find(filename,'/',0,1)
+	if (slice==-1):
+	    filename= self.__root + '/' + filename
+	if not (os.path.isfile(filename)):
+	    filename = 0
+	return filename
+    def __varname(self,varname1):
+        var = '{' + varname1 + '}'
+	return var
+    def __loadfile(self,handle):
+	try:
+	    if ((self.__varkeys[handle]) and (not (self.__varvals[handle]==''))):
+		    return 1
+	except KeyError: 
+	       new=1
+	try:
+	   name=self.__file[handle]
+	except KeyError:
+	    return 0
+	filename= self.__filename(name)
+	file=open(filename,'r')
+	vstr=file.readlines()
+	self.set_var(handle,vstr)
+	return 1
+
+ 		    				        	    
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000798.html">[mod_python] Cookies, Redirects &amp; Headers - Oh My!
+</A></li>
+	<LI>Next message: <A HREF="000801.html">[mod_python] Session data
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#800">[ date ]</a>
+              <a href="thread.html#800">[ thread ]</a>
+              <a href="subject.html#800">[ subject ]</a>
+              <a href="author.html#800">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

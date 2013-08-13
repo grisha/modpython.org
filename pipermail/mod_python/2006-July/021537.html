@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python + dbus ?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20%2B%20dbus%20%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021536.html">
+   <LINK REL="Next"  HREF="021538.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python + dbus ?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20%2B%20dbus%20%3F&In-Reply-To="
+       TITLE="[mod_python] mod_python + dbus ?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Jul  3 18:33:26 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021536.html">[mod_python] mod_python + dbus ?
+</A></li>
+        <LI>Next message: <A HREF="021538.html">[mod_python] mod_python + dbus ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21537">[ date ]</a>
+              <a href="thread.html#21537">[ thread ]</a>
+              <a href="subject.html#21537">[ subject ]</a>
+              <a href="author.html#21537">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Panard wrote ..
+&gt;<i> Hi,
+</I>&gt;<i> 
+</I>&gt;<i> I'm tring to use a running dbus service with mod_python. The service runs
+</I>&gt;<i> fine, a python cgi script uses it fine, but a mod_python script doesn't
+</I>&gt;<i> respond...
+</I>&gt;<i> 
+</I>&gt;<i> Here are the scripts used :
+</I>&gt;<i> 
+</I>&gt;<i> The service itself :
+</I>&gt;<i> ======== dbus_service.py ========
+</I>&gt;<i> import dbus
+</I>&gt;<i> import dbus.service
+</I>&gt;<i> import gobject
+</I>&gt;<i> 
+</I>&gt;<i> iface = 'org.inzenet.test_mp.IFace'
+</I>&gt;<i> 
+</I>&gt;<i> class test( dbus.service.Object ) :
+</I>&gt;<i> 
+</I>&gt;<i>     def __init__( self, bus_name ) :
+</I>&gt;<i>         dbus.service.Object.__init__( self, bus_name, '/org/inzenet/test_mp'
+</I>&gt;<i> )
+</I>&gt;<i> 
+</I>&gt;<i>     @dbus.service.method(iface)
+</I>&gt;<i>     def test( self ) :
+</I>&gt;<i>         return &quot;OK!&quot;
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> bus = dbus.service.BusName('org.inzenet.test_mp', bus=dbus.SystemBus())
+</I>&gt;<i> test( bus )
+</I>&gt;<i> 
+</I>&gt;<i> mainloop = gobject.MainLoop()
+</I>&gt;<i> mainloop.run()
+</I>&gt;<i> ===========
+</I>&gt;<i> 
+</I>&gt;<i> DBus perms :
+</I>&gt;<i> ======
+</I>&gt;<i> &lt;busconfig&gt;
+</I>&gt;<i>         &lt;policy user=&quot;panard&quot;&gt;
+</I>&gt;<i>                 &lt;allow own=&quot;org.inzenet.test_mp&quot;/&gt;
+</I>&gt;<i>         &lt;/policy&gt;
+</I>&gt;<i>         &lt;policy context=&quot;default&quot;&gt;
+</I>&gt;<i>                 &lt;allow send_destination=&quot;org.inzenet.test_mp&quot;/&gt;
+</I>&gt;<i>                 &lt;allow receive_sender=&quot;org.inzenet.test_mp&quot;/&gt;
+</I>&gt;<i>         &lt;/policy&gt;
+</I>&gt;<i> &lt;/busconfig&gt;
+</I>&gt;<i> ========
+</I>&gt;<i> Launch the service with
+</I>&gt;<i> $ python dbus_service.py
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> The mod_python script :
+</I>&gt;<i> ===== test_dbus.pu =====
+</I>&gt;<i> def test( req ) :
+</I>&gt;<i>     import dbus
+</I>&gt;<i>     bus = dbus.SystemBus()
+</I>&gt;<i>     service = bus.get_object('org.inzenet.test_mp','/org/inzenet/test_mp')
+</I>&gt;<i>     return service.test( dbus_interface = 'org.inzenet.test_mp.IFace' )
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Calling <A HREF="http://localhost/~panard/mp/test_dbus.py/test">http://localhost/~panard/mp/test_dbus.py/test</A> doesn't respond...
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Any clues?
+</I>
+What version of Apache are you using and what MPM is compiled into it,
+ie., prefork or worker? What version of mod_python are you using?
+
+In general, embedding a messaging type framework where persistent socket
+connections are maintained between processes where the Python module
+is simply a wrapper around a C library, into Apache/mod_python is
+not simple and if the dbus Python wrappers have not been designed and
+implemented specifically to cope with the way that Python is used by
+mod_python, it is probably unlikely to work. The two main issues which
+make it a complicated business are:
+
+1. If &quot;worker&quot; MPM is compiled into Apache, or if on Win32 platform,
+then concurrent requests can be handled in distinct threads. If dbus
+Python wrappers are not properly thread aware it will probably not work.
+
+2. Multiple Python interpreters may be created by mod_python for
+different parts of the URL namespace. If the dbus Python wrappers have
+only been implemented to use the simple GIL threading model it will
+probably not work. There would be a small chance that it will work if
+all requests are forced to run in the &quot;main_interpreter&quot; and mod_python
+3.2.9 (released real soon now) is used.
+
+There is a lot more to it than just this though and it is a really hard
+thing to explain so you would understand it unless you are quite
+intimate with use of multiple Python interpreters and Python thread
+programming at the C API level.
+
+That said, are you wanting to use dbus because you specifically want to
+talk to an existing application which is already implemented with support
+for dbus, or were you after a general messaging framework that could
+be used from Apache/mod_python and you were going to be implementing
+everything from scratch?
+
+If you are starting from scratch, I can perhaps suggest another system
+which is known to work from Apache/mod_python and does cope with
+all the problems of multiple interpreters and multithreading that it
+presents and which makes things complicated.
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021536.html">[mod_python] mod_python + dbus ?
+</A></li>
+	<LI>Next message: <A HREF="021538.html">[mod_python] mod_python + dbus ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21537">[ date ]</a>
+              <a href="thread.html#21537">[ thread ]</a>
+              <a href="subject.html#21537">[ subject ]</a>
+              <a href="author.html#21537">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

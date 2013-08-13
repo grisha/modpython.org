@@ -1,0 +1,228 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] SystemError: bad argument to internal function
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20SystemError%3A%20bad%20argument%20to%20internal%20function&In-Reply-To=a595de7a0706150359o79a22fa3qbc0fb117cedbd261%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023853.html">
+   <LINK REL="Next"  HREF="023796.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] SystemError: bad argument to internal function</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20SystemError%3A%20bad%20argument%20to%20internal%20function&In-Reply-To=a595de7a0706150359o79a22fa3qbc0fb117cedbd261%40mail.gmail.com"
+       TITLE="[mod_python] SystemError: bad argument to internal function">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Fri Jun 15 07:30:14 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023853.html">[mod_python] SystemError: bad argument to internal function
+</A></li>
+        <LI>Next message: <A HREF="023796.html">[mod_python] mod_python and SQLAlchemy don't mix?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23854">[ date ]</a>
+              <a href="thread.html#23854">[ thread ]</a>
+              <a href="subject.html#23854">[ subject ]</a>
+              <a href="author.html#23854">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I doubt it would be the image as one shouldn't be using
+&quot;application/x-www-form-urlencoded&quot; for images. But then that may be
+part of the problem as posting data with embedded nulls would probably
+cause parse_qsl() to fail or at least give incorrect results because
+it uses strlen() on data. Should really be using some form of
+&quot;multipart&quot; content type for posts of binary data. For example
+&quot;multipart/mixed&quot; perhaps.
+
+If it isn't parse_qsl() the only other possibility is that req.read()
+itself is broken in some subtle way and the problem is only triggered
+when data is read off the wire in certain random block sizes. But why
+this wouldn't be showing as a problem for lots of people I don't know.
+
+FWIW, the actual problem is that _PyString_Resize() is being called
+with what Python internally regards as an invalid value. Ie., fails
+test:
+
+        if (!PyString_Check(v) || v-&gt;ob_refcnt != 1 || newsize &lt; 0 ||
+            PyString_CHECK_INTERNED(v)) {
+                *pv = 0;
+                Py_DECREF(v);
+                PyErr_BadInternalCall();
+                return -1;
+        }
+
+Looking at parse_qsl() I can't see how it could get a wrong value.
+
+One final question, is the incoming body of the request being
+compressed in anyway when being sent by the browser as there are
+issues in mod_python where an input filter is being applied to
+incoming content and the content length of data is changed and ends up
+different to the content length header. I only saw this as resulting
+in truncated input, but maybe it causes other problems as well.
+
+Graham
+
+On 15/06/07, Clodoaldo &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">clodoaldo.pinto.neto at gmail.com</A>&gt; wrote:
+&gt;<i> 2007/6/15, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt;:
+</I>&gt;<i> &gt; Can you send the same POST content to a standard handler containing:
+</I>&gt;<i>
+</I>&gt;<i> The error was triggered by user input I and can't reproduce it. It
+</I>&gt;<i> happened only twice. To complicate it the same program meu_anuncio.py
+</I>&gt;<i> handles 2 forms and I don't know which one triggered the error. One of
+</I>&gt;<i> the forms uploads pictures. I have tested that program extensively and
+</I>&gt;<i> found no problems. Tried again now in the production machine and I
+</I>&gt;<i> can't trigger the error.
+</I>&gt;<i>
+</I>&gt;<i> In some hours I will post the content of a non error-triggering POST.
+</I>&gt;<i>
+</I>&gt;<i> Clodoaldo
+</I>&gt;<i>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   def handler(req):
+</I>&gt;<i> &gt;     req.content_type = 'text/plain'
+</I>&gt;<i> &gt;     print &gt;&gt; req, req.headers_in[&quot;content-length&quot;]
+</I>&gt;<i> &gt;     print &gt;&gt; req, req.headers_in[&quot;content-type&quot;]
+</I>&gt;<i> &gt;     print &gt;&gt; req
+</I>&gt;<i> &gt;     print &gt;&gt; req, req.read()
+</I>&gt;<i> &gt;     return apache.OK
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Am expecting the content type to be
+</I>&gt;<i> &gt; &quot;application/x-www-form-urlencoded&quot; which is triggering parse_qsl().
+</I>&gt;<i> &gt; The intent of the above script is to capture the POST data so you can
+</I>&gt;<i> &gt; post it and we can then use it as test data for calling parse_qsl()
+</I>&gt;<i> &gt; direct.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; At this point figuring that parse_qsl() has bug.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; While you do that I'll look through parse_qsl() code and see if I can
+</I>&gt;<i> &gt; see any problem.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On 15/06/07, Clodoaldo &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">clodoaldo.pinto.neto at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; 2007/6/14, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt;:
+</I>&gt;<i> &gt; &gt; &gt; Did you ever sort this out?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; No
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Which sub revision of Python 2.4 are you using? The source code line
+</I>&gt;<i> &gt; &gt; &gt; numbers don't match up with anything meaningful in Python 2.4.3 source
+</I>&gt;<i> &gt; &gt; &gt; code that I have on hand.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Python 2.4.4 in Fedora Core 6, Apache 2.2.4, mod_python 3.3.1
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Clodoaldo
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; On 09/06/07, Clodoaldo &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">clodoaldo.pinto.neto at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; I have this in my error log and I don't know what it means or what to do:
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225] mod_python
+</I>&gt;<i> &gt; &gt; &gt; &gt; (pid=15022, interpreter='carroarodo.com', phase='PythonHandler',
+</I>&gt;<i> &gt; &gt; &gt; &gt; handler='~/_publisher.py'): Application error, referer:
+</I>&gt;<i> &gt; &gt; &gt; &gt; <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225] ServerName:
+</I>&gt;<i> &gt; &gt; &gt; &gt; 'carroarodo.com', referer: <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225]
+</I>&gt;<i> &gt; &gt; &gt; &gt; DocumentRoot: '/var/www/html/carroarodo.com', referer:
+</I>&gt;<i> &gt; &gt; &gt; &gt; <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225] URI:
+</I>&gt;<i> &gt; &gt; &gt; &gt; '/meu_anuncio', referer: <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225] Location:
+</I>&gt;<i> &gt; &gt; &gt; &gt; None, referer: <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225] Directory:
+</I>&gt;<i> &gt; &gt; &gt; &gt; '/var/www/html/carroarodo.com/', referer:
+</I>&gt;<i> &gt; &gt; &gt; &gt; <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225] Filename:
+</I>&gt;<i> &gt; &gt; &gt; &gt; '/var/www/html/carroarodo.com/meu_anuncio.py', referer:
+</I>&gt;<i> &gt; &gt; &gt; &gt; <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225] PathInfo:
+</I>&gt;<i> &gt; &gt; &gt; &gt; '', referer: <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225] Traceback
+</I>&gt;<i> &gt; &gt; &gt; &gt; (most recent call last):, referer: <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225]   File
+</I>&gt;<i> &gt; &gt; &gt; &gt; &quot;/usr/lib64/python2.4/site-packages/mod_python/importer.py&quot;, line
+</I>&gt;<i> &gt; &gt; &gt; &gt; 1537, in HandlerDispatch\n    default=default_handler, arg=req,
+</I>&gt;<i> &gt; &gt; &gt; &gt; silent=hlist.silent), referer: <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225]   File
+</I>&gt;<i> &gt; &gt; &gt; &gt; &quot;/usr/lib64/python2.4/site-packages/mod_python/importer.py&quot;, line
+</I>&gt;<i> &gt; &gt; &gt; &gt; 1229, in _process_target\n    result = _execute_target(config, req,
+</I>&gt;<i> &gt; &gt; &gt; &gt; object, arg), referer: <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225]   File
+</I>&gt;<i> &gt; &gt; &gt; &gt; &quot;/usr/lib64/python2.4/site-packages/mod_python/importer.py&quot;, line
+</I>&gt;<i> &gt; &gt; &gt; &gt; 1128, in _execute_target\n    result = object(arg), referer:
+</I>&gt;<i> &gt; &gt; &gt; &gt; <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225]   File
+</I>&gt;<i> &gt; &gt; &gt; &gt; &quot;/var/www/html/carroarodo.com/_publisher.py&quot;, line 5, in handler\n
+</I>&gt;<i> &gt; &gt; &gt; &gt; return publisher.handler(req), referer:
+</I>&gt;<i> &gt; &gt; &gt; &gt; <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225]   File
+</I>&gt;<i> &gt; &gt; &gt; &gt; &quot;/usr/lib64/python2.4/site-packages/mod_python/publisher.py&quot;, line
+</I>&gt;<i> &gt; &gt; &gt; &gt; 213, in handler\n    published = publish_object(req, object), referer:
+</I>&gt;<i> &gt; &gt; &gt; &gt; <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225]   File
+</I>&gt;<i> &gt; &gt; &gt; &gt; &quot;/usr/lib64/python2.4/site-packages/mod_python/publisher.py&quot;, line
+</I>&gt;<i> &gt; &gt; &gt; &gt; 424, in publish_object\n    req.form = util.FieldStorage(req,
+</I>&gt;<i> &gt; &gt; &gt; &gt; keep_blank_values=1), referer: <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; [Tue Jun 05 18:33:49 2007] [error] [client 200.155.85.225]   File
+</I>&gt;<i> &gt; &gt; &gt; &gt; &quot;/usr/lib64/python2.4/site-packages/mod_python/util.py&quot;, line 225, in
+</I>&gt;<i> &gt; &gt; &gt; &gt; __init__\n    pairs = parse_qsl(req.read(clen), keep_blank_val[Tue Jun
+</I>&gt;<i> &gt; &gt; &gt; &gt; 05 18:33:49 2007] [error] [client 200.155.85.225] SystemError:
+</I>&gt;<i> &gt; &gt; &gt; &gt; Objects/stringobject.c:3515: bad argument to internal function,
+</I>&gt;<i> &gt; &gt; &gt; &gt; referer: <A HREF="http://carroarodo.com/meu_anuncio">http://carroarodo.com/meu_anuncio</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; Any hints?
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; Regards, Clodoaldo Pinto Neto
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I></PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023853.html">[mod_python] SystemError: bad argument to internal function
+</A></li>
+	<LI>Next message: <A HREF="023796.html">[mod_python] mod_python and SQLAlchemy don't mix?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23854">[ date ]</a>
+              <a href="thread.html#23854">[ thread ]</a>
+              <a href="subject.html#23854">[ subject ]</a>
+              <a href="author.html#23854">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

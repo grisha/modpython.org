@@ -1,0 +1,360 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] OS X / Apache 2 / mod_python bug
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20OS%20X%20/%20Apache%202%20/%20mod_python%20bug&In-Reply-To=21B3AD9A-947A-11D9-93F3-000393BB31F6%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017656.html">
+   <LINK REL="Next"  HREF="017661.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] OS X / Apache 2 / mod_python bug</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jamie Kirkpatrick</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20OS%20X%20/%20Apache%202%20/%20mod_python%20bug&In-Reply-To=21B3AD9A-947A-11D9-93F3-000393BB31F6%40dscpl.com.au"
+       TITLE="[mod_python] OS X / Apache 2 / mod_python bug">jkp at kirkconsulting.co.uk
+       </A><BR>
+    <I>Tue Mar 15 15:25:27 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017656.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+        <LI>Next message: <A HREF="017661.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17657">[ date ]</a>
+              <a href="thread.html#17657">[ thread ]</a>
+              <a href="subject.html#17657">[ subject ]</a>
+              <a href="author.html#17657">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 14 Mar 2005, at 11:13, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On Monday, March 14, 2005, at 08:07  PM, Jamie Kirkpatrick wrote:
+</I>&gt;&gt;<i> That said, have you setup use of Apache in the main configuration 
+</I>&gt;&gt;<i> file
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> or in a .htaccess file? Can you post what configuration you are using
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> so we can see if it is pretty normal or something strange? Post it if
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> you can.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I can post but its rather long - I am pretty darn confident that 
+</I>&gt;&gt;<i> there is nothing wrong with the config tho.  I havent changed barely 
+</I>&gt;&gt;<i> anything from the stock install, in-fact, I can reproduce the error 
+</I>&gt;&gt;<i> by leaving everything as is from when the install is performed and 
+</I>&gt;&gt;<i> only adding a python handler to the default htdocs directory.  The 
+</I>&gt;&gt;<i> only thing I have consistently changed is the port the server is 
+</I>&gt;&gt;<i> listening on to port 8080.  I have tested with the minimum of 
+</I>&gt;&gt;<i> changes: added a handler and dropped in a small test script.
+</I>&gt;<i>
+</I>&gt;<i> The whole Apache config file isn't required, but just the small 
+</I>&gt;<i> section where
+</I>&gt;<i> your define SetHandler/AddHandler and PythonHandler. Ie., the 
+</I>&gt;<i> appropriate
+</I>&gt;<i> &lt;Directory&gt; construct covering your htdocs directory. This is just to 
+</I>&gt;<i> get the
+</I>&gt;<i> whole picture and clarify that it is being done within a Directory 
+</I>&gt;<i> directive
+</I>&gt;<i> as opposed to being at global scope in the config.
+</I>
+DocumentRoot &quot;/opt/local/apache2/htdocs&quot;
+
+&lt;Directory /&gt;
+     Options FollowSymLinks
+     AllowOverride None
+&lt;/Directory&gt;
+
+&lt;Directory &quot;/opt/local/apache2/htdocs&quot;&gt;
+         AddHandler mod_python .py
+         PythonHandler mod_python.publisher
+         PythonDebug On
+         Options Indexes FollowSymLinks
+         AllowOverride None
+         Order allow,deny
+         Allow from all
+&lt;/Directory&gt;
+
+
+&lt;snip&gt;
+
+&gt;<i> Sending a copy of the hello.py wouldn't hurt as well.
+</I>
+cat hello.py
+
+def hello(name=None):
+     if name:
+         return 'Hello, %s!' % name.capitalize()
+     else:
+         return 'Hello there!'
+
+&gt;<i>
+</I>&gt;<i> Based on your other answers, is very strange and nothing obvious 
+</I>&gt;<i> stands out.
+</I>&gt;<i> The next thing I would try is to localise where the 500 error 
+</I>&gt;<i> actually gets
+</I>&gt;<i> raised. There are four possible places it could be occurring. These 
+</I>&gt;<i> are:
+</I>&gt;<i>
+</I>&gt;<i> 1. In Python code executed within the handler itself.
+</I>&gt;<i>
+</I>&gt;<i> 2. In the Python code part of mod_python. Ie., somewhere within the 
+</I>&gt;<i> file
+</I>&gt;<i> lib/python/mod_python/apache.py.
+</I>&gt;<i>
+</I>&gt;<i> 3. In the C code part of mod_python. Ie., somewhere within the file
+</I>&gt;<i> src/mod_python.c.
+</I>&gt;<i>
+</I>&gt;<i> 4. In Apache itself somewhere prior to, but possibly after mod_python 
+</I>&gt;<i> is
+</I>&gt;<i> invoked. Lets hope not. :-)
+</I>&gt;<i>
+</I>&gt;<i> Elimination of 1 is pretty straight forward by using a test handler 
+</I>&gt;<i> which
+</I>&gt;<i> contains:
+</I>&gt;<i>
+</I>&gt;<i>     from mod_python import apache
+</I>&gt;<i>     apache.log_error(&quot;start import&quot;)
+</I>&gt;<i>
+</I>&gt;<i>     def handler(req):
+</I>&gt;<i>         apache.log_error(&quot;start handler&quot;)
+</I>&gt;<i>         req.content_type = &quot;text/plain&quot;
+</I>&gt;<i>         req.send_http_header()
+</I>&gt;<i>         req.write(&quot;Hello World!&quot;)
+</I>&gt;<i>         apache.log_error(&quot;end handler&quot;)
+</I>&gt;<i>         return apache.OK
+</I>&gt;<i>
+</I>&gt;<i>     apache.log_error(&quot;end import&quot;)
+</I>
+Using the above code after a stop / start i get this in the error_log:
+
+[Tue Mar 15 19:31:49 2005] [notice] mod_python: Creating 32 session 
+mutexes based on 150 max processes and 0 max threads.
+[Tue Mar 15 19:31:49 2005] [notice] Digest: generating secret for 
+digest authentication ...
+[Tue Mar 15 19:31:49 2005] [notice] Digest: done
+[Tue Mar 15 19:31:50 2005] [notice] Apache/2.0.53 (Unix) DAV/2 
+mod_python/3.1.3 Python/2.4 configured -- resuming normal operations
+[Tue Mar 15 19:31:54 2005] [notice] mod_python: (Re)importing module 
+'test'
+[Tue Mar 15 19:31:54 2005] [error] start import
+[Tue Mar 15 19:31:54 2005] [error] end import
+[Tue Mar 15 19:31:54 2005] [error] start handler
+[Tue Mar 15 19:31:54 2005] [error] end handler
+
+All normal. BUT, when I use a restart, it doesnt even get that far:
+
+[Tue Mar 15 19:33:11 2005] [notice] mod_python: Creating 32 session 
+mutexes based on 150 max processes and 0 max threads.
+[Tue Mar 15 19:33:11 2005] [notice] Digest: generating secret for 
+digest authentication ...
+[Tue Mar 15 19:33:11 2005] [notice] Digest: done
+[Tue Mar 15 19:33:12 2005] [notice] Apache/2.0.53 (Unix) DAV/2 
+mod_python/3.1.3 Python/2.4 configured -- resuming normal operations
+
+Nothing shows in the log as you can see.  Then a stop / start again and 
+everything is normal.
+
+&gt;<i>
+</I>&gt;<i> If the 500 error is not generated from within the import of the 
+</I>&gt;<i> handler
+</I>&gt;<i> module or the handler itself when called, you should see in the Apache
+</I>&gt;<i> error log all of the messages above.
+</I>&gt;<i>
+</I>&gt;<i> BTW, as an extra precaution, if Apache is able to write to your 
+</I>&gt;<i> document
+</I>&gt;<i> directories, you may want to manually remove any &quot;.pyc&quot; files that may
+</I>&gt;<i> have been generated as the result of a prior test, before running the 
+</I>&gt;<i> test.
+</I>
+It isn't, but thanks anyway.  I take it it caches stuff?
+
+&gt;<i>
+</I>&gt;<i> To test out 2, one would need to modify 
+</I>&gt;<i> lib/python/mod_python/apache.py
+</I>&gt;<i> and reinstall it. You should add calls to apache.log_error() into 
+</I>&gt;<i> apache.py
+</I>&gt;<i> to track where it may get to within its execution.
+</I>
+
+
+&gt;<i>
+</I>&gt;<i> I think the appropriate place to place log statements in that file is 
+</I>&gt;<i> at
+</I>&gt;<i> the start of the class method:
+</I>&gt;<i>
+</I>&gt;<i>   def HandlerDispatch(self, req):
+</I>&gt;<i>
+</I>&gt;<i>     log_error(&quot;start dispatch&quot;)
+</I>&gt;<i>
+</I>&gt;<i> Prior to the final return of the method, add:
+</I>&gt;<i>
+</I>&gt;<i>     log_error(&quot;end dispatch %s&quot;%str(result))
+</I>&gt;<i>
+</I>&gt;<i> There is a return part way through the method which returns a 500 
+</I>&gt;<i> error,
+</I>&gt;<i> but it is preceded by logging of a message anyway.
+</I>
+Right - so i alterterd the file, recompiled and installed (I mean 
+forced a recompilation of the python object files).  On a normal run 
+(stop/start) using the above handler i get this in the error_log:
+
+[Tue Mar 15 20:06:28 2005] [notice] Apache/2.0.53 (Unix) DAV/2 
+mod_python/3.1.3 Python/2.4 configured -- resuming normal operations
+[Tue Mar 15 20:06:31 2005] [error] start dispatch
+[Tue Mar 15 20:06:31 2005] [notice] mod_python: (Re)importing module 
+'test'
+[Tue Mar 15 20:06:31 2005] [error] start import
+[Tue Mar 15 20:06:31 2005] [error] end import
+[Tue Mar 15 20:06:31 2005] [error] start handler
+[Tue Mar 15 20:06:31 2005] [error] end handler
+[Tue Mar 15 20:06:31 2005] [error] end dispatch 0
+
+And everything works fine.  However, when I restart I see nothing in 
+the error_log:
+
+[Tue Mar 15 20:09:17 2005] [notice] SIGHUP received.  Attempting to 
+restart
+[Tue Mar 15 20:09:17 2005] [notice] mod_python: Creating 32 session 
+mutexes based on 150 max processes and 0 max threads.
+[Tue Mar 15 20:09:17 2005] [notice] Digest: generating secret for 
+digest authentication ...
+[Tue Mar 15 20:09:17 2005] [notice] Digest: done
+[Tue Mar 15 20:09:18 2005] [notice] Apache/2.0.53 (Unix) DAV/2 
+mod_python/3.1.3 Python/2.4 configured -- resuming normal operations
+
+That shows the restart and there is nothing following it even after I 
+pull up the 500 error several times.  Access_log shows 500 errors:
+
+192.168.2.2 - - [15/Mar/2005:20:09:20 +0000] &quot;GET /test.py HTTP/1.1&quot; 
+500 641
+192.168.2.2 - - [15/Mar/2005:20:09:35 +0000] &quot;GET /test.py HTTP/1.1&quot; 
+500 641
+
+&gt;<i>
+</I>&gt;<i> If it is found that 500 is being returned from the method, this would
+</I>&gt;<i> localise the cause of the problem to this method. At this point we 
+</I>&gt;<i> would
+</I>&gt;<i> have to start analysing further the method and the potential sources 
+</I>&gt;<i> of
+</I>&gt;<i> the 500 error by adding more logging and checking where result is 
+</I>&gt;<i> being
+</I>&gt;<i> set to 500.
+</I>&gt;<i>
+</I>&gt;<i> If this method always returns a 200 status response, yet the browser
+</I>&gt;<i> still sees 500, we would have to consider number 3 above.
+</I>
+As it doesn't even seem to be getting as far as calling the method 
+since the first message isnt logged then I guess this points to the C 
+code?
+
+&gt;<i>
+</I>&gt;<i> At this point things get a bit trickier as one is dealing with the C 
+</I>&gt;<i> code.
+</I>&gt;<i> It is worth noting though that most instances of where a 500 response 
+</I>&gt;<i> are
+</I>&gt;<i> generated in the mod_python.c file are preceded by message logging. 
+</I>&gt;<i> The
+</I>&gt;<i> only ones that aren't are all of the form:
+</I>&gt;<i>
+</I>&gt;<i>     /* get/create interpreter */
+</I>&gt;<i>     idata = get_interpreter(interp_name, req-&gt;server);
+</I>&gt;<i>
+</I>&gt;<i>     if (!idata)
+</I>&gt;<i>         return HTTP_INTERNAL_SERVER_ERROR;
+</I>&gt;<i>
+</I>&gt;<i> Not being able to get/create the interpreter is pretty severe and if 
+</I>&gt;<i> that
+</I>&gt;<i> was happening then no Python code at all would be getting executed. I 
+</I>&gt;<i> am
+</I>&gt;<i> not sure why this situation couldn't be logged as well. Thus instead 
+</I>&gt;<i> of
+</I>&gt;<i> that above, have:
+</I>&gt;<i>
+</I>&gt;<i>     if (!idata) {
+</I>&gt;<i>         ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, req,
+</I>&gt;<i>                       &quot;python_handler: Can't get/create 
+</I>&gt;<i> interpreter.&quot;);
+</I>&gt;<i>
+</I>&gt;<i>         return HTTP_INTERNAL_SERVER_ERROR;
+</I>&gt;<i>     }
+</I>
+OK - so this does indeed seem to be the case.  On a restart I get the 
+message logged:
+
+[Tue Mar 15 20:20:55 2005] [notice] Apache/2.0.53 (Unix) DAV/2 
+mod_python/3.1.3 Python/2.4 configured -- resuming normal operations
+[Tue Mar 15 20:20:59 2005] [error] [client 192.168.2.2] python_handler: 
+Can't get/create interpreter.
+
+So, at least we have a better idea where things are going wrong 
+(unfortunately its in the C code).  One thing of note.  I noticed that 
+after restarting httpd and doing `ps ax | grep httpd` I saw some 
+strange results.  If I havent yet called a page (just restarted) I can 
+see only one instance.  However, as soon as I call a script (and get 
+the 500 error) I see multiple instances of httpd -
+
+  7717  ??  Ss     0:01.23 /opt/local/apache2/bin/httpd -k start
+7792  ??  S      0:00.02 /opt/local/apache2/bin/httpd -k start
+7793  ??  S      0:00.01 /opt/local/apache2/bin/httpd -k start
+7794  ??  S      0:00.01 /opt/local/apache2/bin/httpd -k start
+7795  ??  S      0:00.00 /opt/local/apache2/bin/httpd -k start
+7796  ??  S      0:00.01 /opt/local/apache2/bin/httpd -k start
+
+They dont die either.  This is obvioulsy wrong, but whats causing it I 
+dont know.  Hope that gives you a better idea on whats going on.  Let 
+me know what to try next and I'll do it when I get a moment.
+
+Cheers
+
+Jamie
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017656.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+	<LI>Next message: <A HREF="017661.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17657">[ date ]</a>
+              <a href="thread.html#17657">[ thread ]</a>
+              <a href="subject.html#17657">[ subject ]</a>
+              <a href="author.html#17657">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] matplotlib and sys.stdout[.write()] &lt;&gt; req[.write()]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20matplotlib%20and%20sys.stdout%5B.write%28%29%5D%20%3C%3E%20req%5B.write%28%29%5D&In-Reply-To=DU65VINH.1117716456.1112920.aimmler%40localhost">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018253.html">
+   <LINK REL="Next"  HREF="018254.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] matplotlib and sys.stdout[.write()] &lt;&gt; req[.write()]</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>John Hunter</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20matplotlib%20and%20sys.stdout%5B.write%28%29%5D%20%3C%3E%20req%5B.write%28%29%5D&In-Reply-To=DU65VINH.1117716456.1112920.aimmler%40localhost"
+       TITLE="[mod_python] matplotlib and sys.stdout[.write()] &lt;&gt; req[.write()]">jdhunter at nitace.bsd.uchicago.edu
+       </A><BR>
+    <I>Thu Jun  2 18:42:49 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018253.html">[mod_python] matplotlib and sys.stdout[.write()] &lt;&gt; req[.write()]
+</A></li>
+        <LI>Next message: <A HREF="018254.html">[mod_python] Sessions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18256">[ date ]</a>
+              <a href="thread.html#18256">[ thread ]</a>
+              <a href="subject.html#18256">[ subject ]</a>
+              <a href="author.html#18256">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;&gt;&gt;&gt;&gt;<i> &quot;Adrian&quot; == Adrian Immler &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-maillist at uebergeek.de</A>&gt; writes:
+</I>
+    Adrian&gt;   File &quot;/www/uebergeek.de/htdocs/music/test.py&quot;, line 45,
+    Adrian&gt; in test canvas.print_figure(req)
+
+    Adrian&gt;   File
+    Adrian&gt; &quot;/usr/lib/python2.4/site-packages/matplotlib/backends/backend_agg.py&quot;,
+    Adrian&gt; line 383, in print_figure basename, ext =
+    Adrian&gt; os.path.splitext(filename)
+
+    Adrian&gt;   File &quot;/usr/lib/python2.4/posixpath.py&quot;, line 92, in
+    Adrian&gt; splitext i = p.rfind('.')
+
+    Adrian&gt; AttributeError: 'mp_request' object has no attribute
+    Adrian&gt; 'rfind'
+
+    Adrian&gt; so it is nearly the same error. now my question is:
+
+    Adrian&gt; how can i create a png file with matplotlib and send it to
+    Adrian&gt; the client without saving the file to harddisk and send
+    Adrian&gt; that one.
+
+    Adrian&gt; thanks in advance !
+
+
+
+    Adrian&gt; p.s. yes i know that the content_type('image/png') is
+    Adrian&gt; missing in the above example ...
+
+
+It looks like mod_python is doing something funny with sys.stdout,
+because I can run your script in as a standalone python script
+
+    import sys
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+    from matplotlib.figure import Figure
+
+    fig = Figure()
+    canvas = FigureCanvas(fig)
+    ax = fig.add_subplot(111)
+    ax.plot([1,2,3])
+    ax.set_title('hi mom')
+    ax.grid(True)
+    ax.set_xlabel('time')
+    ax.set_ylabel('volts')
+    canvas.print_figure(sys.stdout)
+
+Run with 
+
+ &gt; python test.py &gt; test.png
+
+Everything works as it should.
+
+The relevant code in lib/matplotlib/backends/backend_agg.py around
+line 377 is
+
+        if  isinstance(filename, file):
+            # assume png and write to fileobject
+            self.renderer._renderer.write_png(filename)
+            #pass
+        else:
+            # take a look at the extension and choose the print handler
+            basename, ext = os.path.splitext(filename)
+            if not len(ext):
+                ext = '.png'
+
+You want to be in the first part of this conditional, ie, you want the
+call to 
+
+    self.renderer._renderer.write_png(filename).
+
+Apparently the isinstance(filename, file) test is failing under
+modpython and working under normal python.  Anyone know why, or what
+would be a more appropriate test for a file object under modpython
+
+JDH
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018253.html">[mod_python] matplotlib and sys.stdout[.write()] &lt;&gt; req[.write()]
+</A></li>
+	<LI>Next message: <A HREF="018254.html">[mod_python] Sessions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18256">[ date ]</a>
+              <a href="thread.html#18256">[ thread ]</a>
+              <a href="subject.html#18256">[ subject ]</a>
+              <a href="author.html#18256">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

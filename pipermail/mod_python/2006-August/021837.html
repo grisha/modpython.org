@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python sessions, locking, and PSP
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20sessions%2C%20locking%2C%20and%20PSP&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021846.html">
+   <LINK REL="Next"  HREF="021839.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python sessions, locking, and PSP</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20sessions%2C%20locking%2C%20and%20PSP&In-Reply-To="
+       TITLE="[mod_python] mod_python sessions, locking, and PSP">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Aug 13 18:49:59 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021846.html">[mod_python] util.FieldStorage wrong about method restrictions
+</A></li>
+        <LI>Next message: <A HREF="021839.html">[mod_python] mod_python sessions, locking, and PSP
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21837">[ date ]</a>
+              <a href="thread.html#21837">[ thread ]</a>
+              <a href="subject.html#21837">[ subject ]</a>
+              <a href="author.html#21837">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Jim Gallacher wrote ..
+&gt;<i> Michael Spang wrote:
+</I>&gt;<i> &gt; I recently ran into deadlocks using sessions in both my mod_python
+</I>&gt;<i> &gt; handler and in psp. I've read through the thread at
+</I>&gt;<i> &gt; <A HREF="http://www.modpython.org/pipermail/mod_python/2005-May/018035.html">http://www.modpython.org/pipermail/mod_python/2005-May/018035.html</A> and
+</I>&gt;<i> &gt; understand that this occurs because both my handler and PSP create their
+</I>&gt;<i> &gt; own session instance and attempt to lock the session.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; My question is: why doesn't the mod_python sessions module keep a
+</I>&gt;<i> &gt; reference to each constructed session object and the thread that has
+</I>&gt;<i> it
+</I>&gt;<i> &gt; locked? 
+</I>&gt;<i> 
+</I>&gt;<i> Easier said than done in mpm-prefork or mpm-worker. It's possible to
+</I>&gt;<i> keep track of the session object within a single request, but difficult
+</I>&gt;<i> (as in nearly impossible) to do it across requests in these 2 mpms.
+</I>
+Hmmm, what do you mean by across requests here? The only thing I can think of
+that even makes sense doesn't even relate to which MPM is used. This is the
+problem in 3.2 whereby if an internal redirect occurs and the parent handler
+had acquired the session and not unlocked it, that an attempt by the handler
+for the sub request to also acquire the session object will result in a
+deadlock.
+
+I have demonstrated code before which can be used to make this work provided
+that both parent and sub request are in the same interpreter. In short it would
+stash the session object in a global area where the thread was the key. It
+would be up to any handler to first check in the cache for the session object
+before deciding to create its own and in turn store that in the cache. The
+request handler would also need to register a cleanup handler to ensure that
+any reference was removed at the end of the request. This could be done as part
+of the implementation of the cache though.
+
+Now, having said that, in mod_python 3.3 there is a change that may make all
+this simpler to do and which may also allow sharing of the session object
+between handlers executed within the context of different interpreters. The
+change is that req.main now provides access to the actual request object of
+a parent request whereas previously the Python part of the object was a new
+wrapper around the request_rec structure for the parent request.
+
+What this means is that the following may actually work in a handler of a
+sub request.
+
+  def handler(req):
+    if req.main and hasattr(req.main, 'session'):
+      req.session = req.main.session
+    else:
+      req.session = Session(req)
+      if req.main:
+        req.main.session = req.session
+
+I can't remember how thoroughly I tested this and whether it does work
+across interpreters. It should for simple data and whether a session object
+is too complicated I don't know.
+
+Graham
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021846.html">[mod_python] util.FieldStorage wrong about method restrictions
+</A></li>
+	<LI>Next message: <A HREF="021839.html">[mod_python] mod_python sessions, locking, and PSP
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21837">[ date ]</a>
+              <a href="thread.html#21837">[ thread ]</a>
+              <a href="subject.html#21837">[ subject ]</a>
+              <a href="author.html#21837">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,282 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] sharing data in the same interpreter
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20sharing%20data%20in%20the%20same%20interpreter&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020752.html">
+   <LINK REL="Next"  HREF="020751.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] sharing data in the same interpreter</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B> Miro</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20sharing%20data%20in%20the%20same%20interpreter&In-Reply-To="
+       TITLE="[mod_python] sharing data in the same interpreter">mmadecki at comcast.net
+       </A><BR>
+    <I>Mon Apr  3 19:52:10 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020752.html">[mod_python] [SPAM] Does the Request object have a member called
+	'name'?
+</A></li>
+        <LI>Next message: <A HREF="020751.html">[mod_python] sharing data in the same interpreter
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20750">[ date ]</a>
+              <a href="thread.html#20750">[ thread ]</a>
+              <a href="subject.html#20750">[ subject ]</a>
+              <a href="author.html#20750">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+ 
+
+I&#8217;m trying to figure out how to share data between different handlers
+running in the same interpreter instance.
+
+I got it running with apache in debug mode (only one worker thread) but not
+in normal mode.
+
+According to the value of &#8220;req.interpreter&#8221; both handlers use the same
+interpreter.
+
+I noticed that with &#8220;PythonDebug On&#8221; according to the log message &#8220;handle&#8221;
+module gets reloaded with every request.
+
+Does that wipe out any global cfg!?
+
+Is there any way to make this working?
+
+ 
+
+I&#8217;m using following platform:
+
+-          Fedora Core 4
+
+-          Apache 2.0.54
+
+-          Mod_python 3.2.8 (installed from source to replace pre-packaged
+3.1.4)
+
+ 
+
+Complete cfg and example are attached.
+
+test_handle.py does POST to set global data that follow on GET request
+should read.
+
+ 
+
+Thanks
+
+Miro
+
+ 
+
+ 
+
+# /etc/httpd/conf.d/python.conf
+
+ 
+
+LoadModule python_module modules/mod_python.so
+
+ 
+
+Listen 8000
+
+NameVirtualHost *:8000
+
+&lt;VirtualHost *:8000&gt;
+
+  SetHandler mod_python
+
+  PythonPath &quot;['/tmp/py'] + sys.path&quot;
+
+  PythonInterpreter ONE
+
+  PythonAutoReload Off
+
+  &lt;Location &quot;/get&quot;&gt;
+
+    PythonHandler handle::get_handler
+
+  &lt;/Location&gt;
+
+  &lt;Location &quot;/post&quot;&gt;
+
+    PythonHandler handle::post_handler
+
+  &lt;/Location&gt;
+
+&lt;/VirtualHost&gt;
+
+ 
+
+# /tmp/py/handle.py
+
+ 
+
+from mod_python import apache
+
+ 
+
+class SharedData:
+
+  data = &quot;Doesn't work&quot;
+
+ 
+
+def get_handler(req):
+
+    req.content_type = &quot;text/plain&quot;
+
+    req.write(SharedData.data)
+
+    apache.log_error(&quot;get_handler wrote : &quot; + SharedData.data)
+
+    apache.log_error(&quot;get_handler interpreter : %r&quot; % req.interpreter)
+
+    return apache.OK
+
+ 
+
+def post_handler(req):
+
+    SharedData.data = req.read()
+
+    apache.log_error(&quot;post_handler read : &quot; + SharedData.data)
+
+    apache.log_error(&quot;post_handler interpreter : %r&quot; % req.interpreter)
+
+    return apache.OK
+
+ 
+
+# /tmp/py/test_handle.py
+
+ 
+
+import httplib
+
+ 
+
+def test_get():
+
+   print &quot;test_get&quot;
+
+   PORT = 8000
+
+   PATH = &quot;/get&quot;
+
+   conn = httplib.HTTPConnection(&quot;127.0.0.1:%s&quot; % PORT)
+
+   conn.putrequest(&quot;GET&quot;, PATH, skip_host=1)
+
+   conn.putheader(&quot;Host&quot;, &quot;%s:%s&quot; % (&quot;test_get&quot;, PORT))
+
+   conn.endheaders()
+
+   response = conn.getresponse()
+
+   rsp = response.read()
+
+   print &quot;Got back : %s&quot; %rsp
+
+   conn.close()
+
+ 
+
+def test_post():
+
+  print 'test_post'
+
+  params = 'It works'
+
+  print &quot;    writing %d bytes...&quot; % len(params)
+
+  PORT = 8000
+
+  PATH = &quot;/post&quot;
+
+  conn = httplib.HTTPConnection(&quot;127.0.0.1:%s&quot; % PORT)
+
+  conn.putrequest(&quot;POST&quot;, PATH, skip_host=1)
+
+  conn.putheader(&quot;Host&quot;, &quot;test_rpost:%s&quot; % PORT)
+
+  conn.putheader(&quot;Content-Length&quot;, len(params))
+
+  conn.endheaders()
+
+  conn.send(params)
+
+  conn.close()
+
+ 
+
+if __name__ == &quot;__main__&quot;:
+
+  test_post()
+
+  test_get()
+
+
+-- 
+No virus found in this outgoing message.
+Checked by AVG Free Edition.
+Version: 7.1.385 / Virus Database: 268.3.5/300 - Release Date: 04/03/06
+ 
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060403/c7862eae/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060403/c7862eae/attachment.html</A>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020752.html">[mod_python] [SPAM] Does the Request object have a member called
+	'name'?
+</A></li>
+	<LI>Next message: <A HREF="020751.html">[mod_python] sharing data in the same interpreter
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20750">[ date ]</a>
+              <a href="thread.html#20750">[ thread ]</a>
+              <a href="subject.html#20750">[ subject ]</a>
+              <a href="author.html#20750">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

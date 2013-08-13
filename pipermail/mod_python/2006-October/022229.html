@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] webinterface for a local telnet server
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20webinterface%20for%20a%20local%20telnet%20server&In-Reply-To=20061006164603.GA11578%40EIS">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022226.html">
+   <LINK REL="Next"  HREF="022230.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] webinterface for a local telnet server</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20webinterface%20for%20a%20local%20telnet%20server&In-Reply-To=20061006164603.GA11578%40EIS"
+       TITLE="[mod_python] webinterface for a local telnet server">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Oct  6 19:18:13 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022226.html">[mod_python] webinterface for a local telnet server
+</A></li>
+        <LI>Next message: <A HREF="022230.html">[mod_python] webinterface for a local telnet server
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22229">[ date ]</a>
+              <a href="thread.html#22229">[ thread ]</a>
+              <a href="subject.html#22229">[ subject ]</a>
+              <a href="author.html#22229">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 07/10/2006, at 2:46 AM, Andreas Klauer wrote:
+
+&gt;<i> On Fri, Oct 06, 2006 at 12:14:43PM -0400, Jorey Bump wrote:
+</I>&gt;&gt;<i> I think the problem is outside of apache/mod_python. Similar work has
+</I>&gt;&gt;<i> been done to develop IMAP proxies to reduce load caused by webmail
+</I>&gt;&gt;<i> opening a new connection to the IMAP server for every click. You  
+</I>&gt;&gt;<i> might
+</I>&gt;&gt;<i> want to start there for examples.
+</I>&gt;<i>
+</I>&gt;<i> That's just it. There would be no need for an additional daemon, if I
+</I>&gt;<i> could just select the correct thread. A mod_python script by itself
+</I>&gt;<i> holds up a telnet connection just fine. No additional work would be
+</I>&gt;<i> required in my situation if it were not for threads (or lack of thread
+</I>&gt;<i> control for that matter).
+</I>&gt;<i>
+</I>&gt;<i> Instead of opening a telnet connection in a mod_python script  
+</I>&gt;<i> directly,
+</I>&gt;<i> I now have to use an independent daemon, with additional  
+</I>&gt;<i> connections to
+</I>&gt;<i> every mod_python thread, and I also have to encapsulate each query  
+</I>&gt;<i> into
+</I>&gt;<i> a separate protocol. If that does not add unnecessary load, I don't
+</I>&gt;<i> know what does.
+</I>&gt;<i>
+</I>&gt;<i> But I guess for that I'd have to talk to the Apache folks wether it is
+</I>&gt;<i> not possible to give modules (and therefore users) more control over
+</I>&gt;<i> what is done in which threads.
+</I>
+Personally I think you are possibly working under some misconceptions
+about how Apache/mod_python works. You keep mentioning 'threads'
+as a problem, but frankly I cannot see how that is really relevant at  
+all.
+
+Before I try and address that I would ask why you are trying to perhaps
+reinvent the wheel as others have already solved this problem. In the
+webmin interface for remotely managing systems, there is a standard
+SSH/Telnet Login module that uses a Java applet. There are also other
+third party implementations as well. Some sites to start tracking this
+stuff down are:
+
+   <A HREF="http://www.webmin.com/ustandard.html">http://www.webmin.com/ustandard.html</A>
+   <A HREF="http://webadminmodules.sourceforge.net/?page=Others">http://webadminmodules.sourceforge.net/?page=Others</A>
+
+Back to your threads. The problem with using Apache/mod_python when
+you want to preserve some state between requests is not threads but
+processes. This is because when using prefork or worker Apache MPMs
+on UNIX systems, subsequent requests can be directed to different Apache
+child processes. As a result, if one child process had initiated a  
+telnet
+connection, when a subsequent request arrives and it ends up being
+processed by a different child process, it will not have access to  
+the open
+connection. On Win32 boxes this isn't a problem, as there is only one
+Apache process and all requests are handled by it.
+
+For further information, see:
+
+   <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/">http://www.dscpl.com.au/wiki/ModPython/Articles/</A> 
+TheProcessInterpreterModel
+
+As far as threads go, on Win32, and when worker MPM is used on UNIX,
+when subsequent requests arrive, they may indeed be handled by different
+threads within that process, but that shouldn't matter, unless you have
+made the mistake of storing state information as thread local data  
+within
+that thread such that only that thread can access it. If the data is  
+stored
+globally, is thread protected and keyed by some user session credentials
+then it shouldn't be an issue as it wouldn't matter which actual  
+thread handled
+a request, as all could still access it.
+
+If you do this correctly, then it would be possible to do what you  
+want on a
+Win32 system, as the same Apache process is always used. On prefork
+and even worker MPMs on UNIX though you can't, as you can't ensure the
+same process always gets the requests. Also, even if there were some  
+way,
+Apache is allowed to shutdown specific child processes at any time,  
+so you
+would loose any open connection anyway.
+
+If you want to pursue this direction of implementing it yourself, you  
+have no
+choice but to stick the bits which create the telnet connection in a  
+separate
+long running daemon process. Communication between the Apache child
+processes and the separate daemon could use XML-RPC albeit perhaps
+inefficiently, a persistently connected messaging system, or a custom  
+protocol
+over a socket connection.
+
+Writing that daemon isn't necessarily going to be straight forward,  
+as making
+it secure may be an issue, plus you need to track user sessions,  
+possibly
+implement inactivity timers to cleanup sessions if not used etc etc.
+
+Thus, overall, I would really suggest you pursue some of the Java applet
+solutions that exist instead that people have already written.
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022226.html">[mod_python] webinterface for a local telnet server
+</A></li>
+	<LI>Next message: <A HREF="022230.html">[mod_python] webinterface for a local telnet server
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22229">[ date ]</a>
+              <a href="thread.html#22229">[ thread ]</a>
+              <a href="subject.html#22229">[ subject ]</a>
+              <a href="author.html#22229">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

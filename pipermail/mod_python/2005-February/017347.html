@@ -1,0 +1,287 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Photo Album Viewer and req.path_into.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Photo%20Album%20Viewer%20and%20req.path_into.&In-Reply-To=42038634.1000907%40tbc.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017335.html">
+   <LINK REL="Next"  HREF="017368.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Photo Album Viewer and req.path_into.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Photo%20Album%20Viewer%20and%20req.path_into.&In-Reply-To=42038634.1000907%40tbc.net"
+       TITLE="[mod_python] Photo Album Viewer and req.path_into.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Feb  4 22:51:32 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017335.html">[mod_python] Force reload?
+</A></li>
+        <LI>Next message: <A HREF="017368.html">[mod_python] Re: Photo Album Viewer and req.path_into.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17347">[ date ]</a>
+              <a href="thread.html#17347">[ thread ]</a>
+              <a href="subject.html#17347">[ subject ]</a>
+              <a href="author.html#17347">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 05/02/2005, at 1:27 AM, Shawn Harrison wrote:
+
+&gt;&gt;<i> I could mention Vampire yet again and how it has solved this problem
+</I>&gt;&gt;<i> and many other module loading issues, but based on the continuing
+</I>&gt;&gt;<i> followups which show that no one has read what I said, I will refrain
+</I>&gt;&gt;<i> from doing so ..... ;-(
+</I>&gt;<i>
+</I>&gt;<i> I do have a question about Vampire. I want to have a Python script
+</I>&gt;<i>
+</I>&gt;<i> 	/web/websitename/www/photos/index.py
+</I>&gt;<i>
+</I>&gt;<i> where I've appended /web to sys.path, so that
+</I>&gt;<i>
+</I>&gt;<i> 	websitename.www.photos.index
+</I>&gt;<i>
+</I>&gt;<i> is a module name. Okay. I want to publish photos with urls like
+</I>&gt;<i>
+</I>&gt;<i> 	<A HREF="http://websitename/photos/2004/10/01/137">http://websitename/photos/2004/10/01/137</A>
+</I>&gt;<i>
+</I>&gt;<i> Can Vampire send all requests for paths under /photos/ to the photos
+</I>
+Not knowing for sure what you are wanting to do, I am going to assume 
+that
+you want to wrap image files in a HTML page automatically.
+
+Firstly, Vampire is structured so as to avoid altogether use of sys.path
+and all the complications that can arise because of it. Thus, you would
+not add &quot;/web&quot; to sys.path. Thus, to configure things, one would use:
+
+   Options -Indexes -MultiViews
+
+   SetHandler python-program
+   PythonHandler vampire
+   PythonPath 'sys.path'
+   PythonDebug On
+
+Indexes are turned off because we wouldn't want it, and MultiViews is 
+turned
+off because auto negotiation of file types screws with how Vampire 
+works.
+
+PythonPath is set to &quot;sys.path&quot; in order to stop mod_python from adding 
+that
+directory into &quot;sys.path&quot; as we don't want that either. This is so 
+nothing
+tries to attempt to load any Python code files in the document tree as 
+Python
+modules using &quot;import&quot;.
+
+Assuming that the &quot;photos&quot; directory is where the images actually live, 
+am
+going to change things around a little and rename &quot;photos&quot; to &quot;library&quot;.
+
+Rather than create a Python code file residing at &quot;photos/index.py&quot; it 
+would
+be called &quot;photos.py&quot;. In this is placed the code at the end of this 
+email.
+
+I can now say:
+
+   <A HREF="http://websitename/photos/2004/10/01/137">http://websitename/photos/2004/10/01/137</A>
+
+What will happen with how I have written this is that it will display a 
+HTML
+page including a header which is the path to the image. It will include 
+also
+include an &lt;img&gt; tag so that the image will be loaded into the HTML 
+page as
+well.
+
+In terms of what you are probably wanting, the important thing is the
+&quot;req.path_info&quot; data. This is the part of the path which matches beyond 
+the
+actual content handler found to service the request. This was used to 
+look
+in the &quot;library&quot; directory to see if there was a corresponding image 
+with
+a supported extension type.
+
+If none was found, a not found error would be returned. If one was, the
+HTML page would be displayed.
+
+One could if one wants, really fancy up the HTML page and also detect 
+when
+reference was made to a directory and generate a HTML index page 
+instead.
+With the help of other content handler scripts, one could even generate
+thumbnails on the fly in the index pages where appropriate.
+
+Anyway, not sure how close this might be to what you want to finally
+achieve, but at least shows use of &quot;req.path_info&quot;.
+
+Note that the reason I had to rename the directory containing the 
+images is
+that the way Apache resolves paths, it will give precedence to 
+subdirectory
+search matching and thus will not hand off control to Vampire properly 
+if I
+had &quot;photos.py&quot; handler and &quot;photos&quot; directory.
+
+I could have instead put the code in the &quot;photos&quot; subdirectory, but 
+wouldn't
+have called it &quot;index.py&quot; but &quot;browse.py&quot;. This is nothing to do with 
+the
+problems that mod_python.publisher has with having lots of files called
+&quot;index.py&quot;, as Vampire can quite happily cope with that. It is because 
+the
+URL would then needed to have instead be:
+
+   <A HREF="http://websitename/photos/browse/2004/10/01/137">http://websitename/photos/browse/2004/10/01/137</A>
+
+It looks better to have &quot;browse&quot; rather than &quot;index&quot;. Note though that 
+if
+I had called it &quot;browse.py&quot; and put it in the directory itself, the code
+would need a slight tweak and where &quot;subdir&quot; is set to &quot;library&quot;, make 
+it &quot;.&quot;
+instead. Ie., start searching from the current directory and not a 
+&quot;library&quot;
+subdirectory.
+
+Hope this is of interest. This might actually be a good example for me 
+of
+showing off Vampire. Although, I could see it being extended further 
+than
+this simple bit of code to become a nice photo album viewer.
+
+Graham
+
+
+# Now for the code.
+
+from mod_python import apache
+
+import os
+import posixpath
+
+_PAGE = &quot;&quot;&quot;
+&lt;html&gt;
+&lt;body&gt;
+&lt;h1&gt;Photo: %(name)s&lt;/h1&gt;
+&lt;img src=&quot;%(url)s&quot; /&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+&quot;&quot;&quot;
+
+# Handler for virtual directory.
+
+def handler(req):
+
+   # Determine stub of image file to view.
+
+   if req.path_info == &quot;&quot;:
+     return apache.HTTP_BAD_REQUEST
+   elif req.path_info == &quot;/&quot;:
+     return apache.HTTP_BAD_REQUEST
+
+   name = os.path.splitext(req.path_info[1:])[0]
+
+   # Determine what type of image file it is.
+
+   subdir = &quot;library&quot;
+   # subdir = &quot;.&quot;  # use this if wanting to make it &quot;browse.py&quot; in 
+&quot;photos&quot; subdir
+
+   root = os.path.join(os.path.dirname(req.filename),subdir)
+
+   path = None
+   extn = None
+
+   allowed = [ &quot;.jpg&quot;, &quot;.gif&quot; ]
+
+   for suffix in allowed:
+     file = os.path.join(root,name) + suffix
+
+     if os.path.exists(file):
+       path = file
+       extn = suffix
+
+   if path == None:
+     return apache.HTTP_NOT_FOUND
+
+   # Determine the URL to the actual image.
+
+   baseurl = os.path.dirname(req.uri[:-len(req.path_info)])
+
+   url = posixpath.join(baseurl,subdir,name+extn)
+
+   content = _PAGE % { &quot;name&quot;: name, &quot;url&quot;: url }
+
+   # Return the rendered page content.
+
+   req.content_type = &quot;text/html&quot;
+   req.send_http_header()
+
+   req.write(content)
+
+   return apache.OK
+
+
+
+
+
+
+
+
+
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017335.html">[mod_python] Force reload?
+</A></li>
+	<LI>Next message: <A HREF="017368.html">[mod_python] Re: Photo Album Viewer and req.path_into.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17347">[ date ]</a>
+              <a href="thread.html#17347">[ thread ]</a>
+              <a href="subject.html#17347">[ subject ]</a>
+              <a href="author.html#17347">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

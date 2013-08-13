@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonImport question
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonImport%20question&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008164.html">
+   <LINK REL="Next"  HREF="008166.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] PythonImport question</H1>
+    <B>G . Sumner Hayes</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonImport%20question&In-Reply-To="
+       TITLE="[mod_python] PythonImport question">SumnerH at fool.com
+       </A><BR>
+    <I>Mon May 14 18:33:44 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008164.html">[mod_python] problem with publisher.py File class w/ possible
+ fix
+</A></li>
+        <LI>Next message: <A HREF="008166.html">[mod_python] empty apache Connection object
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8165">[ date ]</a>
+              <a href="thread.html#8165">[ thread ]</a>
+              <a href="subject.html#8165">[ subject ]</a>
+              <a href="author.html#8165">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Brief version:
+I have a patch to make PythonImport take place during server init
+instead of child init--is there any chance it would be accepted?
+
+Long version:
+So the PythonImport documentation says:
+
+:<i> Tells the server to import the Python module module at process
+</I>:<i> startup. This is useful for initialization tasks that could be
+</I>:<i> time consuming and should not be done at the request processing
+</I>:<i> time, e.g. initializing a database connection.
+</I>:<i>
+</I>:<i> The import takes place at child process initialization, so the
+</I>:<i> module will actually be imported once for every child process
+</I>:<i> spawned.
+</I>
+Having the import take place at every child process
+initialization seems to run counter to the purpose of the
+statement (doing time consuming server startup stuff).  It
+also makes the various children have potentially different
+PythonImport'd contents if the module(s) imported that way
+are edited in place.
+
+I'm wondering if anyone actually wants that behavior; it seems
+like it'd be better to do the PythonImport exactly once at server
+startup.
+
+Rationale 1:
+Suppose I have a ton of expensive startup work to do in my
+PythonImport lines.  Furthermore, I need to be able to do
+apache graceful restarts even while under heavy load.  Here's
+a sketch of how the apache graceful restarts work--I'll pretend
+there are 3 different types of apache process, a &quot;master control
+program&quot; or MCP which coordinates startup, a &quot;pool master&quot; or
+PM which spawns children as needed, and the child processes
+or CPs.
+
+1.  A user sends MCP a SIGUSR1 signal indicating a graceful
+restart should take place.  The old PM and CPs continue
+handling incoming requests.
+2.  MCP starts up a new PM, which reads all startup files and
+processes them; this includes running the server init functions
+for apache modules (in particular mod_python).
+3.  New PM finishes reading startup and fork()s off new CPs (as
+per the MinSpareServers and related apache directives).  After
+forking new CPs, the new PM tells the MCP that it is ready to
+go.
+4.  MCP tells old PM to shut down and routes all new incoming
+requests to the new PM. 
+5.  Old PM tells old CPs to exit; if they're idle, they exit
+immediately.  If they're serving a request, they finish doing
+so and then exit.
+
+Pretty elegant; you can change the entire apache config on the
+fly without dropping any connections.  You can even update shared
+objects this way without dropping connections; you can e.g.
+migrate from python 1.5.2 to Stackless Python 2.0 (potentially
+with a new version of mod_python) seamlessly.
+
+_However_, step (3) gets us in trouble if PythonImports happen
+in the child process--the old PM will be exiting while the new
+CPs are busy doing whatever (potentially many-second or evan
+minute-long) the PythonImports say to do.
+
+If PythonImports took place in the server init, they'd get done
+before the new PM/CPs took over; the old ones would continue
+serving requests until the new ones were ready.
+
+(Yes, the setup involved will have high-availability measures
+in place, but it'd be really nice to have this feature for a
+number of reasons).
+
+Rationale 2:
+It's far more &quot;apache-like&quot; for configuration data to be read
+exactly 1 time at startup and then re-read when explicitly asked
+to do so (via a graceful restart).  As it stands now, if I'm
+importing mystuff.py via PythonImport and I edit that file while
+the server is running, some apache children (which started before
+my edits) will have the old mystuff module and others (which
+happened to start after my edits) will have the new one.  That's
+confusing and potentially dangerous, and if I'm editing files
+in place (groan, I know) it's full of nasty races.
+
+Let me know and I'll send a patch.
+
+  Sumner
+
+-- 
+rage, rage against the dying of the light
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008164.html">[mod_python] problem with publisher.py File class w/ possible
+ fix
+</A></li>
+	<LI>Next message: <A HREF="008166.html">[mod_python] empty apache Connection object
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8165">[ date ]</a>
+              <a href="thread.html#8165">[ thread ]</a>
+              <a href="subject.html#8165">[ subject ]</a>
+              <a href="author.html#8165">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

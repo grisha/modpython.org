@@ -1,0 +1,111 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] File Sessions security problem?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20File%20Sessions%20security%20problem%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021448.html">
+   <LINK REL="Next"  HREF="021451.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] File Sessions security problem?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20File%20Sessions%20security%20problem%3F&In-Reply-To="
+       TITLE="[mod_python] File Sessions security problem?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Jun 21 18:31:18 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021448.html">[mod_python] File Sessions security problem?
+</A></li>
+        <LI>Next message: <A HREF="021451.html">[mod_python] File Sessions security problem?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21449">[ date ]</a>
+              <a href="thread.html#21449">[ thread ]</a>
+              <a href="subject.html#21449">[ subject ]</a>
+              <a href="author.html#21449">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>marinus van aswegen wrote ..
+&gt;<i> Hi
+</I>&gt;<i> 
+</I>&gt;<i> I have been playing with mod_python (ubuntu std, breezy build) and I
+</I>&gt;<i> noticed that the sessions db is stored in the /tmp dir with
+</I>&gt;<i> permissions that will permit any user to read the file. I'm not to
+</I>&gt;<i> happy with this since I store some very sensitive info in the session
+</I>&gt;<i> object.
+</I>&gt;<i> 
+</I>&gt;<i> It's easy to chmod it, but perhaps it would be better to create the
+</I>&gt;<i> file with more restrictive permissions?
+</I>
+The FileSession code uses file() to create the file. As such the file
+permissions are dictated by the umask of the user that Apache runs as.
+
+Unfortunately file() doesn't allow a more constrained umask to be
+provided when creating a file and calling os.chmod() after the fact
+still allows a window, albeit small, where things could be done with the
+file.
+
+Thus, the code should perhaps instead us os.open(). Thus something like:
+
+  os.open(filename, os.O_RDWR | os.O_CREAT, 0600)
+
+But then that returns a file descriptor ID and not a file like object
+and it can't just be passed straight into cPickle.dump(), thus before
+doing that, probably need to send it through os.fdopen() to create
+a file like object.
+
+Anyway, doing this would allow one to constrain the umask.
+
+Comments??
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021448.html">[mod_python] File Sessions security problem?
+</A></li>
+	<LI>Next message: <A HREF="021451.html">[mod_python] File Sessions security problem?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21449">[ date ]</a>
+              <a href="thread.html#21449">[ thread ]</a>
+              <a href="subject.html#21449">[ subject ]</a>
+              <a href="author.html#21449">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

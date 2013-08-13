@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Building a web application using Cheetah
+	andmod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Building%20a%20web%20application%20using%20Cheetah%0A%09andmod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022441.html">
+   <LINK REL="Next"  HREF="022444.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Building a web application using Cheetah
+	andmod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Building%20a%20web%20application%20using%20Cheetah%0A%09andmod_python&In-Reply-To="
+       TITLE="[mod_python] Building a web application using Cheetah
+	andmod_python">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Oct 31 17:51:53 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022441.html">[mod_python] Building a web application using Cheetah and
+	mod_python
+</A></li>
+        <LI>Next message: <A HREF="022444.html">[mod_python] Building a web application using Cheetah and
+	mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22442">[ date ]</a>
+              <a href="thread.html#22442">[ thread ]</a>
+              <a href="subject.html#22442">[ subject ]</a>
+              <a href="author.html#22442">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote ..
+&gt;<i> Sebastian Celis wrote ..
+</I>&gt;<i> &gt; 3) Cheetah and #include
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I have read a lot about why mod_python sets the current working
+</I>&gt;<i> &gt; directory to '/', but this seems to be causing some larger problems
+</I>&gt;<i> &gt; when cheetah comes into play.  (3) and (4) discuss two issues that I
+</I>&gt;<i> &gt; am having trouble with.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Here is /var/www/app/templates/testPage.tmpl:
+</I>&gt;<i> &gt; ###
+</I>&gt;<i> &gt; #include 'header_include.tmpl'
+</I>&gt;<i> &gt; &lt;head&gt;
+</I>&gt;<i> &gt; &lt;title&gt;$title&lt;/title&gt;
+</I>&gt;<i> &gt; &lt;/head&gt;
+</I>&gt;<i> &gt; &lt;body&gt;
+</I>&gt;<i> &gt; &lt;p&gt;$message&lt;/p&gt;
+</I>&gt;<i> &gt; &lt;/body&gt;
+</I>&gt;<i> &gt; #include 'footer_include.tmpl'
+</I>&gt;<i> &gt; ###
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; However, as this actually tries to load /header_include.tmpl and
+</I>&gt;<i> &gt; /footer_include.tmpl instead of the ones located in my templates
+</I>&gt;<i> &gt; directory, this will not work.  I came up with two workarounds,
+</I>&gt;<i> &gt; however I don't really love either:
+</I>&gt;<i> 
+</I>&gt;<i> Use something like:
+</I>&gt;<i> 
+</I>&gt;<i>   from mod_python import apache
+</I>&gt;<i>   from Cheetah.Template import Template
+</I>&gt;<i> 
+</I>&gt;<i>   ### START NEW CODE
+</I>&gt;<i> 
+</I>&gt;<i>   class PathResolver:
+</I>&gt;<i>       def __init__(self, base):
+</I>&gt;<i>           self.__base = base
+</I>&gt;<i>       def __call__(self, path=None):
+</I>&gt;<i>           if path:
+</I>&gt;<i>              return os.path.join(self.__base, path)
+</I>&gt;<i>           return None
+</I>&gt;<i> 
+</I>&gt;<i>   ### FINISH NEW CODE
+</I>&gt;<i> 
+</I>&gt;<i>   def index(req):
+</I>&gt;<i>       req.content_type = &quot;text/html&quot;
+</I>&gt;<i>   
+</I>&gt;<i>       dict = {'title': 'My Title!', 'message': 'Hello world!'}
+</I>&gt;<i>       templateModule = apache.import_module(&quot;templates/myTemplate&quot;)
+</I>&gt;<i>       t = getattr(templateModule, &quot;myTemplate&quot;)()
+</I>&gt;<i>       searchList = t.searchList()
+</I>&gt;<i>       searchList.insert(0, dict)
+</I>&gt;<i>   
+</I>&gt;<i>       ### START NEW CODE
+</I>&gt;<i> 
+</I>&gt;<i>       # Override Servlet.serverSidePath so that it returns path
+</I>&gt;<i>       # relative to the directory where we say module is located.
+</I>&gt;<i> 
+</I>&gt;<i>       t.serverSidePath = PathResolver(os.path.dirname(templateModule.__file__))
+</I>&gt;<i> 
+</I>&gt;<i>       ### FINISH NEW CODE
+</I>&gt;<i> 
+</I>&gt;<i>       return(t.respond())
+</I>&gt;<i> 
+</I>&gt;<i> This replaces the underlying method that is used calculate the actual
+</I>&gt;<i> path when you use #include. By doing it in the servlet, you don't have
+</I>&gt;<i> to do anything trick in the actual .tmpl file.
+</I>
+Or even simpler:
+
+  def index(req):
+      req.content_type = &quot;text/html&quot;
+  
+      dict = {'title': 'My Title!', 'message': 'Hello world!'}
+      templateModule = apache.import_module(&quot;templates/myTemplate&quot;)
+      t = getattr(templateModule, &quot;myTemplate&quot;)()
+      searchList = t.searchList()
+      searchList.insert(0, dict)
+
+      ### START NEW CODE
+  
+      t.serverSidePath = lambda x: os.path.join(os.path.dirname(templateModule.__file__), x)
+
+      ### FINISH NEW CODE
+
+      return(t.respond())
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022441.html">[mod_python] Building a web application using Cheetah and
+	mod_python
+</A></li>
+	<LI>Next message: <A HREF="022444.html">[mod_python] Building a web application using Cheetah and
+	mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22442">[ date ]</a>
+              <a href="thread.html#22442">[ thread ]</a>
+              <a href="subject.html#22442">[ subject ]</a>
+              <a href="author.html#22442">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

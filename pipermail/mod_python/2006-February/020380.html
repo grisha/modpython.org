@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] req.user and SSL?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20req.user%20and%20SSL%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020369.html">
+   <LINK REL="Next"  HREF="020407.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] req.user and SSL?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Bud P. Bruegger</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20req.user%20and%20SSL%3F&In-Reply-To="
+       TITLE="[mod_python] req.user and SSL?">bud at comune.grosseto.it
+       </A><BR>
+    <I>Tue Feb 21 05:42:58 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020369.html">[mod_python] req.user and SSL?
+</A></li>
+        <LI>Next message: <A HREF="020407.html">[mod_python] req.user and SSL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20380">[ date ]</a>
+              <a href="thread.html#20380">[ thread ]</a>
+              <a href="subject.html#20380">[ subject ]</a>
+              <a href="author.html#20380">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>At 11.53 20/02/2006 -0500, Deron Meranda wrote:
+&gt;<i> &gt;&gt;I have a problem reading req.user when using mod-SSL with the
+</I>&gt;<i> &gt;&gt;+FakeBasicAuth option and setting SSLUser:  req.user always seems
+</I>&gt;<i> &gt;&gt;to be undefined.
+</I>&gt;<i>...
+</I>&gt;<i> &gt; I understood that the mod-ssl directive
+</I>&gt;<i> &gt; &gt;SSLUserName SSL_CLIENT_S_DN_X509
+</I>&gt;<i> &gt; tells it to set the subject DN as req.user.  Did I understand this
+</I>&gt;<i> &gt; incorrectly?
+</I>&gt;<i>
+</I>&gt;<i> &gt;From the mod_ssl docs:
+</I>&gt;<i>
+</I>&gt;<i>     &quot;Note that this [SSLUserName] directive has no effect
+</I>&gt;<i>     if the FakeBasic option is used.&quot;
+</I>&gt;<i>
+</I>&gt;<i>The FaseBasicAuth processing is done early in the UserCheck phase.
+</I>&gt;<i>Essentially what it does is to synthesize an &quot;Authorization&quot; header as
+</I>&gt;<i>if the user agent sent it; but otherwise doesn't set anything else.
+</I>&gt;<i>In this case the username will be the client DN string, and the
+</I>&gt;<i>password will be &quot;password&quot;, and the authorization scheme is &quot;Basic&quot;.
+</I>&gt;<i>Thus it is still up to a later handler, such as auth_basic, to then
+</I>&gt;<i>re-interpret the authorization header, and set up the req-&gt;user field.
+</I>&gt;<i>  Of course this means that the DN and &quot;password&quot; needs to be in one of
+</I>&gt;<i>it's backend provider databases (httpasswd, LDAP, etc), or it will be
+</I>&gt;<i>rejected as a bad login.
+</I>&gt;<i>
+</I>&gt;<i>[To prevent spoofing, any actual Authorization header sent by the real
+</I>&gt;<i>user agent is rejected if the password is &quot;password&quot; and the username
+</I>&gt;<i>starts with a &quot;/&quot;.  So likewise if that username starts with &quot;/&quot; and
+</I>&gt;<i>the password was &quot;password&quot;, you know it was a synthesized &quot;fake&quot;
+</I>&gt;<i>login by mod_ssl.]
+</I>&gt;<i>
+</I>&gt;<i>The SSLUserName processing on the other hand is done in the middle of
+</I>&gt;<i>the Access phase.  The req-&gt;user is set directly to whatever ssl
+</I>&gt;<i>variable you specify (which internally uses the ssl_var_lookup()
+</I>&gt;<i>method).  Note though that this phase is designed for access control,
+</I>&gt;<i>not for authentication.  So if it gets this far, the client cert has
+</I>&gt;<i>already been &quot;trusted&quot; as a valid user.  There obviously is no
+</I>&gt;<i>password and auth_basic doesn't get involved.
+</I>&gt;<i>
+</I>&gt;<i>Note that mod_ssl is full of informational logging, so you may be able
+</I>&gt;<i>to see what's going on by capturing the INFO level log output from
+</I>&gt;<i>apache.
+</I>
+Many thanks for clarifying this!  Now I understand much better and have to 
+play around to try it out.
+
+&gt;<i> &gt; This DN is a string; would there be any requirements for
+</I>&gt;<i> &gt; accepting a string as user name (e.g., illegal chars)?
+</I>&gt;<i>
+</I>&gt;<i>The only restriction I know of is that the user name can not contain a
+</I>&gt;<i>colon &quot;:&quot; (this restriction comes from the HTTP basic and digest RFC
+</I>&gt;<i>2617), nor a zero-byte.  Note that the DN will always start with a &quot;/&quot;
+</I>&gt;<i>character.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; &gt;Second is that mod_ssl only populates req.user from a MIDDLE hook of the
+</I>&gt;<i> &gt; &gt;access handler.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Ok, so possibly I don't see it in the access hander, but then I should see
+</I>&gt;<i> &gt; it in the Fixup stage, shouldn't I?
+</I>&gt;<i>
+</I>&gt;<i>Should be correct.  Of course you can still get the DN yourself via
+</I>&gt;<i>ssl_var_lookup() and just ignore the req-&gt;user.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; Would you recommend to take the trunk instead?
+</I>&gt;<i>
+</I>&gt;<i>As Graham said the trunk is probably okay.  But if you're just a bit
+</I>&gt;<i>more cautious, you can grab a stable release (3.2.7 for instance) and
+</I>&gt;<i>just apply the one set of patches in MODPYTHON-94.
+</I>&gt;<i>
+</I>&gt;<i>If you do that though just one head's up.... the patch attached to the
+</I>&gt;<i>issue uses the method name &quot;ssl_var()&quot;, whereas it is integrated on
+</I>&gt;<i>the trunk (and in future relases) as &quot;ssl_var_lookup()&quot;.  There's a
+</I>&gt;<i>couple other tiny differences too...so read all the notes to the #94
+</I>&gt;<i>issue and decide for yourself whether you go with the whole trunk or
+</I>&gt;<i>just this patch.
+</I>
+I was actually thinking of doing a back porting of the patch to the version 
+of mod-python I currently run.  It looked straight forward enough.  I 
+started to read up on how to recompile Debian src packages..
+
+&gt;<i>Also, any feedback (good or bad) is certainly welcome, as this SSL
+</I>&gt;<i>functionality gets much narowwer testing than other parts of
+</I>&gt;<i>mod_python.
+</I>
+Sure will if I get it to work.
+
+Again, many thanks for very useful input!
+
+&gt;<i>--
+</I>&gt;<i>Deron Meranda
+</I>
+
+-------------------------------------------------------------------------------------------------
+Ing. Bud P. Bruegger, Ph.D.                 +39-0564-488577 
+(voice),  -21139 (fax)
+Servizio Elaborazione Dati                    e-mail:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at comune.grosseto.it</A>
+Comune di Grosseto                            jabber:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at jabber.no</A>
+Via Ginori, 
+43                                      <A HREF="http://www.comune.grosseto.it/cie/">http://www.comune.grosseto.it/cie/</A>
+58100 Grosseto (Tuscany, 
+Italy)           <A HREF="http://www.comune.grosseto.it/interopEID/">http://www.comune.grosseto.it/interopEID/</A> 
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020369.html">[mod_python] req.user and SSL?
+</A></li>
+	<LI>Next message: <A HREF="020407.html">[mod_python] req.user and SSL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20380">[ date ]</a>
+              <a href="thread.html#20380">[ thread ]</a>
+              <a href="subject.html#20380">[ subject ]</a>
+              <a href="author.html#20380">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

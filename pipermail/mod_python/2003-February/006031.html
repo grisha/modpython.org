@@ -1,0 +1,214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: pso and mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20pso%20and%20mod_python&In-Reply-To=20030212145018.GA1414%40mico">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006029.html">
+   <LINK REL="Next"  HREF="006030.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: pso and mod_python</H1>
+    <B>thanos at 0x01.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20pso%20and%20mod_python&In-Reply-To=20030212145018.GA1414%40mico"
+       TITLE="[mod_python] Re: pso and mod_python">thanos at 0x01.com
+       </A><BR>
+    <I>Wed Feb 12 18:28:45 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006029.html">[mod_python] Date persistence accross connections.
+</A></li>
+        <LI>Next message: <A HREF="006030.html">[mod_python] Date persistence accross connections. 
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6031">[ date ]</a>
+              <a href="thread.html#6031">[ thread ]</a>
+              <a href="subject.html#6031">[ subject ]</a>
+              <a href="author.html#6031">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>yes I forgot to mention the following: 
+
+mod_python by default looks for a method in your module called &quot;handler&quot;
+so given this line in your .htaccess:
+PythonHandler test 
+
+your should add
+&gt;<i> class TestHandler(TemplateHandler):
+</I>&gt;<i>     DEFAULT_TEMPLATE='cat_border'
+</I>handler = TestHandler().handle 
+
+On the other hand with mod_python you can stipulate which handler to use:
+PythonHandler test:TestHandler.handle 
+
+But your handler class muts take a request object as an argument to the 
+constructor. pso's TemplateHandler does not have a CTOR defined (Opps)
+so you will have to add your own:
+class TestHandler(TemplateHandler):
+   def __init__(self, req):
+        TemplateHandler.__init__(self) 
+
+I hope this helps 
+
+thanos 
+
+ 
+
+ 
+
+ 
+
+
+Jeffrey Clement writes: 
+
+&gt;<i> Thank you for your help.  I think I'm still missing something.  What is
+</I>&gt;<i> test.py? 
+</I>&gt;<i> 
+</I>&gt;<i> If I wanted: 
+</I>&gt;<i> 
+</I>&gt;<i> from pso.service import ServiceHandler
+</I>&gt;<i> from pso.handlers import TemplateHandler
+</I>&gt;<i> from dbsession import CookieDBImpl 
+</I>&gt;<i> 
+</I>&gt;<i> class TestHandler(TemplateHandler):
+</I>&gt;<i>     DEFAULT_TEMPLATE='cat_border' 
+</I>&gt;<i> 
+</I>&gt;<i> if __name__=='__main__':
+</I>&gt;<i>     ServiceHandler().run(TestHandler().handle, CookieDBImpl) 
+</I>&gt;<i> 
+</I>&gt;<i> How do I make this get run by mod_python.  It needs a handle method
+</I>&gt;<i> right?  And that takes a requestInfo parameter.  I assume the
+</I>&gt;<i> pso.modpython::fixup adds the pso() method to the request handler but
+</I>&gt;<i> how do I use this with my templateHandler? 
+</I>&gt;<i> 
+</I>&gt;<i> Thank you for all your help.  I'm finding PSO to be awesome for thhe
+</I>&gt;<i> current project I'm working on only just getting hung up once in a
+</I>&gt;<i> while. 
+</I>&gt;<i> 
+</I>&gt;<i> Jeff 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On Tue, Feb 11, 2003 at 05:41:16PM -0500, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">thanos at 0x01.com</A> wrote:
+</I>&gt;&gt;<i> Jeffrey,  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> You are right: the problem lies with your .htaccess file. It should be:  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i>  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> AddHandler python-program .py
+</I>&gt;&gt;<i> PythonHandler test
+</I>&gt;&gt;<i> PythonFixupHandler pso.modpython::fixup
+</I>&gt;&gt;<i> PythonLogHandler pso.modpython::cleanup  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> You have to set the PythonFixupHandler and PythonLogHandler so pso can set 
+</I>&gt;&gt;<i> thing up such as the session handling.  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> A look through the pso guide 
+</I>&gt;&gt;<i> [<A HREF="http://sourceforge.net/docman/display_doc.php?docid=11314&amp;group_id=49265]">http://sourceforge.net/docman/display_doc.php?docid=11314&amp;group_id=49265]</A> 
+</I>&gt;&gt;<i> shows me that this information is missing. It is
+</I>&gt;&gt;<i> metioned in the &quot;Easy mod_python Session Handling with pso.session&quot; how-to
+</I>&gt;&gt;<i> [<A HREF="http://www.scriptfoundry.com/modules/pso/doc/session-modpython.html]">http://www.scriptfoundry.com/modules/pso/doc/session-modpython.html]</A> so I 
+</I>&gt;&gt;<i> guess I am not completly guilty!  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> Also trying out the sample mod_python code in the guide, i find things are 
+</I>&gt;&gt;<i> broken. So I will post two bug reports to fix these problems.  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> thanos  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i>  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i>  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> Jeffrey Clement writes:  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> &gt;Hi there, 
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;I'm trying to use PSO with mod_python and having some difficulties that
+</I>&gt;&gt;<i> &gt;I hope you can assist me with. 
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;I have my appliaction: (test.py)
+</I>&gt;&gt;<i> &gt;=====================================================================
+</I>&gt;&gt;<i> &gt;from pso.service import ServiceHandler
+</I>&gt;&gt;<i> &gt;from pso.handlers import TemplateHandler
+</I>&gt;&gt;<i> &gt;from dbsession import CookieDBImpl 
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;class TestHandler(TemplateHandler):
+</I>&gt;&gt;<i> &gt;    DEFAULT_TEMPLATE='cat_border' 
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;if __name__ == '__main__':
+</I>&gt;&gt;<i> &gt;    ServiceHandler().run(TestHandler().handle, CookieDBImpl)
+</I>&gt;&gt;<i> &gt;===================================================================== 
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;This above script runs fine as a CGI script.  However I have no idea how
+</I>&gt;&gt;<i> &gt;to make it run as a mod_python script. 
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;I've got modpython installed and tested (I know it's OK) but It won't
+</I>&gt;&gt;<i> &gt;run my scripts.  I suspect the problem is I'm not understanding what
+</I>&gt;&gt;<i> &gt;exactly goes in .htaccess 
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;I currently have:
+</I>&gt;&gt;<i> &gt;  AddHandler python-program .py
+</I>&gt;&gt;<i> &gt;  PythonHandler test.py
+</I>&gt;&gt;<i> &gt;  PythonDebug On 
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;I know mod_python looks for a method handle.  Is there a mod_python
+</I>&gt;&gt;<i> &gt;wrapper that does I'm supposed to set as my PythonHandler?
+</I>&gt;&gt;<i> &gt;Thank you, Jeff 
+</I>&gt;&gt;<i> &gt; 
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i>  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> &gt;-- 
+</I>&gt;&gt;<i> &gt;Jeff Clement 
+</I>
+&gt;&gt;<i>  
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> 
+</I>
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006029.html">[mod_python] Date persistence accross connections.
+</A></li>
+	<LI>Next message: <A HREF="006030.html">[mod_python] Date persistence accross connections. 
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6031">[ date ]</a>
+              <a href="thread.html#6031">[ thread ]</a>
+              <a href="subject.html#6031">[ subject ]</a>
+              <a href="author.html#6031">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

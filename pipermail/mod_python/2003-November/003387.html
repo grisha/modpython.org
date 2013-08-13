@@ -1,0 +1,122 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] 
+	Re: Empty URL query elements causing mod_python 2.7.x and 3.0.x to
+	seg fault
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%0A%09Re%3A%20Empty%20URL%20query%20elements%20causing%20mod_python%202.7.x%20and%203.0.x%20to%0A%09seg%20fault&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003386.html">
+   <LINK REL="Next"  HREF="003388.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] 
+	Re: Empty URL query elements causing mod_python 2.7.x and 3.0.x to
+	seg fault</H1>
+    <B>Vaclav Blazek</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%0A%09Re%3A%20Empty%20URL%20query%20elements%20causing%20mod_python%202.7.x%20and%203.0.x%20to%0A%09seg%20fault&In-Reply-To="
+       TITLE="[mod_python] 
+	Re: Empty URL query elements causing mod_python 2.7.x and 3.0.x to
+	seg fault">blazek at firma.seznam.cz
+       </A><BR>
+    <I>Fri Nov 14 12:56:14 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003386.html">[mod_python] mod_python error with Fedora Core 1
+</A></li>
+        <LI>Next message: <A HREF="003388.html">[mod_python] req.write() can't take a tuple
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3387">[ date ]</a>
+              <a href="thread.html#3387">[ thread ]</a>
+              <a href="subject.html#3387">[ subject ]</a>
+              <a href="author.html#3387">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> OK, I wasn't using keep_blank_values=1
+</I>&gt;<i> So it looks like a bug in parse_qsl, but I don't know enough CPython to 
+</I>&gt;<i> debug it, maybe somebody else can :-)
+</I>
+&gt;<i> David
+</I>
+&gt;<i> PS Did you mean to send this to the list too?
+</I>
+Hello all mod_pythoner's,
+
+I'm sorry to reply to the message outside of it's thread, but I've just 
+subscribted to this mailing list and cannot get the Message-ID of the 
+original message.
+
+Well, the main problem is in functions parse_qs() and parse_qsl() 
+(src/_apachemodule.c). In these functions, there's the query-string broken by 
+the '&amp;' character and any part is considered as key=value pair which is then 
+broken by the '=' character and stored in dict (parse_qs) or in list 
+(parse_qsl).
+
+Everything is fine until the size of pair is 0. In this case, there are 
+created two python strings with zero length. Then the processing of both 
+parst is made and these python strings are resized to the new size, which is 
+also 0. But python (to be more precise, the function _PyString_Resize()) 
+complains (by an exception) when you try to resize string of size 0 to size 
+0. Since this exception is not handled and the _PyString_Resize() function 
+changes the pointer to the python string to NULL, next py_DECREF() causes 
+SIGSEGV.
+
+I've added code which tests original pair's length in both functions and skips 
+processing when string is empty.  I'm usign mod_python 3.0.3, but the code of 
+these functions is the same in the latest version. Here comes the diff:
+
+@@ -183,6 +183,11 @@
+        cpair = PyString_AS_STRING(pair);
+
+        len = strlen(cpair);
++        if (!len) {
++            /* Skip processing of empty string. */
++            ++n;
++            continue;
++        }
+        key = PyString_FromStringAndSize(NULL, len);
+        if (key == NULL)
+            return NULL;
+@@ -301,6 +306,11 @@
+
+        /* split the &quot;abc=def&quot; pair */
+        plen = strlen(cpair);
++        if (!plen) {
++            /* Skip  processing of empty string. */
++            ++i;
++            continue;
++        }
+        key = PyString_FromStringAndSize(NULL, plen);
+        if (key == NULL)
+            return NULL;
+
+--
+Vaclav Blazek, Programer
+Seznam.cz a.s., Prague, Czech Republic
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003386.html">[mod_python] mod_python error with Fedora Core 1
+</A></li>
+	<LI>Next message: <A HREF="003388.html">[mod_python] req.write() can't take a tuple
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3387">[ date ]</a>
+              <a href="thread.html#3387">[ thread ]</a>
+              <a href="subject.html#3387">[ subject ]</a>
+              <a href="author.html#3387">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

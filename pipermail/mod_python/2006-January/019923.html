@@ -1,0 +1,266 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] make failed on AIX 5.1 using xlc
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20make%20failed%20on%20AIX%205.1%20using%20xlc&In-Reply-To=s3c3981f.081%40gwn0201.eumetsat.int">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019922.html">
+   <LINK REL="Next"  HREF="019924.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] make failed on AIX 5.1 using xlc</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20make%20failed%20on%20AIX%205.1%20using%20xlc&In-Reply-To=s3c3981f.081%40gwn0201.eumetsat.int"
+       TITLE="[mod_python] make failed on AIX 5.1 using xlc">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Jan 10 05:33:57 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019922.html">[mod_python] make failed on AIX 5.1 using xlc
+</A></li>
+        <LI>Next message: <A HREF="019924.html">[mod_python] make failed on AIX 5.1 using xlc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19923">[ date ]</a>
+              <a href="thread.html#19923">[ thread ]</a>
+              <a href="subject.html#19923">[ subject ]</a>
+              <a href="author.html#19923">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 10/01/2006, at 9:18 PM, Hans-Joachim Ehlers wrote:
+
+&gt;<i> 2)
+</I>&gt;<i> Under AIX the Compilation of python is somehow quite uncommon
+</I>&gt;<i> Just see the out from from the mod_python make:
+</I>&gt;<i>
+</I>&gt;<i> /usr/local/apache2/build/libtool --silent --mode=link xlc_r -o
+</I>&gt;<i> mod_python.la  -rpath /usr/local/apache2/modules -module -avoid-version
+</I>&gt;<i> -Wl,-brtl  hlistobject.lo hlist.lo filterobject.lo connobject.lo
+</I>&gt;<i> serverobject.lo util.lo tableobject.lo requestobject.lo 
+</I>&gt;<i> _apachemodule.lo
+</I>&gt;<i> mod_python.lo -L/usr/local/lib/python2.4/config
+</I>&gt;<i> -Wl,-bE:Modules/python.exp -lld -L/opt/freeware/lib -ltk8.3 -ltcl8.3 
+</I>&gt;<i> -lm
+</I>&gt;<i> -lpython2.4 -ldl -lm
+</I>&gt;<i> ld: 0706-004 Cannot find or read export file: Modules/python.exp
+</I>&gt;<i>
+</I>&gt;<i> These ./python.exp can be found as
+</I>&gt;<i> /usr/local/lib/python2.4/config/python.exp in the installed python
+</I>&gt;<i> distribution
+</I>&gt;<i> So the Makefile for Modpython should have a Section for AIX where the
+</I>&gt;<i> makefile does the following:
+</I>&gt;<i> Get the python installation directory ( in my case
+</I>&gt;<i> /usr/local/lib/python2.4 )
+</I>&gt;<i> Create a Subdirectory in ./src for Modules ( mkdir Modules )
+</I>&gt;<i> Creates a Link in ./src/Modules to
+</I>&gt;<i> /usr/local/lib/python2.4/config/python.exp
+</I>&gt;<i>
+</I>&gt;<i> OR
+</I>&gt;<i> just makes mkdir ./src/Modules &amp;&amp; touch ./src/Modules/python.exp
+</I>&gt;<i>
+</I>&gt;<i> I have tested both without problems but i would prefer the first one.
+</I>
+Look at /usr/local/lib/python2.4/config/Makefile. The mod_python
+makefile is most likely getting the '-Wl,-bE:Modules/python.exp'
+out of there.
+
+Either one of two things might be wrong. First might be that the
+option is exactly that and therefore that Makefile in Python is wrong.
+
+Second thing that might be wrong is that the option is actually
+written as '-El,-bE:$(DESTDIR)$(LIBPL)/python.exp' and that is what
+mod_python is using but DESTDIR and LIBPL aren't actually set and
+thus are being replaced with nothing.
+
+If the latter, one might argue that mod_python could set one or both
+of these variables in its makefile somehow to ensure they are expanded
+correctly.
+
+Find where '-El,-bE' is defined in the Python installed Makefile and
+email back that line and the few either side of it.
+
+&gt;<i> After that i get from a make:
+</I>&gt;<i> xlc_r -O -Isrc/include -I/usr/local/include/python2.4 -c
+</I>&gt;<i> src/_pspmodule.c -o build/temp.aix-5.1-2.4/src/_pspmodule.o
+</I>&gt;<i> &quot;src/_pspmodule.c&quot;, line 32.61: 1506-137 (E) Declaration must declare
+</I>&gt;<i> at least one declarator, tag, or the members of an enumeration.
+</I>&gt;<i>
+</I>&gt;<i> but still compiles
+</I>
+If that is the line:
+
+   static int yy_init_globals (yyscan_t yyscanner ) {return 0;};
+
+it is because of the extraneous semicolon on the end of the line. From
+memory, both AIX C compiler and Sun C++ compiler would complain about
+such extra semicolons.
+
+&gt;<i> A make install will pass with out any error
+</I>&gt;<i> I would like to provide a patch file for the Makefile but i am a totaly
+</I>&gt;<i> newbe to C programming and building so i hope the above information 
+</I>&gt;<i> will
+</I>&gt;<i> help
+</I>&gt;<i>
+</I>&gt;<i> No runtime testing has been done yet
+</I>&gt;<i>
+</I>&gt;<i> With kind regards
+</I>&gt;<i> Hajo
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> &quot;Graham Dumpleton&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; 09/01/06 22:38 &gt;&gt;&gt;
+</I>&gt;<i> Seems to be some quirk with xlc compiler. Never liked that compiler,
+</I>&gt;<i> always did strange things.
+</I>&gt;<i>
+</I>&gt;<i> Try hacking the code so that instead of:
+</I>&gt;<i>
+</I>&gt;<i>   (destructor)request_dealloc,     /* tp_free */
+</I>&gt;<i>
+</I>&gt;<i> it says:
+</I>&gt;<i>
+</I>&gt;<i>   (void(*)(void*))request_dealloc,     /* tp_free */
+</I>&gt;<i>
+</I>&gt;<i> Try a typedef for the function pointer if I got the cast wrong or it
+</I>&gt;<i> doesn't want to accept that.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> Hans-Joachim Ehlers wrote ..
+</I>&gt;&gt;<i> Hi folk,
+</I>&gt;&gt;<i> i am trying to build mod-python 3.1.4 on AIX 5.1 with xlc
+</I>&gt;&gt;<i> During the gmake i get the following error: .... 1506-196 (E)
+</I>&gt;&gt;<i> Initialization between types &quot;void(*)(void*)&quot; and &quot;void(*)(struct
+</I>&gt;&gt;<i> _object*)&quot; is not allowed
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> any Tips ?
+</I>&gt;&gt;<i> tai
+</I>&gt;&gt;<i> Hajo
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> For details see below
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> given:
+</I>&gt;&gt;<i> AIX 5.1
+</I>&gt;&gt;<i> vac 6.0 ( IBM xlc)
+</I>&gt;&gt;<i> mod-python 3.1.4
+</I>&gt;&gt;<i> Python 2.4.2 build as shared Lib application
+</I>&gt;&gt;<i> Apache 2.0.55
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> $ ./configure CC=xlc_r \
+</I>&gt;&gt;<i>  --with-thread       \
+</I>&gt;&gt;<i>  --with-python=/usr/local/bin/python \
+</I>&gt;&gt;<i>  --with-apxs=/usr/local/apache2/bin/apxs
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> $ gmake[1]: Entering directory
+</I>&gt;&gt;<i> `/homespace/hjehlers/workbench/modpython/mod_python-3.1.4/src'
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Compiling for DSO.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> /usr/local/apache2/bin/apxs
+</I>&gt;&gt;<i>
+</I>&gt;<i> -I/homespace/hjehlers/workbench/modpython/mod_python-3.1.4/src/include
+</I>&gt;&gt;<i> -I/usr/local/apache2/include -I/usr/local/include/python2.4 -c
+</I>&gt;&gt;<i> mod_python.c _apachemodule.c requestobject.c tableobject.c util.c
+</I>&gt;&gt;<i> serverobject.c connobject.c filterobject.c hlist.c hlistobject.c
+</I>&gt;&gt;<i> -L/usr/local/lib/python2.4/config  -Wl,-bE:Modules/python.exp -lld
+</I>&gt;&gt;<i> -L/opt/freeware/lib -ltk8.3 -ltcl8.3    -lm  -lpython2.4   -ldl
+</I>&gt;<i> -lm
+</I>&gt;&gt;<i> /usr/local/apache2/build/libtool --silent --mode=compile xlc_r
+</I>&gt;&gt;<i> -prefer-pic   -U__STR__ -D_THREAD_SAFE -D_USE_IRS -DAP_DEBUG -g
+</I>&gt;<i> -qHALT=E
+</I>&gt;&gt;<i> -qfullpath -qinitauto=FE -qcheck=all -qinfo=pro
+</I>&gt;&gt;<i> -I/usr/local/apache2/include  -I/usr/local/apache2/include
+</I>&gt;&gt;<i> -I/usr/local/apache2/include
+</I>&gt;&gt;<i>
+</I>&gt;<i> -I/homespace/hjehlers/workbench/modpython/mod_python-3.1.4/src/include
+</I>&gt;&gt;<i> -I/usr/local/apache2/include -I/usr/local/include/python2.4  -c -o
+</I>&gt;&gt;<i> mod_python.lo mod_python.c &amp;&amp; touch mod_python.slo
+</I>&gt;&gt;<i> /usr/local/apache2/build/libtool --silent --mode=compile xlc_r
+</I>&gt;&gt;<i> -prefer-pic   -U__STR__ -D_THREAD_SAFE -D_USE_IRS -DAP_DEBUG -g
+</I>&gt;<i> -qHALT=E
+</I>&gt;&gt;<i> -qfullpath -qinitauto=FE -qcheck=all -qinfo=pro
+</I>&gt;&gt;<i> -I/usr/local/apache2/include  -I/usr/local/apache2/include
+</I>&gt;&gt;<i> -I/usr/local/apache2/include
+</I>&gt;&gt;<i>
+</I>&gt;<i> -I/homespace/hjehlers/workbench/modpython/mod_python-3.1.4/src/include
+</I>&gt;&gt;<i> -I/usr/local/apache2/include -I/usr/local/include/python2.4  -c -o
+</I>&gt;&gt;<i> _apachemodule.lo _apachemodule.c &amp;&amp; touch _apachemodule.slo
+</I>&gt;&gt;<i> /usr/local/apache2/build/libtool --silent --mode=compile xlc_r
+</I>&gt;&gt;<i> -prefer-pic   -U__STR__ -D_THREAD_SAFE -D_USE_IRS -DAP_DEBUG -g
+</I>&gt;<i> -qHALT=E
+</I>&gt;&gt;<i> -qfullpath -qinitauto=FE -qcheck=all -qinfo=pro
+</I>&gt;&gt;<i> -I/usr/local/apache2/include  -I/usr/local/apache2/include
+</I>&gt;&gt;<i> -I/usr/local/apache2/include
+</I>&gt;&gt;<i>
+</I>&gt;<i> -I/homespace/hjehlers/workbench/modpython/mod_python-3.1.4/src/include
+</I>&gt;&gt;<i> -I/usr/local/apache2/include -I/usr/local/include/python2.4  -c -o
+</I>&gt;&gt;<i> requestobject.lo requestobject.c &amp;&amp; touch requestobject.slo
+</I>&gt;&gt;<i> &quot;requestobject.c&quot;, line 1381.5: 1506-196 (E) Initialization between
+</I>&gt;&gt;<i> types &quot;void(*)(void*)&quot; and &quot;void(*)(struct _object*)&quot; is not
+</I>&gt;<i> allowed.
+</I>&gt;&gt;<i> apxs:Error: Command failed with rc=65536
+</I>&gt;&gt;<i> .
+</I>&gt;&gt;<i> gmake[1]: *** [mod_python.so] Error 1
+</I>&gt;&gt;<i> gmake[1]: Leaving directory
+</I>&gt;&gt;<i> `/homespace/hjehlers/workbench/modpython/mod_python-3.1.4/src'
+</I>&gt;&gt;<i> gmake: *** [do_dso] Error 2
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019922.html">[mod_python] make failed on AIX 5.1 using xlc
+</A></li>
+	<LI>Next message: <A HREF="019924.html">[mod_python] make failed on AIX 5.1 using xlc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19923">[ date ]</a>
+              <a href="thread.html#19923">[ thread ]</a>
+              <a href="subject.html#19923">[ subject ]</a>
+              <a href="author.html#19923">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

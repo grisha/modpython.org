@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] database connection
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20database%20connection&In-Reply-To=f80779f56c6a120e5cee4a18c91c7127%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019287.html">
+   <LINK REL="Next"  HREF="019291.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] database connection</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Julien Cigar</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20database%20connection&In-Reply-To=f80779f56c6a120e5cee4a18c91c7127%40dscpl.com.au"
+       TITLE="[mod_python] database connection">jcigar at ulb.ac.be
+       </A><BR>
+    <I>Sun Oct 16 05:42:29 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019287.html">[mod_python] database connection
+</A></li>
+        <LI>Next message: <A HREF="019291.html">[mod_python] database connection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19290">[ date ]</a>
+              <a href="thread.html#19290">[ thread ]</a>
+              <a href="subject.html#19290">[ subject ]</a>
+              <a href="author.html#19290">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+
+&gt;<i> A comment on something else in your example first.
+</I>&gt;<i>
+</I>&gt;&gt;<i> pageAction1 = apache.import_module('pages/action1')
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I wouldn't rely rely on being able to specific '/' in the module name as
+</I>&gt;<i> argument. The documentation only mentions that '.' can be used if
+</I>&gt;<i> needing to reference a subcomponent of a package. What you are doing is
+</I>&gt;<i> relying on a strange quirk of the implementation and in mod_python 3.3
+</I>&gt;<i> if the module loading system is overhauled there may be no guarantee
+</I>&gt;<i> that it would work the same. You could always campaign though that it
+</I>&gt;<i> is a useful future that should be maintained but documented. :-)
+</I>&gt;<i>
+</I>&gt;<i> BTW, does the &quot;pages&quot; directory actually have an &quot;__init__.py&quot; file. I
+</I>&gt;<i> think what you are doing doesn't require it to, but wanted to check if
+</I>&gt;<i> you do have it or not.
+</I>&gt;<i>
+</I>My directory structure looks like this :
+index.py
+config.cfg
+config.py
+pages/page1.py
+pages/page2.py
+pages/page3.py
+...
+
+My &quot;pages&quot; directory doesn't contain an __init__.py file (should I ?)
+I don't understand what's wrong with 
+apache.import_module(pages/page1.py) .. ? I always done like this :)
+Is it specific to mod_python ? I mean can you import pages/page1.py with 
+the classic Pyhon import ?
+
+&gt;<i> On 16/10/2005, at 4:28 AM, Julien Cigar wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Hello,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I use mod_python for some time now, and I wondered where's the best  
+</I>&gt;&gt;<i> place to manage database connections / cursors ?
+</I>&gt;&gt;<i> I run a home made 'publisher' handler and what I'm actually doing is  
+</I>&gt;&gt;<i> to open a global database connection in the index.py, and pass this  
+</I>&gt;&gt;<i> variable in classes ... is this the best way ?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> a little example:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -&gt; index.py:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> import psycopg
+</I>&gt;&gt;<i> from mod_python import apache
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> config = apache.import_module('config')
+</I>&gt;&gt;<i> connection = psycopg.connect(config.getDbConnectionString())
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Some will say that such resource initialisation should be done from a
+</I>&gt;<i> module imported using PythonImport. The argument is that such  
+</I>&gt;<i> potentially
+</I>&gt;<i> time consuming operations should be done at child process startup time.
+</I>&gt;<i> This is really only is valid for Win32 &quot;winnt&quot; MPM. There are also other
+</I>&gt;<i> problems with that approach, see:
+</I>&gt;<i>
+</I>&gt;<i>    <A HREF="http://www.modpython.org/pipermail/mod_python/2005-September/">http://www.modpython.org/pipermail/mod_python/2005-September/</A> 
+</I>&gt;<i> 019092.html
+</I>&gt;<i>
+</I>&gt;<i> Some of the problems described in that link are pertinent to your case
+</I>&gt;<i> as well. Ie., because you have done initialisation at module import  
+</I>&gt;<i> time,
+</I>&gt;<i> you only get one chance to do it. Thus you should consider only doing it
+</I>&gt;<i> the first time that a request comes in that requires the resource. That
+</I>&gt;<i> way you can deal with errors properly. You do though have to contend  
+</I>&gt;<i> with
+</I>&gt;<i> multithreading issues.
+</I>&gt;<i>
+</I>&gt;<i> Further problems with doing resource initialisation in a request handler
+</I>&gt;<i> module are that when the module is reloaded where PythonAutoReload is  
+</I>&gt;<i> on,
+</I>&gt;<i> the global data will be overwritten meaning your existing connection  
+</I>&gt;<i> will
+</I>&gt;<i> be lost. If it doesn't automatically disconnect properly when disposed
+</I>&gt;<i> of, it will stay open and each reload will result in another connection
+</I>&gt;<i> and thus waste of resources and database connections.
+</I>&gt;<i>
+</I>Right ... I haven't thought at this
+
+&gt;<i> In mod_python.publisher in mod_python 3.2 module loading works a bit
+</I>&gt;<i> differently and data will not be reloaded on top of the existing module
+</I>&gt;<i> but into a new one. You still result though in the old connection being
+</I>&gt;<i> lost and if it doesn't disconnect properly, similar problems.
+</I>&gt;<i>
+</I>&gt;<i> Thus, it is preferable that resource allocation and the storage of the
+</I>&gt;<i> handle be done in a Python module that is not imported using the module
+</I>&gt;<i> loading system of mod_python but that &quot;import&quot; be used instead. Such a
+</I>&gt;<i> module should preferably not be in the document tree but elsewhere on
+</I>&gt;<i> the Python path. As described in the link above, use an access function
+</I>&gt;<i> in that module which returns, and creates as necessary, the resource
+</I>&gt;<i> handle.
+</I>&gt;<i>
+</I>ok I'll try this.. I haven't yet played with apache.register_cleanup(), 
+that will be the occasion to do it :)
+
+&gt;<i> There is one other idea I have been toying with as to how to store such
+</I>&gt;<i> resource data to avoid some of these problems, but I'll leave that to
+</I>&gt;<i> another day. Probably prefer to write that up as a mini article on my
+</I>&gt;<i> web site. :-)
+</I>&gt;<i>
+</I>great :)
+Thanks for support !
+
+&gt;<i> Graham
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019287.html">[mod_python] database connection
+</A></li>
+	<LI>Next message: <A HREF="019291.html">[mod_python] database connection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19290">[ date ]</a>
+              <a href="thread.html#19290">[ thread ]</a>
+              <a href="subject.html#19290">[ subject ]</a>
+              <a href="author.html#19290">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

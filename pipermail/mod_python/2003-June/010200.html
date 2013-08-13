@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Using mod_python pythonauthenhandler with PSO
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20mod_python%20pythonauthenhandler%20with%20PSO&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010201.html">
+   <LINK REL="Next"  HREF="010206.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] Using mod_python pythonauthenhandler with PSO</H1>
+    <B>Roy S. Rapoport</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20mod_python%20pythonauthenhandler%20with%20PSO&In-Reply-To="
+       TITLE="[mod_python] Using mod_python pythonauthenhandler with PSO">mod_python at ols.inorganic.org
+       </A><BR>
+    <I>Thu Jun 26 01:04:02 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010201.html">[mod_python] value too large for PgNumeric
+</A></li>
+        <LI>Next message: <A HREF="010206.html">[mod_python] Using shared memory to do global persistence
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10200">[ date ]</a>
+              <a href="thread.html#10200">[ thread ]</a>
+              <a href="subject.html#10200">[ subject ]</a>
+              <a href="author.html#10200">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hey guys,
+
+Anyone have any experience integrating mod_python with Python Service
+Objects?
+
+I've got a problem where if I'm dealing with an authenhandler, I end up
+with an error message that says:
+---
+Mod_python error: &quot;PythonLogHandler pso.modpython::cleanup&quot;
+
+Traceback (most recent call last):
+
+  File
+&quot;/usr/local/Python/lib/python2.2/site-packages/mod_python/apache.py&quot;, line
+332, in HandlerDispatch
+    result = object(req)
+
+  File &quot;/usr/local/Python/lib/python2.2/site-packages/pso/modpython.py&quot;,
+line 36, in cleanup
+    service.cleanup(req)
+
+  File &quot;/usr/local/Python/lib/python2.2/site-packages/pso/service.py&quot;, line
+52, in cleanup
+    req.pso().close()
+
+AttributeError: 'mp_request' object has no attribute 'pso'
+---
+
+I'm pretty sure this is related to authenhandler because if you then try to
+access a resource under this directory -- which means that now you're not
+going through authenhandler -- it works.
+
+
+My script looks like this:
+
+---
+from mod_python import apache
+
+def foo(req):
+	try:
+		req.pso().session['visits'] +=1
+	except:
+		req.pso().session['visits'] =1
+	f = &quot;Hello World!  ~ Your visit number: %(visits)d ~ Try Reload !&quot; %  req.pso().session
+	return f
+
+def authenhandler(req):
+	user = req.user
+	pw = req.get_basic_auth_pw()
+
+	if (user == &quot;foo&quot; and pw == &quot;bar&quot;):
+		return apache.OK
+	else:
+		return apache.HTTP_UNAUTHORIZED
+---
+
+my .htaccess looks like this:
+---
+AddHandler python-program .py
+PythonHandler mod_python.publisher
+pythonauthenhandler quicktest
+PythonFixupHandler pso.modpython::fixup
+PythonLogHandler pso.modpython::cleanup
+PythonDebug On
+AuthType Basic
+AuthName &quot;Enter your email username and password&quot;
+require valid-user
+---
+
+To test this:
+Go to <A HREF="http://www.inorganic.org/~rsr/python2/quicktest.py/foo">http://www.inorganic.org/~rsr/python2/quicktest.py/foo</A>
+Authenticate with foo/bar
+This should pause for a moment and then give you the error message.
+If you hit 'reload,' you don't go through authenhandler (since you're
+already authenticated) and you get the correct output.
+
+Thoughts?
+
+-roy
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010201.html">[mod_python] value too large for PgNumeric
+</A></li>
+	<LI>Next message: <A HREF="010206.html">[mod_python] Using shared memory to do global persistence
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10200">[ date ]</a>
+              <a href="thread.html#10200">[ thread ]</a>
+              <a href="subject.html#10200">[ subject ]</a>
+              <a href="author.html#10200">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

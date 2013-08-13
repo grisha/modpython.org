@@ -1,0 +1,308 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mapping a URI to pages dynamically.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mapping%20a%20URI%20to%20pages%20dynamically.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="009948.html">
+   <LINK REL="Next"  HREF="009951.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] Mapping a URI to pages dynamically.</H1>
+    <B>ganapathy murali krishnan</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mapping%20a%20URI%20to%20pages%20dynamically.&In-Reply-To="
+       TITLE="[mod_python] Mapping a URI to pages dynamically.">gmurali at cs.uchicago.edu
+       </A><BR>
+    <I>Mon May 19 15:59:32 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="009948.html">[mod_python] Mapping a URI to pages dynamically.
+</A></li>
+        <LI>Next message: <A HREF="009951.html">[mod_python] Mapping a URI to pages dynamically.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9949">[ date ]</a>
+              <a href="thread.html#9949">[ thread ]</a>
+              <a href="subject.html#9949">[ subject ]</a>
+              <a href="author.html#9949">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Sorry for not replying earlier... Here is the code, we use...
+I have removed pieces of the code which deal with other stuff.
+I hope I have not removed too many things...
+This code is due to Dustin Mitchell who setup our site
+initially.
+
+We use translate.py as our translate handler, which as you can
+see creates a req.url, which has lots of information about the
+requested url. The check_dont_handle function, allows us to not
+handle certain file types or certain subtrees of the DOCROOT.
+
+Hope you find the code useful.
+
+- Murali
+
+------ translate.py ------------
+from mod_python import apache, util
+from utils import urls
+import os, string, config
+
+# This module is responsible for translating the URL space as designed
+# into a filename, which Apache will use to control further processing
+# of the request.
+#
+# It does lots of other things too, basically to process the request
+# into a nice, Python-ish format.
+
+def transhandler(req):
+   # First check if we're configured not to handle this request.
+   check_dont_handle(req)
+
+   # Otherwise begin handling this normally
+   try:
+     # We use the URL class to calculate all of the parts of the URL
+     # we were given
+     req.url = urls.URL(req)
+
+     # Check if this is a secure connection
+     req.secure = is_secure(req)
+
+     # Copy some important values into req
+     req.filename, req.modpath = req.url.filename, req.url.modpath
+
+     # Grab any relevant form data,
+     req.form_data = util.FieldStorage(req, keep_blank_values=1, 
+strict_parsing=1)
+
+     # and register the next handler
+     req.add_handler(&quot;PythonHandler&quot;, &quot;handlers.dispatch&quot;)
+
+   # And handle any errors during that time by logging and sending the
+   # usual Apache 404 message.
+   except:
+     return apache.HTTP_NOT_FOUND
+
+   return apache.OK
+
+def check_dont_handle(req):
+   &quot;&quot;&quot;Supports the PythonOption DontHandle Apache configuration option:
+
+PythonOption DontHandle initial-uri[:initial-uri[:initial-uri...]]
+
+which causes the Python site to decline to handle any requests beginning
+with one of the specified initial-uri's.  In that case, normal Apache
+behavior will apply.
+&quot;&quot;&quot;
+   options = req.get_options()
+   uri = req.uri
+   if options.has_key('DontHandle'):
+     dont_handle = string.split(options['DontHandle'], ':')
+     for prefix in dont_handle:
+       if prefix == uri[:len(prefix)]:
+         raise apache.SERVER_RETURN, apache.DECLINED
+
+def is_secure(req):
+   # This seems the best way to do this
+   return req.server.port == 443
+
+-----end of translate.py ---------
+
+------ urls.py ---------------
+
+import config
+from mod_python import util
+import os, string, copy
+import re
+
+# This module is responsible for translating the URL space as designed
+# into its components:
+#
+# <A HREF="http://py.cs.uchicago.edu/path/to/program/args1/args2?internal+data">http://py.cs.uchicago.edu/path/to/program/args1/args2?internal+data</A>
+# ----   ------------------ --------------- ----------- -------------
+# |      server             \ script_path   \ args_path \ internal
+# \ scheme
+
+# All of these fields are member variables of the URL class. Further,
+# args_path is available in list form as url.arguments.
+# url.internal is a dictionary representing the value of internal as
+# a standard URL query string.  url.special contains the characters
+# from internal if it contains no '=', and is empty otherwise.
+
+# the module sets the following fields in req:
+#  filename -- the filename of the file which will produce the final
+#     response.  Apache cares about this.
+#  modpath -- a list of nested Python modules which will succeed in
+#     representing the script.
+#
+# It's important to note that the latter two options define the file
+# which will produce the final page, while the annotations on the URL
+# are produced regardless of the Python program that will eventually
+# produce the data.
+#
+# In particular, Apache is depending on this module to provide
+# req.filename.  Apache config commands (e.g. &lt;Directory&gt;) will look
+# at this result to determine what to do next.  To help out down the
+# road, we also keep track of a module path to get to the relevant .py
+# file, and the portion of the URI which specified that file.
+
+# Python script files are:
+#   'docroot'/'script_path'.py
+# or
+#   'docroot'/'script_path'/index.py
+# And this program will find the longest possible match among those
+# possibilities.
+
+class URL:
+   &quot;Object to represent the URL for a given hit on the site.&quot;
+
+   def __init__(self, req):
+     # get the scheme (e.g., http or https)
+     if req.server.port == 443:
+       self.scheme = 'https'
+     else:
+       self.scheme = 'http'
+
+     # Get the method (e.g., 'GET', 'POST', 'HEAD')
+     self.method = req.method
+
+     # server name (just to be safe)
+     self.server = req.server.server_hostname
+
+     # parse the path, finding the longest part that still refers to a
+     # Python script.
+     self._parse_path(req.uri)
+
+   # ----
+   # Helper functions
+
+   def _parse_path(self, path):
+     # Strip that initial slash
+     path = path[1:]
+
+     # Break the path into components
+     components = []
+     if path:
+       components = string.split(path, '/')
+
+     # We operate on 4-tuples:
+     current = (
+       config.docroot,                   # filename
+       config.docmod,                    # modpath
+       &quot;/&quot;,                              # script_path
+       components )                      # arguments
+     FILENAME = 0
+     MODPATH = 1
+     SCRIPT_PATH = 2
+     ARGUMENTS = 3
+
+     best = None
+
+     # Loop over those components
+     while 1:
+       # Try two variations of current, in order of length.
+       # 'filename'.py
+       fn = current[FILENAME] + '.py'
+       if self._intree(fn, config.docroot) and \
+          os.path.isfile(fn):
+         best = ( fn, current[1], current[2], current[3] )
+
+       # If it's a directory we can try 'filename'/index.py
+       if os.path.isdir(current[FILENAME]):
+         fn = os.path.join(current[FILENAME], 'index.py')
+         if self._intree(fn, config.docroot) and \
+            os.path.isfile(fn):
+           best = ( fn, current[1] + ( 'index', ),
+                    current[2], current[3] )
+
+         # And since it's a directory, we can try the next level of
+         # directory nesting
+         if current[ARGUMENTS]:
+           # Get the first component (that used to be an argument)
+           comp = current[ARGUMENTS][0]
+           # Break out on any funny business
+           if comp == '..' or comp == '.' or comp == '':
+             break
+
+           # Ignore '.php', for compatibility
+           if comp[-4:] == '.php':
+             comp = comp[:-4]
+
+           # Move to a new 'current'
+           current = (
+             os.path.join(current[FILENAME], comp),
+             current[MODPATH] + ( comp, ),
+             os.path.join(current[SCRIPT_PATH], comp),
+             current[ARGUMENTS][1:] )
+           continue
+
+       break
+
+     ( self.filename, self.modpath,
+       self.script_path, self.arguments ) = best
+
+     # and touch up the arguments a little bit...
+     # filter out any empty elements
+     self.arguments = filter(None, self.arguments)
+     # and include a slash in the args_path only if necessary
+     if self.script_path[-1] == '/':
+       self.args_path = string.join(self.arguments, '/')
+     else:
+       self.args_path = '/' + string.join(self.arguments, '/')
+
+   # Returns boolean indicating if PATH is in the directory tree rooted
+   # at ROOT.  Also checks that PATH is absolute, and invariant under
+   # normpath(), catching things like '../' and './'.  This class uses
+   # this function as a sanity check.
+   def _intree(self, path, root):
+     return path == os.path.abspath(path) and \
+            path == os.path.normpath(path) and \
+            path[:len(root)] == root
+
+---- end of urls.py -----
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="009948.html">[mod_python] Mapping a URI to pages dynamically.
+</A></li>
+	<LI>Next message: <A HREF="009951.html">[mod_python] Mapping a URI to pages dynamically.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9949">[ date ]</a>
+              <a href="thread.html#9949">[ thread ]</a>
+              <a href="subject.html#9949">[ subject ]</a>
+              <a href="author.html#9949">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

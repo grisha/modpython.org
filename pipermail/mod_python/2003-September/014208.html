@@ -1,0 +1,298 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] 	does a mod_python handler exist to generate
+	charts/graphs? (png	images)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%09does%20a%20mod_python%20handler%20exist%20to%20generate%0A%09charts/graphs%3F%20%28png%09images%29&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014204.html">
+   <LINK REL="Next"  HREF="014209.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] 	does a mod_python handler exist to generate
+	charts/graphs? (png	images)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>perry.tew at cibavision.novartis.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%09does%20a%20mod_python%20handler%20exist%20to%20generate%0A%09charts/graphs%3F%20%28png%09images%29&In-Reply-To="
+       TITLE="[mod_python] 	does a mod_python handler exist to generate
+	charts/graphs? (png	images)">perry.tew at cibavision.novartis.com
+       </A><BR>
+    <I>Fri Sep 19 09:59:35 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014204.html">[mod_python]  does a mod_python handler exist to generate
+	charts/graphs? (png images)
+</A></li>
+        <LI>Next message: <A HREF="014209.html">[mod_python] 	does a mod_python handler exist to generate
+	charts/graphs? (png	images)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14208">[ date ]</a>
+              <a href="thread.html#14208">[ thread ]</a>
+              <a href="subject.html#14208">[ subject ]</a>
+              <a href="author.html#14208">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>David,
+   Thanks for the input.  I'll add chaco and gnuplot.py to the list.  So 
+far I have (in no order):
+
+reportlab
+pygdchart
+chaco
+gnuplot
+
+I'll have to start investigating each of them.  chaco and gnuplot appear 
+to have massive options and functionality.
+
+
+In response to your earlier suggestions:
+&quot;&quot;&quot;
+This kind of thing is pretty simple, you can either create a 
+StringIO.StringIO object (standard Python) which is a pseudo-file that 
+you can get the contents out of using a string, or you could try passing 
+the request object (at the appropriate time) and see if it will work 
+writing to that.
+Another option (assuming the project is open source) is to alter the 
+program to support returning the data in a string.
+I got the reportlab guys to do this - their project is mainly focussed 
+on Reports and PDF, but it also has charting capabilities I haven't 
+investigated.
+&quot;&quot;&quot;
+
+I tried to use the StringIO object from both StringIO and cStringIO.  The 
+library didn't like
+that at all.  I traced some of the pygdchart code.  It drops down into C 
+and calls the following code (from _gdchartc.c)
+( I stripped out some unnecessary lines):
+PyObject *pfile, *labels, *data, *combodata;
+FILE *fp;
+...
+if (!PyArg_ParseTuple(args, &quot;iiO!iiOiOO&quot;, &amp;width, &amp;height, &amp;PyFile_Type, 
+&amp;pfile, 
+...
+fp = PyFile_AsFile(pfile);
+
+I so new to python it hurts, but I'm guessing that at this point in a C 
+program, pfile has to be an
+actual pointer to a file and not a file-like interface such as StringIO? 
+Any experience with this?
+
+As for having the author change the interface, I've already emailed them. 
+Later on I found
+the cStringIO functionality listed in a TODO file for the pygdchart 
+library.  Guess I'm not the first...
+I don't know how possible it would be to use cStringIO, since the FILE 
+pointer is passed through a mess of C libraries
+
+gdchart -&gt; gd -&gt; libjpeg
+
+The functions all the way down to libjpeg are wanting a pointer to a FILE 
+structure.   My other thought was
+looking for a way to imitate the FILE pointer in memory and modifying the 
+entry C code to return back the
+in memory data as a binary stream.  I'll have to look into that as well. 
+My C is pretty weak as well.  I'm
+so thankful there's Google.
+
+As a workaround, here's what I did (using os.tmpfile):
+
+from mod_python import apache
+from mod_python import util
+import gdchart
+import os
+
+def handler(req):
+        req.content_type = &quot;image/png&quot;
+
+        chart = gdchart.Line3D()
+        chart.width = 250
+        chart.height = 250
+        chart.xtitle = &quot;xtitle goes here&quot;
+        chart.ytitle = &quot;Percentage&quot;
+        chart.title = &quot;Example Graph&quot;
+        chart.ext_color = [ &quot;white&quot;, &quot;yellow&quot;, &quot;red&quot;, &quot;blue&quot;, &quot;green&quot;]
+        chart.setData([20, 100, 80, 30, 50],[10,150,20,25,65])
+        chart.setLabels([&quot;Mon&quot;, &quot;Tue&quot;, &quot;Wed&quot;, &quot;Thu&quot;, &quot;Fri&quot;])
+        chart.setLabels([&quot;Mon&quot;, &quot;Tue&quot;, &quot;Wed&quot;, &quot;Thu&quot;, &quot;Fri&quot;])
+
+        f = os.tmpfile()
+        chart.draw(f)
+        f.seek(0)
+        req.write(f.read())
+        f.close()
+
+        return apache.OK
+
+It outputs a graph for me.    Here's another question that may be 
+better suited for comp.lang.python, but do you know if
+os.tmpfile() uses an in-memory representation of a file
+or does it use a physical file that just remains anonymous?  I'm 
+concerned about the wasteful loss of speed having to write to
+disk and read it back.
+
+Well, enough rambling.  Thanks for your time,
+Perry Tew
+
+
+
+
+
+
+
+
+
+
+
+
+David Fraser &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">davidf at sjsoft.com</A>&gt;
+09/18/2003 04:45 PM
+
+ 
+        To:     Perry Tew/CV/<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Novartis at PH</A>
+        cc:     <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+        Subject:        Re: [mod_python]        does a mod_python handler exist to generate 
+charts/graphs? (png     images)
+
+
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">perry.tew at cibavision.novartis.com</A> wrote:
+
+&gt;&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">perry.tew at cibavision.novartis.com</A> wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Hello everyone,
+</I>&gt;&gt;&gt;<i>  I was about the go down the road of developing a handler to generate 
+</I>&gt;&gt;&gt;<i>charts,
+</I>&gt;&gt;&gt;<i>similar to the mod_perl Apache::GD::Graph.  I wanted to make sure 
+</I>&gt;&gt;&gt;<i>something doesn't exist
+</I>&gt;&gt;&gt;<i>before I reinvent the wheel.  Does anyone know of such a thing yet?  If 
+</I>
+&gt;&gt;&gt;<i>so, would you please
+</I>&gt;&gt;&gt;<i>provide a url?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Thanks,
+</I>&gt;&gt;&gt;<i>Perry Tew
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> There are several Python graphing packages which you could use towards
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>this end, the question is how nicely will they plug into a web 
+</I>&gt;&gt;<i>environment.
+</I>&gt;&gt;<i>I am not aware of any that are set up to do this using mod_python.
+</I>&gt;&gt;<i>I'm also busy looking at the problem, for an application we are 
+</I>&gt;&gt;<i>currently converting to be web based, so discuss plans / things you find 
+</I>
+&gt;&gt;<i>here and I will to and hopefully we can come up with a nice solution...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Thanks,
+</I>&gt;&gt;<i>David
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>David,
+</I>&gt;<i>  Thanks for the information.  I was looking at using pygdchart2 from 
+</I>&gt;<i>nullcube.  I was pleased with the interface they've written.  Have you 
+</I>any 
+&gt;<i>experience with them?  I figured it shouldn't be technically difficult to 
+</I>
+&gt;<i>create an interface of parameters that mapped to chart settings.
+</I>&gt;<i> 
+</I>&gt;<i>
+</I>I haven't had, but will look at it, do you have a URL?
+
+&gt;<i>The only concern I have so far is the method of outputting the chart once 
+</I>
+&gt;<i>rendered.  The examples use the draw method:
+</I>&gt;<i>&quot;&quot;&quot;
+</I>&gt;<i> chart.draw(filespec)
+</I>&gt;<i>Draw the graph to the specified file. If the filespec argument is a 
+</I>&gt;<i>string, it will be treated as the path to a file. Otherwise, filespec is 
+</I>&gt;<i>assumed to be a Python file object.
+</I>&gt;<i>&quot;&quot;&quot;
+</I>&gt;<i>
+</I>&gt;<i>I'm new to mod_python, so I'm not sure how to pass the output stream of 
+</I>&gt;<i>the request object to the draw() method.  If you know, I'm be grateful. 
+</I>If 
+&gt;<i>not, I'll work at it.  I haven't really dug yet.
+</I>&gt;<i> 
+</I>&gt;<i>
+</I>This kind of thing is pretty simple, you can either create a 
+StringIO.StringIO object (standard Python) which is a pseudo-file that 
+you can get the contents out of using a string, or you could try passing 
+the request object (at the appropriate time) and see if it will work 
+writing to that.
+Another option (assuming the project is open source) is to alter the 
+program to support returning the data in a string.
+I got the reportlab guys to do this - their project is mainly focussed 
+on Reports and PDF, but it also has charting capabilities I haven't 
+investigated.
+The other charting toolkit I am aware of is Chaco.
+
+I think it would be good to investigate all of them and at least draw up 
+a list of their strengths/weaknesses for use in a web server context, 
+that might be helpful to other users. Would be good to have a list of 
+requirements to evaluate these packages by e.g. how big the package is, 
+able to produce different image formats, etc.
+
+&gt;<i>btw,   I saw your post earlier about your wiki.  While cruising your site 
+</I>
+&gt;<i>I found a MLM I was in need for.  Thanks!
+</I>&gt;<i> 
+</I>&gt;<i>
+</I>Sure, but I think it was somebody else replying to my message, I don't 
+have a wiki...
+
+&gt;<i>Perry Tew
+</I>&gt;<i> 
+</I>&gt;<i>
+</I>David
+
+PS hope you don't mind me rearranging your post, bottom-posting makes 
+the flow easier to see.
+
+
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014204.html">[mod_python]  does a mod_python handler exist to generate
+	charts/graphs? (png images)
+</A></li>
+	<LI>Next message: <A HREF="014209.html">[mod_python] 	does a mod_python handler exist to generate
+	charts/graphs? (png	images)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14208">[ date ]</a>
+              <a href="thread.html#14208">[ thread ]</a>
+              <a href="subject.html#14208">[ subject ]</a>
+              <a href="author.html#14208">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

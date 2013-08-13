@@ -1,0 +1,101 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Client certificate?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Client%20certificate%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001323.html">
+   <LINK REL="Next"  HREF="001325.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Client certificate?</H1>
+    <B>Rich Salz</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Client%20certificate%3F&In-Reply-To="
+       TITLE="[mod_python] Client certificate?">rsalz at zolera.com
+       </A><BR>
+    <I>Tue Feb 26 18:38:39 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001323.html">[mod_python] Client certificate?
+</A></li>
+        <LI>Next message: <A HREF="001325.html">[mod_python] Client certificate?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1324">[ date ]</a>
+              <a href="thread.html#1324">[ thread ]</a>
+              <a href="subject.html#1324">[ subject ]</a>
+              <a href="author.html#1324">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Okay, let me try to be more explicit.
+
+We use SWIG (www.swig.org).  SWIG can parse header files and generate
+modules for various scripting languages, including Python.  So, for
+example, a SWIG interface file might say
+	int UsingSSL(request_rec* r);
+	char* GetClientDN(request_rec* r);
+and so on.  The actual implementation of those functions tend to be
+fairly short Apache ap_xxx calls, such as
+
+int
+UsingSSL(request_rec* r)
+{
+    return ap_ctx_get(r-&gt;connection-&gt;client-&gt;ctx, &quot;ssl&quot;) != NULL;
+}
+
+We can create an Apache module that has our &quot;swigged&quot; extensions, and
+build that into Apache.  (Or make it a shared library, DSO, whatever.)
+
+The only &quot;trick&quot; is how to get that request_rec pointer.  It turns out
+to be not that hard, because SWIG actually uses strings to represent
+pointers.
+
+So, we patched mod_python to add a new method to the mod_python request
+object; this new method returns a swig-compatible pointer(string) up to
+Python.  From python code, then, we can call the SWIG functions we wrote
+as described above.
+
+So, in our case,
+	from zolera import pyssl
+	h = req.get_swig_handle()
+	if h.UsingSSL():
+		dn = h.GetClientDN()
+	else:
+		return Apache.Unauthorized
+
+We have found it easier (again, since we were already using SWIG), to
+just add the one function to mod_python, and then to use SWIG for
+everything else.
+
+Hope this helps.
+	/r$
+-- 
+Zolera Systems, Securing web services (XML, SOAP, Signatures,
+Encryption)
+<A HREF="http://www.zolera.com">http://www.zolera.com</A>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001323.html">[mod_python] Client certificate?
+</A></li>
+	<LI>Next message: <A HREF="001325.html">[mod_python] Client certificate?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1324">[ date ]</a>
+              <a href="thread.html#1324">[ thread ]</a>
+              <a href="subject.html#1324">[ subject ]</a>
+              <a href="author.html#1324">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20child%20process%20XXXX%20still%20did%20not%20exit%2C%0A%09sending%20a%20SIGTERM&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019855.html">
+   <LINK REL="Next"  HREF="019857.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20child%20process%20XXXX%20still%20did%20not%20exit%2C%0A%09sending%20a%20SIGTERM&In-Reply-To="
+       TITLE="[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Jan  3 18:24:16 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019855.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+        <LI>Next message: <A HREF="019857.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19856">[ date ]</a>
+              <a href="thread.html#19856">[ thread ]</a>
+              <a href="subject.html#19856">[ subject ]</a>
+              <a href="author.html#19856">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote ..
+&gt;<i> Martin Blais wrote ..
+</I>&gt;<i> &gt; After much hacking (all day today), I added the explicit
+</I>&gt;<i> &gt; Py_EndInterpreter calls and it still hangs on destruction. 
+</I>&gt;<i> &gt; Specifically, it hangs on PyImport_Cleanup() in Py_EndInterpreter().
+</I>&gt;<i> &gt; I'm having trouble pinpointing exactly which symbol makes it hang.  It
+</I>&gt;<i> &gt; seems to happen when cleaning the logging module.  I saw that logging
+</I>&gt;<i> &gt; register an atexit hook, tried to remove that, does not fix the
+</I>&gt;<i> &gt; problem.
+</I>&gt;<i> 
+</I>&gt;<i> Hmmm, you have gotten ahead of me. I was going to work out some code to
+</I>&gt;<i> end each interpreter explicitly this morning.
+</I>
+FWIW, I would have stuck the following just prior to get_interpreter()
+call in python_finalize() to try and debug which intepreter it may have
+been getting stuck in. It is a bit tricky as it makes use of the thread
+state object that make_interpreter() left inaccessible from when the
+interepreter was first created. In general, this code probably will not
+work for more complicated systems where additional C code had
+created additional thread states associated with an intepreter as the
+Py_EndInterpreter() call expects there to be only one remaining. Note
+this assumes that multiple interpreter fix I reference is applied.
+
+
+    /* XXX */
+                                                    PyThreadState *tstate;
+    PyObject *key, *value;
+    char *name;
+    int pos = 0;
+
+#ifdef WITH_THREAD
+    PyEval_AcquireLock();
+
+    while (PyDict_Next(interpreters, &amp;pos, &amp;key, &amp;value)) {
+        name = PyString_AsString(key);
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, 0,
+                     &quot;%d interpreter %s&quot;, getpid(), name);        if (strcmp(name,MAIN_INTERPRETER) != 0) {
+            idata = (interpreterdata *)PyCObject_AsVoidPtr(value);
+            tstate = idata-&gt;istate-&gt;tstate_head;
+            PyThreadState_Swap(tstate);
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, 0,
+                         &quot;%d end interpreter %s&quot;, getpid(), name);
+            Py_EndInterpreter(tstate);
+            PyThreadState_Swap(NULL);
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, 0,
+                         &quot;%d done interpreter %s&quot;, getpid(), name);
+        }
+        else
+        {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, 0,
+                         &quot;%d skip interpreter %s&quot;, getpid(), name);
+        }
+    }
+
+    PyEval_ReleaseLock();
+
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, 0,
+                 &quot;%d now do finalize&quot;, getpid());
+#endif
+    
+    /* XXX */
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019855.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+	<LI>Next message: <A HREF="019857.html">[mod_python] Re: child process XXXX still did not exit,
+	sending a SIGTERM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19856">[ date ]</a>
+              <a href="thread.html#19856">[ thread ]</a>
+              <a href="subject.html#19856">[ subject ]</a>
+              <a href="author.html#19856">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

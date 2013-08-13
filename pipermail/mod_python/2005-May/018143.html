@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] problem w/ authen handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20problem%20w/%20authen%20handler&In-Reply-To=4c6f13de1c50e9f1b7ecc5f3050fc638%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018140.html">
+   <LINK REL="Next"  HREF="018147.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] problem w/ authen handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Bud P. Bruegger</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20problem%20w/%20authen%20handler&In-Reply-To=4c6f13de1c50e9f1b7ecc5f3050fc638%40dscpl.com.au"
+       TITLE="[mod_python] problem w/ authen handler">bud at comune.grosseto.it
+       </A><BR>
+    <I>Fri May 20 10:04:59 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018140.html">[mod_python] problem w/ authen handler
+</A></li>
+        <LI>Next message: <A HREF="018147.html">[mod_python] problem w/ authen handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18143">[ date ]</a>
+              <a href="thread.html#18143">[ thread ]</a>
+              <a href="subject.html#18143">[ subject ]</a>
+              <a href="author.html#18143">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Graham,
+
+many thanks for your input!  This got me a round further.  I tried both the 
+access and the fixup handlers (it needs to be before mod-rewrite does its 
+things) and they are invoked (as opposed to the authen and authenz handlers).
+
+My remaining problem is that I don't see SSL_CLIENT_S_DN in the handler 
+(after  req.add_common_vars() and dumping the keys of 
+req.subprocess_env).  (I can see them w/o problems in the standard 
+handler.)  I have tried to play with the order of directives, but it didn't 
+seem to make a difference.  (see the apache conf snipplet below for details)
+
+Any idea how to access SSL_CLIENT_S_DN in the access or fixup handler?
+
+many thanks!
+
+-b
+
+
+
+         &lt;Directory /var/www/sc&gt;
+             SSLRequireSSL
+             #SSLOptions +StdEnvVars +ExportCertData +FakeBasicAuth 
++StrictRequire
+             SSLOptions +StdEnvVars +ExportCertData +StrictRequire
+             SetHandler mod_python
+             PythonHandler test
+             PythonFixupHandler test
+             PythonDebug On
+         &lt;/Directory&gt;
+
+At 08.52 20/05/2005 +1000, Graham Dumpleton wrote:
+
+&gt;<i>On 20/05/2005, at 12:27 AM, Bud P. Bruegger wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i>I'm a beginner and hope someone can straighten me out.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>I am trying to write a simple handler that clicks in after mod-ssl has 
+</I>&gt;&gt;<i>requested a certificate from the client.  Depending on the type of client 
+</I>&gt;&gt;<i>token (European eID cards), I'd like the handler to look at the client's 
+</I>&gt;&gt;<i>subject DN derive (by string manipulation or by lookup) a nationally 
+</I>&gt;&gt;<i>unique ID for the card holder.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Sounds simple enough--but I can't get it to work.  I tried both, the 
+</I>&gt;&gt;<i>authen and the authz handlers.  But neither from mod-ssl's +fakeBasicAuth 
+</I>&gt;&gt;<i>nor from the handlers req.user = 'xxx' do I get a REMOTE_USER env 
+</I>&gt;&gt;<i>variable set.  Also the test evironment variable that I try to set in the 
+</I>&gt;&gt;<i>authen/authz handler doesn't have effect.
+</I>&gt;<i>
+</I>&gt;<i>Normally the authenhandler will only be called if the Apache configuration has
+</I>&gt;<i>something like:
+</I>&gt;<i>
+</I>&gt;<i>   AuthType Basic
+</I>&gt;<i>   AuthName &quot;Restricted Files&quot;
+</I>&gt;<i>   AuthUserFile /Users/grahamd/Sites/auth/pwdb
+</I>&gt;<i>
+</I>&gt;<i>Ie., it is triggered of the presence of these special Auth options. Similarly,
+</I>&gt;<i>the authzhandler only get called if other appropriate options for it are
+</I>&gt;<i>defined. Your SSL stuff doesn't seem to fit under that model and so the
+</I>&gt;<i>handlers may simply not be getting called.
+</I>&gt;<i>
+</I>&gt;&gt;<i>Does this possibly mean that the authen/authz handlers are not called at 
+</I>&gt;&gt;<i>all in my configuration?  Should I use a different handler and which?  Or 
+</I>&gt;&gt;<i>did I simply mess up something else?
+</I>&gt;<i>
+</I>&gt;<i>Try adding a req.log_error() call in the handlers to see if they get 
+</I>&gt;<i>called or not.
+</I>&gt;<i>Message will be in the Apache error log file.
+</I>&gt;<i>
+</I>&gt;<i>Does your code work if you move what you have in the authenhandler into 
+</I>&gt;<i>the start
+</I>&gt;<i>of your actual handler function? Ie., does the concept at least work?
+</I>&gt;<i>
+</I>&gt;<i>As a fudge, you could always stick it in the accesshandler, which from 
+</I>&gt;<i>memory is
+</I>&gt;<i>always called if defined.
+</I>&gt;<i>
+</I>&gt;<i>Graham
+</I>
+
+-------------------------------------------------------------------------------------------------
+Ing. Bud P. Bruegger, Ph.D.                 +39-0564-488577 
+(voice),  -21139 (fax)
+Servizio Elaborazione Dati                    e-mail:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at comune.grosseto.it</A>
+Comune di 
+Grosseto                            <A HREF="http://www.comune.grosseto.it/cie/">http://www.comune.grosseto.it/cie/</A>
+Via Ginori, 
+43                                      <A HREF="http://OpenPortalGuard.sf.net">http://OpenPortalGuard.sf.net</A>
+58100 Grosseto (Tuscany, Italy)           jabber:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at amessage.info</A>
+
+Free Software in Public Administration:  not just a good idea, but a necessity
+
+Perfection is attained, not when there is nothing more to be added, but 
+when there is nothing more to be taken away -- Antoine de Saint-Exupery 
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018140.html">[mod_python] problem w/ authen handler
+</A></li>
+	<LI>Next message: <A HREF="018147.html">[mod_python] problem w/ authen handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18143">[ date ]</a>
+              <a href="thread.html#18143">[ thread ]</a>
+              <a href="subject.html#18143">[ subject ]</a>
+              <a href="author.html#18143">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

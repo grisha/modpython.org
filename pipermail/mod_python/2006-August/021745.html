@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] req.sendfile() problem
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20req.sendfile%28%29%20problem&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021743.html">
+   <LINK REL="Next"  HREF="021749.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] req.sendfile() problem</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Thomas J. Schirripa</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20req.sendfile%28%29%20problem&In-Reply-To="
+       TITLE="[mod_python] req.sendfile() problem">tommys at eden.rutgers.edu
+       </A><BR>
+    <I>Fri Aug  4 13:49:56 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021743.html">[mod_python] Talk on what is coming in mod_python 3.3.
+</A></li>
+        <LI>Next message: <A HREF="021749.html">[mod_python] req.sendfile() problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21745">[ date ]</a>
+              <a href="thread.html#21745">[ thread ]</a>
+              <a href="subject.html#21745">[ subject ]</a>
+              <a href="author.html#21745">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Thanks a lot guys, the problem is fixed. I feel so stupid because it ended up being a naming problem - I thought the path looked okay, and I automatically assumed the name wasn't a problem because I would have thought the IOError message would have said something along the lines of &quot;cannot find file&quot;. Anyways, I actually had a question about handling the exception because I did try doing that.
+
+I had req.sendfile() in a try/except block, but in order to to send the error message to the browser....
+Here's what I did...
+
+def handler(req):
+	fields = util.FieldStorage(req)
+	filename = os.path.basename(fields[&quot;filename&quot;])
+	directory = os.path.dirname(fields[&quot;filename&quot;])
+	req.headers_out[&quot;Content-Disposition&quot;] = &quot;attachment; filename=%s&quot; % filename
+	req.content_type = &quot;text/plain&quot;
+	try:
+		req.sendfile(&quot;%s/%s&quot; % (directory, filename))
+	except IOError, e:
+		req.content_type = &quot;text/html&quot;
+		req.write(&quot;Raised exception reads:\n&lt;br&gt;%s&quot; % str(e))
+		return apache.OK
+	return apache.OK
+
+Here's what happened:
+instead of the IOError displaying in the browser, the file downloaded and had the req.write() message in it:
+&quot;Raised exception reads:
+&lt;br&gt;Could not stat file for reading&quot;
+
+I thought I read somewhere you can't change the content type after it has been set (a limitation of http -  in fact, this is why I have a seperate sendFile handler... so I can set the content type properly), but I didn't think this would be a problem. Is there a way to get the message to display in the browser instead of sending over an html file with the message?
+
+Thanks again, I don't know what I would do without this mailing list sometimes.
+Tom
+
+
+-----Original Message-----
+
+&gt;<i> Date: Fri Aug 04 12:42:37 EDT 2006
+</I>&gt;<i> From: &quot;Jim Gallacher&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jpg at jgassociates.ca</A>&gt;
+</I>&gt;<i> Subject: Re: [mod_python] req.sendfile() problem
+</I>&gt;<i> To: &quot;Thomas J. Schirripa&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">tommys at eden.rutgers.edu</A>&gt;
+</I>&gt;<i>
+</I>&gt;<i> Thomas J. Schirripa wrote:
+</I>&gt;<i> &gt; Before stating my problem, let me say that I am running apache version 2.0.52, mod_python 3.2.8, python 2.3, all on Redhat Enterprise Linux WS release 4.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Basically I have a webpage where the client uploads a file and some scripts/programs run on the server and produce output files. Some of this output is spit out onto another webpage, but I want to give the client the option to download the output files. Since I am using multiple webpages, I had to figure out a way to transfer data from one page to another. The only sensible solution that I could figure out was to use psp to feed variables from my handlers into hidden form inputs in my template. From the output html page, the client can click a submit button next to the output filename that says &quot;download&quot;. The hidden form inputs have the information as to where the file is located on the server, and the action on the form refers to my sendFile handler. That handler looks like this:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; def handler(req):
+</I>&gt;<i> &gt; 	fields = util.FieldStorage(req)
+</I>&gt;<i> &gt;         #Note: the filename is an absolute path, so I am going to split that up into directory and filename for clarity
+</I>&gt;<i> &gt; 	filename = os.path.basename(fields[&quot;filename&quot;])
+</I>&gt;<i> &gt; 	path = os.path.dirname(fields[&quot;filename&quot;])
+</I>&gt;<i> &gt; 	req.headers_out[&quot;Content-Disposition&quot;] = &quot;attachment; filename=%s&quot; % filename
+</I>&gt;<i> &gt; 	req.content_type = &quot;text/plain&quot;
+</I>&gt;<i> &gt; 	req.sendfile(&quot;%s/%s&quot; % (directory, filename))
+</I>&gt;<i> &gt; 	return apache.OK
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I am not sure if I am using req.header_out or req.content-type correctly or how critical those lines are (I found it in another post), but my problem is that I am getting a file to download with the proper filename, BUT the file has a mod_python error message in it that reads:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; IOError: Could not stat file for reading
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; and the error points to the line with req.sendfile(). Can anyone tell me what's going on and how to correct this?
+</I>&gt;<i> 
+</I>&gt;<i> An exception is being raised and mod_python is dumping the traceback in
+</I>&gt;<i> the response. You should wrap req.sendfile() in a try/except block, and
+</I>&gt;<i> if and exception is raised send a proper error message to the browser.
+</I>&gt;<i> 
+</I>&gt;<i> sendfile() needs to stat the file so it can set the content length
+</I>&gt;<i> header. You are getting the IOError because the file does not exist or
+</I>&gt;<i> there is a permission problem. Make sure you are using absolute paths
+</I>&gt;<i> for sendfile(). Also, it goes without saying that the filename provided
+</I>&gt;<i> by in the request should not be trusted. Do some checking to ensure it
+</I>&gt;<i> is valid value.
+</I>&gt;<i> 
+</I>&gt;<i> Jim
+</I>
+
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021743.html">[mod_python] Talk on what is coming in mod_python 3.3.
+</A></li>
+	<LI>Next message: <A HREF="021749.html">[mod_python] req.sendfile() problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21745">[ date ]</a>
+              <a href="thread.html#21745">[ thread ]</a>
+              <a href="subject.html#21745">[ subject ]</a>
+              <a href="author.html#21745">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

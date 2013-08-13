@@ -1,0 +1,203 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Accessing objects loaded with PythonImport
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Accessing%20objects%20loaded%20with%20PythonImport&In-Reply-To=c298f2d7050530135153cc15cf%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018222.html">
+   <LINK REL="Next"  HREF="018223.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Accessing objects loaded with PythonImport</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Accessing%20objects%20loaded%20with%20PythonImport&In-Reply-To=c298f2d7050530135153cc15cf%40mail.gmail.com"
+       TITLE="[mod_python] Accessing objects loaded with PythonImport">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon May 30 19:28:53 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018222.html">[mod_python] Accessing objects loaded with PythonImport
+</A></li>
+        <LI>Next message: <A HREF="018223.html">[mod_python] How to call a webpage on the same server?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18226">[ date ]</a>
+              <a href="thread.html#18226">[ thread ]</a>
+              <a href="subject.html#18226">[ subject ]</a>
+              <a href="author.html#18226">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 31/05/2005, at 6:51 AM, Nicolas Lehuen wrote:
+
+&gt;<i> Hi Lee,
+</I>&gt;<i>
+</I>&gt;<i> Unfortunately the answer is not as simple as it seems.
+</I>&gt;<i>
+</I>&gt;<i> Try doing this in xmlhandler.py :
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i> from os.path import dirname
+</I>&gt;<i> this_directory = dirname(__file__)
+</I>&gt;<i> site_setup = apache.import_module(&quot;site_setup&quot;,path=[this_directory])
+</I>&gt;<i>
+</I>&gt;<i> check = str(dir())
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>            ...
+</I>&gt;<i>            req.write(req.interpreter + '&lt;br /&gt;')
+</I>&gt;<i>            req.write(check)
+</I>&gt;<i>            ...
+</I>&gt;<i>            return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> We use apache.import_module to import the site_setup module, looking
+</I>
+Just to clarify Nicolas' answer a bit.
+
+Although PythonImport imports a module at startup, it is still a  
+distinct module
+and thus why you don't see it within the globals of your handler. Even  
+when you
+use apache.import_module() as above, you still need to refer to the  
+module to
+get the data. Thus, to see your data, should change:
+
+   check = str(dir())
+
+to:
+
+   check = str(dir(site_setup))
+
+and reference data as:
+
+   site_setup.magic_string
+
+as appropriate.
+
+In respect of Nicolas' comment in his other email, ie.,
+
+&gt;<i> Plus, if
+</I>&gt;<i> you have many site_setup.py in different directories, they will
+</I>&gt;<i> collide with each other.
+</I>
+True, at least where we are talking about the same interpreter. As you  
+are
+talking about different interpreters for each virtual host, you could  
+have more
+than one. You would though need to ensure that the files were in  
+different
+directories and each interpreter set the Python path to only the one  
+directory
+appropriate to that interpreter.
+
+If your intent is for this module only to be used for configuration, as  
+Nicolas
+pointed out, you may want to have a look at Vampire, which includes a  
+configuration
+mechanism based on use of Python ConfigParser module.
+
+In your case with multiple sites, you appear to be reserving a &quot;config&quot;  
+directory
+for common stuff in which case with Vampire all you would need to do is  
+create a
+file called something like &quot;site_setup.cf&quot; in the &quot;config&quot; directory.  
+It may for
+example contain:
+
+     [Settings]
+
+     magic_string = Ooggaa-Booggaa!
+
+In your handler you could then say:
+
+     from mod_python import apache
+     import vampire
+
+     def handler(req):
+         config = vampire.loadConfig(req,&quot;config/site_setup.cf&quot;)
+         magic_string = config.get(&quot;Settings&quot;,&quot;magic_string&quot;)
+         req.content_type = &quot;text/plain&quot;
+         req.send_http_header()
+         req.write(&quot;magic_string = %s&quot;%magic_string)
+         return apache.OK
+
+This will work whether or not you actually use Vampire for its  
+mechanism for
+dispatching to different handlers based on resource name. Ie., it  
+should work
+with a standard handler of your own creation.
+
+Further, this handler could be in subdirectory, ie., not in the root  
+directory
+where &quot;config&quot; exists, as the configuration mechanism will search back  
+up the
+hierarchy to the root of where PythonHandler is defined (as necessary),  
+looking
+for &quot;config/site_setup.cf&quot;. This means you do not need to hard code any  
+paths
+to anything in either the Apache configuration or your handlers.  
+Because the
+configuration file is looked up when required, you can change it  
+whenever you
+want and do not need to restart Apache for changes to be reflected.
+
+There is a little bit of information on the configuration mechanism in  
+Vampire
+in the overview for it:
+
+    
+<A HREF="http://www.dscpl.com.au/projects/vampire/articles/vampire">http://www.dscpl.com.au/projects/vampire/articles/vampire</A> 
+-001.html#configuration-mechanism
+
+Hope this is of interest.
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018222.html">[mod_python] Accessing objects loaded with PythonImport
+</A></li>
+	<LI>Next message: <A HREF="018223.html">[mod_python] How to call a webpage on the same server?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18226">[ date ]</a>
+              <a href="thread.html#18226">[ thread ]</a>
+              <a href="subject.html#18226">[ subject ]</a>
+              <a href="author.html#18226">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

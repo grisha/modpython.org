@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Module reload/derived class problem
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Module%20reload/derived%20class%20problem&In-Reply-To=1109961729.6041.216581352%40webmail.messagingengine.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017583.html">
+   <LINK REL="Next"  HREF="017586.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Module reload/derived class problem</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Module%20reload/derived%20class%20problem&In-Reply-To=1109961729.6041.216581352%40webmail.messagingengine.com"
+       TITLE="[mod_python] Module reload/derived class problem">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Mar  4 21:55:32 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017583.html">[mod_python] Module reload/derived class problem
+</A></li>
+        <LI>Next message: <A HREF="017586.html">[mod_python] Re: python/linux guru needed.. now!!!!
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17584">[ date ]</a>
+              <a href="thread.html#17584">[ thread ]</a>
+              <a href="subject.html#17584">[ subject ]</a>
+              <a href="author.html#17584">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 05/03/2005, at 5:42 AM, Alan Davies wrote:
+
+&gt;<i> Now that I've realised why I get that error message, I can avoid the
+</I>&gt;<i> problem by brute force either by 'touch'ing 'B' every time I change
+</I>&gt;<i> 'A', or by restarting Apache after a change to 'A' (instead of a week
+</I>&gt;<i> later when I notice the problem).
+</I>&gt;<i>
+</I>&gt;<i> More advanced ideas for fixing the module reloading problem would be
+</I>&gt;<i> appreciated.
+</I>
+The problem derives from two short comings of the present module loading
+system used by mod_python. The first is that module reloads are done on
+top of the already loaded module. This in itself can cause some issues.
+The second is that the module loading system isn't able to determine 
+that
+a parent module should be reloaded when a child module it depends on has
+been changed.
+
+The trigger for your problem is the second of these issues, but the 
+cause
+of the error actually derives from the first issue.
+
+Namely, the parent module module has what are effectively stale 
+references
+to a type object which has since been superseded because the child 
+module
+was re-imported as a result of some other request. When the child module
+code is called it no longer identifies the instance as being of the same
+type because the type object for the child has since been changed.
+
+FWIW, the module loading system in Vampire doesn't suffer the problem.
+When I write the code as:
+
+## testa.py
+
+class A:
+   def foo(self):
+     return &quot;A:foo&quot;
+
+## testdrive.py
+
+import vampire
+import os
+
+directory = os.path.dirname(__file__)
+testa = vampire.importModule(&quot;testa&quot;,directory,__req__)
+
+class B(testa.A):
+   def foo(self):
+     return &quot;B::foo&quot;, testa.A.foo(self)
+
+b = B()
+
+and using the new publisher support in version of Vampire I am working 
+on,
+if I access &quot;/testdrive/b/foo&quot; and then touch &quot;testa.py&quot; it still works
+when I access &quot;/testdrive/b/foo&quot; again.
+
+This is because Vampire has a means of determining that &quot;testdrive.py&quot;
+depends on &quot;testa.py&quot; and thus when &quot;testa.py&quot; is modified, it will 
+without
+any prompting reload both &quot;testdrive.py&quot; and &quot;testa.py&quot; on the 
+subsequent
+request even though &quot;testdrive.py&quot; hadn't actually been touched.
+
+This is illustrated by logged messages. After a fresh restart, access 
+the
+URL:
+
+[Sat Mar 05 13:41:57 2005] [notice] mod_python: (Re)importing module 
+'vampire'
+[Sat Mar 05 13:41:57 2005] [notice] vampire: Importing module 
+'/Users/grahamd/Sites/vampire/examples/publisher/testdrive.py'
+[Sat Mar 05 13:41:57 2005] [notice] vampire: Importing module 
+'/Users/grahamd/Sites/vampire/examples/publisher/testa.py'
+
+Then run &quot;touch testa.py&quot;. The &quot;testdrive.py&quot; file has not been touched 
+or
+modified in any way and thus still has same modification time. Then 
+access
+the URL again:
+
+[Sat Mar 05 13:42:10 2005] [notice] vampire: Reimporting module 
+'/Users/grahamd/Sites/vampire/examples/publisher/testdrive.py'
+[Sat Mar 05 13:42:10 2005] [notice] vampire: Reimporting module 
+'/Users/grahamd/Sites/vampire/examples/publisher/testa.py'
+
+Thereby showing how both parent and child were reimported even though 
+only
+child had been changed.
+
+It is because it was detected that the parent depended on the modified 
+child and
+was also reloaded, you don't suffer the sort of problem you are seeing.
+
+Thus for most cases the Vampire module loading system is a bit more 
+resilient
+that the default provided with mod_python. I still know of some cases 
+which
+it wouldn't be able to handle, but it is impossible to make any 
+reloading
+system completely perfect because of the various ways that type objects 
+and
+class instances could be cached and then later used again in the 
+context of
+freshly reloaded code which has a different idea of what it then 
+expects.
+
+Thus, as to a technical solution, you might consider using Vampire. If 
+you
+want the publisher support, you'll either have to wait for the next 
+version
+of Vampire or indicate that you are prepared to work with a beta version
+which some others are also trying.
+
+Graham
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017583.html">[mod_python] Module reload/derived class problem
+</A></li>
+	<LI>Next message: <A HREF="017586.html">[mod_python] Re: python/linux guru needed.. now!!!!
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17584">[ date ]</a>
+              <a href="thread.html#17584">[ thread ]</a>
+              <a href="subject.html#17584">[ subject ]</a>
+              <a href="author.html#17584">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python sessions, locking, and PSP
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20sessions%2C%20locking%2C%20and%20PSP&In-Reply-To=44DF6663.5090904%40utgard.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021828.html">
+   <LINK REL="Next"  HREF="021832.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python sessions, locking, and PSP</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20sessions%2C%20locking%2C%20and%20PSP&In-Reply-To=44DF6663.5090904%40utgard.net"
+       TITLE="[mod_python] mod_python sessions, locking, and PSP">jpg at jgassociates.ca
+       </A><BR>
+    <I>Sun Aug 13 15:09:50 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021828.html">[mod_python] mod_python sessions, locking, and PSP
+</A></li>
+        <LI>Next message: <A HREF="021832.html">[mod_python] mod_python sessions, locking, and PSP
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21831">[ date ]</a>
+              <a href="thread.html#21831">[ thread ]</a>
+              <a href="subject.html#21831">[ subject ]</a>
+              <a href="author.html#21831">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Michael Spang wrote:
+&gt;<i> I recently ran into deadlocks using sessions in both my mod_python
+</I>&gt;<i> handler and in psp. I've read through the thread at
+</I>&gt;<i> <A HREF="http://www.modpython.org/pipermail/mod_python/2005-May/018035.html">http://www.modpython.org/pipermail/mod_python/2005-May/018035.html</A> and
+</I>&gt;<i> understand that this occurs because both my handler and PSP create their
+</I>&gt;<i> own session instance and attempt to lock the session.
+</I>&gt;<i> 
+</I>&gt;<i> My question is: why doesn't the mod_python sessions module keep a
+</I>&gt;<i> reference to each constructed session object and the thread that has it
+</I>&gt;<i> locked? 
+</I>
+Easier said than done in mpm-prefork or mpm-worker. It's possible to
+keep track of the session object within a single request, but difficult
+(as in nearly impossible) to do it across requests in these 2 mpms.
+
+&gt;<i> It should be possible for PSP to find and use the session object
+</I>&gt;<i> created by the handler.
+</I>&gt;<i> 
+</I>&gt;<i> To work around this, you need to either:
+</I>&gt;<i>     1. manually unlock the session, or
+</I>&gt;<i>     2. pass the session to the PSP template in a different way (e.g., as
+</I>&gt;<i> an attribute of the request object), or
+</I>
+This is the preferred (although not ideal) method. In version 3.3 if psp
+creates a new session it saves a reference in req.session. It's also a
+little smarter about unlocking. It'll only unlock a session that has
+been created within psp.
+
+&gt;<i>     3. move everything that uses the session from the handler into the
+</I>&gt;<i> template.
+</I>&gt;<i> 
+</I>&gt;<i> None of these are particularly appealing. Support for the session
+</I>&gt;<i> facility is a great feature in PSP, but it is hindered by its inability
+</I>&gt;<i> to coexist with use of sessions outside of the template. It is quite
+</I>&gt;<i> confusing when merely referencing the 'session' variable in a template
+</I>&gt;<i> causes a deadlock. I was unaware of PSP's session support when I
+</I>&gt;<i> encountered this problem; I had passed my handler's session object in
+</I>&gt;<i> via the 'vars' argument of PSP.run().
+</I>
+You'll get no argument from me there. It's less than ideal, but it's not
+entirely true that a session in psp can't co-exist with session use
+outside of psp. You just need to know the magic incantation. (And yes,
+the documentation on this is insufficient).
+
+So there are 2 approaches:
+
+1. In your handler use req.session = Session.Session(req).
+   Don't pass the session object in vars arg of PSP.run().
+   Use the 'session' variable name in your psp template and depend on
+it's magic.
+
+2. In your handler use sess = Session.Session(req)
+   Pass 'sess' in with your psp vars.
+   *Don't* use the 'session' variable name in your psp template, and
+avoid the magic. Use something else like 'sess' or 'my_sess'.
+
+At one point I was working on a req.get_session() method to fix some of
+these issues, but the attempt was abandoned for a number of reasons -
+one being that it would introduce even more magic. There is still a code
+stub in svn trunk, but it'll likely be expunged before a 3.3 release.
+Any such feature will have to wait until 3.4.
+
+I've been thinking about some ideas for a session locking tutorial, as
+it is one of the more confusing aspects of mod_python - until you
+understand the magic. ;)
+
+Jim
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021828.html">[mod_python] mod_python sessions, locking, and PSP
+</A></li>
+	<LI>Next message: <A HREF="021832.html">[mod_python] mod_python sessions, locking, and PSP
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21831">[ date ]</a>
+              <a href="thread.html#21831">[ thread ]</a>
+              <a href="subject.html#21831">[ subject ]</a>
+              <a href="author.html#21831">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

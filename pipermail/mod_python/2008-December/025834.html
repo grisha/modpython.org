@@ -1,0 +1,382 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] ImportError issue
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ImportError%20issue&In-Reply-To=4939F200.60509%40knewco.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025833.html">
+   <LINK REL="Next"  HREF="025812.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] ImportError issue</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ImportError%20issue&In-Reply-To=4939F200.60509%40knewco.com"
+       TITLE="[mod_python] ImportError issue">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Fri Dec  5 23:12:17 EST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025833.html">[mod_python] ImportError issue
+</A></li>
+        <LI>Next message: <A HREF="025812.html">[mod_python] windows mod_python for python 2.5.2
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25834">[ date ]</a>
+              <a href="thread.html#25834">[ thread ]</a>
+              <a href="subject.html#25834">[ subject ]</a>
+              <a href="author.html#25834">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2008/12/6 Reuben A Christie &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">christie at knewco.com</A>&gt;:
+&gt;<i> its version 3.3.1 i removed send_http_header() call, still n o difference
+</I>
+Work out then under what conditions the follow code would generate the
+error you are seeing, where content_type would be passed as argument
+to function.
+
+static content_type *analyze_ct(request_rec *r, const char *s)
+{
+    const char *cp, *mp;
+    char *attribute, *value;
+    int quoted = 0;
+    server_rec * ss = r-&gt;server;
+    apr_pool_t * p = r-&gt;pool;
+
+    content_type *ctp;
+    param *pp, *npp;
+
+    /* initialize ctp */
+    ctp = (content_type *)apr_palloc(p, sizeof(content_type));
+    ctp-&gt;type = NULL;
+    ctp-&gt;subtype = NULL;
+    ctp-&gt;param = NULL;
+
+    mp = s;
+
+    /* getting a type */
+    cp = mp;
+    while (apr_isspace(*cp)) {
+        cp++;
+    }
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                     &quot;mod_mime: analyze_ct: cannot get media type from '%s'&quot;,
+                     (const char *) mp);
+        return (NULL);
+    }
+    ctp-&gt;type = cp;
+    do {
+        cp++;
+    } while (*cp &amp;&amp; (*cp != '/') &amp;&amp; !apr_isspace(*cp) &amp;&amp; (*cp != ';'));
+    if (!*cp || (*cp == ';')) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                     &quot;Cannot get media type from '%s'&quot;,
+                     (const char *) mp);
+        return (NULL);
+    }
+
+I don't have the time to work it out myself.
+
+Graham
+
+&gt;<i> Graham Dumpleton wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 2008/12/6 Reuben A Christie &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">christie at knewco.com</A>&gt;:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> this is how my apache config looks like
+</I>&gt;&gt;&gt;<i> &lt;Directory /usr/local/apache/htdocs/linker_python &gt;
+</I>&gt;&gt;&gt;<i>      Options  ExecCGI -MultiViews FollowSymLinks
+</I>&gt;&gt;&gt;<i>      AllowOverride All
+</I>&gt;&gt;&gt;<i>      Order allow,deny
+</I>&gt;&gt;&gt;<i>      allow from all
+</I>&gt;&gt;&gt;<i>      AddHandler mod_python .py
+</I>&gt;&gt;&gt;<i>      PythonHandler launch
+</I>&gt;&gt;&gt;<i>      PythonDebug On
+</I>&gt;&gt;&gt;<i>      AddType text/plain
+</I>&gt;&gt;&gt;<i> &lt;/Directory&gt;
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> and in the code i do following
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> req.send_http_header()
+</I>&gt;&gt;&gt;<i> req.content_type = 'text/xml' (it does not matter what do i set content
+</I>&gt;&gt;&gt;<i> type, even if i change this to text/plain or text/html does not make any
+</I>&gt;&gt;&gt;<i> differece)
+</I>&gt;&gt;&gt;<i> req.write(&quot;&lt;response&gt;hello world&lt;/response&gt;&quot;)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Which version of mod_python are you using?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Calling req.send_http_header() is only needed for mod_python 2.7.X and
+</I>&gt;&gt;<i> older. Even then, it should go after setting req.content_type.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If still using mod_python 2.7.X, then upgrade. If you can't because
+</I>&gt;&gt;<i> you are using Apache 1.3, then consider using mod_wsgi instead and
+</I>&gt;&gt;<i> write your web application to WSGI API, using one of the many
+</I>&gt;&gt;<i> toolkits/frameworks out there for WSGI.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Graham Dumpleton wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> 2008/12/6 Reuben A Christie &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">christie at knewco.com</A>&gt;:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> In the python script itself, i set the content type to text/plain , I
+</I>&gt;&gt;&gt;&gt;&gt;<i> have
+</I>&gt;&gt;&gt;&gt;&gt;<i> not set any AddType directive in apache config
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Please post code snippet showing how this is being done and what
+</I>&gt;&gt;&gt;&gt;<i> handler you are using? Ie., custom handler, mod_python.publisher etc.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> What AddHandler directives do you have set in Apache configuration?
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Have you setup any output filters in Apache, ie., AddOutputFilter*
+</I>&gt;&gt;&gt;&gt;<i> directives?
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> Graham Dumpleton wrote:
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> 2008/12/5 Reuben A Christie &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">christie at knewco.com</A>&gt;:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> thanks alot graham. I was able to import the modules the way you
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> showed.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> its
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> little intriguing but I think I ll find a better way by combining
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> them
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> into
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> one __init__.py  hopefully that will work
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> one more question, I keep seeing this warning message on apache log
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> [warn] Cannot get media type from 'mod_python'
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> its not causing any issue but I really don't understand why is it
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> appearing
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> What is the content type you are returning or have setup using AddType
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> directives? It appears it may be malformed. The message is mod_mime
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> complaining about it.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Graham Dumpleton wrote:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> 2008/12/3 Reuben A Christie &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">christie at knewco.com</A>&gt;:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Hi all, I am pretty novice user of mod_python. and there is an
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> issue
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> that
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> I
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> am experiencing with mod_python scripts for past 2 days that I am
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> not
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> able
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> to solve.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> my directory structure is as following,
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> DocumentRoot :  /usr/local/apache2/htdocs/
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> i have a directory structure for mod_python scripts under
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> DocumentRoot
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> is,
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> launch.py
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> python_test/p1/test1
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> python_test/p2/test2
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> in apache config, i have added following
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> &lt;Directory /usr/local/apache/htdocs/python_test &gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   AllowOverride All
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   Order allow,deny
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   allow from all             AddHandler mod_python .py
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   PythonHandler launch
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   PythonDebug On
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> &lt;/Directory&gt;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> and launch.py looks like this,
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> import os.path
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> from mod_python import apache, Session, util
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> def handler(req):
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   request = os.path.splitext(os.path.basename( req.uri ))[0]
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   req.content_type = 'text/plain'
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   req.send_http_header()
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   status = apache.OK
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   if request != None:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>           mod = __import__(request)
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> This is the wrong way of going about it. See below.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>           if request == &quot;test1&quot;:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>                   status = mod.handler(req)
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>    return status
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>        basically this script should act as gateway for rest of the
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> python scripts .
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> when I test it with, <A HREF="http://localhost/python_test/test1.py">http://localhost/python_test/test1.py</A> it does
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> not
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> work
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> (i get Not found message) and if I do
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> <A HREF="http://localhost/python_test/p1">http://localhost/python_test/p1</A>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> i
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> get
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> the source code of the script appear.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> For configuration as written, the launch.py file is in wrong
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> location.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> First off suggest that launch.py not be in htdocs as then someone
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> can
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> download source code to your handler.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Presuming you are using mod_python 3.3.1 (if not then upgrade), move
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> the launch.py file elsewhere and then change configuration to use:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  PythonHandler /some/path/launch.py
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Where path is location of launch.py outside of htdocs.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Also don't use __import__. You are better off using import_module()
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> from mod_python. That way you can just supply a path to file to
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> import
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> and not have to worry about PythonPath and lots of other module
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> madness. See:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html">http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html</A>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025833.html">[mod_python] ImportError issue
+</A></li>
+	<LI>Next message: <A HREF="025812.html">[mod_python] windows mod_python for python 2.5.2
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25834">[ date ]</a>
+              <a href="thread.html#25834">[ thread ]</a>
+              <a href="subject.html#25834">[ subject ]</a>
+              <a href="author.html#25834">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

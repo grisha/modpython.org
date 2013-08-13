@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20UnicodeDecodeError%20with%0A%09util.FieldStorage%28req%29.Field.value&In-Reply-To=200706201923.46099.ah%40hatzis.de">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023877.html">
+   <LINK REL="Next"  HREF="023904.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20UnicodeDecodeError%20with%0A%09util.FieldStorage%28req%29.Field.value&In-Reply-To=200706201923.46099.ah%40hatzis.de"
+       TITLE="[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat Jun 23 07:38:36 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023877.html">[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value
+</A></li>
+        <LI>Next message: <A HREF="023904.html">[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23903">[ date ]</a>
+              <a href="thread.html#23903">[ thread ]</a>
+              <a href="subject.html#23903">[ subject ]</a>
+              <a href="author.html#23903">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Making a guess here, but even though your form tries to require that
+posted form data is UTF-8 it probably isn't and is instead passing it
+through as ISO-8859-1 or some other European character set. Am then
+guessing that that character maps to the special UTF-8 marker
+character for indicating a multibyte character.
+
+Try this in Python:
+
+&gt;&gt;&gt;<i> s.decode(&quot;iso-8859-1&quot;).encode('utf-8')
+</I>'\xc3\x83'
+
+See how it ends up as a multibyte character where the marker is itself
+\xc3. Also:
+
+&gt;&gt;&gt;<i> print s.decode(&quot;iso-8859-1&quot;).encode('utf-8')
+</I>&#195;
+
+Is that the character you are expecting to see.
+
+I'm not in any way an expert on Unicode though, so could be quite wrong.
+
+Graham
+
+On 21/06/07, Anastasios Hatzis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ah at hatzis.de</A>&gt; wrote:
+&gt;<i> Hi,
+</I>&gt;<i>
+</I>&gt;<i> I'm struggling with UnicodeDecodeError when trying to append
+</I>&gt;<i> util.FieldStorage(req).Field.value with umlaut into a variable of type
+</I>&gt;<i> unicode.
+</I>&gt;<i>
+</I>&gt;<i> &lt;SNIP&gt;
+</I>&gt;<i> &lt;%
+</I>&gt;<i> # file: test.psp
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import Session, util
+</I>&gt;<i> req.assbackwards
+</I>&gt;<i>
+</I>&gt;<i> req.content_type = 'text/html; charset=UTF-8'
+</I>&gt;<i> %&gt;
+</I>&gt;<i> &lt;!--SOME HTML HEAD STUFF HERE--&gt;
+</I>&gt;<i>
+</I>&gt;<i> &lt;form action=&quot;/test.psp&quot; method=&quot;post&quot; enctype=&quot;text/plain&quot;
+</I>&gt;<i> accept-charset=&quot;UTF-8&quot;&gt;
+</I>&gt;<i> &lt;!-- form calls this very same file --&gt;
+</I>&gt;<i> &lt;input name=&quot;name&quot; type=&quot;text&quot; size=&quot;30&quot; maxlength=&quot;50&quot; /&gt;
+</I>&gt;<i> &lt;input type=&quot;submit&quot; value=&quot;Submit&quot; /&gt;
+</I>&gt;<i> &lt;/form&gt;
+</I>&gt;<i>
+</I>&gt;<i> &lt;%
+</I>&gt;<i> req.write('&lt;p&gt;Write values to HTML&lt;/p&gt;') # Works fine!
+</I>&gt;<i> store = util.FieldStorage(req)
+</I>&gt;<i> for param in store.list:
+</I>&gt;<i>     req.write(param.value)
+</I>&gt;<i> %&gt;
+</I>&gt;<i> &lt;b&gt;&lt;%=param.name%&gt;&lt;/b&gt;:&lt;%=param.value%&gt;:&lt;%=type(param.value)%&gt;&lt;br /&gt;
+</I>&gt;<i> &lt;%
+</I>&gt;<i>
+</I>&gt;<i> req.write('&lt;p&gt;Append all values to the variable msg&lt;/p&gt;')
+</I>&gt;<i> msg = u''
+</I>&gt;<i> for param in store.list:
+</I>&gt;<i>     msg += param.name + ': ' + param.value + '\r\n' # UnicodeDecodeError!
+</I>&gt;<i> %&gt;
+</I>&gt;<i> &lt;!--SOME HTML FOOT STUFF HERE--&gt;
+</I>&gt;<i>
+</I>&gt;<i> &lt;/SNIP&gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> So, when calling this page the HTML output for first section is rendered with
+</I>&gt;<i> umlaut (&#228;, &#252;, ...). Value is &lt;type 'str'&gt; ... well, why not, as long as it is
+</I>&gt;<i> UTF-8...
+</I>&gt;<i>
+</I>&gt;<i> But as soon as the script tries to append param.value to the unicode
+</I>&gt;<i> variable &quot;msg&quot; I'm getting this error:
+</I>&gt;<i>
+</I>&gt;<i> UnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 26:
+</I>&gt;<i> ordinal not in range(128)
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I do not understand why I'm getting this error. How does 'ascii' come into
+</I>&gt;<i> this? How do I know which encoding is really applied (in param.value and in
+</I>&gt;<i> msg)?
+</I>&gt;<i>
+</I>&gt;<i> I'm blind, hum?
+</I>&gt;<i>
+</I>&gt;<i> Anastasios
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023877.html">[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value
+</A></li>
+	<LI>Next message: <A HREF="023904.html">[mod_python] UnicodeDecodeError with
+	util.FieldStorage(req).Field.value
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23903">[ date ]</a>
+              <a href="thread.html#23903">[ thread ]</a>
+              <a href="subject.html#23903">[ subject ]</a>
+              <a href="author.html#23903">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] [PATCH] last httpd-2.0.36
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5BPATCH%5D%20last%20httpd-2.0.36&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005351.html">
+   <LINK REL="Next"  HREF="005352.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] [PATCH] last httpd-2.0.36</H1>
+    <B>Gary Benson</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5BPATCH%5D%20last%20httpd-2.0.36&In-Reply-To="
+       TITLE="[mod_python] [PATCH] last httpd-2.0.36">gbenson at redhat.com
+       </A><BR>
+    <I>Wed Jul 10 11:42:21 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005351.html">[mod_python] configuration error
+</A></li>
+        <LI>Next message: <A HREF="005352.html">[mod_python] Ping?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5360">[ date ]</a>
+              <a href="thread.html#5360">[ thread ]</a>
+              <a href="subject.html#5360">[ subject ]</a>
+              <a href="author.html#5360">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>
+Hi,
+
+The attached patch brings the input filtering API in mod_python into line 
+with that in httpd-2.0.36.  This is the last thing that I know of that 
+needed fixing to work with 2.0.36, although I beleive some more fixes will 
+be in order to build against 2.0.39 or whatever it is now :)
+
+Cheers,
+Gary
+
+[ <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">gbenson at redhat.com</A> ][ GnuPG 85A8F78B ][ <A HREF="http://inauspicious.org/">http://inauspicious.org/</A> ]
+
+-------------- next part --------------
+Bring input filter API in line with 2.0.36
+
+Index: src/filterobject.c
+===================================================================
+RCS file: /cvsroot/modpython/mod_python/src/filterobject.c,v
+retrieving revision 1.5
+diff -u -r1.5 filterobject.c
+--- src/filterobject.c	3 Jun 2002 14:31:15 -0000	1.5
++++ src/filterobject.c	9 Jul 2002 16:21:27 -0000
+@@ -61,7 +61,7 @@
+  */
+ 
+ PyObject *MpFilter_FromFilter(ap_filter_t *f, apr_bucket_brigade *bb, int is_input,
+-			      ap_input_mode_t mode, apr_size_t *readbytes,
++			      ap_input_mode_t mode, apr_size_t readbytes,
+ 			      char * handler, char *dir)
+ {
+     filterobject *result;
+@@ -86,7 +86,7 @@
+ 	result-&gt;bb_in = bb;
+ 	result-&gt;bb_out = NULL;
+ 	result-&gt;mode = 0;
+-	result-&gt;readbytes = NULL;
++	result-&gt;readbytes = 0;
+     }
+ 
+     result-&gt;closed = 0;
+@@ -142,7 +142,7 @@
+ 
+ 	Py_BEGIN_ALLOW_THREADS;
+ 	self-&gt;rc = ap_get_brigade(self-&gt;f-&gt;next, self-&gt;bb_in, self-&gt;mode, 
+-				  APR_BLOCK_READ, *self-&gt;readbytes);
++				  APR_BLOCK_READ, self-&gt;readbytes);
+ 	Py_END_ALLOW_THREADS;
+ 
+ 	if (! APR_STATUS_IS_SUCCESS(self-&gt;rc)) {
+@@ -239,7 +239,7 @@
+ 
+ 		Py_BEGIN_ALLOW_THREADS;
+ 		self-&gt;rc = ap_get_brigade(self-&gt;f-&gt;next, self-&gt;bb_in, self-&gt;mode, 
+-					  APR_BLOCK_READ, *self-&gt;readbytes);
++					  APR_BLOCK_READ, self-&gt;readbytes);
+ 		Py_END_ALLOW_THREADS;
+ 
+ 		if (! APR_STATUS_IS_SUCCESS(self-&gt;rc)) {
+Index: src/mod_python.c
+===================================================================
+RCS file: /cvsroot/modpython/mod_python/src/mod_python.c,v
+retrieving revision 1.60
+diff -u -r1.60 mod_python.c
+--- src/mod_python.c	3 Jun 2002 14:31:15 -0000	1.60
++++ src/mod_python.c	9 Jul 2002 16:21:35 -0000
+@@ -1023,7 +1023,8 @@
+ static apr_status_t python_filter(int is_input, ap_filter_t *f, 
+ 				  apr_bucket_brigade *bb,
+ 				  ap_input_mode_t mode,
+-				  apr_size_t *readbytes) {
++				  apr_read_type_e block,
++				  apr_size_t readbytes) {
+ 
+     PyObject *resultobject = NULL;
+     interpreterdata *idata;
+@@ -1052,8 +1053,7 @@
+        so a fitler can spit out an error without causing infinite loop */
+     if (ctx-&gt;transparent) {
+ 	if (is_input) 
+-	    return ap_get_brigade(f-&gt;next, bb, mode, APR_BLOCK_READ, 
+-				  *readbytes);
++	    return ap_get_brigade(f-&gt;next, bb, mode, block, readbytes);
+ 	else
+ 	    return ap_pass_brigade(f-&gt;next, bb);
+     }
+@@ -1201,9 +1201,10 @@
+ static apr_status_t python_input_filter(ap_filter_t *f, 
+ 					apr_bucket_brigade *bb,
+ 					ap_input_mode_t mode,
+-					apr_size_t *readbytes) 
++					apr_read_type_e block,
++					apr_off_t readbytes)
+ {
+-    return python_filter(1, f, bb, mode, readbytes);
++    return python_filter(1, f, bb, mode, block, readbytes);
+ }
+ 
+ 
+@@ -1216,7 +1217,7 @@
+ static apr_status_t python_output_filter(ap_filter_t *f, 
+ 					 apr_bucket_brigade *bb)
+ {
+-    return python_filter(0, f, bb, 0, NULL);
++    return python_filter(0, f, bb, 0, 0, 0);
+ }
+ 
+ 
+Index: src/include/filterobject.h
+===================================================================
+RCS file: /cvsroot/modpython/mod_python/src/include/filterobject.h,v
+retrieving revision 1.4
+diff -u -r1.4 filterobject.h
+--- src/include/filterobject.h	3 Jun 2002 14:31:16 -0000	1.4
++++ src/include/filterobject.h	9 Jul 2002 16:21:36 -0000
+@@ -67,7 +67,7 @@
+ 
+ 	int is_input;
+ 	ap_input_mode_t mode;
+-	apr_size_t *readbytes;
++	apr_size_t readbytes;
+ 
+ 	int closed;
+ 	int softspace;
+@@ -88,7 +88,7 @@
+     extern DL_IMPORT(PyObject *) 
+ 	MpFilter_FromFilter Py_PROTO((ap_filter_t *f, apr_bucket_brigade *bb_in, 
+ 				      int is_input, ap_input_mode_t mode, 
+-				      apr_size_t *readbytes, char *hadler, char *dir));
++				      apr_size_t readbytes, char *hadler, char *dir));
+ 
+ #ifdef __cplusplus
+ }
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005351.html">[mod_python] configuration error
+</A></li>
+	<LI>Next message: <A HREF="005352.html">[mod_python] Ping?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5360">[ date ]</a>
+              <a href="thread.html#5360">[ thread ]</a>
+              <a href="subject.html#5360">[ subject ]</a>
+              <a href="author.html#5360">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

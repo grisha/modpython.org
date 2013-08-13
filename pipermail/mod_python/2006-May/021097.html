@@ -1,0 +1,193 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Graham's New Importer
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Graham%27s%20New%20Importer&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021100.html">
+   <LINK REL="Next"  HREF="021101.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Graham's New Importer</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Graham%27s%20New%20Importer&In-Reply-To="
+       TITLE="[mod_python] Graham's New Importer">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed May 10 19:31:00 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021100.html">[mod_python] Re: mod_python and module importing
+</A></li>
+        <LI>Next message: <A HREF="021101.html">[mod_python] mod_python.publisher and framesets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21097">[ date ]</a>
+              <a href="thread.html#21097">[ thread ]</a>
+              <a href="subject.html#21097">[ subject ]</a>
+              <a href="author.html#21097">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Dan Eloff wrote ..
+&gt;<i> &gt;    from mod_python import apache
+</I>&gt;<i> &gt;    __info__.path.extend(eval(apache.main_server.get_options().get
+</I>&gt;<i> &gt; ('my_import_path','[]')))
+</I>&gt;<i> &gt;
+</I>&gt;<i> 
+</I>&gt;<i> I like that, but I agree __info__.path is not ideal.
+</I>&gt;<i>
+</I>&gt;<i> ...
+</I>&gt;<i> 
+</I>&gt;<i> &gt; By a module explicitly adding items to the embedded search path, it
+</I>&gt;<i> &gt; would be
+</I>&gt;<i> &gt; more predictable perhaps than blindly always using what the option
+</I>&gt;<i> &gt; may be set
+</I>&gt;<i> &gt; to, as by adding the code in you are making a conscious decision that
+</I>&gt;<i> &gt; you want
+</I>&gt;<i> &gt; it to work that way. You need not even use an option to obtain what
+</I>&gt;<i> &gt; the path
+</I>&gt;<i> &gt; should be set to, you could also use hard coded paths, or a path
+</I>&gt;<i> &gt; determined by
+</I>&gt;<i> &gt; taking a relative path and adding it to the dirname of the __file__
+</I>&gt;<i> &gt; attribute of the
+</I>&gt;<i> &gt; module.
+</I>&gt;<i> 
+</I>&gt;<i> Not ideal for me, since I would simply add this to the top of every
+</I>&gt;<i> single python file. But I can live with that because it does solve all
+</I>&gt;<i> the issues related to a global setting. All in all a pretty good
+</I>&gt;<i> solution.
+</I>
+Depending on how your modules are structured, it may not be quite
+as bad as having to add it to every file. At least not the look up of
+what path to use.
+
+This is because what you may be able to do is use the fact that if
+you supply an absolute or relative path to apache.import_module(),
+that the &quot;path&quot; argument, rather than being a search path, becomes
+the path which is encoded into the module as '__info__.path'.
+
+Thus, if a top level entry point module were used, much like a
+package root, and although there were various sub modules that
+any methods were exposed through the top level module, you
+could do something like:
+
+    # toplevel.py
+
+    from mod_python import apache
+    __info__.path.extend(eval(apache.main_server.get_options().get('my_import_path','[]')))
+
+    submodule_1 = apache.import_module('./submodule_1.py', path=__info__.path)
+    submodule_2 = apache.import_module('./subdir_2/toplevel.py', path=__info__.path)
+
+Thus, those submodules now don't need to set '__info__.path', as they
+will inherit that from the top level module.
+
+This may turn out to be messy or not useful as is as well. Overall, I
+guess what we need to come up with is some example use cases where
+search paths are required and perhaps work from that as to what is
+a good interface for supporting it. At the moment, my impression is
+that the common use case is in order to access some configuration
+module in a central location. Can you describe again your use case?
+
+One other issue that may come into play in this is that besides being
+able to access 'apache.main_server.get_options()', that is, the main
+server options, there is no way at global scope within a module to
+access the options related to the request, or virtual host that the
+module is being imported into.
+
+There was a similar issue in respect of the mod_python config settings
+for PythonDebug and PythonAutoReload when it came to the importer
+itself. To get around this the importer uses new top level dispatch
+functions to cache the appropriate configuration available so it is
+available no matter where apache.import_module() is used. At the
+moment this cached config isn't accessible through the 'apache' module
+but is available as 'mod_python.importer.get_config()'.
+
+If a module import is occurring do to PythonImport and you call that
+function, you will get the 'apache.main_server.get_config()' object. If
+the module import is occurring within the context of a request, the
+function will return 'req.get_config()'. Thus the 'apache.import_module()'
+function uses this to get the PythonDebug and PythonAutoReload
+settings so that they don't have to be explicitly passed to the function
+itself, thus avoiding some of the problems described in my issues list.
+
+I guess the question in respect of user options, is whether there should
+be some means getting the appropriate options object from global
+scope in a module. Thus, something like:
+
+    from mod_python import apache
+    __info__.path.extend(eval(apache.get_options().get('my_import_path','[]')))
+
+Where like with the config, if it is PythonImport, it returns the main
+server options and if in context of a request, the request options.
+
+The only problem with this is that you get back to unpredictable
+behaviour if a module might be imported from different places where
+the option set is different. That option set which is used first takes
+precedence.
+
+The issue is whether we want to protect people from doing stupid
+things by not allowing it, or give them a loaded gun and let them
+kill themselves if they want to. :-)
+
+Note, in Vampire, it actually for the time that a module is being
+imported exposes a variable '__req__' as global data within the module
+so that either the config, options or anything else for that matter about
+the request can be accessed. When I modified the Vampire importer for
+use in mod_python though, I didn't carry across that feature as was
+unsure about how wise it was providing it.
+
+Sorry, I know this should be on the developer list. Maybe we should
+look at bumping it over there. Dan are you on the developer list?
+
+Graham
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021100.html">[mod_python] Re: mod_python and module importing
+</A></li>
+	<LI>Next message: <A HREF="021101.html">[mod_python] mod_python.publisher and framesets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21097">[ date ]</a>
+              <a href="thread.html#21097">[ thread ]</a>
+              <a href="subject.html#21097">[ subject ]</a>
+              <a href="author.html#21097">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python session trouble
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20session%20trouble&In-Reply-To=8e05007d41692da63b22a324d1266b85%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018043.html">
+   <LINK REL="Next"  HREF="018045.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python session trouble</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20session%20trouble&In-Reply-To=8e05007d41692da63b22a324d1266b85%40dscpl.com.au"
+       TITLE="[mod_python] mod_python session trouble">jg.lists at sympatico.ca
+       </A><BR>
+    <I>Tue May 10 09:56:33 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018043.html">[mod_python] mod_python session trouble
+</A></li>
+        <LI>Next message: <A HREF="018045.html">[mod_python] mod_python session trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18044">[ date ]</a>
+              <a href="thread.html#18044">[ thread ]</a>
+              <a href="subject.html#18044">[ subject ]</a>
+              <a href="author.html#18044">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> 
+</I>&gt;<i> On 10/05/2005, at 8:33 PM, Wouter van Marle wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i>  Update on my own message:
+</I>&gt;&gt;<i>  I have changed the structure a bit, sess has now become req.session, 
+</I>&gt;&gt;<i> so I can pass around the session together with the request object easily.
+</I>&gt;&gt;<i>  The locking problem has been solved by calling req.session.unlock() 
+</I>&gt;&gt;<i> every time after saving the session, however this causes the server to 
+</I>&gt;&gt;<i> start a new session for each request, and that's not the idea, as then 
+</I>&gt;&gt;<i> info gets lost.
+</I>
+As Graham points out, you shouldn't need to do any unlocking, and even 
+if you do it should not cause the loss of data. The session will be 
+automatically unlocked during request cleanup phase. Just make sure you 
+call sess.save() before the end of your request as saving is not 
+automatic. The other way you may get a new session for each request is 
+if you start writing the response before the session is created. The 
+session must be able to set a cookie in the response sent to the 
+browser, and this is not possible if you've already started to send your 
+reply.
+
+&gt;&gt;<i>  Also I've noticed that writing and reading back of cookies does not 
+</I>&gt;&gt;<i> work properly. I'm trying to write a cookie, and when reading it back 
+</I>&gt;&gt;<i> in case of a new session I get the old data again. But that's for 
+</I>&gt;&gt;<i> another question.
+</I>
+I'm a little unclear why you are reading and writing the cookies, 
+assuming you mean the session cookie. When a session is created, the 
+request is checked for the existence of a cookie called pysid. If this 
+cookie is found it's value is used to load the corresponding session 
+data from some persistent store (most likely a dbm hash table for your 
+system) into the created session instance. If there is no session cookie 
+in the request then a session is created with a new session id and a new 
+cookie is set in the response header.
+
+&gt;<i> 
+</I>&gt;<i> I saving session in &quot;req&quot; anyway, do this:
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i>  def home(req):
+</I>&gt;&gt;<i>      sess = Session.Session(req)
+</I>&gt;&gt;<i>      if sess.is_new():
+</I>&gt;&gt;<i>          # get settings from cookies (using Cookie)
+</I>
+This may be where you are confused. As explained above, cookie handling 
+is done when the session object is instantiated. What you really want 
+here is some session initialization. For example.
+
+         if sess.is_new():
+             sess['hits'] = 0
+         else:
+             sess['hits'] = sess['hits'] + 1
+
+&gt;&gt;<i>      # page built up, using sess[&quot;language&quot;] for the language setting.
+</I>&gt;&gt;<i>      sess.save()
+</I>&gt;&gt;<i>      return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> def home(req):
+</I>&gt;<i>     if not hasattr(req,&quot;session&quot;):
+</I>&gt;<i>       req.session = Session.Session(req)
+</I>&gt;<i>     if req.session.is_new():
+</I>&gt;<i>       ...
+</I>&gt;<i>     ...
+</I>&gt;<i>     req.session.save()
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i> 
+</I>&gt;&gt;<i>  def english(req)
+</I>&gt;&gt;<i>      sess = Session.Session(req)
+</I>&gt;&gt;<i>      sess[&quot;language&quot;] = &quot;en&quot;
+</I>&gt;&gt;<i>      sess.save()
+</I>&gt;&gt;<i>      home(req) # to redraw the main page
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> def english(req):
+</I>&gt;<i>     if not hasattr(req,&quot;session&quot;):
+</I>&gt;<i>       req.session = Session.Session(req)
+</I>&gt;<i>     req.session[&quot;language&quot;] = &quot;en&quot;
+</I>&gt;<i>     return home(req)
+</I>&gt;<i> 
+</I>&gt;<i> Shouldn't need to unlock session then and same session object used.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> 
+</I>
+Regards,
+Jim
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018043.html">[mod_python] mod_python session trouble
+</A></li>
+	<LI>Next message: <A HREF="018045.html">[mod_python] mod_python session trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18044">[ date ]</a>
+              <a href="thread.html#18044">[ thread ]</a>
+              <a href="subject.html#18044">[ subject ]</a>
+              <a href="author.html#18044">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

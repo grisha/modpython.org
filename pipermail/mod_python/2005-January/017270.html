@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] pool and mps
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20pool%20and%20mps&In-Reply-To=c298f2d7050126230633ec6d3a%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017262.html">
+   <LINK REL="Next"  HREF="017250.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] pool and mps</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20pool%20and%20mps&In-Reply-To=c298f2d7050126230633ec6d3a%40mail.gmail.com"
+       TITLE="[mod_python] pool and mps">list at joreybump.com
+       </A><BR>
+    <I>Thu Jan 27 11:23:24 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017262.html">[mod_python] pool and mps
+</A></li>
+        <LI>Next message: <A HREF="017250.html">[mod_python] mod_python with xmlrplib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17270">[ date ]</a>
+              <a href="thread.html#17270">[ thread ]</a>
+              <a href="subject.html#17270">[ subject ]</a>
+              <a href="author.html#17270">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Nicolas Lehuen wrote:
+
+&gt;<i> There is no standard way to do it. First, if you are using the Apache
+</I>&gt;<i> mpm_prefork (the forked MPM), the efficiency of pooling will be very
+</I>&gt;<i> low, since your pool will be instantiated as many times as there are
+</I>&gt;<i> Apache processes.
+</I>
+It's still worth doing, however, as you can determine by tailing the 
+mysql log that connections are being reused more often.
+
+&gt;<i> I'm using the threaded MPM, and I built my own DB connection pool. The
+</I>&gt;<i> best place to instantiate the DB connection pool is in a module on the
+</I>&gt;<i> PYTHONPATH, which will be imported from any published modules. This
+</I>&gt;<i> way, you are guaranteed that the pool will be instantiated only once.
+</I>
+Here's some code to play with, all using the Publisher module, prefork 
+apache 1.3, mod_python 2.7:
+
+1. Most inefficient approach:
+
+#db1.py
+import MySQLdb
+# set up handle in a function
+def getdbh():
+     dbhost = &quot;localhost&quot;
+     dbuser = &quot;bob&quot;
+     dbpwd  = &quot;secret&quot;
+     dbname = &quot;foo&quot;
+     dbh = MySQLdb.connect(dbhost, dbuser, dbpwd, dbname)
+     return dbh
+# get handle from function
+dbh = getdbh
+
+This will create a new db handle with every connection:
+
+  <A HREF="http://host/db1/dbh">http://host/db1/dbh</A>
+
+2. Better:
+
+#db2.py
+import MySQLdb
+# use underscore to prevent values from being exposed via HTTP
+_dbhost = &quot;localhost&quot;
+_dbuser = &quot;bob&quot;
+_dbpwd  = &quot;secret&quot;
+_dbname = &quot;foo&quot;
+_dbh = MySQLdb.connect(_dbhost, _dbuser, _dbpwd, _dbname)
+# db handle is available within functions
+def dbh(req):
+     return _dbh
+
+This method seems to reuse handles more often:
+
+  <A HREF="http://host/db2/dbh">http://host/db2/dbh</A>
+
+3. Best, import handle from external module, preferably in path outside 
+of DocumentRoot:
+
+# connect.py
+# put this module in a directory in PYTHONPATH
+import MySQLdb
+# Set up db connection and return handle.
+_dbhost = &quot;localhost&quot;
+_dbuser = &quot;bob&quot;
+_dbpwd  = &quot;secret&quot;
+_dbname = &quot;foo&quot;
+dbh = MySQLdb.connect(_dbhost, _dbuser, _dbpwd, _dbname)
+
+Now create a published module that imports the connection:
+
+# db3.py
+import MySQLdb
+# import db handle from module in PYTHONPATH
+from connect import dbh
+
+While not truly persistent, this seems to provide the best connection reuse:
+
+  <A HREF="http://host/db3/dbh">http://host/db3/dbh</A>
+
+You need to tail your mysql log to get an idea of how well connections 
+are being reused; you can't rely solely on the instance location 
+returned by mod_python. Add some SELECT statements if you want to make 
+it more interesting. Also, I have no idea how this will work on a 
+anything other than a prefork apache.
+
+I think the ideal technique would make the same connection available to 
+multiple apache processes but limited to the appropriate interpreters, 
+and spawn new connections as needed. I'm not sure how this would be 
+done, or if anyone has published code that will do this for mod_python.
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017262.html">[mod_python] pool and mps
+</A></li>
+	<LI>Next message: <A HREF="017250.html">[mod_python] mod_python with xmlrplib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17270">[ date ]</a>
+              <a href="thread.html#17270">[ thread ]</a>
+              <a href="subject.html#17270">[ subject ]</a>
+              <a href="author.html#17270">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

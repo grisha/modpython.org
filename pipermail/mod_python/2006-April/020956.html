@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] The new module loader
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20new%20module%20loader&In-Reply-To=31D3751C-12BA-4EA5-9719-32EF8916576C%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020954.html">
+   <LINK REL="Next"  HREF="020958.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] The new module loader</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Dan Eloff</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20new%20module%20loader&In-Reply-To=31D3751C-12BA-4EA5-9719-32EF8916576C%40dscpl.com.au"
+       TITLE="[mod_python] The new module loader">dan.eloff at gmail.com
+       </A><BR>
+    <I>Sat Apr 22 11:05:39 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020954.html">[mod_python] The new module loader
+</A></li>
+        <LI>Next message: <A HREF="020958.html">[mod_python] The new module loader
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20956">[ date ]</a>
+              <a href="thread.html#20956">[ thread ]</a>
+              <a href="subject.html#20956">[ subject ]</a>
+              <a href="author.html#20956">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>It works! Nice feature, I don't see any trouble with it being the way
+it is, maybe if you just added some __debug__ only code that squeals
+if the same module is imported with a different search path.
+
+Although something that would be nice is a feature like python has
+with sys.path, that is the ability to globally add directories to the
+search path (through code and through the apache config maybe.) I
+would still like the ability to add the pyserver directory globally to
+every module's search path, because for me, every module that
+mod_python loads should have access to it.
+
+I didn't realize you lived in the Australia, I just assumed you were
+in the US. You're probably fine. Right now in North America the
+housing bubble has just burst, but not many have figured it out yet.
+When they do, most of those people who are buying real estate right
+now are going to get burned. The real estate market is cyclical, so
+it's not a big deal, more of an overdue correction, but I wouldn't
+want to be the one having to pay for that. On the bright side, it's
+good news for the stock market.
+
+-Dan
+
+On 4/22/06, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> On 22/04/2006, at 4:08 PM, Dan Eloff wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt;&gt; How are the files in this directory (_config.py) being imported in
+</I>&gt;<i> &gt;&gt; the first place?
+</I>&gt;<i> &gt;&gt; Is your pyserver.py file importing them explicitly using
+</I>&gt;<i> &gt;&gt; apache.import_module()?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Yes, that's exactly it.
+</I>&gt;<i>
+</I>&gt;<i> If your pyserver.py is effectively acting as a dispatcher for
+</I>&gt;<i> multiple pages
+</I>&gt;<i> based on URL, and it is using apache.import_module() to load an actual
+</I>&gt;<i> handler module file from your &quot;web&quot; directory by full path name, ie.,
+</I>&gt;<i> something like:
+</I>&gt;<i>
+</I>&gt;<i>    stub = posixpath.splitex(req.path_info)[0]
+</I>&gt;<i>    file = os.path.join(&quot;C:/My Documents/PYROOT/web&quot;, stub) + &quot;.py&quot;
+</I>&gt;<i>    module = apache.import_module(file)
+</I>&gt;<i>
+</I>&gt;<i> Change it to:
+</I>&gt;<i>
+</I>&gt;<i>    directory = os.path.dirname(__file__)
+</I>&gt;<i>    stub = posixpath.splitex(req.path_info)[0]
+</I>&gt;<i>    file = os.path.join(&quot;C:/My Documents/PYROOT/web&quot;, stub) + &quot;.py&quot;
+</I>&gt;<i>    module = apache.import_module(file, path=[directory])
+</I>&gt;<i>
+</I>&gt;<i> It is important you be providing a full pathname as first argument to
+</I>&gt;<i> the
+</I>&gt;<i> apache.import_module() as by doing so it triggers a special different
+</I>&gt;<i> interpretation for the &quot;path&quot; argument.
+</I>&gt;<i>
+</I>&gt;<i> Namely, when the module is specified by a full or absolute pathname,
+</I>&gt;<i> as opposed to just the module name, the &quot;path&quot; argument becomes a
+</I>&gt;<i> search path which is embedded within the loaded module and which
+</I>&gt;<i> is consulted when sub imports are done from within that module.
+</I>&gt;<i>
+</I>&gt;<i> Using this feature, you can then embed the directory the config module
+</I>&gt;<i> is in as part of the module search path for the &quot;web&quot; module and using
+</I>&gt;<i> the &quot;import&quot; statement or apache.import_module() to load it should
+</I>&gt;<i> then work.
+</I>&gt;<i>
+</I>&gt;<i> Note that the search path is only embedded within the module directly
+</I>&gt;<i> loaded by apache.import_module() when this is done. The search
+</I>&gt;<i> path is not inherited by any modules it may then in turn import.
+</I>&gt;<i>
+</I>&gt;<i> Also note that this feature is an area which still has to be properly
+</I>&gt;<i> thought out as to how it should work or be accessible. How it is
+</I>&gt;<i> currently exposed is handy in some circumstances, but possibly
+</I>&gt;<i> not as generally useful as it could be. How the ability to use it is
+</I>&gt;<i> exposed may well change in time. One has to be really careful though
+</I>&gt;<i> with such a feature because of the possibilities of introducing
+</I>&gt;<i> unpredictable behaviour from when a module is imported from
+</I>&gt;<i> different places with potentially different search paths defined. This
+</I>&gt;<i> sort of path difference problem is a big problem with the current
+</I>&gt;<i> importer, so rather want to avoid it.
+</I>&gt;<i>
+</I>&gt;<i> I'll probably talk again about these search path issues when I finally
+</I>&gt;<i> get around to addressing Jorey's email.
+</I>&gt;<i>
+</I>&gt;<i> &gt; If you want some unasked for info on the housing, ....
+</I>&gt;<i>
+</I>&gt;<i> Which country is this???? Doesn't quite reflect my situation here in Oz.
+</I>&gt;<i> Anyway, with all those property terms in there, probably lucky my spam
+</I>&gt;<i> filter didn't flag it. :-)
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020954.html">[mod_python] The new module loader
+</A></li>
+	<LI>Next message: <A HREF="020958.html">[mod_python] The new module loader
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20956">[ date ]</a>
+              <a href="thread.html#20956">[ thread ]</a>
+              <a href="subject.html#20956">[ subject ]</a>
+              <a href="author.html#20956">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Single import at startup
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Single%20import%20at%20startup&In-Reply-To=432874F4.8010606%40dd.revealed.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019038.html">
+   <LINK REL="Next"  HREF="019091.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Single import at startup</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Single%20import%20at%20startup&In-Reply-To=432874F4.8010606%40dd.revealed.net"
+       TITLE="[mod_python] Single import at startup">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Sep 16 06:28:29 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019038.html">[mod_python] Single import at startup
+</A></li>
+        <LI>Next message: <A HREF="019091.html">[mod_python] Single import at startup
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19092">[ date ]</a>
+              <a href="thread.html#19092">[ thread ]</a>
+              <a href="subject.html#19092">[ subject ]</a>
+              <a href="author.html#19092">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 15/09/2005, at 5:07 AM, Nick wrote:
+
+&gt;<i> If the import is huge, it can create a significant delay (between the 
+</I>&gt;<i> initiation of the request and the fulfillment of that request) on the 
+</I>&gt;<i> first call of a handler.  If you have multiple server children, then 
+</I>&gt;<i> there is that delay for each child.
+</I>
+There are a couple of problems with doing initialisation of such things
+as database connections at time of module import using PythonImport.
+
+The main one is that it only provides one opportunity to have the
+initialisation succeed. If the initialisation fails, Apache has to be
+restarted. This is more problematic where multiple Apache child
+processes exist, eg, prefork, where initialisation might work in some
+subprocesses and not others.
+
+Error handling is also a problem in that the initialisation is being
+done during the module import. If an exception is raised because of some
+error and not dealt with, it effectively causes the module import to
+fail in an unknown state, especially if the resource acquisition was not
+done as the very last thing. For example, &quot;b&quot; will not exist in the
+module if later referenced due to the exception occurring before that
+point.
+
+   a = 1
+   raise Exception()
+   b = 2
+
+The next problem is that in mod_python prior to 3.2, there is no way to
+access the server object during import of a module using PythonImport.
+As a consequence there is no way to register a server cleanup function
+to perform any necessary cleanup and releasing of resources when Apache
+is stopped completely or when Apache decides to kill of a child process
+because it has reached some request limit.
+
+In mod_python 3.2 this particular problem will not exist as a new
+feature has been added which will allow you to do:
+
+   apache.register_cleanup(my_cleanup_function)
+
+Once mod_python 3.2 is available, I would suggest that the best
+compromise is that PythonImport be used to attempt any initialisation
+that you might want to be done early on, but that this not be relyed
+upon. That is, a handler should still later call through some form of
+acquisition object to get access to the actual resource handle. If it
+wasn't able to be created earlier, a subsequent attempt is thus made to
+create when the first request arrives that requires it.
+
+The acquisition object, whether it is initialising at the point of a
+PythonImport or a later handler should use &quot;apache.register_cleanup()&quot;
+to ensure that any cleanup is done on process shutdown.
+
+You might therefore have the module holding the resource be something
+like:
+
+   # ... lock for global data
+   # ... actual global data
+
+   def _cleanup():
+     ...
+
+   def resource_handle():
+     # create resource if necessary and invoke 
+apache.register_cleanup(_cleanup)
+     return ...
+
+   # Must trigger initialisation last.
+
+   try:
+     resource_handle()
+   except:
+     apache.log_error(...)
+
+In the handler it would call &quot;resource_handle()&quot; and if an error occurs
+again it should give back some meaningful error in web page.
+
+Note that if using a multithreaded MPM, because initialisation could be
+performed by handlers when a request arrives, the &quot;resource_handle()&quot;
+function should use thread locking as appropriate to ensure that any
+initialisation is only done once.
+
+Think that is all, I have to run now anyway. :-)
+
+Graham
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019038.html">[mod_python] Single import at startup
+</A></li>
+	<LI>Next message: <A HREF="019091.html">[mod_python] Single import at startup
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19092">[ date ]</a>
+              <a href="thread.html#19092">[ thread ]</a>
+              <a href="subject.html#19092">[ subject ]</a>
+              <a href="author.html#19092">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

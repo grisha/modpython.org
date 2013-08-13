@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] in modpython ,how to restrict the upload file size?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20in%20modpython%20%2Chow%20to%20restrict%20the%20upload%20file%20size%3F&In-Reply-To=B6C73A5E30565245BB6D32B5F5DF7A521202EE%40sense.emmastraat.pijnacker">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023151.html">
+   <LINK REL="Next"  HREF="023157.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] in modpython ,how to restrict the upload file size?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Clodoaldo</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20in%20modpython%20%2Chow%20to%20restrict%20the%20upload%20file%20size%3F&In-Reply-To=B6C73A5E30565245BB6D32B5F5DF7A521202EE%40sense.emmastraat.pijnacker"
+       TITLE="[mod_python] in modpython ,how to restrict the upload file size?">clodoaldo.pinto.neto at gmail.com
+       </A><BR>
+    <I>Fri Feb  2 09:29:25 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023151.html">[mod_python] in modpython ,how to restrict the upload file size?
+</A></li>
+        <LI>Next message: <A HREF="023157.html">[mod_python] in modpython ,how to restrict the upload file size?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23154">[ date ]</a>
+              <a href="thread.html#23154">[ thread ]</a>
+              <a href="subject.html#23154">[ subject ]</a>
+              <a href="author.html#23154">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2007/2/1, Martijn Moeling &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">martijn at xs4us.nu</A>&gt;:
+&gt;<i> I think we need to write an imput filter which looks for 'POST' requests
+</I>&gt;<i> and checks the Content-length from headers_in, at the other hand I found
+</I>&gt;<i> this:
+</I>&gt;<i>
+</I>&gt;<i> 8&lt;-----------------------------
+</I>&gt;<i> I can understand you wanting to reject a request based on input
+</I>&gt;<i> content length being larger than a certain amount, but not what
+</I>&gt;<i> would be gained from modifying the content length.
+</I>&gt;<i>
+</I>&gt;<i> As long as you aren't using mod_python.publisher, you could insert
+</I>&gt;<i> into your handler before you use the FieldStorage class a check of
+</I>&gt;<i> the req.headers_in[&quot;content-length&quot;] field to see if the combined total
+</I>&gt;<i> of all form parameters in the POST containing the upload was
+</I>&gt;<i> greater than some amount and reject it on that basis. Not sure if
+</I>&gt;<i> the req.clength is the same thing as the &quot;content-length&quot; header or
+</I>&gt;<i> not.
+</I>&gt;<i>
+</I>&gt;<i> Without duplicating what FieldStorage does, can't see how you would
+</I>&gt;<i> be able to reject it based on just the file upload part of a multipart
+</I>&gt;<i> POST request being larger than a certain size.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i> 8&lt;-----------------------------
+</I>&gt;<i>
+</I>&gt;<i>     Mb=1025*1024
+</I>&gt;<i>     if req.headers_in.has_key('content-length'):
+</I>&gt;<i>         if int(req.headers_in[&quot;content-length&quot;])&gt;Mb and
+</I>&gt;<i> req.method=='POST':
+</I>&gt;<i>             req.write('Error Filesize exeeded 1MB')
+</I>&gt;<i>             req.log_error('filesize to big:
+</I>&gt;<i> '+str(req.headers_in['content-length']))
+</I>&gt;<i>                 form=util.FieldStorage(req,keep_blank_values=True)
+</I>&gt;<i>             return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> This works, but the apache.OK terminates the upload with an error
+</I>&gt;<i> message, Calling the form=Fieldstorage, make the upload finish and
+</I>&gt;<i> properly send the error message to the browser.
+</I>&gt;<i>
+</I>&gt;<i> I have just tested this and it works
+</I>
+I tried this in my publisher module upload_fotos.py uploading a 100MB file:
+
+   if req.headers_in.has_key('content-length'):
+      if int(req.headers_in['content-length'])&gt; 2097152:
+         s = &quot;&quot;&quot;&lt;html&gt;&lt;body&gt;Tamanho maior que 2 MegaBytes&lt;/body&gt;&lt;/html&gt;&quot;&quot;&quot;
+         return s
+
+It works, but only after the whole file has been uploaded so it is not
+a solution.
+
+I also tried an input filter:
+
+    &lt;Directory /var/www/html/carroarodo.com&gt;
+       SetHandler mod_python
+       PythonHandler ~/_publisher.py
+       PythonOption mod_python.importer.path &quot;['~/mod']&quot;
+       PythonInputFilter upload_size UPLOADSIZE
+    &lt;/Directory&gt;
+
+$ cat _publisher.py
+from mod_python import publisher
+
+def handler(req):
+   req.add_output_filter('DEFLATE')
+   req.add_input_filter('UPLOADSIZE')
+   return publisher.handler(req)
+
+$ cat upload_size.py
+from mod_python import apache
+
+def inputfilter(filter):
+
+   filter.req.size_excess = False
+   if filter.req.headers_in.has_key('content-length'):
+      if int(filter.req.headers_in['content-length'])&gt; 5000: #2097152:
+         filter.req.size_excess = True
+
+   filter.req.log_error('size_excess: %s' % filter.req.size_excess)
+   filter.pass_on()
+
+And in my publisher module:
+
+   if req.method == 'POST':
+      if req.size_excess:
+         s = &quot;&quot;&quot;&lt;html&gt;&lt;body&gt;Tamanho maior que 2 MegaBytes&lt;/body&gt;&lt;/html&gt;&quot;&quot;&quot;
+         return s
+
+Again it works but only after the whole file was uploaded. I guess it
+is just not possible to block a large file upload before it is
+uploaded when using the publisher. Given the very rare lack of
+response from the core devs I suppose this post is simple stupid
+because I'm using the publisher and I had better give up and try to
+not use it for this particular task.
+
+Regards,
+-- 
+Clodoaldo Pinto Neto
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023151.html">[mod_python] in modpython ,how to restrict the upload file size?
+</A></li>
+	<LI>Next message: <A HREF="023157.html">[mod_python] in modpython ,how to restrict the upload file size?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23154">[ date ]</a>
+              <a href="thread.html#23154">[ thread ]</a>
+              <a href="subject.html#23154">[ subject ]</a>
+              <a href="author.html#23154">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

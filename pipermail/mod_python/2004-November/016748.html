@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Multiple calls to authenhandler()
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20calls%20to%20authenhandler%28%29&In-Reply-To=79F7C65C-2DB8-11D9-9241-000A956CC60E%40scanmine.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016746.html">
+   <LINK REL="Next"  HREF="016749.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Multiple calls to authenhandler()</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Rune Hansen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20calls%20to%20authenhandler%28%29&In-Reply-To=79F7C65C-2DB8-11D9-9241-000A956CC60E%40scanmine.com"
+       TITLE="[mod_python] Multiple calls to authenhandler()">rune.hansen at scanmine.com
+       </A><BR>
+    <I>Thu Nov  4 05:39:31 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016746.html">[mod_python] Multiple calls to authenhandler()
+</A></li>
+        <LI>Next message: <A HREF="016749.html">[mod_python] Multiple calls to authenhandler()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16748">[ date ]</a>
+              <a href="thread.html#16748">[ thread ]</a>
+              <a href="subject.html#16748">[ subject ]</a>
+              <a href="author.html#16748">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 3. nov 2004, at 17.50, Rune Hansen wrote:
+
+&gt;<i>
+</I>&gt;<i> On 3. nov 2004, at 16.40, Jorey Bump wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Rune Hansen wrote:
+</I>&gt;&gt;&gt;<i> Hi,
+</I>&gt;&gt;&gt;<i> I get one call to authenthandler() when I access 
+</I>&gt;&gt;&gt;<i> <A HREF="http://www.mysite.com/">http://www.mysite.com/</A>
+</I>&gt;&gt;&gt;<i> I get two calls to authenthandler() when I access 
+</I>&gt;&gt;&gt;<i> <A HREF="http://www.mysite.com/myHandler.py/search">http://www.mysite.com/myHandler.py/search</A>
+</I>&gt;&gt;&gt;<i> and..
+</I>&gt;&gt;&gt;<i> I get three(!) calls to authenthandler() when I access 
+</I>&gt;&gt;&gt;<i> <A HREF="http://www.mysite.com/search.html,">http://www.mysite.com/search.html,</A> where search.html is an Apache 
+</I>&gt;&gt;&gt;<i> Rewrite of myHandler.py/search.
+</I>&gt;&gt;&gt;<i> Does anyone know how to avoid this?
+</I>&gt;&gt;&gt;<i> My Apache directory directive is:
+</I>&gt;&gt;&gt;<i> &lt;VirtualHost *:80&gt;
+</I>&gt;&gt;&gt;<i>     ServerName www.myhost.com
+</I>&gt;&gt;&gt;<i>     ServerAdmin <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">root at host</A>
+</I>&gt;&gt;&gt;<i>     DocumentRoot /var/www/html/search
+</I>&gt;&gt;&gt;<i>     .
+</I>&gt;&gt;&gt;<i> &lt;/VirtualHost&gt;
+</I>&gt;&gt;&gt;<i> &lt;Directory &quot;/var/www/html/search&quot;&gt;
+</I>&gt;&gt;&gt;<i>     .
+</I>&gt;&gt;&gt;<i>     RewriteEngine On
+</I>&gt;&gt;&gt;<i>     RewriteBase /
+</I>&gt;&gt;&gt;<i>     RewriteRule search.html &quot;myHandler.py/search&quot;
+</I>&gt;&gt;&gt;<i>     DirectoryIndex myHandler.py
+</I>&gt;&gt;&gt;<i>     AddHandler mod_python .py
+</I>&gt;&gt;&gt;<i>     PythonHandler mod_python.publisher
+</I>&gt;&gt;&gt;<i>     PythonAuthenHandler AuthentHandler
+</I>&gt;&gt;&gt;<i>     AuthType Basic
+</I>&gt;&gt;&gt;<i>     AuthName &quot;Restricted Area&quot;
+</I>&gt;&gt;&gt;<i>     require valid-user
+</I>&gt;&gt;&gt;<i>     PythonPath &quot;sys.path+['...']&quot;
+</I>&gt;&gt;&gt;<i>     PythonDebug On
+</I>&gt;&gt;&gt;<i> &lt;/Directory&gt;
+</I>&gt;&gt;&gt;<i> It will kill performance if I have to re-verify the user three times 
+</I>&gt;&gt;&gt;<i> for each request. Sessions are, unfortunately, not an option.
+</I>&gt;&gt;&gt;<i> Any suggestions will be most welcome :)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Are the results any different if you use this instead of a rewrite?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>  Redirect /search.html http:/www.mysite.com/myHandler.py/search
+</I>&gt;&gt;<i>
+</I>&gt;<i> Hi Jorey,
+</I>&gt;<i> It seems to work and although it &quot;solves&quot; the problem, it's not at all 
+</I>&gt;<i> what I want(the client(s) accessing the service might not be able to 
+</I>&gt;<i> respond to a 303).
+</I>&gt;<i>
+</I>&gt;<i> There has to be a way to control how and when the authenthandler() is 
+</I>&gt;<i> invoked...?
+</I>&gt;<i>
+</I>&gt;<i> regards
+</I>&gt;<i>
+</I>&gt;<i> /rune
+</I>&gt;<i>
+</I>
+[For clarity I've included the thread that led up to this ]
+
+Problem:
+For each URI path element a mod_python handler is invoked. This applies 
+to PythonAuthenHandler, PythonHeaderParserHandler and so on.
+For me, this is a problem. I would like to avoid re-verifying the user 
+three times for each request, regardless of verification method.
+
+So,
+a) I've got a miss-configuration which results in multiple calls to 
+handlers, it's a local error that can be corrected or,
+b) This is expected behavior and that  there is a technique to avoid 
+this or,
+c) This is expected and, for reasons that escapes me, desired behavior.
+
+I'd greatly appreciate any help and suggestion
+
+regards
+
+/rune
+
+
+&quot;So as far as I'm concerned, SOAP is not XML, nor is it useful to even a
+fraction of the degree to which it is destructive.&quot;
+- Uche Ogbuji
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016746.html">[mod_python] Multiple calls to authenhandler()
+</A></li>
+	<LI>Next message: <A HREF="016749.html">[mod_python] Multiple calls to authenhandler()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16748">[ date ]</a>
+              <a href="thread.html#16748">[ thread ]</a>
+              <a href="subject.html#16748">[ subject ]</a>
+              <a href="author.html#16748">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

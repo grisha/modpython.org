@@ -1,0 +1,27 @@
+#!/bin/sh
+
+URL="httpd://localhost/mod_python/hello/world.py"
+
+
+mkdir before after diffs
+
+sudo /etc/init.d/apache2 restart
+sleep 2
+
+LIST=`pgrep -u www-data|tr "\n" " "`
+
+for i in $LIST; do pmap -d $i > before/$i.log;  done
+
+wget $URL
+
+for i in $LIST; do pmap -d $i > after/$i.log;  done
+
+for i in $LIST; do diff -u before/$i.log after/$i.log > diffs/$i.diff; done
+
+
+for i in $LIST; do
+	FILESIZE=$(stat -c%s "diffs/$i.diff")
+	if [ $FILESIZE -gt 0 ]; then
+		echo "Process $i changed: check diffs/$i.diff"
+	fi
+done

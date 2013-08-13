@@ -1,0 +1,195 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How to handle exceptions and initialization in
+	mpservlet
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20to%20handle%20exceptions%20and%20initialization%20in%0A%09mpservlet&In-Reply-To=20040903185410.408.qmail%40web41304.mail.yahoo.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016340.html">
+   <LINK REL="Next"  HREF="016329.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How to handle exceptions and initialization in
+	mpservlet</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Daniel Popowich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20to%20handle%20exceptions%20and%20initialization%20in%0A%09mpservlet&In-Reply-To=20040903185410.408.qmail%40web41304.mail.yahoo.com"
+       TITLE="[mod_python] How to handle exceptions and initialization in
+	mpservlet">dpopowich at comcast.net
+       </A><BR>
+    <I>Sun Sep  5 16:38:15 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016340.html">[mod_python] How to handle exceptions and initialization in
+	mpservlet
+</A></li>
+        <LI>Next message: <A HREF="016329.html">[mod_python] mpservlet and formkit
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16351">[ date ]</a>
+              <a href="thread.html#16351">[ thread ]</a>
+              <a href="subject.html#16351">[ subject ]</a>
+              <a href="author.html#16351">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Vinj Vinj writes:
+&gt;<i> It woudl be helpful to add to the tutorial how to
+</I>&gt;<i> handle exceptions in mpservlet. I have spent a
+</I>&gt;<i> signifcant amount of time trying to track down
+</I>&gt;<i> exceptions. 
+</I>
+It's probably fair to say that the tutorial assumes you are already a
+user of mod_python and have a basic understanding of how it works.  I
+should probably do a sweep through the tutorial with an eye of someone
+who has never used mod_python before.
+
+I use &quot;PythonDebug on&quot; in my apache configs.  All python exceptions go
+to the browser and I can quickly debug the problem.  If it's a known
+possible exception that a production system can come across, I wrap
+them in try/except and &quot;do the right thing&quot; for my app.  In other
+words, it's just python code, no special handling is needed in
+mpservlets that you wouldn't do in other python programs or mod_python
+request handlers.  Of course, you should familiarize yourself with
+raising apache.SERVER_RETURN with an appropriate argument, but that's
+just mod_python out-of-the-box.
+
+&gt;<i> 1. If there is an exception in a function called
+</I>&gt;<i> thorugh _call_ the servlet just returns a blank page. 
+</I>
+I cannot reproduce this problem.  When I raise an exception in a
+&quot;_call_&quot; method, the exception propagates back to the browser,
+assuming PythonDebug is on.  I have attached a Servlet to the bottom
+of this email that &quot;works for me.&quot;
+
+&gt;<i> 2. Add a file upload example to the tutorial
+</I>
+Agreed.  I'll add one for the next release.
+
+&gt;<i> 3. How do you initialize server level code...
+</I>
+This is right up there with &quot;how do I maintain global data?&quot; as a FAQ.
+What you're after is an Application abstraction which mod_python
+doesn't really provide.  The closest thing is the PythonImport
+directive in conjuction with interpreter naming.  See section 3.12 of
+the mod_python FAQ and section 4.1 of the mod_python manual.
+
+It is on my to-do list to provide an Application abstraction layer in
+future versions of mpservlets.  This is non-trivial because of the
+differences in apache MPMs, so I'm not sure how soon it will be out.
+Grisha's implementation of Session is an example of what it takes to
+make your classes &quot;mpm-free&quot;, as it were.
+
+Daniel Popowich
+-----------------------------------------------
+<A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>
+
+
+======================================================================
+testcall.mps (NOTE: I use HyperText)
+======================================================================
+# -*- python -*-
+
+from mod_python.servlet import HTMLPage
+from HyperText.HTML import *
+
+class testcall(HTMLPage):
+
+    def prep(self):
+        HTMLPage.prep(self)
+        self.called = 'none'
+
+    def write_content(self):
+        form = FORM(method='POST')
+        form.append(INPUT(type='submit', name='_call_noE()',
+                          value='No Exception'), &quot; &quot;,
+                    INPUT(type='submit', name='_call_E()',
+                          value='Exception'))
+
+        self.writeln('Called: ', self.called, HR(),
+                     form, HR())
+
+
+    def noE(self):
+
+        self.called = 'noE'
+
+    def E(self):
+
+        self.called = 'E'
+
+        raise 'EXCEPTION'
+
+    ok_methods_to_call = [noE, E]
+    
+        
+======================================================================
+output in my browser when I click on &quot;Exception&quot; button
+======================================================================
+
+Mod_python error: &quot;PythonHandler mod_python.servlet&quot;
+
+Traceback (most recent call last):
+
+  File &quot;/usr/local/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 299, in HandlerDispatch
+    result = object(req)
+
+  File &quot;/usr/local/lib/python2.3/site-packages/mod_python/servlet.py&quot;, line 1455, in handler
+    if not servlet.respond():
+
+  File &quot;/usr/local/lib/python2.3/site-packages/mod_python/servlet.py&quot;, line 913, in respond
+    return Servlet.respond(self) or self.write_html()
+
+  File &quot;/usr/local/lib/python2.3/site-packages/mod_python/servlet.py&quot;, line 636, in respond
+    return method(self, *args)
+
+  File &quot;/home/popowich/public_html/py/testcall.mps&quot;, line 31, in E
+    raise 'EXCEPTION'
+
+EXCEPTION
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016340.html">[mod_python] How to handle exceptions and initialization in
+	mpservlet
+</A></li>
+	<LI>Next message: <A HREF="016329.html">[mod_python] mpservlet and formkit
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16351">[ date ]</a>
+              <a href="thread.html#16351">[ thread ]</a>
+              <a href="subject.html#16351">[ subject ]</a>
+              <a href="author.html#16351">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

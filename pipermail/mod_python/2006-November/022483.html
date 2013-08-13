@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PSP global variables
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PSP%20global%20variables&In-Reply-To=a595de7a0611050603l62f92e68kb4f02fd25991b894%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022480.html">
+   <LINK REL="Next"  HREF="022488.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PSP global variables</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PSP%20global%20variables&In-Reply-To=a595de7a0611050603l62f92e68kb4f02fd25991b894%40mail.gmail.com"
+       TITLE="[mod_python] PSP global variables">jpg at jgassociates.ca
+       </A><BR>
+    <I>Sun Nov  5 11:22:35 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022480.html">[mod_python] PSP global variables
+</A></li>
+        <LI>Next message: <A HREF="022488.html">[mod_python] PSP global variables
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22483">[ date ]</a>
+              <a href="thread.html#22483">[ thread ]</a>
+              <a href="subject.html#22483">[ subject ]</a>
+              <a href="author.html#22483">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Clodoaldo Pinto Neto wrote:
+&gt;<i> I'm building a PSP tutorial and can't find in the mod_python manual
+</I>&gt;<i> any references to the global variables req, form and session as in
+</I>&gt;<i> this article:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.onlamp.com/pub/a/python/2004/02/26/python_server_pages.html">http://www.onlamp.com/pub/a/python/2004/02/26/python_server_pages.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> Are they unsupported features?
+</I>
+Completely supported, but poorly documented. There are some deficiencies 
+  in the form and session support in 3.1 that are addressed in 3.2 and 
+3.3. (We are hoping to do a 3.3 beta this week). I'm not sure how you'll 
+deal with these changes in your tutorial. It may depend on your audience 
+- beginner or more advanced?
+
+Anyway, here are a few points to consider (bugs rather than features):
+
+The session and form instances are created auto-magically when &quot;session&quot; 
+or &quot;form&quot; are found in the psp code. eg.
+
+name = session['name']
+title = form['title']
+
+-----
+3.1.3
+-----
+The platform default session class will be used. There is no way to 
+control this. If you need something else or want control over other 
+aspects of your session such as timeout, *don't* reference &quot;session&quot; in 
+the psp code. Use something else like sess, and create your own instance:
+
+sess = Session.DbmSession(req, timeout=7200)
+
+There are possible session locking issues if a session is created in 
+other code outside the psp page, in another handler phase for example. 
+It's easy to deadlock the session if you are not careful in manually 
+unlocking the session.
+
+You should only create a form once per request, as the request data is 
+&quot;consumed&quot; when the FieldStorage instance is created. Attempting to 
+create a second instance will result in a form object with no data. 
+Again this is a problem if you want to access the form data outside of 
+the psp page, such as in an earlier processing phase.
+
+---
+3.2
+---
+This version introduced a number of PythonOption's to allow 
+configuration of the session, including the session type, directory (for 
+dbm), session timeout and so on. This makes it much easer to control the 
+session magic in psp pages. Check the docs for specifics, but note that 
+we are introducing a new PythonOption namespace convention in version 3.3.
+
+The req object is now checked for a session attribute, and if it is 
+found it is used instead of creating a new one. This fixes one of the 
+problems in 3.1 when the session object is created outside of the psp page.
+
+The 3.2 PythonOption's which are deprecated in 3.3
+session
+	Deprecated in 3.3, use mod_python.session.session_type
+ApplicationPath
+	Deprecated in 3.3, use mod_python.session.application_path
+session_cookie_name
+	Deprecated in 3.3, use mod_python.session.cookie_name
+session_directory
+	Deprecated in 3.3, use mod_python.session.session_directory
+session_dbm
+	Deprecated, use mod_python.dbm_session.database_filename
+session_cleanup_time_limit
+	Deprecated in 3.3,
+	use mod_python.file_session.cleanup_time_limit
+session_fast_cleanup
+	Deprecated in 3.3,
+	use mod_python.file_session.enable_fast_cleanup
+session_grace_period
+	Deprecated in 3.3,
+	use mod_python.file_session.cleanup_grace_period
+session_verify_cleanup
+	Deprecated in 3.3,
+	use mod_python.file_session.cleanup_session_timeout
+PSPDbmCache
+	Deprecated in 3.3,
+	use mod_python.psp.cache_database_filename
+---
+3.3
+---
+The req object is checked for a &quot;session&quot; attribute, and if it is found 
+it used. If it is created, the req object also gets a reference to it. 
+Thus, the session object can be accessed by later processing phases as 
+well via req.session.
+
+The req object is checked for a &quot;form&quot; attribute, and if it is found it 
+used. If it is created, the req object also gets a reference to it. 
+Thus, the form object can be accessed by later processing phases as well 
+via req.form.
+
+As mention above, we are introducing a new namespace for PythonOption:
+
+mod_python.psp.cache_database_filename  	  	
+mod_python.session.session_type 		
+mod_python.session.cookie_name 		
+mod_python.session.application_domain 		
+mod_python.session.application_path 		
+mod_python.session.database_directory 		
+mod_python.dbm_session.database_filename 		
+mod_python.dbm_session.database_directory 		
+mod_python.file_session.enable_fast_cleanup 		
+mod_python.file_session.verify_session_timeout 		
+mod_python.file_session.cleanup_grace_period 		
+mod_python.file_session.cleanup_time_limit 		
+mod_python.file_session.database_directory
+
+
+I'm hoping that I can nudge you in the direction of emphasizing 
+mod_python 3.3 in your tutorial since there are a huge number of bug 
+fixes and improvements in it - over 100 from 3.2. Although mod_python 
+3.1 is still shipped by some linux distributions, it is over 2 years old 
+and is getting quite crusty. With any luck we'll have 3.3 ready not long 
+after you've completed your tutorial.
+
+I can email you the html docs generated from svn trunk if that would be 
+helpful.
+
+  &gt; <A HREF="http://webpython.codepoint.net/mod_python_psp">http://webpython.codepoint.net/mod_python_psp</A>
+
+A couple of comments:
+
+<A HREF="http://webpython.codepoint.net/mod_python_psp_apache_configuration">http://webpython.codepoint.net/mod_python_psp_apache_configuration</A>
+
+.htaccess is misspelled in &quot;must not be used inside the .htacces file&quot;.
+
+You might want to mention that the security implications of using .psp_. 
+Perhaps use the example of making a database connection with the user 
+name and password in the psp file. You wouldn't want to use this on a 
+publicly facing website. :)
+
+It's nice to see someone creating these tutorials. :) Keep up the good 
+work Clodoaldo.
+
+Jim
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022480.html">[mod_python] PSP global variables
+</A></li>
+	<LI>Next message: <A HREF="022488.html">[mod_python] PSP global variables
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22483">[ date ]</a>
+              <a href="thread.html#22483">[ thread ]</a>
+              <a href="subject.html#22483">[ subject ]</a>
+              <a href="author.html#22483">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

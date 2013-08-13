@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Quick question from mod_perl user
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Quick%20question%20from%20mod_perl%20user&In-Reply-To=1f060c4c05012221087afa6587%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017184.html">
+   <LINK REL="Next"  HREF="017182.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Quick question from mod_perl user</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Quick%20question%20from%20mod_perl%20user&In-Reply-To=1f060c4c05012221087afa6587%40mail.gmail.com"
+       TITLE="[mod_python] Quick question from mod_perl user">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Jan 23 00:20:11 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017184.html">[mod_python] Quick question from mod_perl user
+</A></li>
+        <LI>Next message: <A HREF="017182.html">[mod_python] Freebsd 5.3 - PyThreadState_Delete: tstate is still
+	current
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17185">[ date ]</a>
+              <a href="thread.html#17185">[ thread ]</a>
+              <a href="subject.html#17185">[ subject ]</a>
+              <a href="author.html#17185">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 23/01/2005, at 4:08 PM, snacktime wrote:
+
+&gt;&gt;<i> I am not familiar with mod_perl, and thus not totally clear on what  
+</I>&gt;&gt;<i> you
+</I>&gt;&gt;<i> mean by &quot;persist&quot; in this particular case, but a global variable  
+</I>&gt;&gt;<i> within
+</I>&gt;&gt;<i> a module will in mod_python persist across distinct requests.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This global though is only accessible to that specific Python
+</I>&gt;&gt;<i> interpreter,
+</I>&gt;&gt;<i> thus if using prefork mode of Apache, different processes obviously  
+</I>&gt;&gt;<i> have
+</I>&gt;&gt;<i> different versions of that global. If in one process, distinct
+</I>&gt;&gt;<i> interpreters
+</I>&gt;&gt;<i> are created, again each interpreter, each has their own version of  
+</I>&gt;&gt;<i> that
+</I>&gt;&gt;<i> global.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Obviously, a global does not persist across restarts.
+</I>&gt;&gt;<i>
+</I>&gt;<i> Ok, so far this is the same as mod perl.
+</I>&gt;<i>
+</I>&gt;<i> With mod perl I normally create my own request object, usually a
+</I>&gt;<i> hash/dictionary to store all the values I need to be global.  At the
+</I>&gt;<i> end of the request I just undefine the one request object instead of
+</I>&gt;<i> having to remember all the different global variables.  Is this
+</I>&gt;<i> approach good for mod python as well?
+</I>
+In mod_python, to communicate between handlers or even methods  
+fulfilling
+a request, one can add bits into the existing request object. The  
+documentation
+even says:
+
+   <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-mprequest.html">http://www.modpython.org/live/current/doc-html/pyapi-mprequest.html</A>
+
+   You can dynamically assign attributes to it as a way to communicate  
+between handlers.
+
+    
+<A HREF="http://www.modpython.org/live/current/doc-html/pyapi-mprequest-mem.html">http://www.modpython.org/live/current/doc-html/pyapi-mprequest-mem.html</A>
+
+   notes
+     A table object that could be used to store miscellaneous  general  
+purpose
+     info that lives for as long as the request lives. If  you need to  
+pass data
+     between handlers, it's better to simply add  members to the request  
+object
+     than to use notes.
+
+Thus:
+
+   def accesshandler(req):
+     req.mystuff = { &quot;a&quot;: 1 }
+     ...
+     return apache.OK
+
+   def handler(req):
+     if req.mystuff[&quot;a&quot;] == ...:
+       ...
+     ...
+     return apache.OK
+
+You don't even have to undefine your stuff as the &quot;req&quot; object which  
+holds it
+will be destroyed at the end of the request anyway.
+
+If you need to do more complicated stuff whereby you need to execute  
+some
+special code to cleanup at the end of a request, you can also look at  
+cleanup
+callbacks.
+
+    
+<A HREF="http://www.modpython.org/live/current/doc-html/pyapi-mprequest-">http://www.modpython.org/live/current/doc-html/pyapi-mprequest-</A> 
+meth.html
+
+   register_cleanup(callable[, data])
+
+     Registers a cleanup. Argument callable can be any callable  object,
+     the optional argument data can be any object (default is None). At  
+the very
+     end of the request, just before the actual  request record is  
+destroyed
+     by Apache, callable will be called  with one argument, data.
+
+     It is OK to pass the request object as data, but keep in mind that
+     when the cleanup is executed, the request processing is already  
+complete,
+     so doing things like writing to the client is completely  pointless.
+
+     If errors are encountered during cleanup processing, they should be
+     in  error log, but otherwise will not affect request processing in  
+any
+     way, which makes cleanup bugs sometimes hard to spot.
+
+     If the server is shut down before the cleanup had a chance to run,
+     it's possible that it will not be executed.
+
+Hope this helps.
+
+Graham
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017184.html">[mod_python] Quick question from mod_perl user
+</A></li>
+	<LI>Next message: <A HREF="017182.html">[mod_python] Freebsd 5.3 - PyThreadState_Delete: tstate is still
+	current
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17185">[ date ]</a>
+              <a href="thread.html#17185">[ thread ]</a>
+              <a href="subject.html#17185">[ subject ]</a>
+              <a href="author.html#17185">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

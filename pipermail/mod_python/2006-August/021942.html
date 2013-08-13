@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] encoding
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20encoding&In-Reply-To=44F307D5.9040203%40ulb.ac.be">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021946.html">
+   <LINK REL="Next"  HREF="021944.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] encoding</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Deron Meranda</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20encoding&In-Reply-To=44F307D5.9040203%40ulb.ac.be"
+       TITLE="[mod_python] encoding">deron.meranda at gmail.com
+       </A><BR>
+    <I>Mon Aug 28 15:54:39 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021946.html">[mod_python] encoding
+</A></li>
+        <LI>Next message: <A HREF="021944.html">[mod_python] Cannot install , Need help
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21942">[ date ]</a>
+              <a href="thread.html#21942">[ thread ]</a>
+              <a href="subject.html#21942">[ subject ]</a>
+              <a href="author.html#21942">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 8/28/06, Julien Cigar &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jcigar at ulb.ac.be</A>&gt; wrote:
+&gt;<i> On the project I'm currently working on, everything is in unicode :
+</I>&gt;<i> - locales on the server (LANG=en_US.UTF-8)
+</I>&gt;<i> - the PostgreSQL database
+</I>
+Always remember that a Unicode string is an abstract concept.
+A UTF-8 encoded byte stream is one (among many) possible
+concrete representations of a Unicode string.
+
+In the Python language, the 'unicode' type is also abstract.
+You have to (currently) convert it to a 'str' type to be able
+to do any I/O on it.
+
+&gt;<i> I'm using the Psycopg2 module to interact with PostgreSQL, and SimpleTAL
+</I>&gt;<i> for the template engine.
+</I>&gt;<i> Those two libraries requires type unicode instead of type str, otherwise
+</I>&gt;<i> I get errors (ContextContentException: Found non-unicode string in
+</I>&gt;<i> Context! for SimpleTal, and a &quot;Can't adapt ....&quot; error with psycopg2).
+</I>&gt;<i> It's still a little obscure for me why it doesn't work with type str ...
+</I>
+I'm not familiar with SimpleTal, but I suspect that it is trying to
+prevent the caller from making dumb mistakes.  By only accepting
+'unicode' strings it is in full control over any encoding representation
+it needs to do internally to talk to PostgreSQL.  If you pass it just a
+'str' it has to assume that the caller has already performed some
+sort of encoding, which could be a rather unsafe assumption.
+
+&gt;<i> The solution I found (which works) was to .decode('utf-8') or
+</I>&gt;<i> unicode(mystr, 'utf-8') the POSTed data, but I wondered if it's not
+</I>&gt;<i> dangerous or incorrect to do like that ?
+</I>
+Encoding unicode into a UTF-8 str is always safe:
+
+   u'\u2022'.encode('utf8')  -&gt; '\xe2\x80\xa2'
+
+Decoding a UTF-8 str back into unicode is sometimes safe:
+
+   '\xe2\x80\xa2'.decode('utf8') -&gt; u'\u2022'
+
+but
+
+   '\xf2\x81\x88'.decode('utf8')  -&gt; UnicodeDecodeError
+
+Also, depending on how your Python was compiled, it may
+only be able to represent the BMP portion of the Unicode
+defined characters (the first 65536 characters).  So this
+may or may not work:
+
+  '\xf4\x8f\xbf\xbf'.decode('utf8')  -&gt; u'\U0010ffff'
+
+Doing the decode the way you are doing it is probably the
+best thing to do.  But do be aware that it is possible for a malicious
+UA to intentionally send you bogus data which would cause the
+decode to fail.  Either just let the UnicodeDecodeError bubble
+up, or catch it and send back an HTTP 400 error (or something
+else).
+
+Another thing you need to consider is trying to make sure
+that the POSTed data is in fact UTF-8 encoded to begin
+with.  Unfortunately although HTTP provides a way to
+explicitly send the encoding to the browser (via the
+Content-Type encoding parameter), there is not a very good
+way for the reverse direction.  Actually it could have been
+done, but in practice it's not.
+
+Usually the best insurance is to just always send all HTML
+or XML pages to the browser already in UTF-8 whether they
+need to be or not.  Do this and you'll rarely get bit.  Browsers
+will always encode POSTed text data in the same character
+encoding as the page it received which contains the &lt;form&gt;
+element.  Although there is also the accept-charset attribute
+of &lt;form&gt;, it's best not to try to use it.
+
+
+&gt;<i> To my knowledge, Apache does not make conversion of encoding,
+</I>&gt;<i> so it should be done at the mod_python level, right ?
+</I>
+Conversion should actually be at the application layer.  The content
+is really just a sequence of bytes.  The interpretation of those into
+characters is something that Apache should not do, and it is
+questionable even if mod_python should do it (except perhaps for
+the PSP template part of mod_python rather than the core part).
+
+As far as Apache or mod_python are concerned the content could
+even be something other than text, so character conversion may
+not even be a defined operation.
+
+If your byte streams are UTF-8 encoded (which you can control
+via the Content-Type header, etc.) then using the .decode() and
+.encode() methods is perhaps the best way convert them to/from
+python unicode objects.
+
+If you're using a web framework on top of mod_python, then any
+such conversion may be done or simplified by that layer.
+
+IMHO, the real source of confusion is that Python's str type is
+quite ill-defined.  Really there should only be one character string
+type (basically the same as the unicode type) and a byte string type,
+which is not mapped to characters in any way at all.  There has
+been periodic discussion on the python dev list, but for now we
+have to live with the str type.
+
+&gt;<i> Is there a cleaner solution, which works in all cases ?
+</I>
+Not really.  At least not without being quite risky and prone to
+subtle errors.
+
+Of course being Python, you can write your own simplifying
+wrappers or decorators since you know your application's needs.
+-- 
+Deron Meranda
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021946.html">[mod_python] encoding
+</A></li>
+	<LI>Next message: <A HREF="021944.html">[mod_python] Cannot install , Need help
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21942">[ date ]</a>
+              <a href="thread.html#21942">[ thread ]</a>
+              <a href="subject.html#21942">[ subject ]</a>
+              <a href="author.html#21942">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

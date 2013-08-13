@@ -1,0 +1,287 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Application session
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Application%20session&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022933.html">
+   <LINK REL="Next"  HREF="022935.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Application session</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Michael Rasmussen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Application%20session&In-Reply-To="
+       TITLE="[mod_python] Application session">mir at miras.org
+       </A><BR>
+    <I>Sat Jan  6 21:49:35 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022933.html">[mod_python] Returned filename question (updated)
+</A></li>
+        <LI>Next message: <A HREF="022935.html">[mod_python] Application session
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22934">[ date ]</a>
+              <a href="thread.html#22934">[ thread ]</a>
+              <a href="subject.html#22934">[ subject ]</a>
+              <a href="author.html#22934">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+Hi Graham,
+
+I might have solve my problems. Your article helped a lot.
+Read my solution a clarification of my problem below.
+
+On Sat, 6 Jan 2007 11:38:14 +1100
+Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i> You might then perhaps explain better what you are talking about.
+</I>&gt;<i>
+</I>&gt;<i> In short, any module that is imported within the context of a Python
+</I>&gt;<i> interpreter instance is usable by any handler executing within that
+</I>&gt;<i> Python interpreter instance in that process. This is totally
+</I>&gt;<i> unrelated to
+</I>&gt;<i> user sessions created as a result of some form based/login mechanism.
+</I>&gt;<i>
+</I>&gt;<i> What isn't clear is whether when you say 'sessions' you are talking
+</I>&gt;<i> about user sessions or merely concurrent executing request handlers.
+</I>&gt;<i>
+</I>The picture:
+
+I have an application which provides admin users the ability to add
+extensions into the runtime. These extensions must be available to all
+users as soon as they are instantiated without the users needs for
+restarting their sessions. The extensions must also be persistent in
+the runtime until either the application/apache is restarted or they
+deactivated by the admin users. Had the application been programmed in
+Java - JSP/Servlets, such extensions would have be stored in the
+application session: &lt;jsp:useBean id=&quot;applicationBean&quot;
+class=&quot;some.Bean&quot; scope=&quot;application&quot; /&gt;. This means that for any user
+session currently and later on can access the bean and its members. In
+Java/JSP you operate with four different kinds of scope: page, request,
+session and application. the first three are all related to the same
+user session in the said application while the last one is related to
+the application instance and the by nature related to all users of the
+application. Studying your article proved to me that mod_python does
+not provide application scope directly?
+
+My application is running in apache under GNU/Linux so it is restricted
+to the problems described in your article - prefork and worker. By the
+way does this problem also apply to MPM worker?
+
+What I have found out is this:
+I thought I could create a class implementing the singleton pattern and
+store an instance of the class to the request object but even if a
+directory/virtual host only designates one python handler one cannot
+rely on that all instances will share the same python
+runtime/pythonHandler due to apache's forking nature so this was a
+dead-end.
+
+So my final solution was to create the said singleton class and in this
+class save private attributes with instance information of the object
+store in dictionaries and then use cPickle to store and load the
+object's state. Since I cannot control when an instance of the
+singleton class is unloaded from the session I was forced to save the
+state of the object every time the object's state change.
+
+If anybody is interested you can find my solution below
+
+&quot;&quot;&quot;
+IPCop Module Loader.
+
+This module is licensed under GPL and is part of the UI to IPCop.
+Read online documentation &lt;<A HREF="http://www.ipcop.org">http://www.ipcop.org</A>&gt;.
+
+Copyright: 2006, Michael Rasmussen &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mir at datanom.net</A>&gt;
+
+Last maintainer: 2006-08-21 18:57 +0200 Michael Rasmussen
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mir at datanom.net</A>&gt;
+
+Previous maintainers:
+
+If you find any bugs or have any comments please send an email to
+Michael Rasmussen &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mir at datanom.net</A>&gt;
+&quot;&quot;&quot;
+
+VERSION = &quot;0.1&quot;
+
+import os, sys, new, cPickle, anydbm, tempfile, ModuleImporter
+
+class ModuleLoaderException(Exception):
+     def __init__(self, msg):
+         self.value = msg
+
+     def __str__(self):
+         return repr(self.value)
+
+class ModuleLoader:
+     &quot;&quot;&quot;
+         Available modules contains reference to
+         registered modules.
+         Key: ModuleId
+         Item: Reference to a module
+     &quot;&quot;&quot;
+
+     __instance = None
+
+     def __init__(self):
+         if ModuleLoader.__instance is None :
+             ModuleLoader.__instance = ModuleLoader.__singleton()
+         self.__dict__['_ModuleLoader__instance'] =
+ModuleLoader.__instance def __getattr__(self, attr):
+         return getattr(self.__instance, attr)
+
+     def __setattr__(self, attr, value):
+         return setattr(self.__instance, attr, value)
+
+     class __singleton:
+
+         def __init__(self):
+             dbmIn = anydbm.open(tempfile.gettempdir() +
+		&quot;/ipcop_modules.dbm&quot;, &quot;c&quot;)
+	    try:
+                 self.__availableModules =
+                     cPickle.loads(dbmIn[&quot;availableModules&quot;])
+             except KeyError:
+                 self.__availableModules = {}
+             try:
+                 self.__activeModules =
+                     cPickle.loads(dbmIn[&quot;activeModules&quot;])
+             except KeyError:
+                 self.__activeModules = {}
+             dbmIn.close()
+
+         def getModulesList(self):
+             try:
+                 return self.__availableModules
+             except AttributeError:
+                 return {}
+
+         def setModulesList(self, list):
+             self.__availableModules = list
+             dbmOut = anydbm.open(tempfile.gettempdir() +
+                 &quot;/ipcop_modules.dbm&quot;, &quot;c&quot;)
+             dbmOut[&quot;availableModules&quot;] =
+                 cPickle.dumps(self.getModulesList(), 1)
+             dbmOut.close()
+
+         def setAvailableModule(self, name, desc):
+             self.__availableModules[name] = desc
+             dbmOut = anydbm.open(tempfile.gettempdir() +
+                 &quot;/ipcop_modules.dbm&quot;, &quot;c&quot;)
+             dbmOut[&quot;availableModules&quot;] =
+                 cPickle.dumps(self.getModulesList(), 1)
+             dbmOut.close()
+
+         def register(self, module, path = None):
+             try:
+                 if path != None:
+                     if (path.find(&quot;.&quot;) != -1):
+                         raise ModuleLoaderException(&quot;Illegal character
+in path&quot;)
+                     if (not path.startswith(&quot;/&quot;)):
+                         if (os.getcwd() != '/'):
+                             path = os.getcwd() + &quot;/&quot; + path
+                         else:
+                             path = &quot;/&quot; + path
+                     if (path in sys.path):
+                         pass
+                     else:
+                         sys.path.append(path)
+                 mod = ModuleImporter.get_mod(module)
+                 try:
+                     modules = getattr(mod,&quot;__all__&quot;)
+                     for m in modules:
+                         self.register(module + &quot;.&quot; + m)
+                 except AttributeError:
+                     lastDot = module.rfind(u&quot;.&quot;)
+                     module = module[lastDot + 1:]
+                     self.setAvailableModule(module, getattr(mod,
+&quot;__name__&quot;))
+                     ModuleImporter.del_mod(getattr(mod, &quot;__name__&quot;))
+             except Exception, ex:
+                 raise ModuleLoaderException(&quot;Loading module: %s&quot; % ex)
+
+         def unregister(self, module):
+             &quot;&quot;&quot; unregister &quot;&quot;&quot;
+             t = self.getModulesList()
+             del t[module]
+             self.setModulesList(t)
+             dbmOut = anydbm.open(tempfile.gettempdir() +
+&quot;/ipcop_modules.dbm&quot;, &quot;c&quot;)
+             dbmOut[&quot;availableModules&quot;] =
+cPickle.dumps(self.getModulesList(), 1)
+             dbmOut.close()
+             ModuleImporter.del_mod(getattr(module, &quot;__name__&quot;))
+
+- --
+Hilsen/Regards
+Michael Rasmussen
+
+Get my public GnuPG keys:
+michael &lt;at&gt; rasmussen &lt;dot&gt; cc
+<A HREF="http://keyserver.veridis.com:11371/pks/lookup?op=get&amp;search=0xD3C9A00E">http://keyserver.veridis.com:11371/pks/lookup?op=get&amp;search=0xD3C9A00E</A>
+mir &lt;at&gt; datanom &lt;dot&gt; net
+<A HREF="http://keyserver.veridis.com:11371/pks/lookup?op=get&amp;search=0xE501F51C">http://keyserver.veridis.com:11371/pks/lookup?op=get&amp;search=0xE501F51C</A>
+mir &lt;at&gt; miras &lt;dot&gt; org
+<A HREF="http://keyserver.veridis.com:11371/pks/lookup?op=get&amp;search=0xE3E80917">http://keyserver.veridis.com:11371/pks/lookup?op=get&amp;search=0xE3E80917</A>
+- --------------------------------------------------------------
+It's all in the mind, ya know.
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.6 (GNU/Linux)
+
+iD8DBQFFoF+/VErYVePoCRcRAtV3AKCiqlVRGu+l8KVno28zxC/6tkl4cgCfQU4L
+5Rb3VaXrFtWehT7S5Al+2nk=
+=io+9
+-----END PGP SIGNATURE-----
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022933.html">[mod_python] Returned filename question (updated)
+</A></li>
+	<LI>Next message: <A HREF="022935.html">[mod_python] Application session
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22934">[ date ]</a>
+              <a href="thread.html#22934">[ thread ]</a>
+              <a href="subject.html#22934">[ subject ]</a>
+              <a href="author.html#22934">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

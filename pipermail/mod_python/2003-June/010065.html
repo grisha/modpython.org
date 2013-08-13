@@ -1,0 +1,229 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Announcement: Roadkill version 0.01 &quot;Kitten&quot;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Announcement%3A%20Roadkill%20version%200.01%20%22Kitten%22&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010074.html">
+   <LINK REL="Next"  HREF="010066.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] Announcement: Roadkill version 0.01 &quot;Kitten&quot;</H1>
+    <B>Geert Jansen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Announcement%3A%20Roadkill%20version%200.01%20%22Kitten%22&In-Reply-To="
+       TITLE="[mod_python] Announcement: Roadkill version 0.01 &quot;Kitten&quot;">geert at boskant.nl
+       </A><BR>
+    <I>Sun Jun  8 17:35:13 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010074.html">[mod_python] modular mod_python extensions vs. &quot;folding&quot; mod_psp
+</A></li>
+        <LI>Next message: <A HREF="010066.html">[mod_python] Killer Web Apps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10065">[ date ]</a>
+              <a href="thread.html#10065">[ thread ]</a>
+              <a href="subject.html#10065">[ subject ]</a>
+              <a href="author.html#10065">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Johathan,
+
+&gt;<i> Let's make the killer app, right here, right now. I am building the
+</I>&gt;<i> framework for my sites, and a commercial project. I know that 
+</I>&gt;<i> I want to use 
+</I>&gt;<i> mod_python because there are so many benefits to it, even above perl.
+</I>
+A lot of good ideas, but I agree with other posters that most of them
+are present in the current web application solutions.
+
+&gt;<i> What would you suggest, within the limitations of current
+</I>&gt;<i> HTTP technology?
+</I>&gt;<i> 
+</I>&gt;<i> Some ideas I came up with are as follows. Let's discuss -- be
+</I>&gt;<i> honest about 
+</I>&gt;<i> the ideas. You add your own.
+</I>&gt;<i> 
+</I>&gt;<i> - - Forms. It seems nice to have the code that processes the
+</I>&gt;<i> form input right 
+</I>&gt;<i> next to the code that makes the form HTML code. This screams 
+</I>&gt;<i> &quot;put it all in 
+</I>&gt;<i> a class!&quot; So I came up with a few classes that should be subclassed:
+</I>&gt;<i> 	- Text input
+</I>&gt;<i> 	- Int input
+</I>&gt;<i> 	- Float input
+</I>&gt;<i> 	- Zip Code input
+</I>&gt;<i> 	... etc ...
+</I>
+Draco has this. It provides the following classes: Field, StringField,
+AsciiField, IntField, FloatField, EnumField.
+ 
+&gt;<i> - - Groups of form elements. Sometimes I want a group of
+</I>&gt;<i> elements that go 
+</I>&gt;<i> together. Example: Login box (name/email, password, submit), address 
+</I>&gt;<i> (line1, line2, city, state, zip, phone) and cc info (cc #, 
+</I>&gt;<i> address, name, 
+</I>&gt;<i> etc..) I thought of having a class that does the whole thing 
+</I>&gt;<i> together. You 
+</I>&gt;<i> give it some namespace, and it puts its element in that 
+</I>&gt;<i> namespace in the 
+</I>&gt;<i> args. For instanc, if you have an address group of elements, 
+</I>&gt;<i> and you give 
+</I>&gt;<i> it the namespace &quot;fred&quot;, then the args come back as 
+</I>&gt;<i> fred.line1, fred.line2, 
+</I>&gt;<i> fred.city, fred.state, fred.whatever.
+</I>
+Draco has a Form class that does this. You add Field (sub)classes to it
+in the constructor, and then call parse() on a namespace (usually, the
+http GET/POST) namespace). The result is a new namespace with your
+parsed args, or a FormError exception on error.
+
+&gt;<i> - - Permanent and temporary sessions. Every website uses
+</I>&gt;<i> cookies for only one 
+</I>&gt;<i> thing - sessions. We should have this built in by default. 
+</I>&gt;<i> Some pages have 
+</I>&gt;<i> it turned on, some pages won't need it and have it turned 
+</I>&gt;<i> off. What happens 
+</I>&gt;<i> is when the guy visits a page that needs a session, it sets 
+</I>&gt;<i> the session 
+</I>&gt;<i> cookie, or gets the existing one. Then it goes to the 
+</I>&gt;<i> database and grabs 
+</I>&gt;<i> the associated data, and it unserializes the data into a 
+</I>&gt;<i> python object. 
+</I>&gt;<i> Tada - you have a session. It also does some rudimentary 
+</I>&gt;<i> checking to see if 
+</I>&gt;<i> the browser has cookies turned on, redirecting them to 
+</I>&gt;<i> another page if they 
+</I>&gt;<i> do not.
+</I>
+Again, Draco has this, except that sessions are always enabled, not only
+for specific pages. Any variables assigned to the &quot;session&quot; namespace
+are automatically put in a db table that is bound to the current session
+via a session-id (either stored in a cookie or from the URL or both).
+The namespace is typed, you can put in any object that can be pickled.
+
+Additionaly, there is the &quot;user&quot; namespace, containing variables bound
+to the current user (if the session is logged-in), &quot;application&quot;,
+&quot;server&quot;  namespaces, etc.
+
+&gt;<i> - - Keeping HTML totall separate from the code is a very good idea.
+</I>&gt;<i> Unfortunately, it makes things like loops or iterations (like 
+</I>&gt;<i> listing some 
+</I>&gt;<i> results) difficult. I believe the best way around this is to 
+</I>&gt;<i> allow some 
+</I>&gt;<i> python code, in its pure python form, in the page somehow. 
+</I>&gt;<i> However, this 
+</I>&gt;<i> should be extremely light and only when necessary. Is there 
+</I>&gt;<i> anyway around 
+</I>&gt;<i> this?
+</I>
+I agree with you completely. My preference is also to use a pure form of
+Python for loops, conditionals, etc. Another option that is used by
+Albatross and Zope is that you have a 3rd language in the form of extra
+tags.
+
+&gt;<i> - - Database connection. This is something that is really
+</I>&gt;<i> important, even 
+</I>&gt;<i> though it isn't part of the web server per se. I believe that 
+</I>&gt;<i> DB-API (and 
+</I>&gt;<i> perl DBI) just doesn't cut it because it is too low-level. 
+</I>&gt;<i> There are so 
+</I>&gt;<i> many better ways to do things. One of the biggest problems I have is 
+</I>&gt;<i> getting data-driven SQL statement put together without taking 
+</I>&gt;<i> 100 lines of 
+</I>&gt;<i> code to do it. I found that by writing select as a function 
+</I>&gt;<i> that takes 
+</I>&gt;<i> parameters (like columns, from tables, join tables, where parameters, 
+</I>&gt;<i> etc...) things get a lot easier. I believe we should build a 
+</I>&gt;<i> system that 
+</I>&gt;<i> has this in there.
+</I>
+I think that a db-api should be part of the core of any web framework.
+Draco implements a &quot;database&quot; object that provides access to the system
+database (database that Draco itself uses too for session data, etc).
+This object implements methods to get new cursors, open transactions,
+etc. An object oriented, namespace like API for
+querying/adding/modifying tables and records should be available too. I
+have this but it's rather immature so I did not yet add it to Draco.
+
+&gt;<i> - - Code-generated HTML. Every once in a while, we need to
+</I>&gt;<i> build our HTML 
+</I>&gt;<i> elements manually in the code, putting every argument in 
+</I>&gt;<i> precisely. This is 
+</I>&gt;<i> annoying, and the code is always ugly. What I do is use a 
+</I>&gt;<i> function that 
+</I>&gt;<i> does it all for me. Example:
+</I>&gt;<i> 	html.select(&quot;state&quot;, (... list of states...)) -&gt; A 
+</I>&gt;<i> select list of states
+</I>&gt;<i> 	html.link(html.utl('', arg1=value1, arg2=value2), &quot;Click here&quot;, 
+</I>&gt;<i> class=&quot;big_link&quot;) -&gt; a link with properly formatted arguments and all
+</I>
+I'm not a big fan of these because generating html from code makes the
+separation of the job of the web designer and the programmer more
+difficult. Draco implements &quot;tag rewriting&quot; that transparently plugs
+back form variables into the html. This at least alleviates the problem
+because the html can be pure, and doesn't need any code for form
+feedback.
+
+&gt;<i> If we can agree on what we REALLY want, and if we take
+</I>&gt;<i> advantage of Python, 
+</I>&gt;<i> expecially the things that make it so much more specialer 
+</I>&gt;<i> than perl and 
+</I>&gt;<i> Java, I think we can come up with THE KILLER SOLUTION. How 
+</I>&gt;<i> about that for a 
+</I>&gt;<i> project name? TKS?
+</I>
+Without too much shameless self promotion I think that Draco is pretty
+close to a killer web application framework. It just needs some more
+developers and users to see how it performs for a broad audience and to
+improve it accordingly. I am willing to do concessions to make it better
+and more accepted. My time is very limited at the moment, however.
+
+Cheers,
+Geert
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010074.html">[mod_python] modular mod_python extensions vs. &quot;folding&quot; mod_psp
+</A></li>
+	<LI>Next message: <A HREF="010066.html">[mod_python] Killer Web Apps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10065">[ date ]</a>
+              <a href="thread.html#10065">[ thread ]</a>
+              <a href="subject.html#10065">[ subject ]</a>
+              <a href="author.html#10065">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

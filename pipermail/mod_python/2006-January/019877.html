@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How can one examine dynamically added handlers?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20can%20one%20examine%20dynamically%20added%20handlers%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019876.html">
+   <LINK REL="Next"  HREF="019879.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How can one examine dynamically added handlers?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20can%20one%20examine%20dynamically%20added%20handlers%3F&In-Reply-To="
+       TITLE="[mod_python] How can one examine dynamically added handlers?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Jan  4 22:56:23 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019876.html">[mod_python] How can one examine dynamically added handlers?
+</A></li>
+        <LI>Next message: <A HREF="019879.html">[mod_python] How can one examine dynamically added handlers?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19877">[ date ]</a>
+              <a href="thread.html#19877">[ thread ]</a>
+              <a href="subject.html#19877">[ subject ]</a>
+              <a href="author.html#19877">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Joseph Barillari wrote ..
+&gt;<i> I'm a big fan of mod_python -- I've been using it for a few days and
+</I>&gt;<i> it's been great so far.
+</I>
+Yet you seem to be diving straight into a complex area of mod_python
+where few if any people dwell. Ie., most wouldn't use dynamic registration
+of handlers.
+
+&gt;<i> I'm a bit confused by the add_handler function, though.  Is there any
+</I>&gt;<i> way to get a list (from within the PDB, for instance) of all the
+</I>&gt;<i> dynamically registered handlers for a given request?
+</I>
+The handlers of the current executing handler phase are available in
+&quot;req.hlist&quot;. Unfortunately, the only way of seeing the complete list is
+to iterative call &quot;req.hlist.next()&quot; which has the side effect of discarding
+that at the head of the list. In other words, to seem them you actually
+unravel the list. If doing it from inside Pdb session and you are going
+to abort the request, probably not a problem, in other circumstances
+unravelling the list will prevent later handlers from running as they
+will be deregistered. There is no way of interogating from Pdb the
+handlers for a later phase.
+
+&gt;<i> Because add_handler fails silently if the supplied handler is bogus,
+</I>&gt;<i> it's not easy to figure out where problems lie. If I add a
+</I>&gt;<i> PythonHandler with add_handler, and it doesn't get executed, is there
+</I>&gt;<i> an easy way to tell if it didn't get executed because it (a) wasn't
+</I>&gt;<i> the first handler on the list, (b) had an invalid module name, or (c)
+</I>&gt;<i> some other reason?
+</I>
+First off, ensure you are using mod_python 3.2.5b at least. Some
+handler registration issues when using PythonHandlerModule and
+other cases are dealt with in that. Better reporting of other issues can
+be obtained by applying the changes mentioned in:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-98">http://issues.apache.org/jira/browse/MODPYTHON-98</A>
+
+on top of 3.2.5b.
+
+&gt;<i> If specificity helps, my current problem is this: I have the following
+</I>&gt;<i> two lines in a PythonTransHandler:
+</I>&gt;<i> 
+</I>&gt;<i> req.add_handler(&quot;PythonLogHandler&quot;,&quot;mptest::loghandler&quot;)
+</I>&gt;<i> req.add_handler(&quot;PythonHandler&quot;,&quot;mptest::handler&quot;)
+</I>&gt;<i> 
+</I>&gt;<i> The PythonLogHandler gets executed, but the PythonHandler doesn't.
+</I>
+In your .htaccess file for that directory or other appropriate place
+in Apache configuration for that directory, actually have:
+
+  SetHandler mod_python
+
+or:
+
+  AddHandler mod_python .ext
+
+where &quot;.ext&quot; is replaced with what ever extension the URL will have
+you are using to access the resource?
+
+Without one of these, a PythonHandler will not be called, whether it
+be specified in the Apache configuration or add dynamically using
+req.add_handler() by an earlier handler phase.
+
+&gt;<i> I suspect this is because the default action for log-handlers is to
+</I>&gt;<i> execute everything, but the default action for content handlers
+</I>&gt;<i> (PythonHandler) is to execute only the first handler in the list -- so
+</I>&gt;<i> the default apache handler gets executed instead. I'm not sure how to
+</I>&gt;<i> override this using add_handler.
+</I>
+All handlers in any phase will be executed provided that each returns
+apache.OK. If they return any other value processing of further handlers
+in that phase will be aborted. Aborting in a phase, can cause later
+phases to be aborted as well, except for PythonLogHandler which is
+always called regardless.
+
+The other return types that a handler could return are apache.DECLINED
+which will cause aborting of just that phase and Apache will go looking
+for inbuilt handlers that might instead apply to the request. Eg, serving
+up a static file. Later phases still run in this case. If apache.DONE is
+returned, it indicates that handler has responded with a complete
+response, including setting appropriate status in request object. As such
+any further handlers in that phase or latter phases will be skipped.
+
+Handlers may also return various HTTP error code responses which again
+will cause subsequent handlers to that phase and later phases to be skipped.
+
+Thus, what happens depends on what your return from your handler.
+
+Graham
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019876.html">[mod_python] How can one examine dynamically added handlers?
+</A></li>
+	<LI>Next message: <A HREF="019879.html">[mod_python] How can one examine dynamically added handlers?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19877">[ date ]</a>
+              <a href="thread.html#19877">[ thread ]</a>
+              <a href="subject.html#19877">[ subject ]</a>
+              <a href="author.html#19877">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

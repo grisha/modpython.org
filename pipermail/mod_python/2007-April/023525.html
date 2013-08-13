@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] uneven speed results
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20uneven%20speed%20results&In-Reply-To=4630BD74.5000305%40dasir.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023523.html">
+   <LINK REL="Next"  HREF="023527.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] uneven speed results</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20uneven%20speed%20results&In-Reply-To=4630BD74.5000305%40dasir.net"
+       TITLE="[mod_python] uneven speed results">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Thu Apr 26 17:52:28 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023523.html">[mod_python] uneven speed results
+</A></li>
+        <LI>Next message: <A HREF="023527.html">[mod_python] uneven speed results
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23525">[ date ]</a>
+              <a href="thread.html#23525">[ thread ]</a>
+              <a href="subject.html#23525">[ subject ]</a>
+              <a href="author.html#23525">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>The main problem with Python web frameworks is that they are usually
+quite huge in comparison to PHP pages. Take for example TurboGears,
+just to load it up the basic set of features into memory takes up
+15MB. That is even before any requests arrive.
+
+Now, if you run Apache in prefork mode and have up to 25 processes the
+amount of memory starts to add up. In a memory constrained box this
+may mean having to swap memory back in from disk in the worse case.
+
+Worse is that if you have the idle state of Apache setup to only run a
+few processes and create the rest on demand, creating those extra
+processes when there is a peak in traffic will result in the slow
+startup of loading that 15MB of modules into memory in order to handle
+the request.
+
+Further, once the peaks is gone Apache will kill off what it sees and
+extra processes to its requirements, so the next time there is a peak
+it happens all over again.
+
+Thus, suggested that if running prefork that one set the idle number
+of processes to perhaps be larger than normal so no need to create
+additional processes when small peaks in demand. Alternative is to use
+worker MPM whereby one can make use of multiple threads in a smaller
+number of processes.
+
+Graham
+
+On 27/04/07, ml &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ml at dasir.net</A>&gt; wrote:
+&gt;<i> For a large count of requests it gives some constant reply time. But
+</I>&gt;<i> rarely visited sites have a long &quot;warm up&quot; (sometimes over 2 seconds)
+</I>&gt;<i> and that is too much. I'm just curious what makes the difference between
+</I>&gt;<i> e.g. 150ms and 1500ms respond times.
+</I>&gt;<i>
+</I>&gt;<i> D
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Graham Dumpleton napsal(a):
+</I>&gt;<i> &gt; Using 'ab' with such small numbers of requests always yields
+</I>&gt;<i> &gt; unreliable results. What do you get if you use 5000-10000 requests?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Also note that using -k isn't a realistic measure of real world
+</I>&gt;<i> &gt; performance as no single client is going to trigger large numbers of
+</I>&gt;<i> &gt; requests over the same connection, so don't use -k when using the
+</I>&gt;<i> &gt; large number of requests I suggest.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On 26/04/07, ml &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ml at dasir.net</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt; Hi!
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; I was wondering why mod_python (3.2.8) has so uneven speed results, e.g.:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; # ab -k -c1 -n15 some_python_site
+</I>&gt;<i> &gt;&gt; ...
+</I>&gt;<i> &gt;&gt; Percentage of the requests served within a certain time (ms)
+</I>&gt;<i> &gt;&gt;   50%    158
+</I>&gt;<i> &gt;&gt;   66%    161
+</I>&gt;<i> &gt;&gt;   75%    165
+</I>&gt;<i> &gt;&gt;   80%    166
+</I>&gt;<i> &gt;&gt;   90%   1173
+</I>&gt;<i> &gt;&gt;   95%   1209
+</I>&gt;<i> &gt;&gt;   98%   1209
+</I>&gt;<i> &gt;&gt;   99%   1209
+</I>&gt;<i> &gt;&gt;  100%   1209 (longest request)
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; When I compare it to a PHP it has constant response time on each request.
+</I>&gt;<i> &gt;&gt; I know that the startup can take some more time but sometimes it takes a
+</I>&gt;<i> &gt;&gt; longer time when I do refreshing the page in a browser so the startup
+</I>&gt;<i> &gt;&gt; can't affect the response (I think :-).
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; What all does affect the mod_python runtime?
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; David
+</I>&gt;<i> &gt;&gt; _______________________________________________
+</I>&gt;<i> &gt;&gt; Mod_python mailing list
+</I>&gt;<i> &gt;&gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt;&gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023523.html">[mod_python] uneven speed results
+</A></li>
+	<LI>Next message: <A HREF="023527.html">[mod_python] uneven speed results
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23525">[ date ]</a>
+              <a href="thread.html#23525">[ thread ]</a>
+              <a href="subject.html#23525">[ subject ]</a>
+              <a href="author.html#23525">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

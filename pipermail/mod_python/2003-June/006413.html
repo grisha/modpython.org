@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python weirdness, maybe related to importing?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20weirdness%2C%20maybe%20related%20to%20importing%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006436.html">
+   <LINK REL="Next"  HREF="006415.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python weirdness, maybe related to importing?</H1>
+    <B>Sean Reifschneider</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20weirdness%2C%20maybe%20related%20to%20importing%3F&In-Reply-To="
+       TITLE="[mod_python] mod_python weirdness, maybe related to importing?">jafo at tummy.com
+       </A><BR>
+    <I>Mon Jun  9 23:59:27 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006436.html">[mod_python] python print
+</A></li>
+        <LI>Next message: <A HREF="006415.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6413">[ date ]</a>
+              <a href="thread.html#6413">[ thread ]</a>
+              <a href="subject.html#6413">[ subject ]</a>
+              <a href="author.html#6413">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>I've been trying to build a web application system using mod_python, and
+I've been running into some weirdness.  Some of it is just sporadic
+behavior, some of it seems to be pretty consistent.  Before I get
+started, my main development system is running Red Hat 9 with Python
+2.2.2 and I've been trying mod_python 3.0.1 (shipped with RH9) and
+3.0.3.
+
+Basically, I'm building up a package that contains my system.  In it I
+have a module which contains my handler:
+
+   AddHandler python-program .html
+   PythonHandler jotweb.jotweb_mod_python::handler
+
+Basically, my handler is using SimpleTAL to parse some HTML, which will
+result in my code getting called, which will import things from the
+jotweb package:
+
+   fileName = path + '.py'
+   fp = open(fileName, 'r')
+   module = imp.load_source(path, fileName, fp)
+
+So, basically, I am trying to load a module from a specific file.
+
+The first problem I'm seeing is that imports are just weird.  For
+example, if I have code which does &quot;import jotweb.input.Request&quot;,
+unless my __init__.py in jotweb/input includes:
+
+   import Request
+
+I will get an error to the effect that the module object contains no
+element &quot;Request&quot;.  Of course, from a regular Python program, I can do
+&quot;import jotweb.input.Request&quot; just fine either way.
+
+Basically, because of the above, my entire code-base has to be imported
+when you do an &quot;import jotweb&quot;.
+
+Further, I'm running into weird issues with headers_out.  If from my
+jotweb_mod_python.handler code I do:
+
+   req.headers_out.add('key', 'value')
+
+it will properly add the specified header.  And if this code is executed
+from the module that is imported as above, it seems to work.  If,
+however, in this imported module I do:
+
+   import jotweb
+   jotweb.auth.Sessions.processLogin()
+
+where &quot;processLogin()&quot; gets a handle to the request object and does
+req.headers_out.add(), the headers aren't showing up in my browser.
+HOWEVER, if I telnet to port 80 and issue a GET request to exactly the
+same URL that I issued in the GET request, the headers are *NOT* getting
+return as far as I can tell (no cookie is getting set, doing &quot;View
+Documenat Information&quot; shows not those headers, but if I set headers in
+my main mod_python handler, it WILL show it.
+
+I've verified that the call to headers_out.add() is happening by adding
+a syslog before it, it's definitely calling that code.
+
+It seems like at some point something is making it so that
+headers_out.add() doesn't work any more.  Would pulling the form data
+out of the request cause that?  Any thoughts on why the imports seem to
+work quite differently on a name-space basis from how they happen from
+the interpreter:
+
+   AttributeError: 'module' object has no attribute 'input'
+
+Is there something about being in mod_python that makes it a &quot;toy&quot;
+interpreter in some ways, that mean I'm constantly going to be bumping
+into weird things?
+
+Thoughts?
+
+Thanks,
+Sean
+-- 
+ I like to be different, so I built a lowercase a-frame house.
+                 -- Sean Reifschneider, 2000
+Sean Reifschneider, Inimitably Superfluous &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jafo at tummy.com</A>&gt;
+tummy.com, ltd. - Linux Consulting since 1995.  Qmail, Python, SysAdmin
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006436.html">[mod_python] python print
+</A></li>
+	<LI>Next message: <A HREF="006415.html">[mod_python] mod_python weirdness, maybe related to importing?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6413">[ date ]</a>
+              <a href="thread.html#6413">[ thread ]</a>
+              <a href="subject.html#6413">[ subject ]</a>
+              <a href="author.html#6413">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

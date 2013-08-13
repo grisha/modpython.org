@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] XMLHttpRequest + CGI + mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20XMLHttpRequest%20%2B%20CGI%20%2B%20mod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021790.html">
+   <LINK REL="Next"  HREF="021793.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] XMLHttpRequest + CGI + mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nando Drabik</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20XMLHttpRequest%20%2B%20CGI%20%2B%20mod_python&In-Reply-To="
+       TITLE="[mod_python] XMLHttpRequest + CGI + mod_python">nandogringo at gmail.com
+       </A><BR>
+    <I>Thu Aug 10 16:03:39 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021790.html">[mod_python] Shared global variables among apache children?
+</A></li>
+        <LI>Next message: <A HREF="021793.html">[mod_python] XMLHttpRequest + CGI + mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21791">[ date ]</a>
+              <a href="thread.html#21791">[ thread ]</a>
+              <a href="subject.html#21791">[ subject ]</a>
+              <a href="author.html#21791">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi all,
+
+I would like some help fixing the problem I am stuck in. To make this as
+short and simple as possible, it has mostly to do with the
+cgi.FieldStorage class. I have:
+
+1) mod_python installed correctly on apache2
+2) File test.py (resides under cgi-bin):
+3) HTML file that sends out XMLHttpRequest from js
+
+test.py ===============================
+#!/usr/bin/env python
+
+import sys, re, cgi
+import cgitb; cgitb.enable(display=0,logdir=&quot;.&quot;)
+sys.path.insert(0,'/opt/atlas/lib/python')
+from jsonutils import jsonrpc
+
+htmlTemplate = &quot;&quot;&quot;Content-Type: text/html
+
+&lt;html&gt;
+&lt;head&gt;&lt;title&gt;%(title)s&lt;/title&gt;&lt;/head&gt;
+&lt;body&gt;
+%(body)s
+&lt;/body&gt;&lt;/html&gt;
+&quot;&quot;&quot;
+fields = cgi.FieldStorage()
+req = fields.getvalue(&quot;myVar&quot;) ##  THIS IS WHERE THE WHOLE THING CRAHSES
+
+print htmlTemplate % { 'title': &quot;Result&quot;, 'body': req}
+=====================================
+
+When I access /server/cgi-bin/test.py?myVar='content', by directly
+typing the URL on firefox, I do receive back &quot;content&quot;, no problem.
+
+However, from an html file, if I send and XMLHttpRequest in javascript
+like this:
+HTML/JS snippet ===========================
+var req = new XMLHttpRequest();
+rep.open(&quot;post&quot;, &quot;<A HREF="http://server/cgi-bin/test.py&quot;">http://server/cgi-bin/test.py&quot;</A>)
+req.send(&quot;myVar=10&quot;):
+=====================================
+
+The script crashes when the request is sent. After debugging, I've
+realized that the problem is in the FieldStorage class. Here's the
+output from the error log:
+
+error log ===============================
+ problem occurred in a Python script. Here is the sequence of function
+calls leading up to the error, in the order they occurred.
+ /srv/www/cgi-bin/atlas/test.py
+
+   28         fields = cgi.FieldStorage()
+   29         req = fields.getvalue(&quot;myVar&quot;)
+
+req undefined, fields = FieldStorage(None, None, 'myVar=10'),
+fields.getvalue = &lt;bound method FieldStorage.getvalue of
+FieldStorage(None, None, 'myVar=10')&gt;
+ /usr/lib/python2.4/cgi.py in getvalue(self=FieldStorage(None, None,
+'myVar=10'), key='myVar', default=None)
+  565     def getvalue(self, key, default=None):
+  566         &quot;&quot;&quot;Dictionary style get() method, including 'value' lookup.&quot;&quot;&quot;
+  567         if key in self:
+  568             value = self[key]
+  569             if type(value) is type([]):
+key = 'myVar', self = FieldStorage(None, None, 'myVar=10')
+ /usr/lib/python2.4/cgi.py in __contains__(self=FieldStorage(None, None,
+'myVar=10'), key='myVar')
+  616         &quot;&quot;&quot;Dictionary style __contains__ method.&quot;&quot;&quot;
+  617         if self.list is None:
+  618             raise TypeError, &quot;not indexable&quot;
+  619         for item in self.list:
+  620             if item.name == key: return True
+builtin TypeError = &lt;class exceptions.TypeError&gt;
+
+TypeError: not indexable
+      args = ('not indexable',)
+====================================================
+
+I am new to python, so I'm a bit confused. If I print the variable
+'fields' in test.py, it displays the list (FieldStorage(None, None,
+'myVar=10')) just fine, but the methods getvalue, getfirst, etc raise
+TYPE exceptions(not indexable). Interestingly, the has_key method works.
+
+So, I have been unable to retrieve the post data from the
+XMLHttpRequest. Can anyone help me figure out how to access the post
+variables from mod_python residing under a cgi-bin directory?
+
+Thank you very much in advance!
+Fernando
+
+	
+Fernando Drabik &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">fernando.drabik at noaa.gov</A>&gt;
+OceanEye Web Application Developer
+Coral Reef Ecosystem Division
+NOAA Fisheries
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021790.html">[mod_python] Shared global variables among apache children?
+</A></li>
+	<LI>Next message: <A HREF="021793.html">[mod_python] XMLHttpRequest + CGI + mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21791">[ date ]</a>
+              <a href="thread.html#21791">[ thread ]</a>
+              <a href="subject.html#21791">[ subject ]</a>
+              <a href="author.html#21791">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

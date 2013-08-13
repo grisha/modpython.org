@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Protecting%20Web%20apps%20from%20to%20many%20simultaneous%0A%09clicks/Hacking&In-Reply-To=1084749857.941.35.camel%40ping.apnic.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015607.html">
+   <LINK REL="Next"  HREF="015618.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>SAiello at Jentoo.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Protecting%20Web%20apps%20from%20to%20many%20simultaneous%0A%09clicks/Hacking&In-Reply-To=1084749857.941.35.camel%40ping.apnic.net"
+       TITLE="[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking">SAiello at Jentoo.com
+       </A><BR>
+    <I>Sun May 16 23:42:20 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015607.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+        <LI>Next message: <A HREF="015618.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15608">[ date ]</a>
+              <a href="thread.html#15608">[ thread ]</a>
+              <a href="subject.html#15608">[ subject ]</a>
+              <a href="author.html#15608">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Sunday 16 May 2004 07:24 pm, Byron Ellacott wrote:
+&gt;<i> The trouble is that communication between the frontends and backends
+</I>&gt;<i> probably has a lot of expensive overhead.  I'm making a few assumptions
+</I>&gt;<i> about how your system works here that may be invalid.  First up, I'm
+</I>&gt;<i> assuming that a frontend is connecting to a backend using a TCP
+</I>&gt;<i> connection.  Establishing a TCP connection is a non-trivial operation;
+</I>&gt;<i> even connecting to the local host can be relatively costly.  Doing a DNS
+</I>&gt;<i> lookup for the IMAP backend's IP address is expensive too, though easy
+</I>&gt;<i> to avoid.  Once a connection's established, you need to present the
+</I>&gt;<i> backend with your user's credentials, which involves more round trips of
+</I>&gt;<i> data, and then finally you can do your IMAP operation, which has further
+</I>&gt;<i> TCP overhead.  After that, you need to close the TCP connection, which
+</I>&gt;<i> is probably done after the user sees their result, but before the Apache
+</I>&gt;<i> process is available to serve another result.
+</I>&gt;<i>
+</I>&gt;<i> Compare this to, for example, storing some cached information in your
+</I>&gt;<i> session: mod_python is already loading and saving your session via dbm
+</I>&gt;<i> or shm, so the additional overhead is the marshalling and I/O for the
+</I>&gt;<i> cached data.  Significantly less than talking to an IMAP backend.
+</I>&gt;<i>
+</I>&gt;<i> If you're using IMAP connection pools, this section is fairly much
+</I>&gt;<i> irrelevant, since you're avoiding the high costs of connection setup and
+</I>&gt;<i> teardown for most requests.  However, it's been my experience that
+</I>&gt;<i> connection pools are difficult to achieve in a forked Apache world.
+</I>
+Oh believe me, I know my IMAP connections are rather expensive. Currently I am 
+using Python's imaplib, for all imap queries. You have to understand I am not 
+an advance Python programer. Maybe intermediate programmer, but I am still 
+trying to learn the Pythonic way to do things, in using the language as 
+efficiently as possible. And if my Python code relies on other software (i.e. 
+Apache) trying to understand the dynamics of how that software works, and the 
+interaction between it and Python. So basically my head is swimming. My 
+current goal is to get something up and running with my current knowledge 
+base, running as best as I can design now, learning as I go.
+
+Connection Pools seem like a daunting undertaking, it could just be an 
+illusion.  Until I understand the basic definition of a Connection Pool, in a 
+programming way. It will seem like a complicate and mysterious thing.
+
+Currently, when ever I require IMAP information, a connection needs to be 
+established, user authentication, information request, close IMAP connection, 
+parse the IMAP information into useable lists/distionaries, display web page. 
+In the beginning I really didn't like having to open and close the IMAP 
+connection, seemed like such a waste. So I tried to store the imaplib 
+function into a session var, that was bad. ImapLib can't be pickled due to it 
+using __slots__. I wrote the writer of imapLib, and he said he wasn't even 
+aware it used __slots__, and that he may look at it at some point. So to me 
+my next option was to look at writing my own IMAP library, how hard can it 
+be.. Results, I am not even close to handling tcp sockets. At this point I 
+was flustered, and came to conclusion to design my app as best I can, and 
+after it is working, go back and try to work on the bits I feel can be done 
+better.
+
+&gt;<i> mod_python's session data first up, because it will have already tied
+</I>&gt;<i> your cached data to a particular user, and because a lot of the overhead
+</I>&gt;<i> of storing/retrieving data is ameliorated with the session work, and
+</I>&gt;<i> because it's easier to use Grisha's work than to duplicate it. :)
+</I>
+That was my thinking to to use the session storage option. It seemes the 
+easiest way to do it. But I am always wary when doing something the easy way.
+
+&gt;<i> The trouble I'm having here is that if session locking is working, you
+</I>&gt;<i> should never encounter a value of sess['REQUESTS'] &gt; 1.  The session
+</I>&gt;<i> should be automatically locking when you first create it, and remaining
+</I>&gt;<i> locked, as Grisha says, until it's cleaned up when the request
+</I>&gt;<i> completes.  In fact, copy/pasting your code, appending the
+</I>&gt;<i> &quot;sess['REQUESTS']-=1&quot; and saving the session before returning apache.OK,
+</I>&gt;<i> I cannot get redirected.  I inserted a sleep(10) before the decrement
+</I>&gt;<i> and return, and hit reload a dozen odd times.  The only effect of this
+</I>&gt;<i> was to make my browser spend two minutes loading the final page. :)
+</I>&gt;<i>
+</I>&gt;<i> If I put in &quot;sess.unlock()&quot; right after I create the session, I can get
+</I>&gt;<i> myself redirected to the error page.
+</I>&gt;<i>
+</I>&gt;<i> Any idea how you might be winding up with an unlocked session?  What's
+</I>&gt;<i> your Apache version?  mod_python version?  What's the request serving
+</I>&gt;<i> model (worker threads, forked, etc)?
+</I>
+I do not use refresh to cause the error, but page links (i.e. like the Next 
+button for the next set of messages).  clicking over and over on  the A link 
+will cause it. It isn't the browser, I have tried Konqueror, firefox, and IE, 
+they all will get my error page. Below are my system specs. I think Apache is 
+forking, because I am not using threads as a compile option, so that is 
+forked right ? I have to read up on which is better, I tried apache with 
+threads once to see if that was the issue..  still did the same thing.
+
+If ya like external access is available to the box, if ya want to take a peek. 
+still rather rough.. so dun laugh
+
+Server Specs:
+  Gentoo distribution of GNU/Linux, kernel 2.6.4
+  Apache 2.0.49 with berkdb, gdbm, &amp; ldap compiled in.
+  mod_python 3.1.3
+
+Sorry for long post, and if I provided to much information, just trying to 
+give ya a feel where I am technical with Python programming and my thought 
+process.
+
+  Steven
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015607.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+	<LI>Next message: <A HREF="015618.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15608">[ date ]</a>
+              <a href="thread.html#15608">[ thread ]</a>
+              <a href="subject.html#15608">[ subject ]</a>
+              <a href="author.html#15608">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

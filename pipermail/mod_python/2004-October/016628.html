@@ -1,0 +1,244 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Udate python modules without restarting Apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=9A47AFDC-1DD1-11D9-AEE8-000393DCF16E%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016627.html">
+   <LINK REL="Next"  HREF="016630.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Udate python modules without restarting Apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=9A47AFDC-1DD1-11D9-AEE8-000393DCF16E%40dscpl.com.au"
+       TITLE="[mod_python] Udate python modules without restarting Apache">nicolas at lehuen.com
+       </A><BR>
+    <I>Thu Oct 14 15:51:15 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016627.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+        <LI>Next message: <A HREF="016630.html">[mod_python] FreeBSD 5.2, mod_python 3.1.3,
+	apache 2.0.52 .. File access problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16628">[ date ]</a>
+              <a href="thread.html#16628">[ thread ]</a>
+              <a href="subject.html#16628">[ subject ]</a>
+              <a href="author.html#16628">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>This __clone__() method is a very neat idea indeed ! For the moment I prefer
+not to keep any data between reloads (what needs to be kept is in the
+database), but there may be occurrences where such a mechanisms would be
+handy.
+
+Right now I'm trying to use imp.new_module but I get curious results...
+Apparently some classes that are imported from other modules are redefined
+even though they should not. The net result is that some isinstance() tests
+fail where they should not (reminds me of ClassLoader problems in Java). I
+tried to build a simple test case exhibiting the problem, but it does not.
+What's for sure, is that when I do :
+
+exec source in module.__dict__
+
+If module is a fake module object (a place holder class Module(object):
+pass), all my code is OK. If it is a real module, I get weird behaviours.
+I'm still investigating on the subject.
+
+Regards,
+
+Nicolas
+
+&gt;<i> -----Message d'origine-----
+</I>&gt;<i> De : Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>] 
+</I>&gt;<i> Envoy&#233; : jeudi 14 octobre 2004 13:10
+</I>&gt;<i> &#192; : Nicolas Lehuen
+</I>&gt;<i> Cc : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Objet : Re: [mod_python] Udate python modules without 
+</I>&gt;<i> restarting Apache
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On 14/10/2004, at 7:32 PM, Nicolas Lehuen wrote:
+</I>&gt;<i> &gt;&gt; FWIW, if using execfile() I have since found that it is probably 
+</I>&gt;<i> &gt;&gt; better to use:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;   import imp
+</I>&gt;<i> &gt;&gt;   module = imp.new_module(&quot;z&quot;)
+</I>&gt;<i> &gt;&gt;   module.__file__ = &quot;z.py&quot;
+</I>&gt;<i> &gt;&gt;   execfile(&quot;z.py&quot;,module.__dict__)
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; That way, executing type() on the module gives &lt;type 'module'&gt; and 
+</I>&gt;<i> &gt;&gt; thus things one expects to work on modules will. The 
+</I>&gt;<i> imp.new_module() 
+</I>&gt;<i> &gt;&gt; method does not result in the module being listed in sys.modules.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Ok, thanks for the tip, Graham.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ...
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; So I guess those two function do exactly the same thing. 
+</I>&gt;<i> I'll modify 
+</I>&gt;<i> &gt; my ModuleCache to use imp.new_module instead of a fake 
+</I>&gt;<i> Module object.
+</I>&gt;<i> 
+</I>&gt;<i> Another thing I have done is to implement the cloning 
+</I>&gt;<i> mechanism for data that I mentioned in my prior emails. Ie.,
+</I>&gt;<i> 
+</I>&gt;<i>          module = imp.new_module(label)
+</I>&gt;<i>          module.__file__ = file
+</I>&gt;<i>          if hasattr(cache.module,&quot;__clone__&quot;) and \
+</I>&gt;<i>              callable(cache.module.__clone__):
+</I>&gt;<i>            cache.module.__clone__(module)
+</I>&gt;<i>          execfile(file,module.__dict__)
+</I>&gt;<i>          cache.module = module
+</I>&gt;<i> 
+</I>&gt;<i> Thus, although the newly loaded module is constructed into a 
+</I>&gt;<i> fresh module, there is the option of copying over selected 
+</I>&gt;<i> data from the existing module. This is done by calling a 
+</I>&gt;<i> __clone__() method if present in the existing module to 
+</I>&gt;<i> populate the fresh module before loading the code in. Because 
+</I>&gt;<i> it is a function, any necessary code could be put in it, 
+</I>&gt;<i> including code which acquires any locks while copying the data.
+</I>&gt;<i> 
+</I>&gt;<i> For example, a content handler might contain:
+</I>&gt;<i> 
+</I>&gt;<i>    from threading import Lock
+</I>&gt;<i> 
+</I>&gt;<i>    # This method prior to execfile() being run, but only
+</I>&gt;<i>    # when the module had previously been loaded.
+</I>&gt;<i> 
+</I>&gt;<i>    def __clone__(module):
+</I>&gt;<i>      _lock.acquire()
+</I>&gt;<i>      module._lock = _lock
+</I>&gt;<i>      module._data = _data
+</I>&gt;<i>      _data[&quot;reloads&quot;] = _data[&quot;reloads&quot;] + 1
+</I>&gt;<i>      _lock.release()
+</I>&gt;<i> 
+</I>&gt;<i>    # This global scope code executed when execfile() run.
+</I>&gt;<i>    # Check that data doesn't already exist, as don't want
+</I>&gt;<i>    # to overwrite it if it does. This will be the case
+</I>&gt;<i>    # when it is copied from existing module.
+</I>&gt;<i> 
+</I>&gt;<i>    if not globals().has_key(&quot;_lock&quot;):
+</I>&gt;<i>      _lock = Lock()
+</I>&gt;<i>      _data = { &quot;reloads&quot; : 0 }
+</I>&gt;<i> 
+</I>&gt;<i>    # Data which should always be reset on fresh import
+</I>&gt;<i>    # would still follow here.
+</I>&gt;<i> 
+</I>&gt;<i>    _cache = {}
+</I>&gt;<i> 
+</I>&gt;<i> Using execfile() on a fresh module and using __clone__() in 
+</I>&gt;<i> this way solves some of the problems I mentioned in my prior emails.
+</I>&gt;<i> 
+</I>&gt;<i> First, because a fresh module is used, you don't get problems 
+</I>&gt;<i> with code being modified while another thread may be 
+</I>&gt;<i> executing in the context of the existing module that would 
+</I>&gt;<i> have otherwise been overwritten.
+</I>&gt;<i> 
+</I>&gt;<i> You can selectively copy over only the data which should be 
+</I>&gt;<i> present in the context of the code being reconstructed. Ie., 
+</I>&gt;<i> you could throw away certain types of cached data.
+</I>&gt;<i> If the modified code had removed functions, they will not 
+</I>&gt;<i> show in the newly loaded module.
+</I>&gt;<i> 
+</I>&gt;<i> The use of a method rather than an export list of data to 
+</I>&gt;<i> copy across, means that locks can be acquired while data is 
+</I>&gt;<i> being copied to prevent another thread accessing it at the same time.
+</I>&gt;<i> 
+</I>&gt;<i> The intent with copying locks and data is that it is shared 
+</I>&gt;<i> between old and new modules at least for the period that any 
+</I>&gt;<i> existing thread may be executing in the context of the old 
+</I>&gt;<i> module. Because the old module will no longer be referenced 
+</I>&gt;<i> from the cache, once the thread executing in the context of 
+</I>&gt;<i> the old module finishes, the old module will disappear and 
+</I>&gt;<i> data will be exclusive to the new module.
+</I>&gt;<i> 
+</I>&gt;<i> This does mean though that any data should really be 
+</I>&gt;<i> dictionaries or class instances Ie., things that can be 
+</I>&gt;<i> shared properly and a change through either reference is 
+</I>&gt;<i> reflected in the other. Eg.
+</I>&gt;<i> 
+</I>&gt;<i>    &gt;&gt;&gt; a={&quot;a&quot;:1}
+</I>&gt;<i>    &gt;&gt;&gt; b=a
+</I>&gt;<i>    &gt;&gt;&gt; a
+</I>&gt;<i>    {'a': 1}
+</I>&gt;<i>    &gt;&gt;&gt; b
+</I>&gt;<i>    {'a': 1}
+</I>&gt;<i>    &gt;&gt;&gt; b[&quot;c&quot;]=2
+</I>&gt;<i>    &gt;&gt;&gt; a
+</I>&gt;<i>    {'a': 1, 'c': 2}
+</I>&gt;<i>    &gt;&gt;&gt; b
+</I>&gt;<i>    {'a': 1, 'c': 2}
+</I>&gt;<i> 
+</I>&gt;<i> This isn't going to work if the data were simple integers or 
+</I>&gt;<i> strings, as once a copy is made, a change from one module, by 
+</I>&gt;<i> way of assignment, isn't going to be reflected in the other.
+</I>&gt;<i> 
+</I>&gt;<i> You could also feasibly implement fixup code in a new module 
+</I>&gt;<i> which would be executed upon the reload to convert data in an 
+</I>&gt;<i> old form to a new form, but the danger of that is that you 
+</I>&gt;<i> don't know whether a reload may occur for one fixup, before 
+</I>&gt;<i> you later change the module again and where the subsequent 
+</I>&gt;<i> fixup expects data in the intermediate format. If the format 
+</I>&gt;<i> of data is going to change drastically, you should really 
+</I>&gt;<i> stop Apache, load in your new code and restart. Otherwise, 
+</I>&gt;<i> you would have to use a variable which tracks what version 
+</I>&gt;<i> the data format is in and for fixup code be able to cope with 
+</I>&gt;<i> various older versions of data when converting to a new format.
+</I>&gt;<i> 
+</I>&gt;<i> Anyway, interesting stuff to play with.
+</I>&gt;<i> 
+</I>&gt;<i> --
+</I>&gt;<i> Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016627.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+	<LI>Next message: <A HREF="016630.html">[mod_python] FreeBSD 5.2, mod_python 3.1.3,
+	apache 2.0.52 .. File access problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16628">[ date ]</a>
+              <a href="thread.html#16628">[ thread ]</a>
+              <a href="subject.html#16628">[ subject ]</a>
+              <a href="author.html#16628">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

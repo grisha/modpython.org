@@ -1,0 +1,284 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonImport failure
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonImport%20failure&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008040.html">
+   <LINK REL="Next"  HREF="008042.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] PythonImport failure</H1>
+    <B>Chris Hagner</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonImport%20failure&In-Reply-To="
+       TITLE="[mod_python] PythonImport failure">CHagner at fool.com
+       </A><BR>
+    <I>Tue Mar 27 13:12:57 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008040.html">[mod_python] mod_python and mod_ssl
+</A></li>
+        <LI>Next message: <A HREF="008042.html">[mod_python] PythonImport failure
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8041">[ date ]</a>
+              <a href="thread.html#8041">[ thread ]</a>
+              <a href="subject.html#8041">[ subject ]</a>
+              <a href="author.html#8041">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>A specific question about why PythonImport works for some modules and not
+for others.
+
+1.  The following statement works.  It compiles/imports apache.py at server
+startup.
+
+PythonImport mod_python.apache
+
+2.  Now, when I create a dummy module in mod_python/MyObject.py
+
+def myFunction():
+    return &quot;MyObject.myFunction()&quot;
+
+class MyObject:
+
+    def __init__(self):
+        pass
+
+The following statement does not work.
+
+PythonImport mod_pytnon.MyObject
+
+Here's the error in error.log
+[Tue Mar 27 13:07:56 2001] [error] directive_PythonImport: error import
+mod_python.MyObject
+TypeError: must assign list (not &quot;string&quot;) to slice
+
+Any help on this error msg?
+
+BTW, the first error line appears at start up... second appears upon
+immediate shutdown... probably just a buffer thing, but I thought I'd share.
+
+3.  I also tried import a base module which worked fine.
+
+PythonImport string
+
+4.  But when I created a copy of string.py and simply renamed it, it didn't
+work.
+
+PythonImport copyofstring
+
+Any thoughts on why mod_python appears to like some modules and not others?
+
+Thanks in advance.
+
+Chris
+
+
+
+-----Original Message-----
+From: Chris Hagner [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">CHagner at fool.com</A>]
+Sent: Thursday, March 15, 2001 12:07 PM
+To: 'Gregory (Grisha) Trubetskoy'
+Cc: '<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>'
+Subject: RE: [mod_python] PythonImport failure
+
+
+Thanks for the response.  For my tests, mypackage is a package named
+'toolkit' and the mymodule is a module named 'brandconfig'.
+
+Oh yeah, I'm doing this on Apache/1.3.19 (Win32) mod_python/2.7.1
+Python/2.0.  I'm on Win2K (for development, sigh).
+
+INTERACTIVE SESSION TEST:
+******************************
+
+Here's my python interactive session... the module only contains a single
+variable x.
+
+&gt;&gt;&gt;<i> import toolkit.brandconfig
+</I>&gt;&gt;&gt;<i> dir(toolkit.brandconfig)
+</I>['__builtins__', '__doc__', '__file__', '__name__', 'x']
+&gt;&gt;&gt;<i> toolkit.brandconfig.x
+</I>123
+&gt;&gt;&gt;<i> 
+</I>
+So, the module is importable in my python environment.
+
+
+APACHE PYTHONIMPORT TEST:
+******************************
+
+Just to be sure, I ran the apache test again.  Here's the httpd.conf entry.
+Nothing shocking.
+
+&lt;Directory &quot;D:/site/brand1/htdocs&quot;&gt;
+   AddHandler python-program .py
+   PythonHandler toolkit.publisher
+   PythonDebug on
+   PythonImport toolkit.brandconfig
+&lt;/Directory&gt;
+
+Here's the response in the log upon starting apache.
+
+   [Thu Mar 15 11:39:10 2001] [error] directive_PythonImport: error
+importing toolkit.brandconfig
+
+Same as before.  Now, just to be sure, I blew away the brandconfig.py file
+(and the .pyc) so that it shouldn't even find it (just to see if I could get
+a different error if it didn't even exist).  Result: No change.  Same error
+in error.log.  Apparently, it's not even finding it.
+
+APACHE PYTHON SCRIPT TEST:
+******************************
+
+So, it wasn't importing it on start up.  How about a python script in
+mod_python?
+
+Here's the code blurb...
+
+	import foolkit.brandconfig
+       out_string = &quot;foolkit.brandconfig.x: %s \n&quot;% foolkit.brandconfig.x
+
+Did it work?  yup, the page displayed 
+
+	foolkit.brandconfig.x: 123
+
+
+
+Yes, I have read through the documentation and my need is to initialize a
+number of objects (i.e. dbconn pool) for use throughout my applications.
+Now, I am using a custom handler, so I could simply have the handler do this
+initialization the first time it runs, but the PythonImport appeared to be a
+code-free way to achieve this goal.  Do you all think this is a case where I
+*really* need it?  If not, could someone share an example of when it really
+deserves to be used?
+
+Thanks again for the help.
+
+Chris
+
+-----Original Message-----
+From: Gregory (Grisha) Trubetskoy [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grisha at verio.net</A>]
+Sent: Thursday, March 15, 2001 11:26 AM
+To: Chris Hagner
+Cc: '<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>'
+Subject: Re: [mod_python] PythonImport failure
+
+
+
+Chris -
+
+Have you tried
+
+&gt;&gt;&gt;<i> import mypackage.mymodule
+</I>
+from an interactive Python session?
+
+Also, regarding PythonPath - if you read documentation carefully, you'll
+notice that it says that no other directives have any effect at the time
+PythonImport is executed.
+
+Generally, you should not use PythonImport unless you *really* need it,
+which is almost never the case.
+
+Grisha
+
+
+On Thu, 15 Mar 2001, Chris Hagner wrote:
+
+&gt;<i> Greetings,
+</I>&gt;<i>
+</I>&gt;<i> I'm trying to get the PythonImport command to work.  Been through the
+</I>&gt;<i> documentation, but it appears to want more than simply inserting
+</I>&gt;<i>
+</I>&gt;<i>    PythonImport mypackage.mymodule
+</I>&gt;<i>
+</I>&gt;<i> within my Directory tags in httd.conf.
+</I>&gt;<i>
+</I>&gt;<i> While mypackage.mymodule is under the standard python lib directory
+</I>&gt;<i> (therefore should be found through the sys.path), the system spat out the
+</I>&gt;<i> following...
+</I>&gt;<i>
+</I>&gt;<i>     ...[error] directive_PythonImport: error importing mypackage.mymodule
+</I>&gt;<i>
+</I>&gt;<i> I then moved the module to a different directory and appended that
+</I>directory
+&gt;<i> to the sys.path using the PythonPath command (just to see if that allowed
+</I>it
+&gt;<i> to find the module).  No luck.
+</I>&gt;<i>
+</I>&gt;<i> I've found a handful of posts from June and August of last year, but no
+</I>&gt;<i> posted solutions to getting the PythonImport command to work correctly.
+</I>Of
+&gt;<i> course, there's a CVS commit with the comment &quot;PythonImport works now&quot; so
+</I>&gt;<i> I'm pretty sure it's me...
+</I>&gt;<i>
+</I>&gt;<i> As a random test, I tried a standard module...
+</I>&gt;<i>
+</I>&gt;<i>    PythonImport sys
+</I>&gt;<i>
+</I>&gt;<i> which appeared to work (no error msg), but I'm not really confident that
+</I>&gt;<i> this was a meaningful test.
+</I>&gt;<i>
+</I>&gt;<i> Thanks in advance.
+</I>&gt;<i>
+</I>&gt;<i> Chris
+</I>&gt;<i> chagner _at_ fool _dot_ com
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008040.html">[mod_python] mod_python and mod_ssl
+</A></li>
+	<LI>Next message: <A HREF="008042.html">[mod_python] PythonImport failure
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8041">[ date ]</a>
+              <a href="thread.html#8041">[ thread ]</a>
+              <a href="subject.html#8041">[ subject ]</a>
+              <a href="author.html#8041">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

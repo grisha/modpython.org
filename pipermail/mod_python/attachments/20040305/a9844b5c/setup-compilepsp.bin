@@ -1,0 +1,135 @@
+--- dist.orig/setup.py.in	2003-07-24 19:46:10.000000000 +0200
++++ dist/setup.py.in	2004-03-05 12:47:20.000000000 +0200
+@@ -1,50 +1,93 @@
+ 
+ # $Id: setup.py.in,v 1.5 2003/07/24 17:46:09 grisha Exp $
+ 
+-APXS = r"@APXS@"
+-VER = "@MP_VERSION@"
+-
+ from distutils.core import setup, Extension
+ 
+ import sys
++import re
++import os.path
+ 
+-if len(sys.argv) > 1 and sys.argv[1] == "bdist_wininst":
+-    moddir = ""
+-#    mpso = "mod_python.so"
+-
+-    setup(name="mod_python",
+-          version=VER,
+-          description="Apache/Python Integration",
+-          author="Gregory Trubetskoy et al",
+-          author_email="mod_python@modpython.org",
+-          url="http://www.modpython.org/",
+-          packages=["mod_python"],
+-          package_dir = {"mod_python":"../lib/python/mod_python"},
+-          scripts=["win32_postinstall.py"],
+-          data_files=[(moddir, ["mod_python.so"])])
+-
++def getmp_rootdir():
++  """gets the root directory of the mod_python source tree..."""
++  return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
++
++def getmp_srcdir():
++  """gets the src subdirectory of the mod_python source tree..."""
++  return os.path.join(getmp_rootdir(), 'src')
++
++def getconfigure_option(option_name):
++  """gets an option from the config.status file"""
++  config_status_file = os.path.join(getmp_rootdir(), 'config.status')
++  if not os.path.exists(config_status_file):
++    raise AssertionError("config.status not found in expected location (%s)" % config_status_file)
++  header = open(config_status_file,'r')
++  r = re.compile('s,@%s@,(?P<OPTION_STRING>[^,]+),' % (option_name))
++  for line in header.readlines():
++    m = r.search(line)
++    if m is not None:
++      return m.group('OPTION_STRING')
++  raise AssertionError("unable to find @%s@ definition in %s", (option_name, config_status_file))
++
++def getmp_version():
++  """finds out the version of mod_python"""
++  # first try and get it from configure...
++  try:
++    return getconfigure_option("MP_VERSION")
++  except AssertionError:
++    pass
++  # if that fails, read it from the source file ourselves...
++  mpversion_file = os.path.join(getmp_srcdir(), 'include', 'mpversion.h')
++  if not os.path.exists(mpversion_file):
++    raise AssertionError("mpversion.h not found in expected location (%s)" % mpversion_file)
++  header = open(mpversion_file,'r')
++  r = re.compile('#define\s+MPV_STRING\s+"(?P<MPV_STRING>[^"]+)"')
++  for line in header.readlines():
++    m = r.search(line)
++    if m is not None:
++      return m.group('MPV_STRING')
++  raise AssertionError("unable to find MPV_STRING in %s", mpversion_file)
++
++def getapxs_location():
++  """finds the location of apxs from the config.status file"""
++  return getconfigure_option("APXS")
++
++VER = getmp_version()
++
++winbuild = (len(sys.argv) > 1 and sys.argv[1] == "bdist_wininst")
++
++class PSPExtension(Extension):
++  """a class that helps build the PSP extension"""
++  def __init__(self, source_dir, include_dirs):
++    Extension.__init__(self, "mod_python._psp",
++                           [os.path.join(source_dir, source_file) for source_file in
++                            ("psp_string.c", "psp_parser.c", "_pspmodule.c")],
++                           include_dirs=include_dirs
++                           )
++
++PSPModule = PSPExtension(getmp_srcdir(), [os.path.join(getmp_srcdir(), 'include')])
++
++if winbuild:
++    scripts = ["win32_postinstall.py"]
++    data_files = [(os.path.join(getmp_srcdir(), 'Release'), ["mod_python.so"])]
+ else:
+-#    import commands
+-#    moddir = commands.getoutput("%s -q LIBEXECDIR" % APXS)
+-#    mpso = "../src/mod_python.so"
+-
+-    setup(name="mod_python",
+-          version=VER,
+-          description="Apache/Python Integration",
+-          author="Gregory Trubetskoy et al",
+-          author_email="mod_python@modpython.org",
+-          url="http://www.modpython.org/",
+-          packages=["mod_python"],
+-          ext_modules=[Extension("mod_python._psp",
+-                                 ["src/psp_string.c",
+-                                  "src/psp_parser.c",
+-                                  "src/_pspmodule.c"],
+-                                 include_dirs=["src/include"]
+-                                 )
+-                       ]
+-          )
+-          
+-
++    # import commands
++    # APXS = getapxs_location()
++    # moddir = commands.getoutput("%s -q LIBEXECDIR" % APXS)
++    # mpso = "../src/mod_python.so"
++    scripts = []
++    data_files = []
++
++setup(name="mod_python",
++      version=VER,
++      description="Apache/Python Integration",
++      author="Gregory Trubetskoy et al",
++      author_email="mod_python@modpython.org",
++      url="http://www.modpython.org/",
++      packages=["mod_python"],
++      package_dir={'mod_python': os.path.join(getmp_rootdir(), 'lib', 'python', 'mod_python')},
++      scripts=scripts,
++      data_files=data_files,
++      ext_modules=[PSPModule])
+ 
+ # makes emacs go into python mode
+ ### Local Variables:

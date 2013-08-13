@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Cookies &amp; mod_rewrite
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookies%20%26%20mod_rewrite&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022124.html">
+   <LINK REL="Next"  HREF="022128.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Cookies &amp; mod_rewrite</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookies%20%26%20mod_rewrite&In-Reply-To="
+       TITLE="[mod_python] Cookies &amp; mod_rewrite">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Sep 26 00:02:10 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022124.html">[mod_python] util.Fieldstorage and form
+</A></li>
+        <LI>Next message: <A HREF="022128.html">[mod_python] Segmentation fault when loading modules
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22126">[ date ]</a>
+              <a href="thread.html#22126">[ thread ]</a>
+              <a href="subject.html#22126">[ subject ]</a>
+              <a href="author.html#22126">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>CARTWRIGHT, Guy, GBM wrote ..
+&gt;<i> &gt;  From memory, you can set req.headers_in and it will go 
+</I>&gt;<i> &gt; through to backend via proxy. Give it a try anyway. Simply go:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;    req.headers_in['X-MyHeader'] = 'test'
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; and see if it gets through.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> 
+</I>&gt;<i> No luck with the above, or with:
+</I>&gt;<i> 
+</I>&gt;<i>     req.headers_out['X-MyHeader'] = 'test'
+</I>&gt;<i> 
+</I>&gt;<i> but the following does work and gets passed through to the back-end
+</I>&gt;<i> server...
+</I>&gt;<i> 
+</I>&gt;<i>     req.err_headers_out['X-MyHeader'] = 'test'
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> Weird...
+</I>
+That doesn't make a great deal of sense and I wouldn't rely on it.
+
+FWIW, after I got proxying in mod_python 3.3 working again (I had managed to
+break it), I found the following worked fine.
+
+import posixpath 
+
+from mod_python import apache, Cookie
+
+def fixuphandler(req): 
+
+  if req.proxyreq: 
+    return apache.DECLINED 
+
+  normalised_uri = posixpath.normpath(req.uri) 
+
+  if normalised_uri: 
+    if normalised_uri != '/' and req.uri[-1] == '/': 
+      normalised_uri += '/' 
+
+  length = len(req.filename) 
+  length -= len(req.hlist.directory) - 1 
+  length += len(req.path_info or '') 
+
+  baseurl = normalised_uri[:-length] 
+  path = normalised_uri[len(baseurl):] 
+
+  req.proxyreq = apache.PROXYREQ_REVERSE 
+  req.uri = '<A HREF="http://localhost:8082/~grahamd/headers'">http://localhost:8082/~grahamd/headers'</A> + path 
+  req.filename = 'proxy:%s' % req.uri 
+  req.handler = 'proxy-server' 
+
+  req.headers_in['Cookie'] = str(Cookie.Cookie('XXX', 'YYY'))
+
+  req.log_error('uri = %s' % req.uri)
+  req.log_error('filename = %s' % req.filename)
+  req.log_error('handler = %s' % req.handler)
+
+  return apache.OK 
+
+In the backend server, could then use:
+
+from mod_python import apache, Cookie
+
+def handler(req):
+  req.content_type = 'text/plain'
+  for name in req.headers_in:
+    req.write('%s: %s\n' % (name, req.headers_in[name]))
+
+  req.write('\n')
+  req.write(str(Cookie.get_cookies(req)))
+  return apache.OK
+
+I still need to commit changes back into mod_python repository to fix what I
+broke, but mod_python 3.3 certainly provides more flexibility than perhaps
+using mod_rewrite.
+
+I'll get around to trying to do it with mod_rewrite later.
+
+Sorry, for late followup, have been away for a week.
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022124.html">[mod_python] util.Fieldstorage and form
+</A></li>
+	<LI>Next message: <A HREF="022128.html">[mod_python] Segmentation fault when loading modules
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22126">[ date ]</a>
+              <a href="thread.html#22126">[ thread ]</a>
+              <a href="subject.html#22126">[ subject ]</a>
+              <a href="author.html#22126">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

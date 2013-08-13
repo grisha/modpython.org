@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problems with GET after POST
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problems%20with%20GET%20after%20POST&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012458.html">
+   <LINK REL="Next"  HREF="012464.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Problems with GET after POST</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Ian Clelland</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problems%20with%20GET%20after%20POST&In-Reply-To="
+       TITLE="[mod_python] Problems with GET after POST">ian at veryfresh.com
+       </A><BR>
+    <I>Wed Mar 20 17:31:10 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012458.html">[mod_python] File upload progress indicator
+</A></li>
+        <LI>Next message: <A HREF="012464.html">[mod_python] Installation problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12463">[ date ]</a>
+              <a href="thread.html#12463">[ thread ]</a>
+              <a href="subject.html#12463">[ subject ]</a>
+              <a href="author.html#12463">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I have been experimenting with mod_python to evaluate it for some 
+upcoming projects, and I recently came across what appeared to be a bug 
+in mod_python.  (After three days of scratching my head over this, the 
+solution came to me as I was writing this message, but I'm sending it 
+anyway in case someone else comes across this problem. -- Should this 
+sort of thing go into the FAQ?)
+
+The problem was essentially that whenever I performed a GET request on 
+a URL immediately following a POST request to that same URL, Apache 
+would seem to confuse the two requests, and after the GET, I would 
+receive an error message like this:
+
+HTTP/1.1 501 Method Not Implemented
+
+key=valueGET to /pytest not supported
+Invalid method in request key=valueGET /pytest
+
+
+Running tcpdump on the communication between the browser and server 
+showed that the requests were all well-formed, and there was nothing 
+unusual in the headers to suggest that anything but Apache/mod_python 
+was at fault.
+
+
+The simplest script I could produce to replicate the problem was this:
+
+# -------------------------------------------------------------------
+import sys
+from mod_python import apache
+
+def handler(req):
+
+  if req.method == 'GET':
+  
+    req.content_type = &quot;text/html&quot;
+    req.send_http_header()
+    req.write(&quot;&quot;&quot;&lt;html&gt;
+&lt;head&gt;
+  &lt;title&gt;python test&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;form method=\&quot;post\&quot; action=\&quot;/pytest\&quot;&gt;
+    &lt;input name=\&quot;key\&quot; value=\&quot;value\&quot;&gt; &lt;input type=\&quot;submit\&quot;&gt;
+  &lt;/form&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+&quot;&quot;&quot;)
+
+    return apache.OK
+
+  elif req.method == 'POST':
+
+    req.content_type = &quot;text/html&quot;
+    req.send_http_header()
+    req.write(&quot;&quot;&quot;&lt;html&gt;
+&lt;head&gt;
+  &lt;title&gt;python test part 2&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;p&gt;POST successful. &lt;a href=\&quot;/pytest\&quot;&gt;Click here&lt;/a&gt;&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+&quot;&quot;&quot;)
+    return apache.OK
+
+  else:
+    return apache.DECLINED
+# -------------------------------------------------------------------
+
+It was supported by these Apache configuration directives:
+
+&lt;Location &quot;/pytest&quot;&gt;
+  SetHandler python-program
+  PythonPath &quot;sys.path+['/home/ian/src/pytest']&quot;
+  PythonHandler python_test
+&lt;/Location&gt;
+
+
+The script is accessable from the virtual URL /pytest, which runs the 
+python_test.py module from a non-web-accessable directory. Going to the 
+URL /pytest in Mozilla, hitting the submit button, then clicking on the 
+'Click here' link brings up the error message.
+
+The problem with this code (as it became apparent to me while writing 
+this message) is that the POST handler never actually reads the POST 
+data, and so it stays on stdin, and Apache treats it as the beginning 
+of the next request. Simply inserting the line 'postdata = req.read()' 
+gets rid of the error.
+
+Questions:
+
+Is this the correct behaviour for mod_python? Is it the python module 
+writer's responsibility to read all POST data in all situations? What 
+if the data is very large (say, a 5MB file when I expected a small text 
+field) and I just want to discard it?
+
+
+Ian
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ian at veryfresh.com</A>&gt;
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012458.html">[mod_python] File upload progress indicator
+</A></li>
+	<LI>Next message: <A HREF="012464.html">[mod_python] Installation problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12463">[ date ]</a>
+              <a href="thread.html#12463">[ thread ]</a>
+              <a href="subject.html#12463">[ subject ]</a>
+              <a href="author.html#12463">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

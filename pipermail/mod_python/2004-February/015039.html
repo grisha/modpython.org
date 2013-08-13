@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod Python 3.0.4 Filter Issue
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod%20Python%203.0.4%20Filter%20Issue&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015034.html">
+   <LINK REL="Next"  HREF="015038.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mod Python 3.0.4 Filter Issue</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Michael C. Neel</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod%20Python%203.0.4%20Filter%20Issue&In-Reply-To="
+       TITLE="[mod_python] Mod Python 3.0.4 Filter Issue">neel at mediapulse.com
+       </A><BR>
+    <I>Mon Feb 16 08:21:23 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015034.html">[mod_python] Q - Lifetime of imported modules?
+</A></li>
+        <LI>Next message: <A HREF="015038.html">[mod_python] installing mod_python -- sharing experiences
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15039">[ date ]</a>
+              <a href="thread.html#15039">[ thread ]</a>
+              <a href="subject.html#15039">[ subject ]</a>
+              <a href="author.html#15039">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+I don't know if this is fixed in the pending 3.1.3 or not, but there
+seems to be a bug in 3.0.4 with directives...
+ 
+With a conf like (instead of a snippet, so much is going on that could
+be related I'm posting the whole server):
+ 
+&lt;VirtualHost 192.168.0.1&gt;
+        ServerName beta.mysite.com
+        ServerAlias *.beta.mysite.com
+        DocumentRoot /home/sites/mysite.com/www_beta/htdocs
+        ScriptAlias /cgi-bin /home/sites/mysite.com/www_beta/cgi-bin
+        ErrorLog /home/sites/mysite.com/logs/www_beta_error_log
+        TransferLog /home/sites/mysite.com/logs/www_beta_access_log
+        Alias /assets /home/sites/mysite.com/assets
+        ErrorDocument 401 /error.html
+        ErrorDocument 403 /error.html
+        ErrorDocument 404 /error.html
+        ErrorDocument 500 /error.html
+        &lt;Directory /home/sites/mysite.com/www_beta&gt;
+                PythonDebug On
+                PythonPath
+['/home/sites/mysite.com/www_beta/modules']+sys.path
+                PythonOption site_dir /home/sites/mysite.com/www_beta
+                PythonOption domain_dir /home/sites/mysite.com
+                PythonOption db_host db_server.mysite.com
+                PythonOption db_name mysite_beta
+                PythonOption db_user myuser
+                PythonOption db_pass mypass
+                PythonOption developer_email <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">your at email.here</A>
+        &lt;/Directory&gt;
+        &lt;Location /&gt;
+                Options None
+                SetHandler python-program
+                PythonHandler www
+                #PythonAuthenHandler www
+                AuthType Basic
+                AuthName &quot;beta.mysite.com Site Login&quot;
+                AuthUserFile
+/home/sites/mysite.com/authfiles/www_beta_htpasswd
+                AuthGroupFile /dev/null
+                require valid-user
+        &lt;/Location&gt;
+        &lt;Location /cgi-bin&gt;
+                SetHandler cgi-script
+                PythonOutputFilter www SKIN
+                AddOutputFilter SKIN cgi
+                Options ExecCGI
+        &lt;/Location&gt;
+&lt;/VirtualHost&gt;
+
+Inside the Location /, all the Python settings are seen from the
+Directory block - but the outputfilter sees none of them, and infact
+errors with cannot find the www module.  If I add to the location block:
+ 
+    PythonPath ['/home/sites/mysite.com/www_beta/modules']+sys.path
+ 
+It will then find the www module correctly and execute as expected (the
+filter just skins the output of a cgi script).  Now if I add:
+ 
+    PythonOption db_host db_server.mysite.com
+ 
+It will see *all* of the PythonOptions from the Directory block, just as
+the Location / block does. (this is confirmed by doing a 
+filter.write(str(filter.req.get_options())) in the output filter).
+ 
+I'm able to use the above to work around the issue, but I need to know
+wether FIlters are supposed to have their own &quot;namespace&quot; of
+PythonOptions, or they are intended to inherit them just as a handler
+would - I don't want to have to rework code for the next release =p
+ 
+Mike
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015034.html">[mod_python] Q - Lifetime of imported modules?
+</A></li>
+	<LI>Next message: <A HREF="015038.html">[mod_python] installing mod_python -- sharing experiences
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15039">[ date ]</a>
+              <a href="thread.html#15039">[ thread ]</a>
+              <a href="subject.html#15039">[ subject ]</a>
+              <a href="author.html#15039">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

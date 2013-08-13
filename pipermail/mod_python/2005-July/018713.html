@@ -1,0 +1,330 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python startup error
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20startup%20error&In-Reply-To=1121590060.9595.38.camel%40cm61-18-245-172.hkcable.com.hk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018712.html">
+   <LINK REL="Next"  HREF="018714.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python startup error</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20startup%20error&In-Reply-To=1121590060.9595.38.camel%40cm61-18-245-172.hkcable.com.hk"
+       TITLE="[mod_python] mod_python startup error">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Jul 17 04:56:06 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018712.html">[mod_python] mod_python startup error
+</A></li>
+        <LI>Next message: <A HREF="018714.html">[mod_python] running multiple mod_python apps under one apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18713">[ date ]</a>
+              <a href="thread.html#18713">[ thread ]</a>
+              <a href="subject.html#18713">[ subject ]</a>
+              <a href="author.html#18713">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Is it all perhaps because you have:
+
+   SetHandler mod_python
+   PythonHandler mod_python.publisher
+
+rather than:
+
+   AddHandler mod_python .py
+   PythonHandler mod_python.publisher
+
+I had noted you were using SetHandler but presumed you were doing it
+for a good reason and that only Python stuff was in the &quot;python&quot;
+subdirectory.
+
+If you have other file types in the &quot;python&quot; subdirectory and expect
+Apache to serve them up normally, you cant use &quot;SetHandler&quot;. You would
+need to use &quot;AddHandler&quot; and only have requests with a &quot;.py&quot; extension
+served by mod_python.publisher.
+
+Graham
+
+On 17/07/2005, at 6:47 PM, Wouter van Marle wrote:
+
+&gt;<i> As test, I've removed all the python content of the site. I've a file
+</I>&gt;<i> index.html that just displays &quot;hello world!&quot;. And I still have the same
+</I>&gt;<i> error! Now it's getting really weird. The index.shtml file as supplied
+</I>&gt;<i> by the apache installation gives the same error. URL used was
+</I>&gt;<i> <A HREF="http://localhost/index.html">http://localhost/index.html</A> and <A HREF="http://localhost/index.shtml.">http://localhost/index.shtml.</A>
+</I>&gt;<i>
+</I>&gt;<i> Then the try/except thing as you suggested, this basically the same
+</I>&gt;<i> result as the error message on the screen.
+</I>&gt;<i>
+</I>&gt;<i> However, I just found that when typing
+</I>&gt;<i> <A HREF="http://localhost/python/main.py/home">http://localhost/python/main.py/home</A> directly in the address bar, the
+</I>&gt;<i> site is displayed. Without the images, and without the css based  
+</I>&gt;<i> layout,
+</I>&gt;<i> files which for some reason are tried imported as python modules. I get
+</I>&gt;<i> error messages in error.log such as:
+</I>&gt;<i> [notice] mod_python: (Re)importing module 'main.css' with path set to
+</I>&gt;<i> '['/var/www/html']'
+</I>&gt;<i> followed a bit later by:
+</I>&gt;<i> [client 127.0.0.1] PythonHandler mod_python.publisher: ImportError: No
+</I>&gt;<i> module named css, referer: <A HREF="http://localhost/python/main.py/home">http://localhost/python/main.py/home</A>
+</I>&gt;<i>
+</I>&gt;<i> Similar results with the .png images!
+</I>&gt;<i> The referer is indeed the script/function that calls the psp.run()
+</I>&gt;<i> function to display the page. It seems my apache tries to import every
+</I>&gt;<i> single file as if it is a python module, unless it is passed directly  
+</I>&gt;<i> to
+</I>&gt;<i> apache through the req.write() method.
+</I>&gt;<i>
+</I>&gt;<i> So time to start looking very hard again at my apache configuration...
+</I>&gt;<i>
+</I>&gt;<i> Wouter.
+</I>&gt;<i>
+</I>&gt;<i> On Sun, 2005-07-17 at 10:35 +1000, Graham Dumpleton wrote:
+</I>&gt;&gt;<i> You might then be getting hit by this problem then:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-24">http://issues.apache.org/jira/browse/MODPYTHON-24</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Your main.py might have an import error of some form and as a result
+</I>&gt;&gt;<i> the publisher is instead trying to load index.py to find a function
+</I>&gt;&gt;<i> in it called main(). The bug means you see any error in not being
+</I>&gt;&gt;<i> able to find index.py rather than why main.py perhaps failed to load
+</I>&gt;&gt;<i> in the first place.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Suggest that in main.py you do something like the following:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    import sys, traceback
+</I>&gt;&gt;<i>    from mod_python import apache
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    try:
+</I>&gt;&gt;<i>      # all your existing code in the module indented
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    except:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> apache.log_error(&quot;exception=%r&quot;%traceback.format_tb(sys.exc_info()[2]) 
+</I>&gt;&gt;<i> )
+</I>&gt;&gt;<i>      raise
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If the problem is that main.py is experiencing an import error, you
+</I>&gt;&gt;<i> would now be able to see it.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Alternatively, you might be able to rename main.py to index.py and
+</I>&gt;&gt;<i> access it through appropriate URL. Because it is the index.py file,
+</I>&gt;&gt;<i> it might not try and fall through to the index file and you might see
+</I>&gt;&gt;<i> any import error then.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On 17/07/2005, at 2:06 AM, Wouter van Marle wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Graham,
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Thanks for the quick replies.
+</I>&gt;&gt;&gt;<i> Your suggestion with a complete path indeed didn't change anything.
+</I>&gt;&gt;&gt;<i> Where/what is that module 'index' by the way? I can not find it.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Directory structure:
+</I>&gt;&gt;&gt;<i> /var/www/html is the server root
+</I>&gt;&gt;&gt;<i> /var/www/html/python contains all the python files
+</I>&gt;&gt;&gt;<i> accessing the file:
+</I>&gt;&gt;&gt;<i> <A HREF="http://localhost/">http://localhost/</A>
+</I>&gt;&gt;&gt;<i> which should call index.html, which contains a redirect
+</I>&gt;&gt;&gt;<i> to /python/main.py/index
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Regarding MultiViews: that seems to be enabled (I don't know what it
+</I>&gt;&gt;&gt;<i> is,
+</I>&gt;&gt;&gt;<i> I just leave it to the default installation values). In
+</I>&gt;&gt;&gt;<i> commonhttpd.conf
+</I>&gt;&gt;&gt;<i> I have the following:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> &lt;Directory /&gt;
+</I>&gt;&gt;&gt;<i>   Options -All -Multiviews
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> &lt;Directory /var/www/html&gt;
+</I>&gt;&gt;&gt;<i>     Options -Indexes FollowSymLinks MultiViews
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Wouter.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> On Sat, 2005-07-16 at 22:27 +1000, Graham Dumpleton wrote:
+</I>&gt;&gt;&gt;&gt;<i> Presuming that the location '/python' maps to a physical directory
+</I>&gt;&gt;&gt;&gt;<i> called '/var/www/html/python', try instead using:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>    &lt;Directory /var/www/html/python&gt;
+</I>&gt;&gt;&gt;&gt;<i>    SetHandler python-program
+</I>&gt;&gt;&gt;&gt;<i>    PythonHandler mod_python.publisher
+</I>&gt;&gt;&gt;&gt;<i>    &lt;/Directory&gt;
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> When &lt;Location&gt; is used, there is no associated physical directory
+</I>&gt;&gt;&gt;&gt;<i> and therefore mod_python can't know what directory to add to the
+</I>&gt;&gt;&gt;&gt;<i> PythonPath (sys.path) for you.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Only problem with this theory as I just realised though is that
+</I>&gt;&gt;&gt;&gt;<i> mod_python.publisher shouldn't be relying on sys.path to load the
+</I>&gt;&gt;&gt;&gt;<i> actual modules. It will instead explicitly provide the directory
+</I>&gt;&gt;&gt;&gt;<i> to apache.import_module(). In other words, it should work okay
+</I>&gt;&gt;&gt;&gt;<i> how you had it.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> What was the URL you were using to access the page? Do you know
+</I>&gt;&gt;&gt;&gt;<i> if &quot;MultiViews&quot; Apache option is enabled or disabled for that
+</I>&gt;&gt;&gt;&gt;<i> directory?
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> On 16/07/2005, at 10:09 PM, Wouter van Marle wrote:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> Graham,
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> Here the relevant details:
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> in httpd2.conf one line:
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> LoadModule python_module        extramodules/mod_python.so
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> In 16_mod_python.conf:
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> &lt;Location /python&gt;
+</I>&gt;&gt;&gt;&gt;&gt;<i>     SetHandler python-program
+</I>&gt;&gt;&gt;&gt;&gt;<i>     PythonHandler mod_python.publisher
+</I>&gt;&gt;&gt;&gt;&gt;<i> &lt;/Location&gt;
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> After dinner I'm going to look into this more! This is the current
+</I>&gt;&gt;&gt;&gt;&gt;<i> setup.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> Wouter.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> On Sat, 2005-07-16 at 21:41 +1000, Graham Dumpleton wrote:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> Have you specified:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>    PythonHandler mod_python.publisher
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> within a &lt;Directory&gt; directive or in a .htaccess file?
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> If you haven't and you instead put it at global scope or within a
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> &lt;Location&gt; directive, you can have such problems because  
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> PythonPath
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> will not be automatically extended with the name of the directory
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> for which PythonHandler is specified.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> Alternatively, are you setting PythonPath explicitly in any way?
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> Setting PythonPath explicitly can also override the automatic
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> addition
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> of the PythonHandler directive to PythonPath and again module will
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> not be able to be found.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> You might want to post the snippet of Apache configuration where  
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> you
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> setup use of mod_python. There is no need to send the whole Apache
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> configuration, just the relevant bit, ensuring though you show any
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> context it is set within, such as &lt;Location&gt;, &lt;Directory&gt; when it
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> is appropriate.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> On 16/07/2005, at 9:27 PM, Wouter van Marle wrote:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  Hi all,
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  After an upgrade to Mandrake 10.2, mod_python shows the  
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> following
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> error:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  Mod_python error: &quot;PythonHandler mod_python.publisher&quot;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Traceback (most recent call last):
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/apache.py&quot;,
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> line
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> 299, in HandlerDispatch
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>     result = object(req)
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   File  
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> &quot;/usr/lib/python2.4/site-packages/mod_python/publisher.py&quot;,
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> line 98, in handler
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>     path=[path])
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/apache.py&quot;,
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> line
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> 454, in import_module
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>     f, p, d = imp.find_module(parts[i], path)
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> ImportError: No module named index
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> From my address bar I can see that this is before the very first
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> page (an html page that redirects to the python based content and
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> thereby changes the url in the address bar). Any idea what's  
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> going
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> wrong here?
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  The software, from rpm packages:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  apache2-2.0.53-9mdk
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  apache2-mod_python-2.0.53_3.1.4-4mdk
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  python-base-2.4.1-2mdk
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  python-2.4.1-2mdk
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i>  Wouter. _______________________________________________
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018712.html">[mod_python] mod_python startup error
+</A></li>
+	<LI>Next message: <A HREF="018714.html">[mod_python] running multiple mod_python apps under one apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18713">[ date ]</a>
+              <a href="thread.html#18713">[ thread ]</a>
+              <a href="subject.html#18713">[ subject ]</a>
+              <a href="author.html#18713">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,273 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] 
+ New setup.py.in for mod_python - builds mod_python extension from
+ distutils
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%0A%20New%20setup.py.in%20for%20mod_python%20-%20builds%20mod_python%20extension%20from%0A%20distutils&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015119.html">
+   <LINK REL="Next"  HREF="015214.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] 
+ New setup.py.in for mod_python - builds mod_python extension from
+ distutils</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>David Fraser</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%0A%20New%20setup.py.in%20for%20mod_python%20-%20builds%20mod_python%20extension%20from%0A%20distutils&In-Reply-To="
+       TITLE="[mod_python] 
+ New setup.py.in for mod_python - builds mod_python extension from
+ distutils">davidf at sjsoft.com
+       </A><BR>
+    <I>Fri Mar  5 18:21:20 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015119.html">[mod_python] Re: mod_python
+</A></li>
+        <LI>Next message: <A HREF="015214.html">[mod_python] Re: New mod_python win32 installer for testing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15125">[ date ]</a>
+              <a href="thread.html#15125">[ thread ]</a>
+              <a href="subject.html#15125">[ subject ]</a>
+              <a href="author.html#15125">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi
+
+I've been working on the mod_python dist/setup.py.in (mostly to make it 
+work for win32) and have added some important functionality...
+
+1) it no longer requires configure (so it could just be setup.py) - it 
+either scans config.status or calculates the information itself (e.g. it 
+scans through the source file to find the mod_python version number). On 
+Windows it uses the APACHESRC environment variables to find the apache 
+include and lib directories (just like the VC++ project does)
+2) it is now able to build mod_psp on Windows as well as Linux
+3) most importantly, it is now able to build mod_python directly from 
+the setup.py (on Windows)
+    this should be possible on non-Windows system too but will require 
+some work (we may have to make a distutils compiler class for apxs)
+
+There are a few notes:
+- the build of the mod_python extension produces a mod_python_so.pyd 
+file, instead of the mod_python.so file we want. But at least on 
+Windows, I have modified win32_postinstall to install this one instead 
+of the other... (I call it mod_python_so.pyd instead of mod_python.pyd 
+so that when it is put in the site-packages directory it does not 
+confuse importing packages from mod_python)
+- I have also added code to win32_postinstall to automatically detect 
+the currently installed versions of Apache from the registry. It would 
+be nice to let the user choose one of these. As a start, it just selects 
+the latest version as the starting point for the tkinter file selection 
+dialog (the win32 shell classes don't seem to let you do this...)
+
+I have attached the modified setup.py.in (easier than a patch as almost 
+everything has changed) and win32_postinstall.py
+
+Any comments appreciated
+
+David
+
+-------------- next part --------------
+
+# $Id: setup.py.in,v 1.5 2003/07/24 17:46:09 grisha Exp $
+
+from distutils.core import setup, Extension
+
+import sys
+import re
+import os.path
+
+def getmp_rootdir():
+    &quot;&quot;&quot;gets the root directory of the mod_python source tree...&quot;&quot;&quot;
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+def getmp_srcdir():
+    &quot;&quot;&quot;gets the src subdirectory of the mod_python source tree...&quot;&quot;&quot;
+    return os.path.join(getmp_rootdir(), 'src')
+
+def getmp_includedir():
+    &quot;&quot;&quot;gets the src subdirectory of the mod_python source tree...&quot;&quot;&quot;
+    return os.path.join(getmp_rootdir(), 'src', 'include')
+
+def getconfigure_option(option_name):
+    &quot;&quot;&quot;gets an option from the config.status file&quot;&quot;&quot;
+    config_status_file = os.path.join(getmp_rootdir(), 'config.status')
+    if not os.path.exists(config_status_file):
+        raise AssertionError(&quot;config.status not found in expected location (%s)&quot; % config_status_file)
+    header = open(config_status_file,'r')
+    r = re.compile('s,@%s@,(?P&lt;OPTION_STRING&gt;[^,]+),' % (option_name))
+    for line in header.readlines():
+        m = r.search(line)
+        if m is not None:
+            return m.group('OPTION_STRING')
+    raise AssertionError(&quot;unable to find @%s@ definition in %s&quot;, (option_name, config_status_file))
+
+def getmp_version():
+    &quot;&quot;&quot;finds out the version of mod_python&quot;&quot;&quot;
+    # if that fails, read it from the source file ourselves...
+    mpversion_file = os.path.join(getmp_includedir(), 'mpversion.h')
+    if not os.path.exists(mpversion_file):
+        raise AssertionError(&quot;mpversion.h not found in expected location (%s)&quot; % mpversion_file)
+    header = open(mpversion_file,'r')
+    r = re.compile('#define\s+MPV_STRING\s+&quot;(?P&lt;MPV_STRING&gt;[^&quot;]+)&quot;')
+    for line in header.readlines():
+        m = r.search(line)
+        if m is not None:
+            return m.group('MPV_STRING')
+    raise AssertionError(&quot;unable to find MPV_STRING in %s&quot;, mpversion_file)
+
+def getapxs_location():
+    &quot;&quot;&quot;finds the location of apxs from the config.status file&quot;&quot;&quot;
+    return getconfigure_option(&quot;APXS&quot;)
+
+def getapxs_option(option):
+    APXS = getapxs_location()
+    import commands
+    return commands.getoutput(&quot;%s -q %s&quot; % (APXS, option))
+
+def getapache_srcdir():
+    &quot;&quot;&quot;returns apache src directory&quot;&quot;&quot;
+    return os.getenv(&quot;APACHESRC&quot;)
+
+def getapache_includedir():
+    &quot;&quot;&quot;returns apache include directory&quot;&quot;&quot;
+    apache_srcdir = getapache_srcdir()
+    if apache_srcdir is None:
+        return getapxs_option(&quot;INCLUDEDIR&quot;)
+    else:
+        return os.path.join(getapache_srcdir(), &quot;include&quot;)
+
+def getapache_libdir():
+    &quot;&quot;&quot;returns apache lib directory&quot;&quot;&quot;
+    apache_srcdir = getapache_srcdir()
+    if apache_srcdir is None:
+        return &quot;&quot;
+    else:
+        return os.path.join(apache_srcdir, &quot;lib&quot;)
+
+VER = getmp_version()
+
+# TODO: improve the intelligence here...
+winbuild = (len(sys.argv) &gt; 1 and sys.argv[1] == &quot;bdist_wininst&quot;) or (os.name == &quot;nt&quot;)
+
+class PSPExtension(Extension):
+    &quot;&quot;&quot;a class that helps build the PSP extension&quot;&quot;&quot;
+    def __init__(self, source_dir, include_dirs):
+        Extension.__init__(self, &quot;mod_python._psp&quot;,
+                               [os.path.join(source_dir, source_file) for source_file in
+                                    (&quot;psp_string.c&quot;, &quot;psp_parser.c&quot;, &quot;_pspmodule.c&quot;)],
+                                include_dirs=include_dirs
+                           )
+
+PSPModule = PSPExtension(getmp_srcdir(), [getmp_includedir()])
+
+modpy_src_files = (&quot;mod_python.c&quot;, &quot;_apachemodule.c&quot;, &quot;connobject.c&quot;, &quot;filterobject.c&quot;,
+                   &quot;hlist.c&quot;, &quot;hlistobject.c&quot;, &quot;requestobject.c&quot;, &quot;serverobject.c&quot;, &quot;tableobject.c&quot;,
+                   &quot;util.c&quot;)
+
+class finallist(list):
+  &quot;&quot;&quot;this represents a list that cannot be appended to...&quot;&quot;&quot;
+  def append(self, object):
+    return
+
+class ModPyExtension(Extension):
+    &quot;&quot;&quot;a class that actually builds the mod_python.so extension for Apache (yikes)&quot;&quot;&quot;
+    def __init__(self, source_dir, include_dirs, library_dirs):
+        Extension.__init__(self, &quot;mod_python_so&quot;,
+            sources = [os.path.join(source_dir, source_file) for source_file in modpy_src_files],
+            include_dirs=include_dirs,
+            libraries = ['libhttpd','libapr','libaprutil','ws2_32'],
+            library_dirs=library_dirs
+            )
+        if winbuild:
+            self.define_macros.extend([('WIN32',None),('NDEBUG',None),('_WINDOWS',None)])
+            self.sources.append(os.path.join(source_dir, &quot;Version.rc&quot;))
+        else:
+            # TODO: fix this to autodetect if required...
+            self.include_dirs.append(&quot;/usr/include/apr-0&quot;)
+        # this is a hack to prevent build_ext from trying to append &quot;initmod_python&quot; to the export symbols
+        self.export_symbols = finallist(self.export_symbols)
+
+ModPyModule = ModPyExtension(getmp_srcdir(), [getmp_includedir(), getapache_includedir()], [getapache_libdir()])
+
+if winbuild:
+    scripts = [&quot;win32_postinstall.py&quot;]
+    # put the mod_python.so file in the Python root ...
+    # win32_postinstall.py will pick it up from there...
+    # data_files = [(&quot;&quot;, [(os.path.join(getmp_srcdir(), 'Release', 'mod_python.so'))])]
+    data_files = []
+else:
+    # mpso = &quot;../src/mod_python.so&quot;
+    scripts = []
+    data_files = []
+
+setup(name=&quot;mod_python&quot;,
+      version=VER,
+      description=&quot;Apache/Python Integration&quot;,
+      author=&quot;Gregory Trubetskoy et al&quot;,
+      author_email=&quot;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>&quot;,
+      url=&quot;<A HREF="http://www.modpython.org/&quot;,">http://www.modpython.org/&quot;,</A>
+      packages=[&quot;mod_python&quot;],
+      package_dir={'mod_python': os.path.join(getmp_rootdir(), 'lib', 'python', 'mod_python')},
+      scripts=scripts,
+      data_files=data_files,
+      ext_modules=[ModPyModule, PSPModule])
+
+# makes emacs go into python mode
+### Local Variables:
+### mode:python
+### End:
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: win32_postinstall.py
+Type: text/x-python
+Size: 4908 bytes
+Desc: not available
+Url : <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20040305/b415eb65/win32_postinstall.py">http://mailman.modpython.org/pipermail/mod_python/attachments/20040305/b415eb65/win32_postinstall.py</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015119.html">[mod_python] Re: mod_python
+</A></li>
+	<LI>Next message: <A HREF="015214.html">[mod_python] Re: New mod_python win32 installer for testing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15125">[ date ]</a>
+              <a href="thread.html#15125">[ thread ]</a>
+              <a href="subject.html#15125">[ subject ]</a>
+              <a href="author.html#15125">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

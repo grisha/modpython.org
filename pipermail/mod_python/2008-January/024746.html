@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] remnant 'orphan' apache subprocesses
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20remnant%20%27orphan%27%20apache%20subprocesses&In-Reply-To=038f01c85e4e%243b04f5e0%24b10ee1a0%24%40com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024745.html">
+   <LINK REL="Next"  HREF="024724.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] remnant 'orphan' apache subprocesses</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20remnant%20%27orphan%27%20apache%20subprocesses&In-Reply-To=038f01c85e4e%243b04f5e0%24b10ee1a0%24%40com"
+       TITLE="[mod_python] remnant 'orphan' apache subprocesses">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Thu Jan 24 02:16:37 EST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024745.html">[mod_python] remnant 'orphan' apache subprocesses
+</A></li>
+        <LI>Next message: <A HREF="024724.html">[mod_python] Traversal Not Working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24746">[ date ]</a>
+              <a href="thread.html#24746">[ thread ]</a>
+              <a href="subject.html#24746">[ subject ]</a>
+              <a href="author.html#24746">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 24/01/2008, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at yahoo.com</A>&gt; wrote:
+&gt;<i> &gt; Which almost suggests it was actually a fork of an Apache child
+</I>&gt;<i> &gt; process as that is possibly only way the other threads could have been
+</I>&gt;<i> &gt; killed off.
+</I>&gt;<i>
+</I>&gt;<i> I think this is right. I caught this evidence:
+</I>&gt;<i>
+</I>&gt;<i> # ps -ef | grep http
+</I>&gt;<i> root     16197     1  0 Jan21 ?
+</I>&gt;<i> nobody     787 16197  9 18:06 ?
+</I>&gt;<i> nobody    1096 16197  9 18:09 ?
+</I>&gt;<i> nobody    1240 16197  8 18:12 ?
+</I>&gt;<i> nobody    1389 16197  8 18:13 ?
+</I>&gt;<i> nobody    1525 16197  9 18:14 ?
+</I>&gt;<i> nobody    1732  1525  0 18:16 ?
+</I>&gt;<i> ....
+</I>&gt;<i>
+</I>&gt;<i> Note pid 1732 with 0 CPU total being a child of a sub process (pid 1525)
+</I>&gt;<i> 20 minutes later, the parent sub process pid 1525 exited, and pid 1732
+</I>&gt;<i> became an orphan:
+</I>&gt;<i>
+</I>&gt;<i> # ps -ef | grep http
+</I>&gt;<i> root     16197     1  0 Jan21 ?
+</I>&gt;<i> nobody    1732     1  0 18:16 ?
+</I>&gt;<i> nobody    9895 16197  6 20:07 ?
+</I>&gt;<i> .....
+</I>&gt;<i>
+</I>&gt;<i> &gt; I can't find though any evidence of fork() being used direct in PIL
+</I>&gt;<i> &gt; code at least, but then the popen2 module uses fork() in Popen3 and
+</I>&gt;<i> &gt; Popen4 classes.
+</I>&gt;<i>
+</I>&gt;<i> I found that we send email like this:
+</I>&gt;<i>
+</I>&gt;<i> try:
+</I>&gt;<i>      handle = os.popen2('/usr/sbin/sendmail.postfix -f mailzero -t')
+</I>&gt;<i>      handle[0].write(msg)
+</I>&gt;<i>      handle[0].write(&quot;\n.\n&quot;)
+</I>&gt;<i>  finally :
+</I>&gt;<i>      if handle:
+</I>&gt;<i>          handle[0].close()
+</I>&gt;<i>          handle[1].close()
+</I>&gt;<i>
+</I>&gt;<i> Could this be the culprit?
+</I>
+It could be depending on what happens on your specific platform. One
+of the fallbacks for popen2() is actually to use Popen3 class.
+
+    def popen2(cmd, bufsize=-1, mode='t'):
+        &quot;&quot;&quot;Execute the shell command 'cmd' in a sub-process. On UNIX, 'cmd' may
+        be a sequence, in which case arguments will be passed directly to the
+        program without shell intervention (as with os.spawnv()). If 'cmd' is a
+        string it will be passed to the shell (as with os.system()). If
+        'bufsize' is specified, it sets the buffer size for the I/O pipes. The
+        file objects (child_stdout, child_stdin) are returned.&quot;&quot;&quot;
+        inst = Popen3(cmd, False, bufsize)
+        return inst.fromchild, inst.tochild
+
+&gt;<i> PS. I finally obtained lsof for an orphan:
+</I>&gt;<i>
+</I>&gt;<i> httpd   552 nobody    0r  FIFO    0,5                    4292655466 pipe
+</I>&gt;<i> httpd   552 nobody    1w  FIFO    0,5                    4292655467 pipe
+</I>
+Pipe to subprocess. That this exists may mean it isn't collecting exit
+status properly or sub process hasn't really exited.
+
+Can you easily change your code which invokes sendmail to use smtplib
+module instead? If it is easy, no harm in trying and if things work
+okay then, then even better. :-)
+
+Graham
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024745.html">[mod_python] remnant 'orphan' apache subprocesses
+</A></li>
+	<LI>Next message: <A HREF="024724.html">[mod_python] Traversal Not Working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24746">[ date ]</a>
+              <a href="thread.html#24746">[ thread ]</a>
+              <a href="subject.html#24746">[ subject ]</a>
+              <a href="author.html#24746">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

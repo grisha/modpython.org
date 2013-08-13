@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] I need to create a Zip file on the fly and write
+	itto the stream without any temp files or in memory file creation?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20I%20need%20to%20create%20a%20Zip%20file%20on%20the%20fly%20and%20write%0A%09itto%20the%20stream%20without%20any%20temp%20files%20or%20in%20memory%20file%20creation%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020552.html">
+   <LINK REL="Next"  HREF="020555.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] I need to create a Zip file on the fly and write
+	itto the stream without any temp files or in memory file creation?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20I%20need%20to%20create%20a%20Zip%20file%20on%20the%20fly%20and%20write%0A%09itto%20the%20stream%20without%20any%20temp%20files%20or%20in%20memory%20file%20creation%3F&In-Reply-To="
+       TITLE="[mod_python] I need to create a Zip file on the fly and write
+	itto the stream without any temp files or in memory file creation?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Mar  6 22:58:12 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020552.html">[mod_python] How to let mod_python 3.2.8 generate and use .pyc file
+	?
+</A></li>
+        <LI>Next message: <A HREF="020555.html">[mod_python] How to let mod_python 3.2.8 generate and use .pyc
+	file?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20554">[ date ]</a>
+              <a href="thread.html#20554">[ thread ]</a>
+              <a href="subject.html#20554">[ subject ]</a>
+              <a href="author.html#20554">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>jarrod roberson wrote ..
+&gt;<i> On 3/6/06, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; FWIW, just because mod_dav is taking over the bulk of the response
+</I>&gt;<i> &gt; handling, can't see why specific URLs couldn't be intercepted and
+</I>&gt;<i> &gt; made to fire off his existing Java implementation. He hasn't explained
+</I>&gt;<i> &gt; the relationship between URL namespace managed by mod_dav and
+</I>&gt;<i> &gt; the Java stuff to be able to explore that avenue though.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> 
+</I>&gt;<i> it gets kind of complicated, but the folders we are trying to stream are
+</I>&gt;<i> in
+</I>&gt;<i> the middle of a directory structure that is handled by mod_dav Directory
+</I>&gt;<i> directive, it seems that mod_dav doesn't play nice with mod_proxy or
+</I>&gt;<i> mod_rewrite in our case. I am _not_ an Apache 2 expert by any means, but
+</I>&gt;<i> they guys that are, asked me if I could get this done &quot;inline&quot; so as not
+</I>&gt;<i> have to deal with the complications that Apache is causing.
+</I>
+Mod_dav registers three handler hooks:
+
+    ap_hook_handler(dav_handler, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_post_config(dav_init_handler, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_fixups(dav_fixups, NULL, NULL, APR_HOOK_MIDDLE);
+
+The response handler will only be run if req.handler is set to &quot;dav-handler&quot;.
+It will be set to this by dav_fixups().
+
+Mod_python also runs as a middle hook in fixup phase, but if you can get
+the ordering correct you could register a mod_python fixup handler which
+override the req.handler attribute when request is against a specific URL
+so that it is handled by something else.
+
+Unfortunately, 3.2.8 and earlier versions of mod_python probably aren't
+going to help. If you were using mod_python from subversion repostory
+it probably would though as req.handler is writable in that version where
+as it wasn't in earlier versions.
+
+Anyway, as a test to sort out ordering, register a fixup handler:
+
+  PythonFixupHandler _handler_check
+
+  from mod_python import apache
+
+  def fixuphandler(req):
+    req.log_error(&quot;handler = %s&quot; % req.handler)
+    return apache.OK
+
+If the error log shows req.handler already set to &quot;dav-handler&quot; you are in
+business, if not, play with order to PythonFixupHandler relative to directives
+that enable mod_dav on the directory so that mod_python fixup handler
+is run second.
+
+If you then mod_python from subversion repository, you could do:
+
+  from mod_python import apache
+
+  def fixuphandler(req):
+    if req.uri = &quot;/some/path&quot;:
+      req.handler = &quot;name_of_java_handler_module&quot;
+    return apache.OK
+
+where req.handler is the handler name for the Java module which knows
+how to performing ziping of stuff identified by req.filename. If necessary,
+you could modify req.uri or req.filename. See:
+
+  <A HREF="https://issues.apache.org/jira/browse/MODPYTHON-125">https://issues.apache.org/jira/browse/MODPYTHON-125</A>
+
+Another alternative is to use:
+
+  from mod_python import apache
+
+  def fixuphandler(req):
+    if req.uri = &quot;/some/path&quot;:
+      req.internal_redirect(&quot;/some/other/path&quot;)
+    return apache.DONE
+
+The &quot;/some/other/path&quot; would be what identifies the Java stuff.
+
+Finally, could also consider triggering mod_proxy. See:
+
+  <A HREF="https://issues.apache.org/jira/browse/MODPYTHON-141">https://issues.apache.org/jira/browse/MODPYTHON-141</A>
+
+As I pointed out though, these tricks require subversion version of
+mod_python.
+
+Even if you do handle it inline, you still need to intercept it like above
+to trigger a mod_python handler to do it, or intercept using Location
+directive.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020552.html">[mod_python] How to let mod_python 3.2.8 generate and use .pyc file
+	?
+</A></li>
+	<LI>Next message: <A HREF="020555.html">[mod_python] How to let mod_python 3.2.8 generate and use .pyc
+	file?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20554">[ date ]</a>
+              <a href="thread.html#20554">[ thread ]</a>
+              <a href="subject.html#20554">[ subject ]</a>
+              <a href="author.html#20554">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

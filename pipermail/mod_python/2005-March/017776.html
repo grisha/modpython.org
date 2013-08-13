@@ -1,0 +1,222 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Question about vampire module loading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Question%20about%20vampire%20module%20loading&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017779.html">
+   <LINK REL="Next"  HREF="017781.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Question about vampire module loading</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Keerati Inochanon</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Question%20about%20vampire%20module%20loading&In-Reply-To="
+       TITLE="[mod_python] Question about vampire module loading">unselfishly at gmail.com
+       </A><BR>
+    <I>Mon Mar 28 07:37:49 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017779.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+        <LI>Next message: <A HREF="017781.html">[mod_python] Question about vampire module loading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17776">[ date ]</a>
+              <a href="thread.html#17776">[ thread ]</a>
+              <a href="subject.html#17776">[ subject ]</a>
+              <a href="author.html#17776">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I have been experimenting with vampire a little, and having problems
+with module loading. I store handlers in $documentroot and some other
+handlers in $documentroot/modules.
+
+Here is my rough directory structure:
+$documentroot:
+index.html index.py login.html login.py modules register.html register.py
+
+$documentroot/modules:
+SessionManagement.py Settings.py UserManagement.py
+
+In my login.py file, I import the module using vampire importModule mechanism:
+
+config = vampire.loadConfig(__req__, &quot;.vampire&quot;)
+directory = config.get(&quot;Modules&quot;, &quot;common&quot;)
+UserManagement = vampire.importModule(&quot;UserManagement&quot;, directory)
+SessionManagement = vampire.importModule(&quot;SessionManagement&quot;, directory)
+--
+
+In my UserManagement.py, I also need some stuff from
+SessionManagement, so I also do:
+
+config = vampire.loadConfig(__req__, &quot;.vampire&quot;)
+directory = config.get(&quot;Modules&quot;, &quot;common&quot;)
+SessionManagement = vampire.importModule(&quot;SessionManagement&quot;, directory)
+Settings = vampire.importModule(&quot;Settings&quot;, directory)
+--
+
+My handler_html in login.py:
+
+def handler_html(req, error=''):
+  if not os.path.exists(req.filename):
+    return apache.DECLINED
+
+  # Immediately redirect to the main page if session exists
+  session = SessionManagement.checkSession(req)
+  if session['isAuthorized'] and session['username']:
+    util.redirect(req, 'main.html')
+
+  message = ''
+  if error == 'invalid':
+    message = 'invalid username/password'
+    
+  def renderTemplate(template, error):
+    template.result.content = error
+  
+  html = open(req.filename, 'r')
+  template = HTMLTemplate.Template(renderTemplate, html.read())
+  html.close()
+
+def handler_html(req, error=''):
+  if not os.path.exists(req.filename):
+    return apache.DECLINED
+
+  # Immediately redirect to the main page if session exists
+  session = SessionManagement.checkSession(req)
+  if session['isAuthorized'] and session['username']:
+    util.redirect(req, 'main.html')
+
+  message = '';
+  if error == 'invalid':
+    message = 'invalid username/password'
+    
+  def renderTemplate(template, error):
+    template.result.content = error
+  
+  html = open(req.filename, 'r')
+  template = HTMLTemplate.Template(renderTemplate, html.read())
+  html.close()
+--
+
+My httpd.conf:
+
+&lt;Directory &quot;/home/www/testing&quot;&gt;
+        PythonOption VampireDirectoryIndex index.html
+        SetHandler python-program
+        PythonHandler vampire
+        PythonPath 'sys.path'
+#       PythonOption VampireDefaultHandlers On
+        PythonDebug On
+        &lt;Files ~ &quot;^\.vampire&quot;&gt;
+          Order allow,deny
+          deny from all
+        &lt;/Files&gt;
+&lt;/Directory&gt;
+--
+
+When accessing login.html, I get this error:
+Mod_python error: &quot;PythonHandler vampire&quot;
+
+Traceback (most recent call last):
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line
+299, in HandlerDispatch
+    result = object(req)
+
+  File &quot;/usr/lib/python2.3/site-packages/vampire/lookup.py&quot;, line 585,
+in _handler
+    module = _import(req,file)
+
+  File &quot;/usr/lib/python2.3/site-packages/vampire/lookup.py&quot;, line 53, in _import
+    module = _moduleCache.importModule(name,directory,req)
+
+  File &quot;/usr/lib/python2.3/site-packages/vampire/cache.py&quot;, line 181,
+in importModule
+    execfile(file,module.__dict__)
+
+  File &quot;/home/www/testing/login.py&quot;, line 9, in ?
+    UserManagement = vampire.importModule(&quot;UserManagement&quot;, directory)
+
+  File &quot;/usr/lib/python2.3/site-packages/vampire/cache.py&quot;, line 306,
+in importModule
+    return _moduleCache.importModule(name,path,req)
+
+  File &quot;/usr/lib/python2.3/site-packages/vampire/cache.py&quot;, line 181,
+in importModule
+    execfile(file,module.__dict__)
+
+  File &quot;/home/www/testing/modules/UserManagement.py&quot;, line 8, in ?
+    config = vampire.loadConfig(__req__, &quot;.vampire&quot;)
+
+  File &quot;/usr/lib/python2.3/site-packages/vampire/config.py&quot;, line 263,
+in loadConfig
+    return _configCache.loadConfig(req,name)
+
+  File &quot;/usr/lib/python2.3/site-packages/vampire/config.py&quot;, line 198,
+in loadConfig
+    req.vampire = { &quot;config&quot;: {} }
+
+AttributeError: 'NoneType' object has no attribute 'vampire'
+--
+
+I was wondering whether what I am doing is allowed or not. What should
+I do to get around it? I am using vampire-1.5. Python, mod_python, and
+vampire are still pretty new to me. Please let me know if you need any
+further information. Thank you very much in advance.
+
+Best regards,
+Keerati
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017779.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+	<LI>Next message: <A HREF="017781.html">[mod_python] Question about vampire module loading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17776">[ date ]</a>
+              <a href="thread.html#17776">[ thread ]</a>
+              <a href="subject.html#17776">[ subject ]</a>
+              <a href="author.html#17776">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

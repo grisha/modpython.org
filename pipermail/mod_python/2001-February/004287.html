@@ -1,0 +1,281 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python/publisher/solaris truncation problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python/publisher/solaris%20truncation%20problems&In-Reply-To=3A93D1D5.45555DBB%40caveosystems.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004286.html">
+   <LINK REL="Next"  HREF="004288.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python/publisher/solaris truncation problems</H1>
+    <B>Joost Yervante Damad</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python/publisher/solaris%20truncation%20problems&In-Reply-To=3A93D1D5.45555DBB%40caveosystems.com"
+       TITLE="[mod_python] mod_python/publisher/solaris truncation problems">joost.damad at siemens.atea.be
+       </A><BR>
+    <I>Thu Feb 22 08:09:37 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004286.html">[mod_python] mod_python2.7.2 and server redirects
+</A></li>
+        <LI>Next message: <A HREF="004288.html">[mod_python] Problem to run .py scripts thru apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4287">[ date ]</a>
+              <a href="thread.html#4287">[ thread ]</a>
+              <a href="subject.html#4287">[ subject ]</a>
+              <a href="author.html#4287">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>'Rich Salz' wrote about 'Re: [mod_python] mod_python/publisher/solaris truncation problems' - Wed, Feb 21, 2001 at 03:33:57PM CET
+&gt;<i> a diff would be more useful. ...
+</I>
+True... but the changes I made are not really meant as a
+solution. They merely show how we solved it to have a workable
+mod_python. I can get you a diff if you want. (see attachment)
+It's not a very usefull diff imho tho :)
+
+-- 
+Joost Damad - Siemens IC D NC A - +3214252297
+--
+Five is a sufficiently close approximation to infinity.
+       -- Robert Firth
+&quot;One, two, five.&quot;
+       -- Monty Python and the Holy Grail
+-------------- next part --------------
+--- mod_python-2.7.2/src/_apachemodule.c	Mon Dec 18 20:50:03 2000
++++ ../delta/changed_src/_apachemodule.c	Wed Feb 21 10:15:03 2001
+@@ -48,10 +48,14 @@
+  *
+  */
+ 
+ #include &quot;mod_python.h&quot;
+ 
++#ifdef ATEA_DEBUG
++#undef ATEA_DEBUG
++#endif
++ 
+ /** 
+  ** log_error
+  **
+  *  A wrpapper to ap_log_error
+  * 
+@@ -253,11 +257,11 @@
+ static PyObject *parse_qsl(PyObject *self, PyObject *args)
+ {
+ 
+     PyObject *pairs;
+     int i, len;
+-    char *qs;
++    char *qs, *cpair;
+     int keep_blank_values = 0;
+     int strict_parsing = 0; /* XXX not implemented */
+ 
+     if (! PyArg_ParseTuple(args, &quot;s|ii&quot;, &amp;qs, &amp;keep_blank_values, 
+ 			   &amp;strict_parsing)) 
+@@ -269,83 +273,131 @@
+ 	return NULL;
+ 
+     i = 0;
+     len = strlen(qs);
+ 
++	cpair=calloc(1,len);
++	
+     while (i &lt; len) {
+ 
+-	PyObject *pair, *key, *val;
+-	char *cpair, *ckey, *cval;
++	/*PyObject *pair, *key, *val;*/
++	PyObject *key, *val;
++	/*char *cpair, *ckey, *cval;*/
++	char *ckey, *cval;
+ 	int plen, j, p, k, v;
+ 
+-	pair = PyString_FromStringAndSize(NULL, len);
++	/* pair = PyString_FromStringAndSize(NULL, len);
+ 	if (pair == NULL)
+-	    return NULL;
++	    return NULL;*/
+ 
+ 	/* split by '&amp;' or ';' */
+-	cpair = PyString_AS_STRING(pair);
++	/*cpair = PyString_AS_STRING(pair);
++	  cpair=calloc(1,len);*/
++#ifdef ATEA_DEBUG
++	fprintf(stderr, &quot;all pairs: %s\n&quot;, cpair);
++#endif
+ 	j = 0;
+ 	while ((qs[i] != '&amp;') &amp;&amp; (qs[i] != ';') &amp;&amp; (i &lt; len)) {
+ 	    /* replace '+' with ' ' */
+ 	    cpair[j] = (qs[i] == '+') ? ' ' : qs[i];
+ 	    i++;
+ 	    j++;
+ 	}
+ 	cpair[j] = '\0';
+-	_PyString_Resize(&amp;pair, j);
++	/*_PyString_Resize(&amp;pair, j);*/
+ 
+ 	/* split the &quot;abc=def&quot; pair */
+-
++#ifdef ATEA_DEBUG
++	fprintf(stderr,&quot;[foo] cpair == %s\n&quot;, cpair);
++#endif
+ 	plen = strlen(cpair);
+-	key = PyString_FromStringAndSize(NULL, plen);
+-	if (key == NULL) 
+-	    return NULL;
+-	val = PyString_FromStringAndSize(NULL, plen);
+-	if (val == NULL) 
+-	    return NULL;
+-
+-	ckey = PyString_AS_STRING(key);
+-	cval = PyString_AS_STRING(val);
++#ifdef ATEA_DEBUG
++	fprintf(stderr,&quot;plen == %d\n&quot;, plen);
++#endif
++	/*key = PyString_FromStringAndSize(NULL, plen);
++	  if (key == NULL)
++	      return NULL;
++	  val = PyString_FromStringAndSize(NULL, plen);
++	  if (val == NULL)
++	      return NULL;*/
+ 
++	/*ckey = PyString_AS_STRING(key);
++	  cval = PyString_AS_STRING(val);*/
++	
++	ckey = calloc(1,plen);
++	cval = calloc(1,plen);
++	/*memset(ckey,0,plen);
++	  memset(cval,0,plen);*/
++#ifdef ATEA_DEBUG
++	fprintf(stderr,&quot;ckey=%s, cval=%s (should be empty)\n&quot;, ckey, cval);
++#endif
++	
+ 	p = 0;
+ 	k = 0;
+ 	v = 0;
+ 	while (p &lt; plen) {
+-	    if (cpair[p] != '=') {
+-		ckey[k] = cpair[p];
+-		k++;
+-		p++;
++	    if (cpair[p] != '=')
++		{
++#ifdef ATEA_DEBUG
++			fprintf(stderr,&quot;%d cpair=%s ckey=%s, cval=%s (parsing before '=')\n&quot;, p, cpair, ckey, cval);
++#endif
++			ckey[k] = cpair[p];
++			k++;
++			p++;
+ 	    }
+ 	    else {
+-		p++;      /* skip '=' */
+-		while (p &lt; plen) {
+-		    cval[v] = cpair[p];
+-		    v++;
+-		    p++;
+-		}
++			p++;      /* skip '=' */
++#ifdef ATEA_DEBUG
++			fprintf(stderr, &quot;&gt;&gt;&gt; entering else branch...\n&quot;);
++#endif
++			while (p &lt; plen)
++			{
++#ifdef ATEA_DEBUG
++				fprintf(stderr,&quot;%d cpair=%s ckey=%s, cval=%s (parsing after '=')\n&quot;, p, cpair, ckey, cval);
++#endif
++		    	cval[v] = cpair[p];
++		    	v++;
++		    	p++;
++			}
+ 	    }
+ 	}
+ 	ckey[k] = '\0';
+ 	cval[v] = '\0';
++#ifdef ATEA_DEBUG
++	fprintf(stderr,&quot;ckey=%s, cval=%s\n (final)&quot;, ckey, cval);
++#endif
+ 
+ 	if (keep_blank_values || (v &gt; 0)) {
+ 
+ 	    ap_unescape_url(ckey);
+ 	    ap_unescape_url(cval);
+ 
+-	    _PyString_Resize(&amp;key, strlen(ckey));
+-	    _PyString_Resize(&amp;val, strlen(cval));
++	    /*_PyString_Resize(&amp;key, strlen(ckey));
++	      _PyString_Resize(&amp;val, strlen(cval));*/
+ 
++		key = PyString_FromStringAndSize(ckey, strlen(ckey));
++		if (key == NULL) {
++		  	free(ckey); free(cval); free(cpair);
++	    	return NULL;
++		}
++		val = PyString_FromStringAndSize(cval, strlen(cval));
++		if (val == NULL) {
++		  	free(ckey); free(cval); free(cpair);
++		    return NULL;
++		}
++		
+ 	    PyList_Append(pairs, Py_BuildValue(&quot;(O,O)&quot;, key, val));
+ 
+ 	}
+-	Py_DECREF(pair);
++	/*Py_DECREF(pair);*/
+ 	Py_DECREF(key);
+ 	Py_DECREF(val);
+ 	i++;
++	free(ckey);
++	free(cval);
+     }
+-
++	free(cpair);
+     return pairs;
+ }
+ 
+ 
+ /* methods of _apache */
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004286.html">[mod_python] mod_python2.7.2 and server redirects
+</A></li>
+	<LI>Next message: <A HREF="004288.html">[mod_python] Problem to run .py scripts thru apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4287">[ date ]</a>
+              <a href="thread.html#4287">[ thread ]</a>
+              <a href="subject.html#4287">[ subject ]</a>
+              <a href="author.html#4287">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

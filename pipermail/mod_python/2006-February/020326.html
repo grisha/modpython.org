@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] how to make fallback authentication
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20to%20make%20fallback%20authentication&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020347.html">
+   <LINK REL="Next"  HREF="020331.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] how to make fallback authentication</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20to%20make%20fallback%20authentication&In-Reply-To="
+       TITLE="[mod_python] how to make fallback authentication">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Feb 16 18:11:55 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020347.html">[mod_python] setting apache variables from mod_python
+</A></li>
+        <LI>Next message: <A HREF="020331.html">[mod_python] how to make fallback authentication
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20326">[ date ]</a>
+              <a href="thread.html#20326">[ thread ]</a>
+              <a href="subject.html#20326">[ subject ]</a>
+              <a href="author.html#20326">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Unfortunately, to my mind, what would be the proper way of doing this
+can't current be done in mod_python because it has some stuff missing
+and doesn't process handlers for the authentication phase correctly. See:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-124">http://issues.apache.org/jira/browse/MODPYTHON-124</A>
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-129">http://issues.apache.org/jira/browse/MODPYTHON-129</A>
+
+One question while I think of a good suggestion, how are you setting
+AuthType, AuthName and Requires directives to ensure that the mod_python
+authenhandler is being run in the first place?
+
+Graham
+
+Tomasz Wlodek wrote ..
+&gt;<i> Hello folks,
+</I>&gt;<i> 
+</I>&gt;<i> I work on the following idea: We would like to authenticate users who come
+</I>&gt;<i> to our site in two steps. First we request them to show a valid
+</I>&gt;<i> certificate. If they can show one and the certificate DN is in our allowed
+</I>&gt;<i> user's list then we let them in.
+</I>&gt;<i> 
+</I>&gt;<i> If they do not have a certificate, then we want them to perform
+</I>&gt;<i> authentication based on user id and password. We ask them for user id and
+</I>&gt;<i> pwd, compare it to what we keep in some database and let them in. (or
+</I>&gt;<i> not).
+</I>&gt;<i> 
+</I>&gt;<i> The first part - identifying user's based on a certificate is already
+</I>&gt;<i> done. (Thanks to Graham and others who helped me to understand how to pass
+</I>&gt;<i> variables from mod_ssl to mod_python authentication handler!)
+</I>&gt;<i> 
+</I>&gt;<i> Now comes the second part: what if the user has no certificate. We need
+</I>&gt;<i> to
+</I>&gt;<i> tell Apache to perform basic authentication.
+</I>&gt;<i> 
+</I>&gt;<i> I thought about doing it in the following way: the authentication handler
+</I>&gt;<i> would check if user has a certificate. If yes, let him in, if not redirect
+</I>&gt;<i> the request to another web page which is located in a directory where
+</I>&gt;<i> .htaccess file requires basic authentication. This would force Apache to
+</I>&gt;<i> ask for user id and password, after that the request would be redirected
+</I>&gt;<i> back to the original site. At this point the req.user variable in request
+</I>&gt;<i> should be defined, which would be a sign to the handler that the user can
+</I>&gt;<i> be authenticated.
+</I>&gt;<i> 
+</I>&gt;<i> This sounds very complex and I would like to hear from you if there is
+</I>&gt;<i> a
+</I>&gt;<i> simpler way of doing this. (I suspect that there is).
+</I>&gt;<i> 
+</I>&gt;<i> Here is my authentication handler: I am not happy with it, and I am not
+</I>&gt;<i> sure if it will work, but I would like to hear from you if it can be done
+</I>&gt;<i> in a simpler way.
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> from mod_python import util
+</I>&gt;<i> 
+</I>&gt;<i> import _mp_mod_ssl
+</I>&gt;<i> import os
+</I>&gt;<i> 
+</I>&gt;<i> def authenhandler(req):
+</I>&gt;<i>     # if the req.user variable has been defined, then user has been
+</I>&gt;<i>     # already authenticated elsewhere
+</I>&gt;<i>     # if not, then we authenticate him
+</I>&gt;<i>     if req.user!=None:
+</I>&gt;<i> 	 req.add_common_vars()
+</I>&gt;<i> 
+</I>&gt;<i> 	 # get user's dn certificate
+</I>&gt;<i>   	 user_dn = _mp_mod_ssl.var_lookup(req,'SSL_CLIENT_S_DN')
+</I>&gt;<i> 
+</I>&gt;<i> 	 # let us assume that we have a list of allowed dn's
+</I>&gt;<i>     	 if user_dn in ListOfApprovedDns:
+</I>&gt;<i> 		return apache.OK
+</I>&gt;<i>     	 else:
+</I>&gt;<i>  		# user has no DN
+</I>&gt;<i> 		# now we need to start password based authentication
+</I>&gt;<i>        		 # I will redirect the request to another site, which
+</I>&gt;<i> 		# is configured to perform basic authentication
+</I>&gt;<i>  		util.redirect(req,'<A HREF="http://....'">http://....'</A>)
+</I>&gt;<i> 		# This other site performs basic authentication, and fills
+</I>&gt;<i> 		# req.user variable, then the request it is redirected
+</I>&gt;<i>                 # back to the
+</I>&gt;<i> 		# present site
+</I>&gt;<i>      else:
+</I>&gt;<i> 	# if we are here then the user has been already authenticated
+</I>&gt;<i>         return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> Tomasz Wlodek                        | tel 631-344-7448
+</I>&gt;<i> Brookhaven Laboratory, Building 510M | fax 631-344-7616
+</I>&gt;<i> Upton NY 11973-5000                  |
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020347.html">[mod_python] setting apache variables from mod_python
+</A></li>
+	<LI>Next message: <A HREF="020331.html">[mod_python] how to make fallback authentication
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20326">[ date ]</a>
+              <a href="thread.html#20326">[ thread ]</a>
+              <a href="subject.html#20326">[ subject ]</a>
+              <a href="author.html#20326">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

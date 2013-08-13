@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Subinterpreters and index.py
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Subinterpreters%20and%20index.py&In-Reply-To=40E48237.50305%40joreybump.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015858.html">
+   <LINK REL="Next"  HREF="015860.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Subinterpreters and index.py</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Subinterpreters%20and%20index.py&In-Reply-To=40E48237.50305%40joreybump.com"
+       TITLE="[mod_python] Subinterpreters and index.py">nicolas at lehuen.com
+       </A><BR>
+    <I>Fri Jul  2 11:40:24 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015858.html">[mod_python] Subinterpreters and index.py
+</A></li>
+        <LI>Next message: <A HREF="015860.html">[mod_python] Subinterpreters and index.py
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15859">[ date ]</a>
+              <a href="thread.html#15859">[ thread ]</a>
+              <a href="subject.html#15859">[ subject ]</a>
+              <a href="author.html#15859">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE> 
+Jorey Bump wrote:
+&gt;<i> Nicolas Lehuen wrote:
+</I>&gt;<i> &gt; Jorey Bump wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;&gt;Modules are namespaces, regardless of their physical 
+</I>&gt;<i> location. This is 
+</I>&gt;<i> &gt;&gt;very important, even within subinterpreters.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I do understand this, and that's why I think that the 
+</I>&gt;<i> module defined 
+</I>&gt;<i> &gt; in /app/index.py should not be overwritten by the one defined in 
+</I>&gt;<i> &gt; /app/subdir/index.py. Maybe the namespace of the module defined by 
+</I>&gt;<i> &gt; /app/subdir/index.py should be created within the namespace of the 
+</I>&gt;<i> &gt; module defined by /app/index.py, so that the latter would inherit 
+</I>&gt;<i> &gt; names from the former ? It seems that the publisher load 
+</I>&gt;<i> each .py file 
+</I>&gt;<i> &gt; as modules based on the filename only, hence the name 
+</I>&gt;<i> collisions. If 
+</I>&gt;<i> &gt; directories or URIs could be taken into account, this 
+</I>&gt;<i> collision problem would disappear.
+</I>&gt;<i> 
+</I>&gt;<i> Modules of the same name cause collisions. It's that simple. 
+</I>&gt;<i> To avoid collisions, create packages and name them carefully. 
+</I>&gt;<i> It's like
+</I>&gt;<i> indentation: It imposes a discipline that has enormous 
+</I>&gt;<i> benefits that aren't immediately apparent.
+</I>
+So why doesn't mod_python.publisher automatically creates packages based on
+directories ? Mod_python.publisher imposes its own limitations. It's not the
+way Python is supposed to behave. You call it a feature of
+mod_python.publisher, all right. But nothing prevents people from having
+modules defined in files with the same name in Python, without name
+collisions, provided they are defined within different packages.
+
+Before switching to Python 18 months ago, I've been coding in Java for at
+least 5 years (well, since Java 1.0 beta). So I quite get the idea of
+packages, namespaces and so on. I also do have a whole bunch of Python code
+organised in packages that I reuse in different projects. And I love coding
+in Python ! But this mod_python behaviour has nothing to do with Python,
+it's a limitation. Anyway, mod_python Servlets seems so solve this issue ; I
+was thinking of a similar handler which would load .py files the way I want,
+but Daniel already wrote it, so here I go.
+ 
+&gt;<i> The file hierarchy is important to the mechanics of creating 
+</I>&gt;<i> your environment (setting the PYTHONPATH, creating packages, 
+</I>&gt;<i> etc.), but plays no part in the logic of your application. 
+</I>&gt;<i> Just as you can't give two files in the same directory the 
+</I>&gt;<i> same name, you can't give two modules in the top level of 
+</I>&gt;<i> your application the same name. If you want to reuse a name, 
+</I>&gt;<i> you have to distinguish it by placing it within a package. 
+</I>&gt;<i> There's no need to force mod_python to do this, when you can 
+</I>&gt;<i> indicate this yourself by placing __init__.py in the 
+</I>&gt;<i> directory you want to package. 
+</I>&gt;<i> Automagic packaging could break a lot more than it fixes 
+</I>&gt;<i> (you'd have to memorize every module or package in your path 
+</I>&gt;<i> before creating directories).
+</I>
+Yeah, Jorey, I do understand that, it's trivial stuff ; my problem is that
+mod_python.publisher seems to load all published modules in the top level
+namespace. Sorry, I don't want to be too critical since mod_python is really
+a nice achievement (very useful, especially when combined with the threaded
+Apache2 implementation so that you can share data between threads), but you
+don't have to lecture me on what is a namespace when the namespace issues
+reside in mod_python.publisher.
+
+This could be fixed in mod_python.publisher if the module_name was built
+using the path part, not only the file part (line 67 of publisher.py) and by
+loading the module by directly specifying the file to load and not adding
+the path of the file to the call to import_module (line 98).
+apache.import_module should then be patched to also support the loading of a
+specific file, not only a module name which is then passed to
+imp.find_module (line 454 of apache.py).
+ 
+But like I've just wrote, we can also keep the best parts of mod_python, put
+away mod_python.publisher and use mod_python Servlets instead.
+
+[snip]
+
+&gt;<i> &gt; How can I benefit from the behaviour you describe while 
+</I>&gt;<i> also declaring 
+</I>&gt;<i> &gt; the libraries I need on the Python path ?
+</I>&gt;<i> 
+</I>&gt;<i> This depends on your environment and your privileges. First, 
+</I>&gt;<i> try the test I outlined to verify your path under 
+</I>&gt;<i> Apache/mod_python (remove your PythonPath directive for the test).
+</I>&gt;<i> 
+</I>&gt;<i> One solution is to create packages in your existing path. 
+</I>&gt;<i> Anything you put in your installation's site-packages 
+</I>&gt;<i> directory will be available to everyone on the system. In 
+</I>&gt;<i> fact, that's why it was created.
+</I>
+That's what I do right now, but I want to host many different applications
+on my server (I have it configured in mass virtual hosting mode for that),
+and I don't think it's a good practice to have the code for all my
+applications available to every other application. That's why I wanted to do
+something like this :
+
+$WWW/pythonlib/                  --&gt; code explicitely shared by all
+applications
+$WWW/hosts/host1/                --&gt; virtual host 1        
+$WWW/hosts/host1/pythonlib/      --&gt; code shared by all apps and modules of
+host1
+$WWW/hosts/host1/index.py        --&gt; redirects to the default application of
+host1
+$WWW/hosts/host1/app1/           --&gt; first application on host1
+$WWW/hosts/host1/app1/pythonlib/ --&gt; code shared by all modules of
+host1/app1
+$WWW/hosts/host1/app1/index.py   --&gt; default module of host1/app1
+...
+
+In fact by reading this, I realise that by defining .htaccess files with
+specific PythonInterpreter and PythonPath directives, I can do precisely
+that plus get an healthy insulation of interpreters across applications (or
+at least across hosts). I'll try this.
+
+[snip]
+
+Regards,
+
+Nicolas Lehuen
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015858.html">[mod_python] Subinterpreters and index.py
+</A></li>
+	<LI>Next message: <A HREF="015860.html">[mod_python] Subinterpreters and index.py
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15859">[ date ]</a>
+              <a href="thread.html#15859">[ thread ]</a>
+              <a href="subject.html#15859">[ subject ]</a>
+              <a href="author.html#15859">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

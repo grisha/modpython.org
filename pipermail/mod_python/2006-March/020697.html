@@ -1,0 +1,281 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] little problem with my handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20little%20problem%20with%20my%20handler&In-Reply-To=442A358B.6010003%40ulb.ac.be">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020694.html">
+   <LINK REL="Next"  HREF="020692.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] little problem with my handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20little%20problem%20with%20my%20handler&In-Reply-To=442A358B.6010003%40ulb.ac.be"
+       TITLE="[mod_python] little problem with my handler">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Mar 29 04:50:22 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020694.html">[mod_python] little problem with my handler
+</A></li>
+        <LI>Next message: <A HREF="020692.html">[mod_python] Mod Python problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20697">[ date ]</a>
+              <a href="thread.html#20697">[ thread ]</a>
+              <a href="subject.html#20697">[ subject ]</a>
+              <a href="author.html#20697">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;&gt;&gt;<i>     config = req.get_config()
+</I>&gt;&gt;&gt;<i>     (autoreload, log) = (int(config.get(&quot;PythonAutoReload&quot;, 1)), 
+</I>&gt;&gt;&gt;<i> int(config.get(&quot;PythonDebug&quot;, 0)))
+</I>&gt;&gt;&gt;<i>        try:
+</I>&gt;&gt;&gt;<i>         module = apache.import_module('controllers.%s' % 
+</I>&gt;&gt;&gt;<i> (controller, ),
+</I>&gt;&gt;&gt;<i> autoreload=autoreload, log=log)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Hope you don't expect autoreload to work on Python packages. It can be
+</I>&gt;&gt;<i> unreliable at best in publically released versions of mod_python and 
+</I>&gt;&gt;<i> new
+</I>&gt;&gt;<i> module importer in future version will not support it. But then there
+</I>&gt;&gt;<i> are better ways of doing what you are doing when new importer is
+</I>&gt;&gt;<i> available as you will be able to load module by full path.
+</I>&gt;&gt;<i>
+</I>&gt;<i> so apache.import_module should not be used .. ?
+</I>
+Continue to use apache.import_module(), just accept that at the
+moment it has a few issues which will hopefully be cleared up
+in mod_python 3.3.
+
+&gt;&gt;&gt;<i>     except ImportError:
+</I>&gt;&gt;&gt;<i>         req.log_error('Cannot import controller %s' % (controller, ))
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     object = getattr(module, method)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> You don't reraise the ImportError exception or return any other sort
+</I>&gt;&gt;<i> of explicit error status. Thus, when module can't be imported, it will
+</I>&gt;&gt;<i> still try and access the method from the module, but module variable
+</I>&gt;&gt;<i> will not exist and so it will die.
+</I>&gt;&gt;<i>
+</I>&gt;<i> Yes, this handler is not complete at all (I was just playing a bit 
+</I>&gt;<i> with)
+</I>
+Oh, forgot that if method doesn't exist, it will die. Better to
+explicitly check and return not found error.
+
+   if not hasattr(module, method):
+     return apache.HTTP_NOT_FOUND
+
+Another issue related to ImportError is that it doesn't distinguish
+between the target file not being found and other sorts of import error
+unless you try and match against the exception string looking for &quot;No
+module named&quot;. This is a short coming of apache.import_module() which
+I'll have to check is addressed in the new importer. Ideally it should
+return a derived exception of ImportError indicating not found, which is
+distinct from other sorts of ImportError. That way you can use that
+error as trigger for again returning HTTP not found. Only other way of
+doing it at the moment is to check for the existence of the module code
+file before it is imported.
+
+&gt;&gt;<i> Your callables must always ensure they return string objects.
+</I>&gt;&gt;<i> In mod_python.publisher, it will at least convert non string objects
+</I>&gt;&gt;<i> to strings and attempts to treat Unicode strings specially as well.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Problem with this code is if bytes were sent and result is None,
+</I>&gt;&gt;<i> it will try and write result and die because it isn't a string.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i> ok, so req.write(str(result))
+</I>
+Probably better to use:
+
+   if result is not None:
+      req.write(str(result))
+
+&gt;&gt;<i> Like mod_python.publisher, you have gone down the path of allowing
+</I>&gt;&gt;<i> defaults and similarly don't deal with trailing slashes in a 
+</I>&gt;&gt;<i> reasonable
+</I>&gt;&gt;<i> way. This causes various problems due to the fact that different URLs
+</I>&gt;&gt;<i> can be used to address the same resource. The different URLs can
+</I>&gt;&gt;<i> have varying numbers of slashes in them, which makes calculating
+</I>&gt;&gt;<i> relative URLs to another resource fiddly and error prone.
+</I>&gt;&gt;<i>
+</I>&gt;<i> Is there a &quot;good&quot; way to handle relative urls ?
+</I>
+Here is some code I have been playing with lately. I posted something
+similar on list a while back, but it had one bug in it. Stick this in
+a module somewhere and add to your Apache configuration:
+
+   PythonHeaderParserHandler module_name::calculate_base_urls
+
+It is intended to run as an earlier phase than content handler and it
+will populate values in req.subprocess_env with absolute and relative
+URLs to notional directory for script matched by Apache and directory
+that the handler was configured to run for. Uses req.subprocess_env
+instead of attributes of req as then can be used in files being
+processed through SSI as well as Python handlers.
+
+   &lt;!--#if expr=&quot;${SIDEBAR_URL}&quot; --&gt;
+   &lt;link media=&quot;screen&quot;\
+    href=&quot;&lt;!--#echo var=&quot;HANDLER_BASEURL_REL&quot; 
+--&gt;styles/three_column.css&quot;\
+    type=&quot;text/css&quot; rel=&quot;stylesheet&quot; /&gt;'
+   &lt;!--#else --&gt;
+   &lt;link media=&quot;screen&quot;\
+    href=&quot;&lt;!--#echo var=&quot;HANDLER_BASEURL_REL&quot; --&gt;styles/two_column.css&quot;\
+    type=&quot;text/css&quot; rel=&quot;stylesheet&quot; /&gt;'
+   &lt;!--#endif --&gt;
+   &lt;link media=&quot;print&quot;\
+    href=&quot;&lt;!--#echo var=&quot;HANDLER_BASEURL_REL&quot; --&gt;styles/print_media.css&quot;\
+    type=&quot;text/css&quot; rel=&quot;stylesheet&quot; /&gt;'
+
+Anyway, here is the actual code. The handler base url calculation will
+not work if using mod_python 3.1.X on Win32. Thus, best to ensure you
+are using mod_python 3.2.8. Note that for your code, the base url will
+probably be above point in URL which names controller. You'll just have
+to experiment with it.
+
+import posixpath
+import os
+
+from mod_python import apache
+
+def calculate_base_urls(req):
+
+     # First normalise req.uri when using it as it will
+     # preserve repeated slashes in it, whereas such
+     # slashes are removed from req.path_info. We must
+     # use normalisation function from posixpath and not
+     # os.path as Apache always gaurantees to use POSIX
+     # format and using os.path version will change
+     # slashes to Win32 backslash.
+
+     normalised_uri = posixpath.normpath(req.uri)
+
+     # When normalising the path, it will throw away the
+     # trailing slash, thus we need to put it back if it
+     # appeared in the original.
+
+     if normalised_uri:
+         if normalised_uri != '/' and req.uri[-1] == '/':
+             normalised_uri = normalised_uri + '/'
+
+     # The req.path_info attribute was already normalised
+     # above so can simply determine script path by
+     # subtracting its length from normalised uri. Note
+     # that the script path in this situation can be a
+     # directory. In that situation it will have a
+     # trailing slash to distinguish it from case whereby
+     # script path identifies an actual file.
+
+     if req.path_info:
+         script_url = normalised_uri[:-len(req.path_info)]
+     else:
+         script_url = normalised_uri
+
+     # A base url can now be calculated for the virtual
+     # directory the script is contained in.
+
+     script_baseurl_abs = posixpath.dirname(script_url)
+
+     path = normalised_uri[len(script_baseurl_abs):]
+     step = path.count('/') - 1
+
+     if step:
+         script_baseurl_rel = step * '../'
+     else:
+         script_baseurl_rel = './'
+
+     # A base url can also be calculated which will
+     # correspond to where the Python*Handler directive
+     # was defined. This code will only work if
+     # Python*Handler directive appeared in a Directory
+     # directive and no wildcards were used in the path.
+     # That is, it will not work if Python*Handler
+     # directive appeared inside of a VirtualHost,
+     # Location or Files directive. This is because
+     # req.hlist.directory will not be set to a useable
+     # value in the latter cases.
+
+     if req.hlist.directory and os.path.isabs(req.hlist.directory):
+         length = len(req.filename)
+         length -= len(req.hlist.directory) - 1
+         length += len(req.path_info or '')
+
+         handler_baseurl_abs = normalised_uri[:-length] + '/'
+
+     else:
+         handler_baseurl_abs = '/'
+
+     path = normalised_uri[len(handler_baseurl_abs):]
+     step = path.count('/')
+
+     if step:
+         handler_baseurl_rel = step * '../'
+     else:
+         handler_baseurl_rel = './'
+
+     # Populate the table of environment variables with
+     # values. The environment variables table is used as
+     # opposed to note tables or request object, as the
+     # environment variables table is more easily useable
+     # from SSI and other Apache modules.
+
+     req.subprocess_env['SCRIPT_URL'] = script_url
+     req.subprocess_env['SCRIPT_BASEURL_ABS'] = script_baseurl_abs
+     req.subprocess_env['SCRIPT_BASEURL_REL'] = script_baseurl_rel
+     req.subprocess_env['HANDLER_BASEURL_ABS'] = handler_baseurl_abs
+     req.subprocess_env['HANDLER_BASEURL_REL'] = handler_baseurl_rel
+
+     return apache.OK
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020694.html">[mod_python] little problem with my handler
+</A></li>
+	<LI>Next message: <A HREF="020692.html">[mod_python] Mod Python problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20697">[ date ]</a>
+              <a href="thread.html#20697">[ thread ]</a>
+              <a href="subject.html#20697">[ subject ]</a>
+              <a href="author.html#20697">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

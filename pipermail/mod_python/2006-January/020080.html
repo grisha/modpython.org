@@ -1,0 +1,190 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python executing old versions of my code
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20executing%20old%20versions%20of%20my%20code&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020081.html">
+   <LINK REL="Next"  HREF="020085.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python executing old versions of my code</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20executing%20old%20versions%20of%20my%20code&In-Reply-To="
+       TITLE="[mod_python] mod_python executing old versions of my code">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Jan 24 18:49:40 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020081.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+        <LI>Next message: <A HREF="020085.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20080">[ date ]</a>
+              <a href="thread.html#20080">[ thread ]</a>
+              <a href="subject.html#20080">[ subject ]</a>
+              <a href="author.html#20080">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>=?ISO-8859-2?Q?Martin_MOKREJ=A9?= wrote ..
+&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt;But I can find no way to force testmodule to be re-imported. What am
+</I>&gt;<i> I
+</I>&gt;<i> &gt;&gt;doing wrong?
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; You are not doing anything wrong, the current system simply doesn't
+</I>&gt;<i> &gt; work very well.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; The best you can get is to use:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   from mod_python import apache
+</I>&gt;<i> &gt;   import os
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   __here__ = os.path.dirname(__file__)
+</I>&gt;<i> &gt;   
+</I>&gt;<i> &gt;   def handler(req):
+</I>&gt;<i> &gt;        req.write(&quot;Hello World!&quot;)
+</I>&gt;<i> &gt;        testmodule = apache.import_module(&quot;testmodule,path=[__here__])
+</I>&gt;<i> &gt;        testmodule.foo(req)
+</I>&gt;<i> &gt;        return apache.OK
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; This uses apache.import_module() on each request to import the module.
+</I>&gt;<i> &gt; In practice though, if the file has not changed it just uses what is
+</I>&gt;<i> already
+</I>&gt;<i> &gt; in the cache. If it has changed, you should then see the change.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; You can't use apache.import_module() at global scope in the module and
+</I>&gt;<i> &gt; get the same effect as that only gets executed when main.py is imported.
+</I>&gt;<i> &gt; Thus you don't get the check for changes to testmodule.py on every
+</I>&gt;<i> &gt; request.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I have a completely rewritten module importing system for mod_python
+</I>&gt;<i> &gt; which addresses nearly all the issues it has. I will be making it available
+</I>&gt;<i> for
+</I>&gt;<i> &gt; trialing after mod_python 3.2.6 is officially released. It will require
+</I>&gt;<i> though
+</I>&gt;<i> &gt; having 3.2.6, which means it will be useless to you with 2.7.11.
+</I>&gt;<i> 
+</I>&gt;<i> I still see problems with module import using 3.2.6 on linux, compiled
+</I>&gt;<i> today.
+</I>&gt;<i> I am using typically something like:
+</I>&gt;<i> 
+</I>&gt;<i> try:
+</I>&gt;<i>     from mod_python import apache
+</I>&gt;<i> 
+</I>&gt;<i>     _directory = os.path.dirname(__file__)
+</I>&gt;<i>     for _my_modulename in ['web_settings', 'web_header', 'web_menu', 'web_text_frame',
+</I>&gt;<i> 'web_footer', 'sql_io', 'helper_functions', 'globals']:
+</I>&gt;<i>         __dict__[_my_modulename] = apache.import_module(_my_modulename,
+</I>&gt;<i> log=1, path=[_directory])
+</I>&gt;<i> except: # without raise
+</I>&gt;<i>     import web_settings
+</I>&gt;<i>     import web_header
+</I>&gt;<i>     import web_menu
+</I>&gt;<i>     import web_text_frame # calls mysql_python driver
+</I>&gt;<i>     import web_footer
+</I>&gt;<i>     import sql_io
+</I>&gt;<i>     import helper_functions
+</I>&gt;<i>     import iresite_globals
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> So, should I wait or adjust my code?
+</I>
+What sort of problems?
+
+Note though that the more major problems with apache.import_module()
+aren't fixed in 3.2.6.
+
+You should find that mod_python.publisher may work a bit better in 3.2.6
+as it uses a separate module importer. If you use apache.import_module()
+inside of mod_python.publisher code, you could end up with a whole new
+bunch of problems if a module is imported by both mod_python.publisher
+and apache.import_module(). Specifically that there will be two distinct
+copies of the module. I pointed out the problems that the changes to the
+mod_python.publisher module importer would cause in this situation, but
+the changes were still made. I would have preferred to have seen the use
+of apache.import_module() by mod_python.publisher be left alone until
+apache.import_module() was fixed. Ie., better known problems than a whole
+class of new ones. :-(
+
+&gt;<i> &gt; Whether this new module importing system gets adopted is another
+</I>&gt;<i> &gt; matter entirely though. Some have argued in the past that the current
+</I>&gt;<i> &gt; arrangement is adequate even though it has known problems. ;-(
+</I>&gt;<i> 
+</I>&gt;<i> No, the apache stop/start sucks, the restart approach doesn't work as the
+</I>&gt;<i> init.d scripts on gentoo
+</I>&gt;<i> fail to wait for apache to shutdown completely ... they start to startup
+</I>&gt;<i> somehow immediately,
+</I>&gt;<i> recognize apache is still up, die but leave the lockfiles in. I have to
+</I>&gt;<i> start apache in
+</I>&gt;<i> several start/start attempts to get it started actually.
+</I>
+Apache child processes not terminating promptly may be because of:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-109">http://issues.apache.org/jira/browse/MODPYTHON-109</A>
+
+this is not addressed in 3.2.6 anf needs a bit more research first to see
+if the simple solution will not cause other issues. At this stage the only
+known issue is that not calling Py_Finalize() will mean that code registered
+using Python wrapper for atexit() will not be called. Have to check properly
+yet though whether code registered with apache.register_cleanup() and
+req.server.register_cleanup() will still be executed.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020081.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+	<LI>Next message: <A HREF="020085.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20080">[ date ]</a>
+              <a href="thread.html#20080">[ thread ]</a>
+              <a href="subject.html#20080">[ subject ]</a>
+              <a href="author.html#20080">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

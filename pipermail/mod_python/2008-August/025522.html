@@ -1,0 +1,409 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: python exceptions cause Apache to crash
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20python%20exceptions%20cause%20Apache%20to%20crash&In-Reply-To=88e286470808051736s65ebdecg8f2c998663bf2c32%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025518.html">
+   <LINK REL="Next"  HREF="025524.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: python exceptions cause Apache to crash</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jason Carver</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20python%20exceptions%20cause%20Apache%20to%20crash&In-Reply-To=88e286470808051736s65ebdecg8f2c998663bf2c32%40mail.gmail.com"
+       TITLE="[mod_python] Re: python exceptions cause Apache to crash">ynj0qeh02 at sneakemail.com
+       </A><BR>
+    <I>Wed Aug  6 13:48:52 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025518.html">[mod_python] Re: python exceptions cause Apache to crash
+</A></li>
+        <LI>Next message: <A HREF="025524.html">[mod_python] Re: python exceptions cause Apache to crash
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25522">[ date ]</a>
+              <a href="thread.html#25522">[ thread ]</a>
+              <a href="subject.html#25522">[ subject ]</a>
+              <a href="author.html#25522">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Great, thanks for your help!  Is there a good place for me to file a feature
+request to have mod_python do something besides crash in this case?
+
+For reference, I have code here to demonstrate the bug and workaround:
+
+def testCrash(req):
+    &quot;&quot;&quot;
+    Reliably crash server (on 2nd page access)
+    Open as: <A HREF="http://server/index.py/testCrash">http://server/index.py/testCrash</A>
+    &quot;&quot;&quot;
+    handler = logging.StreamHandler(req)
+    logging.getLogger('').addHandler( handler )
+    logging.exception('I crash')
+
+    #removing this line will cause an apache crash on the
+    #    second web page access
+    logging.getLogger('').removeHandler(handler)
+
+I have confirmed that the workaround works reliably for me.
+
+Cheers,
+Jason
+
+On Tue, Aug 5, 2008 at 8:36 PM, Graham Dumpleton
+graham.dumpleton-at-gmail.com |public mailing list| &lt;
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">a9ghk53mp50t at sneakemail.com</A>&gt; wrote:
+
+&gt;<i> Just realised what the problem is, rather obvious really.
+</I>&gt;<i>
+</I>&gt;<i> You are supplying a mod_python request object 'req' to:
+</I>&gt;<i>
+</I>&gt;<i>  logging.getLogger('').addHandler(logging.StreamHandler(req))
+</I>&gt;<i>
+</I>&gt;<i> You can't do that, as the logging handler you are creating will
+</I>&gt;<i> persist beyond the lifetime of the internals of the 'req' object.
+</I>&gt;<i> Thus, when logging tries to access it later, it will crash Apache.
+</I>&gt;<i>
+</I>&gt;<i> In other words, 'req' is just a wrapper for some internal Apache data
+</I>&gt;<i> structures which will go away. The mod_python code doesn't currently
+</I>&gt;<i> try and protect itself from user code making the mistake of retaining
+</I>&gt;<i> the 'req' object longer than it should and then accessing those
+</I>&gt;<i> internals.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> 2008/8/6 Jason Carver &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ynj0qeh02 at sneakemail.com</A>&gt;:
+</I>&gt;<i> &gt; If I try to install mod_python without python 2.5 installed, mod_python
+</I>&gt;<i> &gt; refuses, so I assume you mean uninstall all versions of python, then
+</I>&gt;<i> install
+</I>&gt;<i> &gt; python 2.5.2, then mod_python-3.3.1.win32-py2.5-Apache2.2.exe
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I did that, with no changes.  I get the same Traceback during mod_python
+</I>&gt;<i> &gt; install and I can still reproduce the crash reliably.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Bug requirements update: It does not matter if I test the req object, it
+</I>&gt;<i> &gt; only matters if the req object has something set.  So these are the new
+</I>&gt;<i> &gt; requirements to reproduce the bug
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; use built in logging module
+</I>&gt;<i> &gt; raise Exception
+</I>&gt;<i> &gt; call page with variables (ie~ <A HREF="http://localhost/index.py?action=boom">http://localhost/index.py?action=boom</A>)
+</I>&gt;<i> &gt; use the following code:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; import logging
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; def index(req):
+</I>&gt;<i> &gt;     &quot;&quot;&quot;Handles all Browser Requests&quot;&quot;&quot;
+</I>&gt;<i> &gt;     try:
+</I>&gt;<i> &gt;         logging.getLogger('').addHandler( logging.StreamHandler(req) )
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;         raise Exception('Goodbye Apache')
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     except Exception, e:
+</I>&gt;<i> &gt;         logging.exception('I crash')
+</I>&gt;<i> &gt;         raise
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; So there seems to be some kind of three way interaction between the
+</I>&gt;<i> logging
+</I>&gt;<i> &gt; module, the apache req module, and exception handling.  If any one of the
+</I>&gt;<i> &gt; three are not involved, apache does not crash...
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; For now I can use a home-grown logger to get around the bug, but I hate
+</I>&gt;<i> to
+</I>&gt;<i> &gt; build code that already exists and make future developers have to learn
+</I>&gt;<i> my
+</I>&gt;<i> &gt; logger instead of the built-in one.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Cheers,
+</I>&gt;<i> &gt; Jason
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On Mon, Aug 4, 2008 at 9:44 PM, Graham Dumpleton
+</I>&gt;<i> &gt; graham.dumpleton-at-gmail.com |public mailing list|
+</I>&gt;<i> &gt; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">a9ghk53mp50t at sneakemail.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Please use reply-all and keep discussion on the list, don't reply just
+</I>&gt;<i> to
+</I>&gt;<i> &gt;&gt; me.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Have you tried uninstalling all versions of Python and mod_python
+</I>&gt;<i> &gt;&gt; first and then install it? Ie., don't install when you have existing
+</I>&gt;<i> &gt;&gt; versions on the system.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; When installing packages, are you doing it as a user with
+</I>&gt;<i> &gt;&gt; administrator privileges?
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Graham
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; 2008/8/5  &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ynj0qeh02 at sneakemail.com</A>&gt;:
+</I>&gt;<i> &gt;&gt; &gt; Unfortunately, when I tried to install the mod_python 3.3.1 for 2.5 I
+</I>&gt;<i> &gt;&gt; &gt; got
+</I>&gt;<i> &gt;&gt; &gt; this traceback:
+</I>&gt;<i> &gt;&gt; &gt; Traceback (most recent call last):
+</I>&gt;<i> &gt;&gt; &gt;   File &quot;boot_com_servers.py&quot;, line 21, in &lt;module&gt;
+</I>&gt;<i> &gt;&gt; &gt;   File &quot;C:\Python25\Lib\site-packages\pythoncom.py&quot;, line 3, in
+</I>&gt;<i> &lt;module&gt;
+</I>&gt;<i> &gt;&gt; &gt;     pywintypes.__import_pywin32_system_module__(&quot;pythoncom&quot;,
+</I>&gt;<i> globals())
+</I>&gt;<i> &gt;&gt; &gt;   File &quot;C:\Python25\Lib\site-packages\win32\Lib\pywintypes.py&quot;, line
+</I>&gt;<i> 98,
+</I>&gt;<i> &gt;&gt; &gt; in
+</I>&gt;<i> &gt;&gt; &gt; __import_pywin32_system_module__
+</I>&gt;<i> &gt;&gt; &gt;     ('.dll', 'rb', imp.C_EXTENSION))
+</I>&gt;<i> &gt;&gt; &gt; ImportError: DLL load failed: The specified procedure could not be
+</I>&gt;<i> &gt;&gt; &gt; found.
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; and when I try to start apache 2 anyway, it says &quot;The requested
+</I>&gt;<i> &gt;&gt; &gt; operation
+</I>&gt;<i> &gt;&gt; &gt; has failed!&quot;
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; That's why I was using the version for 2.4.
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; On Mon, Aug 4, 2008 at 9:21 PM, Graham Dumpleton
+</I>&gt;<i> &gt;&gt; &gt; graham.dumpleton-at-......... |public mailing list| &lt;...&gt; wrote:
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; 2008/8/5  &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ynj0qeh02 at sneakemail.com</A>&gt;:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Thanks for the quick reply!  Answers inline...
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; On Mon, Aug 4, 2008 at 7:28 PM, Graham Dumpleton
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; graham.dumpleton-at-......... |public mailing list| &lt;...&gt; wrote:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; What operating system? What version of Python? What version of
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; mod_python?
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; I am on Windows XP SP3 using Python 2.5 in mod_python 3.3.1
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; I hacked the binary to use 2.5 on Windows, but the same problem is
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; reproducible on Ubuntu 7.10 using the latest source from svn
+</I>&gt;<i> compiled
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; with
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; python 2.5.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; What startup messages for mod_python are in the Apache error log?
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; [Mon Aug 04 20:03:21 2008] [notice] Server built: Nov  7 2007
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; 11:48:48
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; [Mon Aug 04 20:03:21 2008] [notice] Parent: Created child process
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; 27164
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; [Mon Aug 04 20:03:22 2008] [error] python_init: Python version
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; mismatch,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; expected '2.4.3', found '2.5'.
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; This is why it is probably breaking. Install mod_python compiled
+</I>&gt;<i> &gt;&gt; &gt;&gt; against Python 2.5. The version you are using was compiled against
+</I>&gt;<i> &gt;&gt; &gt;&gt; older version of Python.
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; Fix your installation and try again.
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; Do you get similar warnings on your other platform as well?
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; Graham
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; [Mon Aug 04 20:03:22 2008] [error] python_init: Python executable
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; found
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; 'C:\\xampp\\apache\\bin\\apache.exe'.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; [Mon Aug 04 20:03:22 2008] [error] python_init: Python path being
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; used
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; 'C:\\Program
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> Files\\OpenLibraries\\python;C:\\WINDOWS\\system32\\python25.zip;C:\\Python25\\Lib;C:\\Python25\\DLLs;C:\\Python25\\Lib\\lib-tk;;C:\\xampp\\apache\\bin'.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; [Mon Aug 04 20:03:22 2008] [notice] mod_python: Creating 8 session
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; mutexes
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; based on 0 max processes and 250 max threads.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; What is the mod_python configuration you have in Apache
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; configuration
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; files?
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; PythonOption mod_python.mutex_directory &quot;/pytmp&quot;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; PythonOption mod_python.mutex_locks 8
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; AliasMatch      ^/slique(.*)        'C:/Documents and
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Settings/Jason/My
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Documents/Coding/eclipse-workspace/slique-dev/src/$1'
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; &lt;Directory 'C:/Documents and Settings/Jason/My
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Documents/Coding/eclipse-workspace/slique-dev/src'&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;     Options Indexes ExecCGI FollowSymLinks MultiViews
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;     AllowOverride All
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;     AddHandler mod_python .py
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;     PythonHandler mod_python.publisher
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;     PythonDebug On
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;     PythonPath &quot;sys.path + ['C:/Documents and Settings/Jason/My
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Documents/Coding/eclipse-workspace/slique-dev/src']&quot;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; &lt;/Directory&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; Specifically, are you setting PythonPath directive in really
+</I>&gt;<i> strange
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; ways?
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; PythonPath is set this way
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; PythonPath &quot;sys.path + ['C:/Documents and Settings/Jason/My
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; Documents/Coding/eclipse-workspace/slique-dev/src']&quot;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; Does it happen if you don't use the 'logging' module?
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; If I comment out logging.exception('I crash'), then the traceback
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; prints
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; to
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt; screen as expected.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; Graham
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; 2008/8/5 Jason Carver &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ynj0qeh02 at sneakemail.com</A>&gt;:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; Here is code that consistently crashes Apache for me:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; import logging
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; def index(req):
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;     &quot;&quot;&quot;Handles all Browser Requests&quot;&quot;&quot;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;     try:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;         reqHandler = logging.StreamHandler(req)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;         logging.getLogger('').addHandler(reqHandler)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;         if req.form.has_key('action'):
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;             raise Exception('Goodbye Apache')
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;     except Exception, e:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;         logging.exception('I crash')
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;         raise
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; Now just go to the site with /?action=dosomething and it will
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; crash
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; Removing the if statement, the exception, or the logger are all
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; ways
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; of
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; alleviating the crash, but none of them should be necessary.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; Cheers,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; Jason
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; On Mon, Aug 4, 2008 at 2:51 PM, Jason Carver
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ynj0qeh02 at sneakemail.com</A>&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; wrote:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; Hi all,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; I am having the craziest error, confirmed on both a LAMPython
+</I>&gt;<i> and
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; WAMPython setup: exceptions in mod_python are causing Apache to
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; crash
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; hard.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; Even stranger is that the exceptions have to meet a few
+</I>&gt;<i> specific
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; conditions
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; to cause Apache to crash.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; As best I can tell those conditions include:
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; raising an exception (this problem always goes away if the
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; exception
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; is
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; commented out)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; having the exception be inside an if-block that tests a
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; dictionary
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; (the
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; problem goes away if I do something like &quot;&quot;&quot;if 'hello' ==
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; 'hello':
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; raise
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; Exception('goodbye')&quot;&quot;&quot;)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; catching the exception and logging it using the python built-in
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; logging.exception(e) (the problem goes away if I comment out
+</I>&gt;<i> the
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; logger)
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; Apache does not write anything to its error.log, so it was a
+</I>&gt;<i> bit
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; of
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; an
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; adventure to discover all these elements.
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; Any ideas?
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; Cheers,
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;&gt; Jason
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; _______________________________________________
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20080806/3bd46233/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20080806/3bd46233/attachment-0001.html</A>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025518.html">[mod_python] Re: python exceptions cause Apache to crash
+</A></li>
+	<LI>Next message: <A HREF="025524.html">[mod_python] Re: python exceptions cause Apache to crash
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25522">[ date ]</a>
+              <a href="thread.html#25522">[ thread ]</a>
+              <a href="subject.html#25522">[ subject ]</a>
+              <a href="author.html#25522">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

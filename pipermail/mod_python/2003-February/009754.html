@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] CGI handler and multithreading: Can i have multiple
+ sys.stdout objects?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20CGI%20handler%20and%20multithreading%3A%20Can%20i%20have%20multiple%0A%20sys.stdout%20objects%3F&In-Reply-To=01c2de31%2490914b00%24926a1e6e%40wsasd464">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="009753.html">
+   <LINK REL="Next"  HREF="009755.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] CGI handler and multithreading: Can i have multiple
+ sys.stdout objects?</H1>
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20CGI%20handler%20and%20multithreading%3A%20Can%20i%20have%20multiple%0A%20sys.stdout%20objects%3F&In-Reply-To=01c2de31%2490914b00%24926a1e6e%40wsasd464"
+       TITLE="[mod_python] CGI handler and multithreading: Can i have multiple
+ sys.stdout objects?">grisha at modpython.org
+       </A><BR>
+    <I>Thu Feb 27 15:34:07 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="009753.html">[mod_python] CGI handler and multithreading: Can i have multiple sys.stdout objects?
+</A></li>
+        <LI>Next message: <A HREF="009755.html">[mod_python] CGI handler and multithreading: Can i have multiple
+ sys.stdout objects?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9754">[ date ]</a>
+              <a href="thread.html#9754">[ thread ]</a>
+              <a href="subject.html#9754">[ subject ]</a>
+              <a href="author.html#9754">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Your best bet is the prefork MPM. Remember that the 10M per child is
+actually a lot less because pages for executables are shared between
+processes on (most) UNIXes, certainly on Solaris they are. I find it hard
+to believe that it is slower than regular CGI - it should be at least
+several times faster, though not nearly as efficient as using the
+publisher or a native handler.
+
+The ultimate solution is not use CGI of course :-)
+
+Grisha
+
+On Thu, 27 Feb 2003, Mike Looijmans wrote:
+
+&gt;<i> mod_python has a nice &quot;cgihandler&quot;, that allows me to run out old CGI code in
+</I>&gt;<i> mod_python 'mode'. However, I have some problems with that, that some of you
+</I>&gt;<i> may know a solution to.
+</I>&gt;<i>
+</I>&gt;<i> The cgihandler will lock until the request is complete. This is OK, but it
+</I>&gt;<i> restrains the number of simultaneous Python requests to just 1. In practice,
+</I>&gt;<i> this means that the system gets a lot slower with mod_python, because there
+</I>&gt;<i> are a few requests that send a few megabytes of data to the client, and this
+</I>&gt;<i> can take a few minutes. The performance hit is unacceptable.
+</I>&gt;<i>
+</I>&gt;<i> I'm running Apache 2.0.44 in &quot;worker&quot; thread mode on a Solaris 2.6 system.
+</I>&gt;<i>
+</I>&gt;<i> A workaround is to compile apache with the &quot;pre-fork&quot; system. This however
+</I>&gt;<i> yields another problem. The child processes all fire up their own interpreter,
+</I>&gt;<i> and the memory load is about 10MB for each child (in 'worker' mode, only one
+</I>&gt;<i> interpreter for 20 childs!). This quickly eats up all resources on the
+</I>&gt;<i> machine. It also virtually eliminates the possibility to &quot;recycle&quot; the
+</I>&gt;<i> database connection and similar objects. The net effect is that this setup is
+</I>&gt;<i> also slower than the plain CGI implementation which just starts (runs and
+</I>&gt;<i> kills) an interpreter for each CGI request.
+</I>&gt;<i>
+</I>&gt;<i> I tried removing the thread lock in the cgihandler. All CGI scripts I have
+</I>&gt;<i> don't care about the directory they are in (they get all they need from the
+</I>&gt;<i> MySQL DB), and all scripts they import are fully re-entrant (or MT safe)
+</I>&gt;<i> themselves. This left only one single problem: The &quot;print&quot; command.
+</I>&gt;<i>
+</I>&gt;<i> Python's print command is being used to send the data to the client. The
+</I>&gt;<i> cgihandler replaces sys.stdout and redirects it to the Request object, which
+</I>&gt;<i> is ok. But there is only one &quot;sys&quot; module shared by all threads, so all the
+</I>&gt;<i> print commands from all threads end up in the same request. In practice, if a
+</I>&gt;<i> &quot;long&quot; request is running, and a shorter request interferes, the short one
+</I>&gt;<i> will kill sys.stdout and the long one will abort with an exception because
+</I>&gt;<i> sys.stdout had suddenly died.
+</I>&gt;<i>
+</I>&gt;<i> One workaround would be to create a cgihandler 'clone' that passes an &quot;output&quot;
+</I>&gt;<i> object to each script (which defaults to sys.stdout for &quot;plain&quot; CGI mode), and
+</I>&gt;<i> let the scripts all write() to that object. Drawback is that I will have to
+</I>&gt;<i> replace all &quot;print&quot; statements in about 10k+ lines of code. Also, I want the
+</I>&gt;<i> scripts to remain CGI compatible for a few more weeks because a few shadow
+</I>&gt;<i> systems cannot be upgraded to mod_python yet.
+</I>&gt;<i>
+</I>&gt;<i> Is there a way that I can let the threads each &quot;print&quot; to their own output,
+</I>&gt;<i> for example by having a seperate &quot;sys&quot; module in each thread? (could I delete
+</I>&gt;<i> the sys module and re-import it or something similar?)
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Mike Looijmans
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="009753.html">[mod_python] CGI handler and multithreading: Can i have multiple sys.stdout objects?
+</A></li>
+	<LI>Next message: <A HREF="009755.html">[mod_python] CGI handler and multithreading: Can i have multiple
+ sys.stdout objects?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9754">[ date ]</a>
+              <a href="thread.html#9754">[ thread ]</a>
+              <a href="subject.html#9754">[ subject ]</a>
+              <a href="author.html#9754">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

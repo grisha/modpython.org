@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] session redux
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20session%20redux&In-Reply-To=20060524202647.GG1300%40asu.edu">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021242.html">
+   <LINK REL="Next"  HREF="021243.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] session redux</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20session%20redux&In-Reply-To=20060524202647.GG1300%40asu.edu"
+       TITLE="[mod_python] session redux">jpg at jgassociates.ca
+       </A><BR>
+    <I>Wed May 24 22:39:15 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021242.html">[mod_python] session redux
+</A></li>
+        <LI>Next message: <A HREF="021243.html">[mod_python] mod_python on apache 1.3.36
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21246">[ date ]</a>
+              <a href="thread.html#21246">[ thread ]</a>
+              <a href="subject.html#21246">[ subject ]</a>
+              <a href="author.html#21246">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>David Bear wrote:
+&gt;<i> I'm trying to understand sessioning better. Here is a scenario:
+</I>&gt;<i> 
+</I>&gt;<i> I have a publisher script called py.py. publisher is set as the
+</I>&gt;<i> handler for directory.
+</I>&gt;<i> 
+</I>&gt;<i> Using py.py as a dispatcher for url named modules we have
+</I>&gt;<i> 
+</I>&gt;<i> functions in py.py 		psp pages served by function
+</I>&gt;<i> index 				main.psp
+</I>&gt;<i> register 			register.psp
+</I>&gt;<i> regpage2 			regp2.psp
+</I>&gt;<i> final				final.psp
+</I>&gt;<i> 
+</I>&gt;<i> A session object is instantiated in py.py. I assume I can pass the
+</I>&gt;<i> session object via the vars name to the psp template correct?
+</I>&gt;<i> 
+</I>&gt;<i> using <A HREF="http://myserver/py.py">http://myserver/py.py</A> the index function serves main.psp.
+</I>&gt;<i> 
+</I>&gt;<i> using <A HREF="http://myserver/py.py/register">http://myserver/py.py/register</A> the register.psp code is
+</I>&gt;<i> 'rendered'/'evaluated' and sent to the client.
+</I>&gt;<i> 
+</I>&gt;<i> Now, the question: As the user proceeds from main.psp to register.psp
+</I>&gt;<i> to regp2.psp and so on, how to modpython know not to create a new
+</I>&gt;<i> session object for each visit? Put another way, how would the
+</I>&gt;<i> regp2.psp page 'know' of the session object created when the user
+</I>&gt;<i> first visited the main.psp page?
+</I>
+It's magic and it all happens when you create a session instance. When 
+the instance is created it checks for the existence of a cookie named 
+pysid. If it finds it, it will check the persistent store (depending on 
+what session class you are using) for the corresponding data and load it 
+if it exists. Otherwise it will generate a new session id. Finally, the 
+pysid cookie (either the existing on or the new one) will be set in the 
+response headers.
+
+The only trick is to make sure you save your session data. Otherwise 
+every request will create a new session.
+
+The only *other* trick is to make sure you only create one session 
+instance per request, otherwise you'll get a deadlock. Session locking 
+happens automatically and protects the integrity of your session, but 
+deadlocks are a bad thing, and should be avoided. ;)
+
+The &quot;standard&quot; way to pass the session instance around is as a request 
+attribute. There is some further magic in psp where it looks for any 
+variables named &quot;session&quot;. If found it will use req.session if it 
+exists, or create a new session using Session.Session().
+
+Typical usage
+-------------
+
+def index(req):
+    req.session = Session.Session(req)
+    if req.session.is_new():
+        req.session['count'] = 0
+    else:
+        req.session['count'] = req.session['count'] + 1
+
+    tmpl = psp.PSP(req, filename='whatever.tmpl')
+    tmpl.run()
+    # Make sure you save your session!
+    req.session.save()
+
+
+def register(req):
+    req.session = Session.Session(req)
+    if req.session.is_new():
+        req.session['count'] = 0
+    else:
+        req.session['count'] = req.session['count'] + 1
+    helper_function(req)
+    tmpl = psp.PSP(req, filename='whatever.tmpl')
+    tmpl.run()
+    # Make sure you save your session!
+    req.session.save()
+
+def helper_function(req):
+    # Don't create a session instance here, use the one created in
+    # in the register function.
+    req.session['message'] = &quot;You have been helped&quot;
+
+As you suggest you could pass the session instance to the psp template 
+using vars, but if you do make sure you *do not* use &quot;session&quot; as a 
+variable name in the template. Otherwise the magic in psp will turn out 
+to be all bad and you'll deadlock.
+
+Jim
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021242.html">[mod_python] session redux
+</A></li>
+	<LI>Next message: <A HREF="021243.html">[mod_python] mod_python on apache 1.3.36
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21246">[ date ]</a>
+              <a href="thread.html#21246">[ thread ]</a>
+              <a href="subject.html#21246">[ subject ]</a>
+              <a href="author.html#21246">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] streaming zipped data with publisher
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20streaming%20zipped%20data%20with%20publisher&In-Reply-To=43C038EB.60102%40barriescene.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019892.html">
+   <LINK REL="Next"  HREF="019905.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] streaming zipped data with publisher</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20streaming%20zipped%20data%20with%20publisher&In-Reply-To=43C038EB.60102%40barriescene.com"
+       TITLE="[mod_python] streaming zipped data with publisher">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Jan  7 20:15:02 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019892.html">[mod_python] streaming zipped data with publisher
+</A></li>
+        <LI>Next message: <A HREF="019905.html">[mod_python] Re: streaming zipped data with publisher
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19893">[ date ]</a>
+              <a href="thread.html#19893">[ thread ]</a>
+              <a href="subject.html#19893">[ subject ]</a>
+              <a href="author.html#19893">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 08/01/2006, at 8:55 AM, Sean Jamieson wrote:
+
+&gt;<i> Sure it is, even with the temporary file option, all you have to do is 
+</I>&gt;<i> set the content-type header to application/x-gzipped or something like 
+</I>&gt;<i> that (application/octet-stream is always a fallback value; this forces 
+</I>&gt;<i> download, and doesn't allow it to recognize the file format for use 
+</I>&gt;<i> with an external application), then output the file (possibly setting 
+</I>&gt;<i> the Content-Length header first, to be polite)
+</I>&gt;<i>
+</I>&gt;<i> with or with out the file is your choice, all you have to do is output 
+</I>&gt;<i> the binary data, and no other output (not even a single space) or you 
+</I>&gt;<i> will corrupt it.
+</I>&gt;<i>
+</I>&gt;<i> Daniel Nogradi wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Is it possible to &quot;stream&quot; zipped data using the publisher handler?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In my situation I would create the zipped archive upon client input
+</I>&gt;&gt;<i> and want to return the archive immediately. What I have in mind is
+</I>&gt;&gt;<i> creating a zip archive (using the zipfile module perhaps) in memory
+</I>&gt;&gt;<i> and than sending that to the client without actually creating a zip
+</I>&gt;&gt;<i> file on the disk of the server.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In case this would not be possible I could live with creating a
+</I>&gt;&gt;<i> temporary file and returning that to the client, but at the moment the
+</I>&gt;&gt;<i> only way I can do this is through a link (such as &lt;a
+</I>&gt;&gt;<i> href='data.zip'&gt;click here&lt;/a&gt;)  but in this case it would be a 2-step
+</I>&gt;&gt;<i> process: (1) user clicks on something which creates the archive and
+</I>&gt;&gt;<i> sends back the link in html (2) user clicks on the link. Is it not
+</I>&gt;&gt;<i> possible to send the zip file immediately after its creation?
+</I>
+I am not sure you are talking about the same thing here. The &quot;zipfile&quot;
+module is for creating an archive containing other enclosed files.
+This is different to merely compressing any output returned from a
+handler.
+
+If it was the case that it is only about compressing the output, doing
+it inside a published function is possibly not a good idea anyway. A
+better way would be to use the DEFLATE output filter as implemented by
+the Apache mod_deflate module.
+
+This module is however only available in Apache 2.0 and is not compiled
+in by default, so you have to enable its inclusion when &quot;configure&quot; is
+run prior to building Apache. Also, at the moment, because mod_python
+doesn't allow dynamic registration of output filters from a handler,
+it would apply to all requests in a directory, or those returning a
+certain type of output, or possibly by URL if you are tricky.
+
+Also should be pointed out that mod_deflate will only compress output
+where the client says it is willing to accept it as gzip'd data by
+having set the &quot;Accept-Encoding: gzip&quot; incoming header. One can forcibly
+set this though from a handler to force it to do it anyway.
+
+Anyway, the point I am trying to make is there are perhaps better tools
+for doing the job than trying to compress on the fly in Python code 
+running
+under mod_python, although technically one could write the equivalent of
+mod_deflate in Python if you wanted to. If you did write it in Python
+though, you would still be better off installing it as an output filter.
+For it all to work nicely may have to wait until mod_python 3.3 though,
+where I hope to get some improvements made to working with filters.
+
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-103">http://issues.apache.org/jira/browse/MODPYTHON-103</A>
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-104">http://issues.apache.org/jira/browse/MODPYTHON-104</A>
+
+Anyway, back to the original posters question. If I read the code for 
+the
+&quot;zipfile&quot; module correctly, when you use the ZipFile class with &quot;w&quot; mode
+to create a zip file, the first argument only needs to be a file like
+object. That is, it doesn't need to be a actual file on disk. Instead it
+could be an instance of the StringIO class. I have not use ZipFile to
+create an archive, but something perhaps like the following may work.
+
+   import zipfile
+   import StringIO
+
+   buffer = StringIO.StringIO()
+   myzip = zipfile.ZipFile(buffer,&quot;w&quot;)
+
+   ... build up zip
+
+   myzip.close()
+
+   data = buffer.getvalue()
+
+After this, your zip file as a string will be in data and you can then
+return it as the response content.
+
+Graham
+
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019892.html">[mod_python] streaming zipped data with publisher
+</A></li>
+	<LI>Next message: <A HREF="019905.html">[mod_python] Re: streaming zipped data with publisher
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19893">[ date ]</a>
+              <a href="thread.html#19893">[ thread ]</a>
+              <a href="subject.html#19893">[ subject ]</a>
+              <a href="author.html#19893">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

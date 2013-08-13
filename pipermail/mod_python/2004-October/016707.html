@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Authentification/Session Management
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Authentification/Session%20Management&In-Reply-To=41811DBF.5080206%40joreybump.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016705.html">
+   <LINK REL="Next"  HREF="016708.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Authentification/Session Management</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Authentification/Session%20Management&In-Reply-To=41811DBF.5080206%40joreybump.com"
+       TITLE="[mod_python] Authentification/Session Management">list at joreybump.com
+       </A><BR>
+    <I>Thu Oct 28 20:43:17 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016705.html">[mod_python] Authentification/Session Management
+</A></li>
+        <LI>Next message: <A HREF="016708.html">[mod_python] Authentification/Session Management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16707">[ date ]</a>
+              <a href="thread.html#16707">[ thread ]</a>
+              <a href="subject.html#16707">[ subject ]</a>
+              <a href="author.html#16707">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Jorey Bump wrote:
+
+&gt;<i> I think we both did. Your session handling code should appear in the 
+</I>&gt;<i> section that handles successful authentication. Then you need to perform 
+</I>&gt;<i> the *authorization* step by checking the validity of the session. If 
+</I>&gt;<i> that test fails, you return apache.HTTP_UNAUTHORIZED (in addition to 
+</I>&gt;<i> returning it where authentication fails):
+</I>&gt;<i> 
+</I>&gt;<i>  if passwd == &quot;spam&quot; and user == &quot;eggs&quot;:
+</I>&gt;<i>      session handling/tests here
+</I>&gt;<i>      if passed:
+</I>&gt;<i>          return apache.OK
+</I>&gt;<i>      else:
+</I>&gt;<i>          return apache.HTTP_UNAUTHORIZED
+</I>&gt;<i>  else:
+</I>&gt;<i>      return apache.HTTP_UNAUTHORIZED
+</I>&gt;<i> 
+</I>&gt;<i> Again, this is untested, and I'm no sessions guru. If I get a chance to 
+</I>&gt;<i> work up any usable code, I'll post it.
+</I>
+It seems that Session.timeout() isn't suitable for tracking inactivity, 
+it merely imposes a finite lifespan on the session, regardless of last 
+access (correct me if I'm wrong). Therefore, you need to set session 
+variables to track time between requests. This isn't too hard. I used 
+Publisher's builtin authentication instead of PythonAuthenHandler, 
+because I'm more familiar with it.
+
+The basic logic is this:
+
+1. Set session variables when session is created.
+2. For each request, look at session variables to measure inactivity.
+3. If inactive too long, force user to reauthenticate.
+
+For the last step, the session may be deleted to force session 
+initialization code to run again.
+
+To test the following, open a browser, visit the appropriate URL, 
+authenticate (user=eggs, pwd=spam), hit refresh a few times, pause 
+longer than 5 seconds, then hit refresh again. You should be forced to 
+reauthenticate.
+
+Tested on:
+
+Apache 2.0.52
+Python 2.3.4
+mod_python 3.1.3
+
+
+In httpd.conf:
+
+   &lt;Directory &quot;/usr/local/apache2/htdocs&quot;&gt;
+       Order allow,deny
+       Allow from all
+       SetHandler python-program
+       PythonHandler mod_python.publisher
+       PythonDebug On
+   &lt;/Directory&gt;
+
+
+This is hello.py (visit <A HREF="http://localhost/hello.py/say?what=something">http://localhost/hello.py/say?what=something</A>):
+
+from mod_python.Session import Session
+import time
+
+# restrict access to this module with basic authentication
+__auth_realm__ = &quot;Restricted&quot;
+
+# allow these users
+def __access__(req, user):
+     if user == &quot;eggs&quot;:
+         return 1
+     else:
+         return 0
+
+# check user and password
+def __auth__(req, user, passwd):
+     if user == &quot;eggs&quot; and passwd == &quot;spam&quot;:
+         # user has successfully authenticated
+         sess = Session(req)
+         if sess.has_key('max_inactive'):
+             # this is an existing session
+
+             # check length of inactivity
+             elapsed = time.time() - sess['last']
+
+             # reset timer for next request
+             sess['last'] = time.time()
+             sess.save()
+
+             # compare elapsed inactivity to maximum allowed
+             if elapsed &gt; sess['max_inactive']:
+                 # it's been too long
+
+                 # uncomment to delete session (optional)
+                 # sess.delete()
+
+                 # force user to reauthenticate
+                 return 0
+             else:
+                 # still within time limit
+                 req.write(&quot;Authorized.\n\n&quot;)
+
+                 # allow user to continue
+                 return 1
+         else:
+             # this must be a new session, so set session variables
+
+             # set maximum inactivity allowed, in seconds
+             # use low value for testing
+             sess['max_inactive'] = 5
+
+             # initialize timer
+             sess['last'] = time.time()
+
+             sess.save()
+
+             # do new session stuff here
+             req.write(&quot;Session started.\n\n&quot;)
+
+             # allow user to continue
+             return 1
+     else:
+         # wrong user or password, force user to reauthenticate
+         return 0
+
+def say(req, what=&quot;NOTHING&quot;):
+     # all that, just to see this?
+     return &quot;I am saying %s.&quot; % what
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016705.html">[mod_python] Authentification/Session Management
+</A></li>
+	<LI>Next message: <A HREF="016708.html">[mod_python] Authentification/Session Management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16707">[ date ]</a>
+              <a href="thread.html#16707">[ thread ]</a>
+              <a href="subject.html#16707">[ subject ]</a>
+              <a href="author.html#16707">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Catalog of mod_python.publisher problems.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Catalog%20of%20mod_python.publisher%20problems.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017221.html">
+   <LINK REL="Next"  HREF="017235.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Catalog of mod_python.publisher problems.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Catalog%20of%20mod_python.publisher%20problems.&In-Reply-To="
+       TITLE="[mod_python] Catalog of mod_python.publisher problems.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Jan 25 01:46:07 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017221.html">[mod_python] Catalog of mod_python.publisher problems.
+</A></li>
+        <LI>Next message: <A HREF="017235.html">[mod_python] Catalog of mod_python.publisher problems.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17222">[ date ]</a>
+              <a href="thread.html#17222">[ thread ]</a>
+              <a href="subject.html#17222">[ subject ]</a>
+              <a href="author.html#17222">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote ..
+&gt;<i> Graham Dumpleton wrote ..
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Do we need to document properly first the perceived problems and some
+</I>&gt;<i> &gt; examples of errornous behaviour? This will help to ensure we fix
+</I>&gt;<i> &gt; everything and provide a basis for some tests of any new implementation.
+</I>&gt;<i> &gt; I know that such information can be noted against the bug tracker item,
+</I>&gt;<i> &gt; but is it easier to thrash it out here first.
+</I>&gt;<i> 
+</I>&gt;<i> FWIW, here is my personal list of problems in mod_python.publisher that
+</I>&gt;<i> I know about. Note that I have ignored totally the basic issue that sys.path
+</I>&gt;<i> makes which module you get unpredictable if import_module() is used
+</I>&gt;<i> directly. This is just mod_python.publisher problems which should in
+</I>&gt;<i> themselves be fixable whatever may eventually be done about the
+</I>&gt;<i> import_module() method. Let me know if you want these put on bug
+</I>&gt;<i> tracker as one item or three items.
+</I>
+Here is a fourth problem I have remembered. Although am sure that some
+will say that this is expected as well. ;-(
+
+ImportError: cannot import name publisher
+------------------------------------
+
+In a directory publisher, setup for mod_python.publisher as described in
+previous email, and with same index.py. Ie.,
+
+  import os
+  def index():
+    return os.getpid(),__file__
+
+Now create a parallel directory called &quot;handler&quot; and in its .htaccess file add:
+
+  SetHandler python-program
+  PythonHandler mptest
+  PythonDebug On
+
+The mptest.py file in that directory should read:
+
+  from mod_python import apache
+  import os
+
+  from mod_python import publisher
+
+  def handler(req):
+    req.content_type = &quot;text/plain&quot;
+    req.send_http_header()
+    req.write(str((os.getpid(),__file__)))
+    return apache.OK
+
+Restart Apache to clear caches and access &quot;handler&quot; and &quot;publisher&quot;
+directories in that order. One gets:
+
+  (747, '/Users/grahamd/Sites/handler/mptest.py')
+  (747, '/Users/grahamd/Sites/publisher/index.py')
+  (747, '/Users/grahamd/Sites/handler/mptest.py')
+  (747, '/Users/grahamd/Sites/publisher/index.py')
+  
+Okay, everything is fine.
+
+Now restart Apache to clear caches and access &quot;publisher&quot; and then
+&quot;handler&quot;. Ie., in reverse order. One gets:
+
+  (761, '/Users/grahamd/Sites/publisher/index.py')
+
+  Mod_python error: &quot;PythonHandler mptest&quot;
+
+  Traceback (most recent call last):
+
+    File &quot;/System/Library/Frameworks/Python.framework/Versions/2.3/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 296, in HandlerDispatch
+      log=debug)
+
+    File &quot;/System/Library/Frameworks/Python.framework/Versions/2.3/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 421, in import_module
+      autoreload=autoreload,log=log,path=path)
+
+    File &quot;/System/Library/Frameworks/Python.framework/Versions/2.3/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 474, in _unsafe_import_module
+      module = imp.load_module(mname, f, p, d)
+
+    File &quot;/Users/grahamd/Sites/handler/mptest.py&quot;, line 4, in ?
+      from mod_python import publisher
+
+  ImportError: cannot import name publisher
+
+The way in which mod_python.publisher is loaded as PythonHandler,
+if done before being imported explicitly using &quot;import&quot;, screws up
+that latter import.
+
+I know some will scream that I am mixing &quot;import&quot; and &quot;import_module()&quot;,
+but since mod_python.publisher is installed into &quot;site-packages&quot;, one
+should expect it to work with &quot;import&quot;. Whether it does is order dependent.
+
+Because I use mod_python.publisher in Vampire for its user authentication
+stuff, this problem means that if using Vampire and elsewhere also wanting
+to use mod_python.publisher as PythonHandler, that the Vampire area
+should be setup with its own PythonInterpreter instance.
+
+Having now remembered this problem, as a workaround in Vampire I
+should probably go and use:
+
+  publisher = apache.import_module(&quot;mod_python.publisher&quot;)
+
+instead. At least that way it will work all the time. :-)
+
+I know my wanting to use internals of mod_python.publisher is the
+exception, but these sort of strange things shouldn't by right happen.
+
+Graham
+
+
+
+
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017221.html">[mod_python] Catalog of mod_python.publisher problems.
+</A></li>
+	<LI>Next message: <A HREF="017235.html">[mod_python] Catalog of mod_python.publisher problems.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17222">[ date ]</a>
+              <a href="thread.html#17222">[ thread ]</a>
+              <a href="subject.html#17222">[ subject ]</a>
+              <a href="author.html#17222">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

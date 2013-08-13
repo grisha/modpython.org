@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] running multiple mod_python apps under one apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20running%20multiple%20mod_python%20apps%20under%20one%20apache&In-Reply-To=1ee0630e05071815373f32eaa0%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018714.html">
+   <LINK REL="Next"  HREF="018715.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] running multiple mod_python apps under one apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20running%20multiple%20mod_python%20apps%20under%20one%20apache&In-Reply-To=1ee0630e05071815373f32eaa0%40mail.gmail.com"
+       TITLE="[mod_python] running multiple mod_python apps under one apache">list at joreybump.com
+       </A><BR>
+    <I>Tue Jul 19 14:28:44 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018714.html">[mod_python] running multiple mod_python apps under one apache
+</A></li>
+        <LI>Next message: <A HREF="018715.html">[mod_python] running multiple mod_python apps under one apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18717">[ date ]</a>
+              <a href="thread.html#18717">[ thread ]</a>
+              <a href="subject.html#18717">[ subject ]</a>
+              <a href="author.html#18717">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Kevin J. Smith wrote:
+
+&gt;<i> I have looked into the linux vserver project but I thought I saw on this 
+</I>&gt;<i> list a more contained approach.  What are folk's experience with hosting 
+</I>&gt;<i> multiple mod_python applications on the same box or virtual hosting of 
+</I>&gt;<i> mod_python.
+</I>
+I use mod_python.publisher in a standard name-based virtual host 
+environment. My preferred setup is to use the SetHandler directive on a 
+single subdirectory within the DocumentRoot (you can also use an Alias 
+directory if you prefer the separation), and prefix the PythonPath with 
+another directory outside of the DocumentRoot where I store my custom 
+modules and packages. I also normally create a data directory outside of 
+the DocumentRoot that is writable by the apache user to create, store, 
+or manipulate files that should not be accessible by browsers:
+
+/var/www/vhost/example.com/
+   - python/
+   - data/
+   - website/
+       - apps/
+
+With this approach, you are less likely to create namespace collisions 
+and have an infrastructure that lends itself to better security. Setting 
+aside a specific directory for your mod_python apps may resemble CGI, 
+but you still get the performance boost of the embedded interpreter. In 
+a virtual host container, you would configure mod_python this way:
+
+PythonPath &quot;['/var/www/vhosts/example.com/python'] + sys.path&quot;
+&lt;Directory /var/www/vhosts/example.com/website/apps&gt;
+    SetHandler python-program
+    PythonHandler mod_python.publisher
+    PythonDebug On
+&lt;/Directory&gt;
+
+If you want to scatter your apps around your site, you could use 
+AddHandler for your entire DocumentRoot directory, but this requires you 
+to use the .py extension in the URL. One trick I have used involves 
+using SetHandler in a FilesMatch directive and &quot;registering&quot; each 
+*uniquely* named application:
+
+PythonPath &quot;['/var/www/vhost/example.com/python'] + sys.path&quot;
+&lt;Directory /var/www/vhost/example.com/website&gt;
+   # use FilesMatch to register mod_python applications
+   # these are regex strings, so no other file should contain them!!!
+   &lt;FilesMatch &quot;whackamole|tron|mpwebmail&quot;&gt;
+     SetHandler python-program
+     PythonHandler mod_python.publisher
+     PythonDebug On
+   &lt;/FilesMatch&gt;
+&lt;/Directory&gt;
+
+It must be strongly noted that no other resource of any type can share 
+the regex strings used in the FilesMatch directive, so the names must be 
+sufficiently unique (electronic.html would match the tron entry in this 
+example, and get processed by mod_python). While it's tempting to list 
+the entire module name (whackamole.py), you'll lose the ability to drop 
+the .py extension in URLs. In a variation on this scheme, you invent a 
+sufficiently unique string to include only in the names of your 
+mod_python apps (xyz in xyzapp.py, appxyz.py, etc.). As an overall 
+strategy, this leaves much to be desired, but it does demonstrate that 
+finetuning is possible. I *rarely* adopt this technique.
+
+In a name-based virtual hosting environment, a new interpreter is 
+created for each virtual host. Therefore, it's best to define the 
+PythonPath directive *once* for each virtual host. One virtual host's 
+PythonPath will not clobber another's, however, so the structure I 
+outlined earlier provides fairly good support for mod_python in a 
+name-based virtual host environment.
+
+The remaining issue is the need to restart apache after editing. There 
+are no solutions to this as of yet in mod_python.publisher, but an 
+alternative is to touch all imported modules. Since that isn't normally 
+practical, either, it's very useful to have a staging environment and 
+transfer your well-tested code to the production server when it is ready.
+
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018714.html">[mod_python] running multiple mod_python apps under one apache
+</A></li>
+	<LI>Next message: <A HREF="018715.html">[mod_python] running multiple mod_python apps under one apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18717">[ date ]</a>
+              <a href="thread.html#18717">[ thread ]</a>
+              <a href="subject.html#18717">[ subject ]</a>
+              <a href="author.html#18717">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

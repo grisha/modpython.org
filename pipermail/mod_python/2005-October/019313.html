@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session ID not retained
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20ID%20not%20retained&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019314.html">
+   <LINK REL="Next"  HREF="019315.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session ID not retained</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Arnar Birgisson</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20ID%20not%20retained&In-Reply-To="
+       TITLE="[mod_python] Session ID not retained">arnarb at oddi.is
+       </A><BR>
+    <I>Tue Oct 18 08:03:19 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019314.html">[mod_python] Uploading large files
+</A></li>
+        <LI>Next message: <A HREF="019315.html">[mod_python] Installing mod_python (newbie)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19313">[ date ]</a>
+              <a href="thread.html#19313">[ thread ]</a>
+              <a href="subject.html#19313">[ subject ]</a>
+              <a href="author.html#19313">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello there,
+
+I was running mod_python 3.1.3 on Apache 2.0.50 with linux kernel 2.4.31 until yesterday, and all was well. For other reasons, I needed to upgrade to kernel version 2.6.13 yesterday, and along with it I upgraded my distribution from Slackware 10.0 to Slackware-current. That entailed an upgrade from libc 2.3.2 to 2.3.5.
+
+After the upgrade, I recompiled Apache (still version 2.0.50) and compiled and installed mod_python 3.1.4. The problem now is that every request gets a new session id, even if the browser is clearly sending the pysid cookie correctly.
+
+I was and am running python 2.4.1 both before the upgrade and now. I tried uninstalling mod_python completely, and recompiling mod_python 3.1.3 again against the new libc, but that doesn't solve the problem.
+
+I am using a&#240; session class that I wrote myself (complete source below) that uses mysql as the data store, and the session info makes it way into the table, which tells me that sess.save() is working properly. The problem seems to be that the constructor (which just calls mod_python.Session.__init__) doesn't find the session id in the request object. I dumped request.headers_in and the pysid cookie is there.
+
+Any ideas on what I should try next?
+
+Arnar
+
+
+
+My session class (which worked fine before):
+
+from mod_python import apache, Session as apsess
+from Database import getExclusiveDB
+from cPickle import loads, dumps
+import time
+
+def sqlsession_cleanup():
+   db = getExclusiveDB()
+   c = db.cursor()
+   c.execute(&quot;delete from sessiondata where (unix_timestamp() - accessed) &gt; timeout&quot;)
+   c.close()
+   db.commit()
+   db.close()
+
+class SqlSession(apsess.BaseSession):
+
+   def __init__(self, req, sid=0, secret=None, timeout=0, lock=1):
+      apsess.BaseSession.__init__(self, req, sid=sid, secret=secret, timeout=timeout, lock=lock)
+
+   def do_cleanup(self):
+      self._req.register_cleanup(mem_cleanup)
+      self._req.log_error(&quot;SqlSession: registered session cleanup&quot;,
+            apache.APLOG_NOTICE)
+
+   def do_load(self):
+      db = getExclusiveDB()
+      c = db.cursor()
+      c.execute(&quot;select created, accessed, timeout, data from sessiondata where sid = %s&quot;, self._sid)
+      if c.rowcount &gt; 0:
+         row = c.fetchone()
+         retval = {
+            &quot;_data&quot;: loads(row[3]),
+            &quot;_created&quot;: row[0],
+            &quot;_accessed&quot;: row[1],
+            &quot;_timeout&quot;: row[2]
+         }
+      else:
+         retval = None
+      c.close()
+      db.close()
+      return retval
+
+   def do_save(self, dict):
+      db = getExclusiveDB()
+      c = db.cursor()
+      c.execute(&quot;replace into sessiondata (sid, created, accessed, timeout, data) &quot;
+            + &quot;values (%s, %s, %s, %s, %s)&quot;, 
+            (self._sid, dict['_created'], dict['_accessed'], dict['_timeout'], dumps(dict['_data'])))
+      c.close()
+      db.commit()
+      db.close()
+
+   def do_delete(self):
+      db = getExclusiveDB()
+      c = db.cursor()
+      c.execute(&quot;delete from sessiondata where sid = %s&quot;, self._sid)
+      c.close()
+      db.commit()
+      db.close()
+
+
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019314.html">[mod_python] Uploading large files
+</A></li>
+	<LI>Next message: <A HREF="019315.html">[mod_python] Installing mod_python (newbie)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19313">[ date ]</a>
+              <a href="thread.html#19313">[ thread ]</a>
+              <a href="subject.html#19313">[ subject ]</a>
+              <a href="author.html#19313">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

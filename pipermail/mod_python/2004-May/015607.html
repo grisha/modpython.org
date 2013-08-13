@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Protecting%20Web%20apps%20from%20to%20many%20simultaneous%0A%09clicks/Hacking&In-Reply-To=200405140917.06096.SAiello%40Jentoo.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015600.html">
+   <LINK REL="Next"  HREF="015608.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Byron Ellacott</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Protecting%20Web%20apps%20from%20to%20many%20simultaneous%0A%09clicks/Hacking&In-Reply-To=200405140917.06096.SAiello%40Jentoo.com"
+       TITLE="[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking">bje at apnic.net
+       </A><BR>
+    <I>Mon May 17 10:24:18 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015600.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+        <LI>Next message: <A HREF="015608.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15607">[ date ]</a>
+              <a href="thread.html#15607">[ thread ]</a>
+              <a href="subject.html#15607">[ subject ]</a>
+              <a href="author.html#15607">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Fri, 2004-05-14 at 23:17, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">SAiello at Jentoo.com</A> wrote:
+&gt;<i> I have already used some caching. When listing the contents of an email box I 
+</I>&gt;<i> cache the folder list, the message's ID in sorted order, and the current 
+</I>&gt;<i> window (i.e. 1-20) message's 'from, subject, date'. As I continue, I am not 
+</I>&gt;<i> sure where I am going to add more caching. The design of the email solution 
+</I>
+I'd cache the results of most IMAP queries.  Thus, you get a relatively
+slow response for the first access to any piece of information, but
+relatively snappy for subsequent accesses (think: moving backwards and
+forwards through the message list).
+
+&gt;<i> (webmail and server backends) is designed to have many small nodes running in 
+</I>&gt;<i> parallel. It is not like I am going to have one IMAP server, with alot of web 
+</I>&gt;<i> frontends hitting it. The design is to have a local 'IMAP frontend' on every 
+</I>&gt;<i> web frontend. Thus, the 'IMAP frontends' contact the 'IMAP backends'. The 
+</I>&gt;<i> communication between the IMAP frontends and backends would handle individual 
+</I>&gt;<i> message caching. Also, it will probably do it alot more efficiently than I 
+</I>&gt;<i> can.
+</I>
+The trouble is that communication between the frontends and backends
+probably has a lot of expensive overhead.  I'm making a few assumptions
+about how your system works here that may be invalid.  First up, I'm
+assuming that a frontend is connecting to a backend using a TCP
+connection.  Establishing a TCP connection is a non-trivial operation;
+even connecting to the local host can be relatively costly.  Doing a DNS
+lookup for the IMAP backend's IP address is expensive too, though easy
+to avoid.  Once a connection's established, you need to present the
+backend with your user's credentials, which involves more round trips of
+data, and then finally you can do your IMAP operation, which has further
+TCP overhead.  After that, you need to close the TCP connection, which
+is probably done after the user sees their result, but before the Apache
+process is available to serve another result.
+
+Compare this to, for example, storing some cached information in your
+session: mod_python is already loading and saving your session via dbm
+or shm, so the additional overhead is the marshalling and I/O for the
+cached data.  Significantly less than talking to an IMAP backend.
+
+If you're using IMAP connection pools, this section is fairly much
+irrelevant, since you're avoiding the high costs of connection setup and
+teardown for most requests.  However, it's been my experience that
+connection pools are difficult to achieve in a forked Apache world.
+
+&gt;<i> When I said 'Next', I meant the next button to display the next window of 
+</I>&gt;<i> messages in the email box (i.e. showing messages 1-20 and then 21-40).
+</I>&gt;<i> But the point you bring up is very valid, and brings up concerns for other 
+</I>&gt;<i> ways I have used session variables. Guess it is time for another rewrite. For 
+</I>&gt;<i> caching, do you have any suggestions ? dbm, external database, etc ?
+</I>
+mod_python's session data first up, because it will have already tied
+your cached data to a particular user, and because a lot of the overhead
+of storing/retrieving data is ameliorated with the session work, and
+because it's easier to use Grisha's work than to duplicate it. :)
+
+Otherwise, I'd probably use as lightweight a system as possible, which
+would most likely mean anydbm.
+
+&gt;<i> 	if sess['REQUESTS']&gt;1:
+</I>
+The trouble I'm having here is that if session locking is working, you
+should never encounter a value of sess['REQUESTS'] &gt; 1.  The session
+should be automatically locking when you first create it, and remaining
+locked, as Grisha says, until it's cleaned up when the request
+completes.  In fact, copy/pasting your code, appending the
+&quot;sess['REQUESTS']-=1&quot; and saving the session before returning apache.OK,
+I cannot get redirected.  I inserted a sleep(10) before the decrement
+and return, and hit reload a dozen odd times.  The only effect of this
+was to make my browser spend two minutes loading the final page. :)
+
+If I put in &quot;sess.unlock()&quot; right after I create the session, I can get
+myself redirected to the error page.
+
+Any idea how you might be winding up with an unlocked session?  What's
+your Apache version?  mod_python version?  What's the request serving
+model (worker threads, forked, etc)?
+
+-- 
+bje
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015600.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+	<LI>Next message: <A HREF="015608.html">[mod_python] Protecting Web apps from to many simultaneous
+	clicks/Hacking
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15607">[ date ]</a>
+              <a href="thread.html#15607">[ thread ]</a>
+              <a href="subject.html#15607">[ subject ]</a>
+              <a href="author.html#15607">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

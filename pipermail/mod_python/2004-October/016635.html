@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Bug%20in%20mod_python.c%20causing%20multiple/redundant%0A%09interpreter%20creation.&In-Reply-To=EBE0766E-1F73-11D9-9AA7-000393DCF16E%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016645.html">
+   <LINK REL="Next"  HREF="016637.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: Bug in mod_python.c causing multiple/redundant
+	interpreter creation.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Bug%20in%20mod_python.c%20causing%20multiple/redundant%0A%09interpreter%20creation.&In-Reply-To=EBE0766E-1F73-11D9-9AA7-000393DCF16E%40dscpl.com.au"
+       TITLE="[mod_python] Re: Bug in mod_python.c causing multiple/redundant
+	interpreter creation.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Oct 17 00:14:36 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016645.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+        <LI>Next message: <A HREF="016637.html">[mod_python] Re: Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16635">[ date ]</a>
+              <a href="thread.html#16635">[ thread ]</a>
+              <a href="subject.html#16635">[ subject ]</a>
+              <a href="author.html#16635">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 16/10/2004, at 11:04 PM, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 09/10/2004, at 6:10 PM, Nicolas Lehuen wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Hi Graham, what are the pros and cons of using the imp module versus 
+</I>&gt;&gt;<i> an
+</I>&gt;&gt;<i> execfile call or an exec call ?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Using Apache 2.0.52 on win32, with a multithreaded MPM, I have 
+</I>&gt;&gt;<i> noticed a few
+</I>&gt;&gt;<i> problem with mod_python.publisher which reloads the same module many 
+</I>&gt;&gt;<i> times
+</I>&gt;&gt;<i> when many threads try to load it concurrently. It seems that either
+</I>&gt;&gt;<i> mod_python.publisher or the imp module does not properly handle this
+</I>&gt;&gt;<i> situation. The result is that I have many instances of the same 
+</I>&gt;&gt;<i> module in
+</I>&gt;&gt;<i> memory, so I got many connection pools instead of only one and so on. 
+</I>&gt;&gt;<i> That's
+</I>&gt;&gt;<i> why I decided to fix this and other problems (the famous 'only one 
+</I>&gt;&gt;<i> index.py
+</I>&gt;&gt;<i> in your application') by reimplementing my own variant of the 
+</I>&gt;&gt;<i> publisher.
+</I>&gt;<i>
+</I>&gt;<i> Found it.
+</I>&gt;<i>
+</I>&gt;<i> From what I can tell, there is actually a bug in mod_python.c which is
+</I>&gt;<i> causing the problem you describe as &quot;reloads the same module many times
+</I>&gt;<i> when many threads try to load it concurrently&quot;.
+</I>&gt;<i>
+</I>&gt;<i> I am going to describe it quickly as it is getting late for me and I 
+</I>&gt;<i> need
+</I>&gt;<i> some sleep. Have attached a patch for people to evaluate and try. Note 
+</I>&gt;<i> that
+</I>&gt;<i> the patch also includes a Mac OS X specific fix. That fix is harmless 
+</I>&gt;<i> in
+</I>&gt;<i> itself so just leave it in. The important changes are where APR mutex 
+</I>&gt;<i> is
+</I>&gt;<i> created and then locked/unlocked.
+</I>&gt;<i>
+</I>&gt;<i> The basic problem revolves around the Python dictionary used to hold 
+</I>&gt;<i> the
+</I>&gt;<i> set of interpreters. The code in mod_python.c is trying to use the 
+</I>&gt;<i> Python
+</I>&gt;<i> GIL to provide exclusive access to that dictionary and any subsequent
+</I>&gt;<i> creation of an interpreter.
+</I>&gt;<i>
+</I>&gt;<i> The only catch is that in creating a new interpreter, the Python core 
+</I>&gt;<i> is,
+</I>&gt;<i> in someway I don't understand, swapping thread states at some point 
+</I>&gt;<i> which
+</I>&gt;<i> is allowing other threads to acquire the GIL. This is allowing other 
+</I>&gt;<i> threads
+</I>&gt;<i> to check the set of interpreters for the same interpreter that is 
+</I>&gt;<i> currently
+</I>&gt;<i> being constructed and since it isn't there yet, then also goes onto 
+</I>&gt;<i> create
+</I>&gt;<i> it as well.
+</I>
+Actually, the GIL could get taken away for a few reasons. First, once 
+you
+start executing actual Python code, it can get taken away. Also, if the
+Python code calls back out to C code and does a potentially blocking
+operation, it will voluntarily give up the GIL so something else can 
+run.
+Since the Python apache.import_module() function is going to be called
+to load your content handler, and that has to do file i/o, would be a 
+very
+good candidate for the GIL being given up and thus letting the other 
+threads
+in to be able to check to see if the interpreter needs creating.
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016645.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+	<LI>Next message: <A HREF="016637.html">[mod_python] Re: Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16635">[ date ]</a>
+              <a href="thread.html#16635">[ thread ]</a>
+              <a href="subject.html#16635">[ subject ]</a>
+              <a href="author.html#16635">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

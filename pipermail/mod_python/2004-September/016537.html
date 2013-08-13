@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] using callable classes instead of plain functions in
+	handlers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20using%20callable%20classes%20instead%20of%20plain%20functions%20in%0A%09handlers&In-Reply-To=redirect-14059593%40vse.cz">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016536.html">
+   <LINK REL="Next"  HREF="016538.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] using callable classes instead of plain functions in
+	handlers</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martin Slouf</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20using%20callable%20classes%20instead%20of%20plain%20functions%20in%0A%09handlers&In-Reply-To=redirect-14059593%40vse.cz"
+       TITLE="[mod_python] using callable classes instead of plain functions in
+	handlers">xslom03 at vse.cz
+       </A><BR>
+    <I>Wed Sep 29 15:28:30 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016536.html">[mod_python] PSP crash on windows 2000 apache 2.0 mod python 3.1.3
+	and python 2.3
+</A></li>
+        <LI>Next message: <A HREF="016538.html">[mod_python] Request For Input
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16537">[ date ]</a>
+              <a href="thread.html#16537">[ thread ]</a>
+              <a href="subject.html#16537">[ subject ]</a>
+              <a href="author.html#16537">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>hi daniel,
+
+first of all, thanks for the answer.
+
+finally i got some time and i am looking at the mod_python.servlet module right
+now (browsing the tutorial) and it looks good with some nice features (form
+controls parsing and even the call to Session.save() is nice :), but let me
+tell you how i handle requests now and pls tell me if there might be some
+problems with that, or if there are better ways how to do it in
+mod_python.servlet.
+
+1. im bound to use PSP -- graphics and gui features are done by another guy, we
+just cooperate on form fields, i think that it is no problem with
+mod_python.servlet (i agree, that code generated HTML definitely has its
+advances, but i cant use it now.)
+
+to use PSP properly i would just call return the psp page from the
+'write_content' method, right?
+
+2. i use mod_python.publisher to great extend and the logic behind most forms
+is:
+
+say, we got 1 simple registration form that collects just user's login and
+password, all is in 'registration.py' file with two handlers:
+
+- registration.py/registration (html form page)
+- registration.py/registrate (processing of the request)
+
+the 1st one does the PSP page output (sets form controls to whatever the user
+typed in or to defaults, if presented for the 1st time)
+
+the 2nd handles the actual request of 'sending a form', typically it lokks like
+this:
+
+	a) does whatever it has to do if data are ok
+
+	b) if any errors are found, any cleanup actions are done if required
+	and then the 1st method is called with additional parameter specifying
+	all the raised errors -- so the only PSP involved is used to inform
+	user about the errors also and the form is with no special care filled
+	with whatever the user typed in
+
+this behaviour i found very usefull and suits for most cases. (and this
+behaviour i would implement in my servlet base class).  thx to
+mod_python.publisher i can have several functions in one file, sharing some
+data, and what is best, call several handlers even though im processing single
+request and handle errors in this transparent way (case ad b)).
+
+now, finally, the question for you:
+
+with mod_python.servlet it seems like just one class is involved in request
+processing and im probably unable to &quot;call&quot; another class in case of an error,
+am i right? or can i just instantiate a new class (new servlet) to handle the
+request in 'write_content' method, initialize it somehow (how?) and proccess it
+'write_content' method?
+
+or, better, i should ask how you deal with input form checks when the form is
+not simple a and it can raise several errors and you need to take some cleanup
+and inform user as well?  are there any tools (contributed) for this already in
+mod_python.servlet?
+
+regards, martin.
+
+P.S. The mod_python.servlet is realy nice and if i wont use it in this project,
+i will definitely be using it somewhere else.
+
+P.P.S. I also encountered an error during the install (setup.py install) -- the
+import directive was complaining about nonexistent module '_apache', whih is
+really nonexistent, well manual copying the file was fine :)
+
+m.
+
+On Mon, Sep 27, 2004 at 03:20:57PM +0200, Daniel Popowich wrote:
+&gt;<i> 
+</I>&gt;<i> Martin Slouf writes:
+</I>&gt;<i> &gt; it would be _very_ nice if one could just create a class, use its () operator
+</I>&gt;<i> &gt; (the __call__() method) and put some standard behavior in that call.  then
+</I>&gt;<i> &gt; create an object of this class and publisher handler with request
+</I>&gt;<i> &gt; <A HREF="http://somewhere.org/index.py/my_handler">http://somewhere.org/index.py/my_handler</A>
+</I>&gt;<i> &gt; would instead of a function 'my_handler' defined in 'index.py' would call my
+</I>&gt;<i> &gt; callable object 'my_handler' created in 'index.py'
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; the MyHandler class could look like this:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; class MyHandler:
+</I>&gt;<i> &gt;       def __call__(req, ...):
+</I>&gt;<i> &gt; 	  self._handle_errors()
+</I>&gt;<i> &gt; 	  self._do_some_special_stuff() # ready to override
+</I>&gt;<i> &gt; 	  self._log_request()
+</I>&gt;<i> &gt; 	  self._generate_html()
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; if i want a special behaviour, no problem -- just subclass 'MyHandler' and
+</I>&gt;<i> &gt; change the default behaviour.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; anyone has tried that?  are there any frameworks using it?  is it slow?
+</I>&gt;<i> 
+</I>&gt;<i> You may want to take a look at mod_python servlets (link below,
+</I>&gt;<i> complete with on-line tutorial) where instances of classes handle each
+</I>&gt;<i> request.  If all your servlets subclass (or mix-in) from a class that
+</I>&gt;<i> has such behaviour, then you're golden.
+</I>&gt;<i> 
+</I>&gt;<i> Daniel Popowich
+</I>&gt;<i> -----------------------------------------------
+</I>&gt;<i> <A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016536.html">[mod_python] PSP crash on windows 2000 apache 2.0 mod python 3.1.3
+	and python 2.3
+</A></li>
+	<LI>Next message: <A HREF="016538.html">[mod_python] Request For Input
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16537">[ date ]</a>
+              <a href="thread.html#16537">[ thread ]</a>
+              <a href="subject.html#16537">[ subject ]</a>
+              <a href="author.html#16537">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

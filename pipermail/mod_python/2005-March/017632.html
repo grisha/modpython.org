@@ -1,0 +1,231 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] OS X / Apache 2 / mod_python bug
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20OS%20X%20/%20Apache%202%20/%20mod_python%20bug&In-Reply-To=B016CA09-48B3-45DD-B472-EB3CC36C1071%40kirkconsulting.co.uk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017630.html">
+   <LINK REL="Next"  HREF="017656.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] OS X / Apache 2 / mod_python bug</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20OS%20X%20/%20Apache%202%20/%20mod_python%20bug&In-Reply-To=B016CA09-48B3-45DD-B472-EB3CC36C1071%40kirkconsulting.co.uk"
+       TITLE="[mod_python] OS X / Apache 2 / mod_python bug">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Mar 14 06:13:45 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017630.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+        <LI>Next message: <A HREF="017656.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17632">[ date ]</a>
+              <a href="thread.html#17632">[ thread ]</a>
+              <a href="subject.html#17632">[ subject ]</a>
+              <a href="author.html#17632">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On Monday, March 14, 2005, at 08:07  PM, Jamie Kirkpatrick wrote:
+&gt;<i> That said, have you setup use of Apache in the main configuration file
+</I>&gt;<i>
+</I>&gt;<i> or in a .htaccess file? Can you post what configuration you are using
+</I>&gt;<i>
+</I>&gt;<i> so we can see if it is pretty normal or something strange? Post it if
+</I>&gt;<i>
+</I>&gt;<i> you can.
+</I>&gt;<i>
+</I>&gt;<i> I can post but its rather long - I am pretty darn confident that there 
+</I>&gt;<i> is nothing wrong with the config tho.&#160; I havent changed barely 
+</I>&gt;<i> anything from the stock install, in-fact, I can&#160;reproduce the error by 
+</I>&gt;<i> leaving everything as is from when the install is performed and only 
+</I>&gt;<i> adding a python handler to the default htdocs directory.&#160; The only 
+</I>&gt;<i> thing I have consistently changed is the port the server is listening 
+</I>&gt;<i> on to port 8080.&#160; I have tested with the minimum of changes: added a 
+</I>&gt;<i> handler and dropped in a small test script.
+</I>
+The whole Apache config file isn't required, but just the small section 
+where
+your define SetHandler/AddHandler and PythonHandler. Ie., the 
+appropriate
+&lt;Directory&gt; construct covering your htdocs directory. This is just to 
+get the
+whole picture and clarify that it is being done within a Directory 
+directive
+as opposed to being at global scope in the config.
+
+&gt;<i> Do you get these 500 errors if the only mod_python application 
+</I>&gt;<i> configured
+</I>&gt;<i>
+</I>&gt;<i> is a really basic &quot;mptest&quot; type test handler, or does it only happen
+</I>&gt;<i>
+</I>&gt;<i> when you go to set it up for this more complicated application?
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I used the hello.py example from the site and consistently got the 
+</I>&gt;<i> same results.&#160; This was how I finally pinned it down to mod_python.&#160; 
+</I>&gt;<i> See the last answer for further details.
+</I>
+Sending a copy of the hello.py wouldn't hurt as well.
+
+Based on your other answers, is very strange and nothing obvious stands 
+out.
+The next thing I would try is to localise where the 500 error actually 
+gets
+raised. There are four possible places it could be occurring. These are:
+
+1. In Python code executed within the handler itself.
+
+2. In the Python code part of mod_python. Ie., somewhere within the file
+lib/python/mod_python/apache.py.
+
+3. In the C code part of mod_python. Ie., somewhere within the file
+src/mod_python.c.
+
+4. In Apache itself somewhere prior to, but possibly after mod_python is
+invoked. Lets hope not. :-)
+
+Elimination of 1 is pretty straight forward by using a test handler 
+which
+contains:
+
+     from mod_python import apache
+     apache.log_error(&quot;start import&quot;)
+
+     def handler(req):
+         apache.log_error(&quot;start handler&quot;)
+         req.content_type = &quot;text/plain&quot;
+         req.send_http_header()
+         req.write(&quot;Hello World!&quot;)
+         apache.log_error(&quot;end handler&quot;)
+         return apache.OK
+
+     apache.log_error(&quot;end import&quot;)
+
+If the 500 error is not generated from within the import of the handler
+module or the handler itself when called, you should see in the Apache
+error log all of the messages above.
+
+BTW, as an extra precaution, if Apache is able to write to your document
+directories, you may want to manually remove any &quot;.pyc&quot; files that may
+have been generated as the result of a prior test, before running the 
+test.
+
+To test out 2, one would need to modify lib/python/mod_python/apache.py
+and reinstall it. You should add calls to apache.log_error() into 
+apache.py
+to track where it may get to within its execution.
+
+I think the appropriate place to place log statements in that file is at
+the start of the class method:
+
+   def HandlerDispatch(self, req):
+
+     log_error(&quot;start dispatch&quot;)
+
+Prior to the final return of the method, add:
+
+     log_error(&quot;end dispatch %s&quot;%str(result))
+
+There is a return part way through the method which returns a 500 error,
+but it is preceded by logging of a message anyway.
+
+If it is found that 500 is being returned from the method, this would
+localise the cause of the problem to this method. At this point we would
+have to start analysing further the method and the potential sources of
+the 500 error by adding more logging and checking where result is being
+set to 500.
+
+If this method always returns a 200 status response, yet the browser
+still sees 500, we would have to consider number 3 above.
+
+At this point things get a bit trickier as one is dealing with the C 
+code.
+It is worth noting though that most instances of where a 500 response 
+are
+generated in the mod_python.c file are preceded by message logging. The
+only ones that aren't are all of the form:
+
+     /* get/create interpreter */
+     idata = get_interpreter(interp_name, req-&gt;server);
+
+     if (!idata)
+         return HTTP_INTERNAL_SERVER_ERROR;
+
+Not being able to get/create the interpreter is pretty severe and if 
+that
+was happening then no Python code at all would be getting executed. I am
+not sure why this situation couldn't be logged as well. Thus instead of
+that above, have:
+
+     if (!idata) {
+         ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, req,
+                       &quot;python_handler: Can't get/create interpreter.&quot;);
+
+         return HTTP_INTERNAL_SERVER_ERROR;
+     }
+
+Anyway, that is the steps I would personally pursue to try and narrow 
+down
+where the 500 error is being generated from. Once one can reliably 
+pinpoint
+it down to a specific area of code in this way, have a better chance of
+determining why it is happening.
+
+Graham
+
+
+
+  
+    
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017630.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+	<LI>Next message: <A HREF="017656.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17632">[ date ]</a>
+              <a href="thread.html#17632">[ thread ]</a>
+              <a href="subject.html#17632">[ subject ]</a>
+              <a href="author.html#17632">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Subinterpreters and index.py
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Subinterpreters%20and%20index.py&In-Reply-To=200407011002.i61A29IF011124%40modpython.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015852.html">
+   <LINK REL="Next"  HREF="015854.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Subinterpreters and index.py</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Subinterpreters%20and%20index.py&In-Reply-To=200407011002.i61A29IF011124%40modpython.org"
+       TITLE="[mod_python] Subinterpreters and index.py">list at joreybump.com
+       </A><BR>
+    <I>Thu Jul  1 13:23:35 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015852.html">[mod_python] Subinterpreters and index.py
+</A></li>
+        <LI>Next message: <A HREF="015854.html">[mod_python] Subinterpreters and index.py
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15850">[ date ]</a>
+              <a href="thread.html#15850">[ thread ]</a>
+              <a href="subject.html#15850">[ subject ]</a>
+              <a href="author.html#15850">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Nicolas Lehuen wrote:
+
+&gt;<i> Hi,
+</I>&gt;<i>  
+</I>&gt;<i> I'm encoutering an unexpected behaviours while using the publisher handlers
+</I>&gt;<i> and two index.py, one in /app/index.py and one in /app/subdir/index.py.
+</I>&gt;<i>  
+</I>&gt;<i> When I first call <A HREF="http://localhost/app/,">http://localhost/app/,</A> /app/index.py is called. Then if I
+</I>&gt;<i> call <A HREF="http://localhost/app/subdir/,">http://localhost/app/subdir/,</A> /app/subdir/index.py is called allright,
+</I>&gt;<i> but then if I try again <A HREF="http://localhost/app/,">http://localhost/app/,</A> I always get
+</I>&gt;<i> /app/subdir/index.py !
+</I>
+Modules are namespaces, regardless of their physical location. This is 
+very important, even within subinterpreters.
+
+&gt;<i> Maybe it would be possible to overcome this limitation if mod_python named
+</I>&gt;<i> and loaded the page modules according to their path relative to the place
+</I>&gt;<i> where a PythonInterpreter or PythonHandler (when PythonInterpPerDirective is
+</I>&gt;<i> On) was last defined. So, if I define &quot;PythonInterpreter myapp&quot; in /app,
+</I>&gt;<i> /app/index.py would be loaded as the 'index' module and /app/subdir/index.py
+</I>&gt;<i> would be loaded as the 'subdir.index' module.
+</I>
+[snip]
+
+&gt;<i> Likewise, maybe such an improved behaviour could enable us to do something
+</I>&gt;<i> which is AFAIK quite difficult right now : importing modules relative to the
+</I>&gt;<i> current interpreter (maybe by automatically adding the directory where the
+</I>&gt;<i> interpreter was defined to sys.path). Say I've got a utility module
+</I>&gt;<i> /app/utils.py, I could use it in /app/index.py and /app/subdir/index.py by
+</I>&gt;<i> importing 'utils'.
+</I>
+mod_python already puts the directory at the front of the sys.path. You 
+can determine this by creating a module:
+
+app/test.py:
+
+  import sys
+  def syspath(req):
+     return sys.path
+
+Then access it at:
+
+  <A HREF="http://localhost/app/test.py/syspath">http://localhost/app/test.py/syspath</A>
+
+You can test the import by creating two more files:
+
+test1.py:
+
+  import sys
+  import test2
+
+  def syspath1(req):
+      return sys.path
+
+  def syspath2(req):
+      return test2.syspath2(req)
+
+test2.py:
+
+  import sys
+
+  def syspath2(req):
+      return sys.path
+
+Access the results at these locations:
+
+  <A HREF="http://localhost/app/test1.py/syspath1">http://localhost/app/test1.py/syspath1</A>
+  <A HREF="http://localhost/app/test1.py/syspath2">http://localhost/app/test1.py/syspath2</A>
+
+You can see that the import worked fine. To use subdirectories, you need 
+to turn them into packages. This is extremely simple:
+
+Create the subdirectory:
+
+  app/dir1/
+
+Create a package initialization file (it can be empty):
+
+  app/dir1/__init__.py
+
+Create a module in this directory:
+
+app/dir1/test3.py:
+
+  import sys
+
+  def syspath3(req):
+      return sys.path
+
+Modify app/test1.py:
+
+  import sys
+  import test2
+  import dir1.test3
+
+  def syspath1(req):
+      return sys.path
+
+  def syspath2(req):
+      return test2.syspath2(req)
+
+  def syspath3(req):
+      return dir1.test3.syspath3(req)
+
+Try it out:
+
+  <A HREF="http://localhost/app/test1.py/syspath3">http://localhost/app/test1.py/syspath3</A>
+
+This is exactly the behaviour you want, and requires no special 
+directives. It's pure python, and it's beautiful.
+
+mod_python embeds a python interpreter, pure and simple. It's best to 
+use the basic features of python to overcome problems such as this. 
+Forget that mod_python even exists (but be happy that it does!).
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015852.html">[mod_python] Subinterpreters and index.py
+</A></li>
+	<LI>Next message: <A HREF="015854.html">[mod_python] Subinterpreters and index.py
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15850">[ date ]</a>
+              <a href="thread.html#15850">[ thread ]</a>
+              <a href="subject.html#15850">[ subject ]</a>
+              <a href="author.html#15850">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

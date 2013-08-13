@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] the req object
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20the%20req%20object&In-Reply-To=20070614163723.GA25026%40asu.edu">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023841.html">
+   <LINK REL="Next"  HREF="023844.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] the req object</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20the%20req%20object&In-Reply-To=20070614163723.GA25026%40asu.edu"
+       TITLE="[mod_python] the req object">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Thu Jun 14 19:23:48 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023841.html">[mod_python] the req object
+</A></li>
+        <LI>Next message: <A HREF="023844.html">[mod_python] the req object
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23845">[ date ]</a>
+              <a href="thread.html#23845">[ thread ]</a>
+              <a href="subject.html#23845">[ subject ]</a>
+              <a href="author.html#23845">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 15/06/07, David Bear &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">David.Bear at asu.edu</A>&gt; wrote:
+&gt;<i> On Wed, Jun 13, 2007 at 04:15:38PM -0400, Jim Gallacher wrote:
+</I>&gt;<i> &gt; Hi David,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; David Bear wrote:
+</I>&gt;<i> &gt; &gt;When is the req object made available?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;when the import dummymodule fails, the req object is not available to
+</I>&gt;<i> &gt; &gt;it. Without the req object, how does one send output anywhere?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; That's a strange bit of code you have there. ;) Your code would only get
+</I>&gt;<i> &gt; executed by mod_python once, when the module is first loaded.
+</I>&gt;<i>
+</I>&gt;<i> strange becuase its only illustrates how I think I want to catch
+</I>&gt;<i> exceptions on module imports.
+</I>&gt;<i>
+</I>&gt;<i> Thank you so much for the great explanation below. I'll read it a
+</I>&gt;<i> third time to see if I can make more sense of it.
+</I>&gt;<i>
+</I>&gt;<i> Prior to that, what recommendations are there for catching exceptions
+</I>&gt;<i> on module import failures. There is a vast amount of functionality
+</I>&gt;<i> that isn't available untill modules are correctly imported. So I see a
+</I>&gt;<i> heirarchy of needs -- modules that MUST import or the script MUST die.
+</I>&gt;<i> Then, modules that should import or display and error to the browser.
+</I>&gt;<i> Then, modules that could important -- for better, faster, stronger
+</I>&gt;<i> ways of doing something, or my code could resort to doing something
+</I>&gt;<i> different.
+</I>&gt;<i>
+</I>&gt;<i> So how would I handle the except when
+</I>&gt;<i> 1) critical module import fails and NO access to any apache data is
+</I>&gt;<i> available, i.e., failure to import mod_python
+</I>
+If it is actually a syntax error or really unexpected exception then
+just let it be raised and don't try and catch it. The actual failure
+to import the module will result in a 500 error returned to the HTTP
+client which may have triggered the input through the loading of a
+specific handler. The details of the exception will also appear in the
+error log.
+
+When such errors occurs, at least for a handler module managed by the
+mod_python importer it will not cache the broken module and on the
+next request will try and import it yet again. If the module which
+broke was on sys.path though it will be stuck in memory and an Apache
+restart required after fixing it.
+
+If it is some type of runtime error, for example related to creating a
+database connection, then catch the exception and log to the Apache
+error log using apache.log_error() and some message of your own. Your
+code should track when it fails and when a handler subsequently tries
+to use what failed to work (connect), should retry the operation again
+and if it succeeds keep going otherwise log problem and raise more
+specific 500 error page to the HTTP client.
+
+In other words, if you are trying to do something up front at time of
+module import and that operation can be retried, log a message but
+allow the handler to retry it when it is actually first required as
+well.
+
+Graham
+
+&gt;<i> 2) operational module files to import and I need to send the message
+</I>&gt;<i> to the client browser
+</I>&gt;<i> 3) import failure where a nice message is just included in the output
+</I>&gt;<i> stream (well, I think I can figure this one out)
+</I>&gt;<i>
+</I>&gt;<i> number 1 above seems the most problematic.
+</I>&gt;<i>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> David Bear
+</I>&gt;<i> phone:  602-496-0424
+</I>&gt;<i> fax:    602-496-0955
+</I>&gt;<i> College of Public Programs/ASU
+</I>&gt;<i> University Center Rm 622
+</I>&gt;<i> 411 N Central
+</I>&gt;<i> Phoenix, AZ 85007-0685
+</I>&gt;<i>  &quot;Beware the IP portfolio, everyone will be suspect of trespassing&quot;
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023841.html">[mod_python] the req object
+</A></li>
+	<LI>Next message: <A HREF="023844.html">[mod_python] the req object
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23845">[ date ]</a>
+              <a href="thread.html#23845">[ thread ]</a>
+              <a href="subject.html#23845">[ subject ]</a>
+              <a href="author.html#23845">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

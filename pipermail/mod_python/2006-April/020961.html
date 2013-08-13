@@ -1,0 +1,335 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonAuthzHandler not working
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthzHandler%20not%20working&In-Reply-To=318164FC-41BF-4D6B-9706-6A644DDC5CC5%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020960.html">
+   <LINK REL="Next"  HREF="020966.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonAuthzHandler not working</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthzHandler%20not%20working&In-Reply-To=318164FC-41BF-4D6B-9706-6A644DDC5CC5%40dscpl.com.au"
+       TITLE="[mod_python] PythonAuthzHandler not working">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Apr 22 23:44:31 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020960.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+        <LI>Next message: <A HREF="020966.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20961">[ date ]</a>
+              <a href="thread.html#20961">[ thread ]</a>
+              <a href="subject.html#20961">[ subject ]</a>
+              <a href="author.html#20961">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 23/04/2006, at 11:43 AM, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 23/04/2006, at 8:19 AM, Graham Dumpleton wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On 23/04/2006, at 5:22 AM, Jim Gallacher wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Graham Dumpleton wrote:
+</I>&gt;&gt;&gt;&gt;<i> Add to config:
+</I>&gt;&gt;&gt;&gt;<i>   AuthAuthoritative Off
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> That doesn't really make sense to me. Nothing like this is  
+</I>&gt;&gt;&gt;<i> mentioned for other auth modules like mod_auth_ldap.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I couldn't even find it documented. It is mentioned in source code  
+</I>&gt;&gt;<i> for 2.0.
+</I>&gt;&gt;<i> Turns of inbuilt auth.
+</I>&gt;<i>
+</I>&gt;<i> BTW, if you are using Apache 2.2, you might actually need both:
+</I>&gt;<i>
+</I>&gt;<i>   AuthzDefaultAuthoritative Off
+</I>&gt;<i>   AuthzUserAuthoritative Off
+</I>&gt;<i>
+</I>&gt;<i> I didn't check before if it had changed form 2.0 to 2.2.
+</I>&gt;<i>
+</I>&gt;<i> I'll do some tests and get back to you on what is required for 2.2  
+</I>&gt;<i> if that
+</I>&gt;<i> is what you are using.
+</I>
+Done testing, and on Apache 2.2, you don't need either of the above.
+
+Here is a summary of what I found. Note that I am using mod_python 3.3
+from trunk. First off, am using the handlers:
+
+     from mod_python import apache
+
+     def authenhandler(req):
+         apache.log_error(&quot;authenhandler&quot;)
+         req.phases = [&quot;authenhandler&quot;]
+         req.user = &quot;grumpy&quot;
+         req.ap_auth_type = req.auth_type()
+         return apache.OK
+
+     def authzhandler(req):
+         apache.log_error(&quot;authzhandler&quot;)
+         req.phases.append(&quot;authzhandler&quot;)
+         return apache.OK
+
+     def handler(req):
+         apache.log_error(&quot;handler&quot;)
+         req.phases.append(&quot;handler&quot;)
+         req.content_type = &quot;text/plain&quot;
+         req.write(req.ap_auth_type+&quot;\n&quot;)
+         req.write(req.user+&quot;\n&quot;)
+         req.write(str(req.phases)+&quot;\n&quot;)
+         return apache.OK
+
+For Apache 2.0, the configuration that works is:
+
+     SetHandler mod_python
+
+     PythonAuthenHandler authz_1
+     PythonAuthzHandler authz_1
+     PythonHandler authz_1
+     PythonDebug On
+
+     AuthType authztest
+     Require group grumpy
+     #AuthAuthoritative Off
+
+The result in the browser is:
+
+     authztest
+     grumpy
+     ['authenhandler', 'authzhandler', 'handler']
+
+Note that I am not using AuthAuthoritative in the end here.
+
+Now, if I instead use either:
+
+     Require user grumpy
+
+or:
+
+     Require valid-user
+
+even if set in conjunction with:
+
+     Require group grumpy
+
+the result is:
+
+     authztest
+     grumpy
+     ['authenhandler', 'handler']
+
+Thus, no authzhandler run. This is because builtin mod_authz is  
+getting run before
+my authzhandler and the user condition is being satisfied and so my  
+handler never
+gets to run.
+
+If you want to have something like 'valid-user' or 'user', you need  
+to call it something
+else. For example, thus:
+
+     Require authztest::valid-user
+
+If I do that alone though, I get authorization required response and  
+error log says:
+
+     [Sun Apr 23 13:21:58 2006] [error] [client ::1] access to / 
+testing/authz-1/ failed, reason: unknown require  
+directive:&quot;authztest::valid-user&quot;
+
+To get past that, that is where in Apache 2.0 I need to set  
+AuthAuthoritative.
+
+     SetHandler mod_python
+
+     PythonAuthenHandler authz_1
+     PythonAuthzHandler authz_1
+     PythonHandler authz_1
+     PythonDebug On
+
+     AuthType authztest
+     Require authztest::valid-user
+     AuthAuthoritative Off
+
+Thus I again get:
+
+     authztest
+     grumpy
+     ['authenhandler', 'authzhandler', 'handler']
+
+In Apache 2.2, things are slightly different. Using:
+
+     SetHandler mod_python
+
+     PythonAuthenHandler authz_1
+     PythonAuthzHandler authz_1
+     PythonHandler authz_1
+     PythonDebug On
+
+     AuthType authztest
+     Require group grumpy
+
+still works okay. Using:
+
+     Require user grumpy
+
+or:
+
+     Require valid-user
+
+still results in:
+
+     authztest
+     grumpy
+     ['authenhandler', 'handler']
+
+In Apache 2.2, if I use:
+
+     SetHandler mod_python
+
+     PythonAuthenHandler authz_1
+     PythonAuthzHandler authz_1
+     PythonHandler authz_1
+     PythonDebug On
+
+     AuthType authztest
+     Require authztest::valid-user
+
+I get:
+
+     authztest
+     grumpy
+     ['authenhandler', 'authzhandler', 'handler']
+
+So, no need to have any equivalent to AuthAuthoritative in Apache 2.2.
+
+In summary, situation seems to be that if you want to perform  
+authorization based
+on group member ship, okay to still use:
+
+     Require group grumpy
+
+But you should not set AuthGroupFile, because if you do then the  
+builting authz handler
+will try and do the interpretation itself.
+
+If you want equivalents to 'valid-user' or 'user' where your  
+authzhandler interprets them,
+you need to qualify them to avoid builtin authz module interpreting  
+them. Thus use something
+like:
+
+     Require authztest::valid-user
+     Require authztest::user grumpy
+
+and the check req.requires for pertinent tags and data.
+
+Going back to your original configuration:
+
+     &lt;Directory /srv/projects/aos/html/aos-admin/&gt;
+       DirectoryIndex index.py
+
+Take note of DirectoryIndex problems recorded in:
+
+     <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-146">http://issues.apache.org/jira/browse/MODPYTHON-146</A>
+
+This would be an issue if you are trying to pass data in req through  
+from these handlers
+to content handler. Plus notes and subprocess_env values can get  
+duplicated.
+
+       AllowOverride None
+       AddHandler mod_python .py
+
+       AuthType PyCookie
+       AuthName &quot;Restricted&quot;
+       Require valid-user
+
+If req.user is set, use of 'valid-user' would cause inbuilt authz  
+handler to return
+OK and so your authzhandler would not run. If though req.user hadn't  
+been
+set by authenhandler, you probably get an error occur.
+
+       Require admin
+
+The &quot;admin&quot; tag is not one known of by Apache. If you were using  
+Apache 2.0
+you would most like be getting:
+
+     [Sun Apr 23 13:41:06 2006] [error] [client ::1] access to / 
+testing/authz-1/ failed, reason: unknown require directive:&quot;admin&quot;
+
+Thus, in Apache 2.0, you would need to have AuthAuthoritative set. In  
+Apache 2.2
+you wouldn't need to.
+
+       PythonAccessHandler mprest.authtest
+       PythonAuthenHandler mprest.authtest
+       PythonAuthzHandler mprest.authtest
+       PythonHandler mprest.authtest
+
+     &lt;/Directory&gt;
+
+Now, what was the final configuration you were trying to use and what  
+version of
+Apache were you using?
+
+Graham
+
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020960.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+	<LI>Next message: <A HREF="020966.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20961">[ date ]</a>
+              <a href="thread.html#20961">[ thread ]</a>
+              <a href="subject.html#20961">[ subject ]</a>
+              <a href="author.html#20961">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

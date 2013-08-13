@@ -1,0 +1,230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] the req object
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20the%20req%20object&In-Reply-To=20070613171401.GA14723%40asu.edu">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023839.html">
+   <LINK REL="Next"  HREF="023841.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] the req object</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20the%20req%20object&In-Reply-To=20070613171401.GA14723%40asu.edu"
+       TITLE="[mod_python] the req object">jpg at jgassociates.ca
+       </A><BR>
+    <I>Wed Jun 13 16:15:38 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023839.html">[mod_python] the req object
+</A></li>
+        <LI>Next message: <A HREF="023841.html">[mod_python] the req object
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23840">[ date ]</a>
+              <a href="thread.html#23840">[ thread ]</a>
+              <a href="subject.html#23840">[ subject ]</a>
+              <a href="author.html#23840">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi David,
+
+David Bear wrote:
+&gt;<i> When is the req object made available?
+</I>&gt;<i> 
+</I>&gt;<i> I'm trying something simple like this.
+</I>&gt;<i> 
+</I>&gt;<i> import sys
+</I>&gt;<i> try:
+</I>&gt;<i>    from mod_python import apache
+</I>&gt;<i> except:
+</I>&gt;<i>    print &quot;import error&quot;
+</I>&gt;<i>    sys.exit(1)
+</I>&gt;<i> try:
+</I>&gt;<i>    import dummymodule
+</I>&gt;<i> except:
+</I>&gt;<i>    req.content_type = 'text/plain'
+</I>&gt;<i>    req.write('error importing dummy')
+</I>&gt;<i>    return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> when the import dummymodule fails, the req object is not available to
+</I>&gt;<i> it. Without the req object, how does one send output anywhere?
+</I>
+That's a strange bit of code you have there. ;) Your code would only get 
+executed by mod_python once, when the module is first loaded.
+
+Read the following treatise and see if things make a bit more sense.
+
+The mod_python request object is a pythonic wrapper around the apache 
+request_rec structure and is associated with a *specific* request. It is 
+not a global variable and it's not available outside the context of that 
+request.
+
+When apache services a new request it fills out the request_rec data 
+structure (which is a C struct). In the event that mod_python is invoked 
+by a configuration directive (PythonHandler helloworld, for example), 
+apache passes this data structure to mod_python. Mod_python creates a 
+python object, with a number of methods and attributes which allow you 
+to access the contents of the request_rec in a pythonic way. By 
+convention we call this object &quot;req&quot; in the documentation and mailing 
+lists, but the name has no special meaning beyond that. It is not a 
+global variable as your code above would seem to suggest.
+
+For the sake of argument, just assume that your code will be read, 
+parsed, compiled and evaluated once when it is first imported. (This is 
+not strictly true, but it's close enough for our purposes here). Code at 
+the module scope will be executed once.
+
+So, how do you get at the request object and how is the request 
+processed? Why, through your handler method of course! The request 
+object will be passed as the first parameter to your handler method. 
+Think of the handler method as the entry point into your code for each 
+request.
+
+Consider the simplest possible handler as an example:
+
+AddHandler mod_python .py
+PythonHandler helloworld
+
+
+helloworld.py
+-------------
+
+from mod_python import apache
+
+MSG = 'Hello world'
+my_sum = 10 + 10
+
+def handler(req):
+     req.content_type = 'text/plain'
+     req.write(MSG)
+     return apache.OK
+
+Note that the statement my_sum = 10 + 10 is only executed once, not 
+every time a new request arrives. Same for MSG and our initial import 
+statement.
+
+The AddHandler directive tells apache that mod_python is going to handle 
+the content generation phase of the request. The PythonHandler directive 
+tells mod_python that the handler is in the helloworld module. 
+Mod_python imports that module if it is not already loaed and looks for 
+a method named &quot;handler&quot;, which is the default method name.
+
+You can actually specify a different method in your apache configuration:
+
+AddHandler mod_python .py
+PythonHandler helloworld2::alternate_thingy
+
+helloworld2.py
+-------------
+
+from mod_python import apache
+
+def handler(req):
+     # This will never be called since we are specifying
+     # a different handler method name in our PythonHandler directive.
+     req.content_type = 'text/plain'
+     req.write('Hello world')
+     return apache.OK
+
+def alternate_thingy(req):
+     # this is the handler that will get called.
+     req.content_type = 'text/plain'
+     req.write('Hello world - from the alternate_thingy method')
+     return apache.OK
+
+The default method that mod_python will look for depends on the 
+particular directive used (and each directive will get invoked in a 
+different phase the request processing):
+
+Configurate Directive Name           default mod_python method
+----------------------------         ---------------------------
+PythonPostReadRequestHandler         postreadrequesthandler(req)
+PythonTransHandler                   transhandler(req)
+PythonHeaderParserHandler            headerparserhandler(req)
+PythonInitHandler                    inithandler(req)
+PythonAccessHandler                  accesshandler(req)
+PythonAuthenHandler                  authenhandler(req)
+PythonAuthzHandler                   authzhandler(req)
+PythonTypeHandler                    typehandler(req)
+PythonFixupHandler                   fixuphandler(req)
+PythonHandler                        handler(req)
+PythonLogHandler                     loghandler(req)
+
+(hint: the method name is a lowercase version of the Directive the 
+&quot;python&quot; prefix stripped off)
+
+So what about the Publisher handler? Publisher is an example of a 
+content handler (it's invoked with PythonHandler) that evaluates the 
+request URI and derives the handler method name from that URI. It's 
+dynamically doing what we did with a static directive in the helloworld2 
+example. Just like any other handler, in any other phase, it calls the 
+method with the request object as the first parameter.
+
+I think I know what you're trying to accomplish with your code snippet 
+above, but it really is not the way to go. Trying to make your 
+mod_python code usable (as far as handlers are concerned) outside of 
+mod_python is a loosing proposition. You might want to take a look at 
+the source code and dig into the way we do unit testing. I know it's not 
+as nice as firing up a command line interpreter, but it is possible to 
+write robust code without it.
+
+Jim
+
+
+
+
+
+
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023839.html">[mod_python] the req object
+</A></li>
+	<LI>Next message: <A HREF="023841.html">[mod_python] the req object
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23840">[ date ]</a>
+              <a href="thread.html#23840">[ thread ]</a>
+              <a href="subject.html#23840">[ subject ]</a>
+              <a href="author.html#23840">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

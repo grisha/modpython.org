@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Persist database conn,
+	or pers. variables - where I put them ?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Persist%20database%20conn%2C%0A%09or%20pers.%20variables%20-%20where%20I%20put%20them%20%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022145.html">
+   <LINK REL="Next"  HREF="022148.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Persist database conn,
+	or pers. variables - where I put them ?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Persist%20database%20conn%2C%0A%09or%20pers.%20variables%20-%20where%20I%20put%20them%20%3F&In-Reply-To="
+       TITLE="[mod_python] Persist database conn,
+	or pers. variables - where I put them ?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Sep 27 18:47:24 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022145.html">[mod_python] No expiration datestamp on SessionID cookie
+</A></li>
+        <LI>Next message: <A HREF="022148.html">[mod_python] Persist database conn,
+	or pers. variables - whereI put them ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22146">[ date ]</a>
+              <a href="thread.html#22146">[ thread ]</a>
+              <a href="subject.html#22146">[ subject ]</a>
+              <a href="author.html#22146">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Fredrik Sandin wrote ..
+&gt;<i> 
+</I>&gt;<i> I asked the same question some time ago:
+</I>&gt;<i> <A HREF="http://modpython.org/pipermail/mod_python/2006-August/021924.html">http://modpython.org/pipermail/mod_python/2006-August/021924.html</A>
+</I>&gt;<i> Graham Dumpleton suggested to use XML-RPC.
+</I>&gt;<i> 
+</I>&gt;<i> As far as I have understood mod_python, or actually Apache, was
+</I>&gt;<i> not designed to allow for object persistency.
+</I>&gt;<i> 
+</I>&gt;<i> Cheers,
+</I>&gt;<i> Fredrik
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On Wed, 27 Sep 2006 14:20:24 +0200, durumdara &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">durumdara at gmail.com</A>&gt; wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Hi !
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I not fully understand that in this dynamic wwwserver context where I
+</I>&gt;<i> &gt; can put persist objects.
+</I>&gt;<i> &gt; What I can do to keep my objects in the background ?
+</I>&gt;<i> &gt; Anybody can help me ?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Thanks for it:
+</I>&gt;<i> &gt; dd
+</I>
+For the record, the question which prompted the suggestion of looking at XML-
+RPC was not the same so one can't draw any parallels. In that prior case it was
+communication between a GUI front end and mod_python as a back end. In this
+case it is communication between mod_python and a database backend. In this
+case the true persistent data is in the database and what is really being
+talked about is the ability to reuse client side database handles in
+mod_python. Thus, the persistence being talked about is on objects relate to
+the controller mediating access to the data and not the model or data itself.
+As others have pointed out, the need to persist these client side database
+handles is actually optional. In the old example, there was a desire to persist
+the data of the model in mod_python itself, which is totally different issue.
+
+Having said all that, one should read:
+
+  <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/TheProcessInterpreterModel">http://www.dscpl.com.au/wiki/ModPython/Articles/TheProcessInterpreterModel</A>
+
+This explains a bit about the ability to persist data in the mod_python world.
+
+One issue not discussed there though is the issues that can arise when data is
+held in modules which can be reloaded by mod_python. This is covered a bit in:
+
+  <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/ModuleImportingIsBroken">http://www.dscpl.com.au/wiki/ModPython/Articles/ModuleImportingIsBroken</A>
+
+Especially issues 9, 12, 13, 17, 19 and possibly others.
+
+Because of the way the module importer changes between versions 3.1, 3.2 and
+3.3 of mod_python, about the only totally reliably way of ensuring data is
+persisted in only one spot and not lost or corrupted due to module reloading in
+some way, is to create a module instance explicitly, stash it in sys.modules
+under a pseudo name and store your data in their. Doing that helps to avoid
+reloading problems or needing to contend with mod_python 3.3 specific means of
+migrating data between module instances when reloaded. I can give an example
+of this later if need be, but for what you are doing with database connections
+don't think you need to persist them until you have shown that creating them
+each time is a problem.
+
+Finally, you need to be careful with doing work at global scope in a module which
+might result in an exception occurring, like creating persisting database connections.
+This is because a failure will cause the loading of the module to fail which can
+cause problems on subsequent reloads or in worst cases require Apache to be
+restarted. For one example of this in relation to the PythonImport directive, see
+notes associated with:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-118">http://issues.apache.org/jira/browse/MODPYTHON-118</A>
+
+If you really want to create persisting database connections, do it in a function
+which acts like a singleton returning the object. Ie., it would only create the object
+if it doesn't exist. The function would be called every time you need the object
+and thus it would only be created first time you need it. If using mod_python 3.3
+you might use ability of PythonImport to call a function if you really want it done
+on child process initialisation before any requests handled.
+
+Graham
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022145.html">[mod_python] No expiration datestamp on SessionID cookie
+</A></li>
+	<LI>Next message: <A HREF="022148.html">[mod_python] Persist database conn,
+	or pers. variables - whereI put them ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22146">[ date ]</a>
+              <a href="thread.html#22146">[ thread ]</a>
+              <a href="subject.html#22146">[ subject ]</a>
+              <a href="author.html#22146">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

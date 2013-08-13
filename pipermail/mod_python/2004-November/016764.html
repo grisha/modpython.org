@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Very frustrating problem... MySQL UPDATE syntax
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Very%20frustrating%20problem...%20MySQL%20UPDATE%20syntax&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016763.html">
+   <LINK REL="Next"  HREF="016767.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Very frustrating problem... MySQL UPDATE syntax</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Robert Geller</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Very%20frustrating%20problem...%20MySQL%20UPDATE%20syntax&In-Reply-To="
+       TITLE="[mod_python] Very frustrating problem... MySQL UPDATE syntax">robert at worksofmagic.com
+       </A><BR>
+    <I>Sun Nov  7 22:50:57 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016763.html">[mod_python] Joining template objects
+</A></li>
+        <LI>Next message: <A HREF="016767.html">[mod_python] Very frustrating problem... MySQL UPDATE syntax
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16764">[ date ]</a>
+              <a href="thread.html#16764">[ thread ]</a>
+              <a href="subject.html#16764">[ subject ]</a>
+              <a href="author.html#16764">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello.
+ 
+This is extremely weird. All my select statements work perfectly fine
+using 'userid', which is the value of a MarshalCookie decoded, as means
+to reference a specific row (entry) in the table.
+However, when using 'UPDATE' and trying to use %s with the variable
+'userid', it just doesn't WORK! I have been spending hours on this
+tonight, so I finally decided to post on the mailing list with hopes
+someone would be able to help.
+ 
+                cookie = Cookie.get_cookies(req, Cookie.MarshalCookie,
+secret='rob3')
+                if cookie.has_key('userid'):
+                        uidcookie = cookie['userid']
+                        userid = uidcookie.value
+                fs = util.FieldStorage(req)
+                name = fs.getfirst(&quot;name&quot;)
+                email = fs.getfirst(&quot;email&quot;)
+                db_connect.db_query_update(&quot;UPDATE users SET fname='%s',
+email='%s' WHERE id = '%s'&quot; % (name, email, id))
+
+First I get the signed MarshalCookie. I assign the value of the 'userid'
+cookie to 'userid'. Then I use fieldstorage to get the variables in
+POST, and I am simply trying to update the corresponding user's row with
+his updated information. (This is a profile/information page for my
+application)
+ 
+db_query_update is a function in another module, db_connect, which I use
+to execute queries. It looks like this:
+ 
+def db_query_update(query):
+        db = MySQLdb.connect(user='root', host='localhost',
+db='imagehost')
+        c = db.cursor()
+        c.execute(query)
+        c.close()
+        db.close()
+ 
+ 
+ 
+It just won't execute the query properly! Strangely, select statements
+further down work FINE, such as:
+ 
+username = db_connect.db_query_select(&quot;SELECT username FROM users WHERE
+id = %s&quot; % userid)
+ 
+db_query_select looks like:
+ 
+def db_query_select(query):
+        db = MySQLdb.connect(user='root', passwd='tux5098nyu',
+host='localhost', db='imagehost')
+        c = db.cursor()
+        c.execute(query)
+        results = c.fetchone()
+        c.close()
+        db.close()
+        return results[0]
+ 
+ 
+Oddly, If I manually put in an arbitrary existing value for id, such as
+26, it works perfectly fine...
+ 
+You probably won't understand the context of my code, but here is the
+entire editprofile function:
+ 
+def editprofile(req):
+        sess = Session.Session(req, secret='s3kr3t')
+        sess.load()
+        if sess.is_new():
+                sess.delete()
+                util.redirect(req, '/login')
+        if not req.method == &quot;POST&quot;:
+                userid = getIDCookie(req)
+                reload(profile)
+                reload(db_connect)
+                form = profile.FORM
+                username = db_connect.db_query_select(&quot;SELECT username
+FROM users WHERE id = %s&quot; % userid)
+                email = db_connect.db_query_select(&quot;SELECT email FROM
+users WHERE id = %s&quot; % userid)
+                password = db_connect.db_query_select(&quot;SELECT password
+FROM users WHERE id = %s&quot; % userid)
+                fname = db_connect.db_query_select(&quot;SELECT fname FROM
+users WHERE id = %s&quot; % userid)
+                premium_query = db_connect.db_query_select(&quot;SELECT
+premium FROM users WHERE id = %s&quot; % userid)
+                if premium_query == &quot;no&quot;:
+                        premium = &quot;No. &lt;a href='/premium'&gt;Click here&lt;/a&gt;
+to become a premium member!&quot;
+                else:
+                        premium = &quot;Yes!&quot;
+                msg = &quot;&quot;
+                req.write(form % locals())
+        else:
+                reload(profile)
+                reload(db_connect)
+                cookie = Cookie.get_cookies(req, Cookie.MarshalCookie,
+secret='rob3')
+                if cookie.has_key('userid'):
+                         uidcookie = cookie['userid']
+                        userid = uidcookie.value
+                form = profile.FORM
+                fs = util.FieldStorage(req)
+                name = fs.getfirst(&quot;name&quot;)
+                email = fs.getfirst(&quot;email&quot;)
+                db_connect.db_query_update(&quot;UPDATE users SET fname='%s',
+email='%s' WHERE id = '%s'&quot; % (name, email, id))
+                # db_connect.db_query_update(&quot;INSERT INTO users (id,
+fname, email) VALUES (%s, '%s', '%s')&quot; % (userid, name, email))
+                form = profile.FORM
+                username = db_connect.db_query_select(&quot;SELECT username
+FROM users WHERE id = %s&quot; % userid)
+                email = db_connect.db_query_select(&quot;SELECT email FROM
+users WHERE id = %s&quot; % userid)
+                password = db_connect.db_query_select(&quot;SELECT password
+FROM users WHERE id = %s&quot; % userid)
+                fname = db_connect.db_query_select(&quot;SELECT fname FROM
+users WHERE id = %s&quot; % userid)
+                premium_query = db_connect.db_query_select(&quot;SELECT
+premium FROM users WHERE id = %s&quot; % userid)
+                if premium_query == &quot;no&quot;:
+                        premium = &quot;No. &lt;a href='/premium'&gt;Click here&lt;/a&gt;
+to become a premium member!&quot;
+                else:
+                        premium = &quot;Yes!&quot;
+                msg = &quot;&lt;b&gt;&lt;center&gt;Your information has been
+changed!&lt;/center&gt;&lt;/b&gt;&quot;
+                req.write(form % locals())
+
+What do you guys think?
+ 
+Thanks a lot in advance, this problem is really buggin' me!
+
+ 
+
+Robert Geller
+
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">robert at worksofmagic.com</A>
+
+ 
+
+ 
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20041107/d9daf4f8/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20041107/d9daf4f8/attachment.html</A>
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016763.html">[mod_python] Joining template objects
+</A></li>
+	<LI>Next message: <A HREF="016767.html">[mod_python] Very frustrating problem... MySQL UPDATE syntax
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16764">[ date ]</a>
+              <a href="thread.html#16764">[ thread ]</a>
+              <a href="subject.html#16764">[ subject ]</a>
+              <a href="author.html#16764">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

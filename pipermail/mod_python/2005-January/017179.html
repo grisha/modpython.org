@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonOption access
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonOption%20access&In-Reply-To=BCA8A7C9-6B94-11D9-8E9B-000393DCF16E%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017178.html">
+   <LINK REL="Next"  HREF="017180.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonOption access</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonOption%20access&In-Reply-To=BCA8A7C9-6B94-11D9-8E9B-000393DCF16E%40dscpl.com.au"
+       TITLE="[mod_python] PythonOption access">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Jan 21 05:59:30 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017178.html">[mod_python] PythonOption access
+</A></li>
+        <LI>Next message: <A HREF="017180.html">[mod_python] PythonOption access
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17179">[ date ]</a>
+              <a href="thread.html#17179">[ thread ]</a>
+              <a href="subject.html#17179">[ subject ]</a>
+              <a href="author.html#17179">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 21/01/2005, at 9:10 PM, Graham Dumpleton wrote:
+&gt;&gt;&gt;<i> Maybe it shouldn't use an actual req object, but a new object which
+</I>&gt;&gt;&gt;<i> incorporates some of what req provides, dropping stuff that may be
+</I>&gt;&gt;&gt;<i> more specific to a particular request.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> Thats my point :-)
+</I>&gt;<i>
+</I>&gt;<i> Possibly not complete, but the things from req it would/could have are:
+</I>&gt;<i>
+</I>&gt;<i>   hlist
+</I>&gt;<i>   interpreter
+</I>&gt;<i>   server
+</I>&gt;<i>   get_options()
+</I>&gt;<i>   get_config()
+</I>&gt;<i>   document_root()
+</I>&gt;<i>
+</I>&gt;<i> This means there is nothing which could be used to write data back to 
+</I>&gt;<i> the remote
+</I>&gt;<i> client.
+</I>&gt;<i>
+</I>&gt;<i> Figured I could call it __info__ and not __req__ when populated into 
+</I>&gt;<i> the
+</I>&gt;<i> namespace of the module when loading.
+</I>&gt;<i>
+</I>&gt;<i> ...
+</I>&gt;<i>
+</I>&gt;<i> Anyway, having explored this a but, am certainly going to implement 
+</I>&gt;<i> such a
+</I>&gt;<i> mechanism in Vampire.
+</I>
+Okay, all implemented. Took about 2 dozen lines, but I had some extra
+complexity to deal with related to lookup and caching of configuration
+files in Vampire. :-)
+
+An example content handler I have now starts as:
+
+   import vampire
+   import types
+
+   from mod_python import apache
+
+   if __info__.get_config().get(&quot;PythonDebug&quot;,&quot;0&quot;) == &quot;1&quot;:
+     apache.log_error(&quot;loading&quot;,apache.APLOG_NOERRNO|apache.APLOG_ERR)
+
+   config = vampire.loadConfig(__info__,&quot;.vampire&quot;)
+   modules = config.get(&quot;Modules&quot;,&quot;common&quot;)
+   module = vampire.importModule(&quot;python-utils&quot;,modules)
+
+   def handler(req):
+     ...
+
+The cut down req object is setup in __info__ just during module import.
+Here I happen to look for PythonDebug setting from get_config(), but
+the get_options() is there along with what I listed above.
+
+Also did find it necessary to have &quot;filename&quot; and &quot;uri&quot;, but this was
+to support my configuration file search mechanism also illustrated
+above. It needs to know the physical directory corresponding to the
+URL so it can search back up the directory hierarchy looking for the
+named config file. Search stops at the PythonHandler root directory
+if no config file found. Hard to explain, but using &quot;uri&quot; and
+&quot;filename&quot; in the context I do here would be fine because of the
+link back to a physical file in the file system.
+
+Now in terms of what I was talking previously about sub imports. The 
+line
+before the handler function is doing a module sub import. Ie., use the
+vampire.importModule() method instead of &quot;import&quot;. I could have supplied
+the __info__ variable as additional third argument to the import 
+function
+and it would have passed access to the cut down req object to the sub
+import as well.
+
+I do have good reasons for all this weirdness, but take too long to
+explain here. I need to write up some better documentation for Vampire
+about all its tricky features. :-)
+
+BTW, was probably going to be releasing a new version of Vampire this
+weekend. This will now incorporate this. I just have to decide whether
+&quot;__info__&quot; is an okay name, or whether another name is more appropriate.
+
+Is this looking better? Probably just confusing you. :-)
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017178.html">[mod_python] PythonOption access
+</A></li>
+	<LI>Next message: <A HREF="017180.html">[mod_python] PythonOption access
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17179">[ date ]</a>
+              <a href="thread.html#17179">[ thread ]</a>
+              <a href="subject.html#17179">[ subject ]</a>
+              <a href="author.html#17179">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

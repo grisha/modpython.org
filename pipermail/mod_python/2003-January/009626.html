@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Compiling mod_python on Win32
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Compiling%20mod_python%20on%20Win32&In-Reply-To=5.2.0.9.0.20030106181338.00ba3798%40200.35.82.226">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="009625.html">
+   <LINK REL="Next"  HREF="009627.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] Compiling mod_python on Win32</H1>
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Compiling%20mod_python%20on%20Win32&In-Reply-To=5.2.0.9.0.20030106181338.00ba3798%40200.35.82.226"
+       TITLE="[mod_python] Compiling mod_python on Win32">grisha at modpython.org
+       </A><BR>
+    <I>Tue Jan  7 00:21:15 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="009625.html">[mod_python] Compiling mod_python on Win32
+</A></li>
+        <LI>Next message: <A HREF="009627.html">[mod_python] Compiling mod_python on Win32
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9626">[ date ]</a>
+              <a href="thread.html#9626">[ thread ]</a>
+              <a href="subject.html#9626">[ subject ]</a>
+              <a href="author.html#9626">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Microsoft C compiler doesn't support &quot;long long&quot;, this has been fixed in
+the latest CVS code. Make the functin look like this, and it will work
+OK:
+
+static PyObject *getreq_recmbr_off(requestobject *self, void *name)
+{
+    PyMemberDef *md = find_memberdef(request_rec_mbrs, name);
+    char *addr = (char *)self-&gt;request_rec + md-&gt;offset;
+    if (sizeof(apr_off_t) == sizeof(LONG_LONG)) {
+	LONG_LONG l = *(LONG_LONG*)addr;
+	return PyLong_FromLongLong(l);
+    }
+    else {
+	/* assume it's long */
+	long l = *(long*)addr;
+	return PyLong_FromLong(l);
+    }
+}
+
+
+On Mon, 6 Jan 2003, Victor Medina wrote:
+
+&gt;<i> Hi guys!
+</I>&gt;<i>
+</I>&gt;<i> I am still having problems with mod_python in windows. Hope not be
+</I>&gt;<i> bothering too much, but I really want to have mod_python for Apache 2.
+</I>&gt;<i> Please understand that compiling it myself is a must.
+</I>&gt;<i>
+</I>&gt;<i> Ok, so this is what is happening, I am receiving to kinds of problems
+</I>&gt;<i>
+</I>&gt;<i> PROBLEM #1
+</I>&gt;<i> F:\IkiruxNXT-Source\mod_python-3.0.1\src\requestobject.c(1017) : error
+</I>&gt;<i> C2632: 'long' followed by 'long' is illegal
+</I>&gt;<i> F:\IkiruxNXT-Source\mod_python-3.0.1\src\requestobject.c(1018) : error
+</I>&gt;<i> C2632: 'long' followed by 'long' is illegal
+</I>&gt;<i> F:\IkiruxNXT-Source\mod_python-3.0.1\src\requestobject.c(1018) : error
+</I>&gt;<i> C2632: 'long' followed by 'long' is illegal
+</I>&gt;<i>
+</I>&gt;<i> The problem seems pretty obvious there is an illegal long long declaration,
+</I>&gt;<i> but as far as I know I can use long long's in Win32, at least with the
+</I>&gt;<i> Borland Builder compiler, this is the code fragment:
+</I>&gt;<i>
+</I>&gt;<i> static PyObject *getreq_recmbr_off(requestobject *self, void *name)
+</I>&gt;<i> {
+</I>&gt;<i>      PyMemberDef *md = find_memberdef(request_rec_mbrs, name);
+</I>&gt;<i>      char *addr = (char *)self-&gt;request_rec + md-&gt;offset;
+</I>&gt;<i>      if (sizeof(apr_off_t) == sizeof(long long)) { &lt;---- HERE!!!
+</I>&gt;<i> 	long long l = *(long long*)addr; &lt;---- HERE!!!
+</I>&gt;<i> 	return PyLong_FromLongLong(l);
+</I>&gt;<i>      }
+</I>&gt;<i>      else {
+</I>&gt;<i> 	/* assume it's long */
+</I>&gt;<i> 	long l = *(long*)addr;
+</I>&gt;<i> 	return PyLong_FromLong(l);
+</I>&gt;<i>      }
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> PROBLEM #2
+</I>&gt;<i>
+</I>&gt;<i> I am receiving several link errors(well ok, not errors, just plain
+</I>&gt;<i> warnings, I am concerned about the quantity of items), about inconsistent
+</I>&gt;<i> linkage: inconsistent dll linkage.  dllexport assumed.
+</I>&gt;<i>
+</I>&gt;<i> I am attaching the complete output log, hope not be abusing or breaking any
+</I>&gt;<i> rules inside the list.
+</I>&gt;<i>
+</I>&gt;<i> I am using Windows 2000 SP3, Visual Studio 6 SP5,  Python 2.2.2 (custom
+</I>&gt;<i> built, not Python.org release, not Activestate's release) and Apache 2.0.43
+</I>&gt;<i> (same here,  custom built). The include, lib, libs directory are in the
+</I>&gt;<i> VC++ Path, thou not includes as part of the project.
+</I>&gt;<i>
+</I>&gt;<i> Thanxs for your time an cooperation, I would really a appreciate any
+</I>&gt;<i> comments or hints
+</I>&gt;<i>
+</I>&gt;<i> Victor Medina
+</I>&gt;<i> UNITEC
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">vmedina98 at unitec.edu.ve</A>
+</I>&gt;<i> msn: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">victor_medina at hotmail.com</A>
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="009625.html">[mod_python] Compiling mod_python on Win32
+</A></li>
+	<LI>Next message: <A HREF="009627.html">[mod_python] Compiling mod_python on Win32
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9626">[ date ]</a>
+              <a href="thread.html#9626">[ thread ]</a>
+              <a href="subject.html#9626">[ subject ]</a>
+              <a href="author.html#9626">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

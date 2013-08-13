@@ -1,0 +1,3389 @@
+From AndiDog at web.de  Wed Jul  1 08:46:15 2009
+From: AndiDog at web.de (Andreas Sommer)
+Date: Wed Jul  1 08:46:56 2009
+Subject: [mod_python] Include file without writing output
+Message-ID: <4A4B5A97.10000@web.de>
+
+I want to include a common "header" file in each of my PSP files (which 
+should produce XML), for example
+
+<%@ include file="common.inc" %><%
+req.content_type = "text/xml"
+# output some XML code here
+%>
+
+
+The "common.inc" file begins with <% and ends with %>, but because 
+editors automatically add a newline, it ends with a newline character.
+My problem is that the XML output follows after the newline character, 
+but *must* be at the very beginning of the output - just try opening 
+such a XML file in Firefox and it will give you an error "XML or text 
+declaration not at start of entity". Removing the newline character 
+causes mod_python to throw an error.
+
+
+I tried to work around that problem by including the common file like this:
+
+PSP(req, "common.inc").run()
+
+...but that gives me the following error:
+
+MOD_PYTHON ERROR
+
+ProcessId:      2787
+Interpreter:    '127.0.1.1'
+
+ServerName:     '127.0.1.1'
+DocumentRoot:   '/var/www/'
+
+URI:            '/login.psp'
+Location:       None
+Directory:      '/var/www/'
+Filename:       '/var/www/login.psp'
+PathInfo:       ''
+
+Phase:          'PythonHandler'
+Handler:        'mod_python.psp'
+
+Traceback (most recent call last):
+
+  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 
+1537, in HandlerDispatch
+    default=default_handler, arg=req, silent=hlist.silent)
+  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 
+1229, in _process_target
+    result = _execute_target(config, req, object, arg)
+  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 
+1128, in _execute_target
+    result = object(arg)
+  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 337, 
+in handler
+    p.run()
+  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 243, 
+in run
+    exec code in global_scope
+  File "/var/www/login.psp", line 2, in <module>
+    PSP(req, filename = "common.inc")
+  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 119, 
+in __init__
+    self.load_from_file()
+  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 185, 
+in load_from_file
+    code = self.cfile_get(filename, mtime)
+  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 169, 
+in cfile_get
+    return str2code(open(cname).read())
+  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 57, in 
+str2code
+    return new.code(*marshal.loads(s))
+MemoryError
+
+
+Using the absolute path /var/www/common.inc doesn't work either. Any 
+suggestions how to work around this problem??
+From AndiDog at web.de  Wed Jul  1 09:21:32 2009
+From: AndiDog at web.de (Andreas Sommer)
+Date: Wed Jul  1 09:24:10 2009
+Subject: [mod_python] Include file without writing output
+In-Reply-To: <4A4B5A97.10000@web.de>
+References: <4A4B5A97.10000@web.de>
+Message-ID: <4A4B62DC.6030204@web.de>
+
+The only "simple" solution is the following output filter:
+
+def outputfilter(filter):
+    str = filter.read()
+    filter.write(str.lstrip())
+    filter.close()
+
+Can't that be done easier, i.e. without Apache configuration?
+
+Andreas Sommer wrote:
+> I want to include a common "header" file in each of my PSP files 
+> (which should produce XML), for example
+>
+> <%@ include file="common.inc" %><%
+> req.content_type = "text/xml"
+> # output some XML code here
+> %>
+>
+>
+> The "common.inc" file begins with <% and ends with %>, but because 
+> editors automatically add a newline, it ends with a newline character.
+> My problem is that the XML output follows after the newline character, 
+> but *must* be at the very beginning of the output - just try opening 
+> such a XML file in Firefox and it will give you an error "XML or text 
+> declaration not at start of entity". Removing the newline character 
+> causes mod_python to throw an error.
+>
+>
+> I tried to work around that problem by including the common file like 
+> this:
+>
+> PSP(req, "common.inc").run()
+>
+> ...but that gives me the following error:
+>
+> MOD_PYTHON ERROR
+>
+> ProcessId:      2787
+> Interpreter:    '127.0.1.1'
+>
+> ServerName:     '127.0.1.1'
+> DocumentRoot:   '/var/www/'
+>
+> URI:            '/login.psp'
+> Location:       None
+> Directory:      '/var/www/'
+> Filename:       '/var/www/login.psp'
+> PathInfo:       ''
+>
+> Phase:          'PythonHandler'
+> Handler:        'mod_python.psp'
+>
+> Traceback (most recent call last):
+>
+>  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 
+> 1537, in HandlerDispatch
+>    default=default_handler, arg=req, silent=hlist.silent)
+>  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 
+> 1229, in _process_target
+>    result = _execute_target(config, req, object, arg)
+>  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 
+> 1128, in _execute_target
+>    result = object(arg)
+>  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 337, 
+> in handler
+>    p.run()
+>  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 243, 
+> in run
+>    exec code in global_scope
+>  File "/var/www/login.psp", line 2, in <module>
+>    PSP(req, filename = "common.inc")
+>  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 119, 
+> in __init__
+>    self.load_from_file()
+>  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 185, 
+> in load_from_file
+>    code = self.cfile_get(filename, mtime)
+>  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 169, 
+> in cfile_get
+>    return str2code(open(cname).read())
+>  File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 57, 
+> in str2code
+>    return new.code(*marshal.loads(s))
+> MemoryError
+>
+>
+> Using the absolute path /var/www/common.inc doesn't work either. Any 
+> suggestions how to work around this problem??
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+From Wayne.Collier at noaa.gov  Wed Jul  1 10:01:51 2009
+From: Wayne.Collier at noaa.gov (wayne collier)
+Date: Wed Jul  1 10:02:01 2009
+Subject: [mod_python] Apache/mod_python with python-ldap implementation
+	question
+Message-ID: <4A4B6C4F.8090807@noaa.gov>
+
+Hello all. I would like to authenticate and authorize users on a website 
+using Apache and mod_python. I need help clarifying my conceptual 
+understanding.   If I want authenticate  ldap members/users  who give 
+me  their username and password via my login template, *do I have to 
+have a specific modification for it in httpd.conf  file? *To clarify 
+more, can i simply evoke the commands of the python-ldap module within 
+my source code once I receive the request object.  Is this sound 
+reasoning? Thanks.
+
+Wayne
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090701/255c1082/attachment.html
+From graham.dumpleton at gmail.com  Wed Jul  1 19:23:53 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed Jul  1 19:24:01 2009
+Subject: [mod_python] Include file without writing output
+In-Reply-To: <4A4B62DC.6030204@web.de>
+References: <4A4B5A97.10000@web.de> <4A4B62DC.6030204@web.de>
+Message-ID: <88e286470907011623j1c5fbbd2p12f488352912735@mail.gmail.com>
+
+Put the common stuff in a standard Python module as a variable and
+import that module into PSP and then reference variable containing
+common stuff from PSP code.
+
+That or look at using traditional Apache server side include (SSI).
+
+Avoid writing your output filter, it is much overkill.
+
+Graham
+
+2009/7/1 Andreas Sommer <AndiDog@web.de>:
+> The only "simple" solution is the following output filter:
+>
+> def outputfilter(filter):
+> ? str = filter.read()
+> ? filter.write(str.lstrip())
+> ? filter.close()
+>
+> Can't that be done easier, i.e. without Apache configuration?
+>
+> Andreas Sommer wrote:
+>>
+>> I want to include a common "header" file in each of my PSP files (which
+>> should produce XML), for example
+>>
+>> <%@ include file="common.inc" %><%
+>> req.content_type = "text/xml"
+>> # output some XML code here
+>> %>
+>>
+>>
+>> The "common.inc" file begins with <% and ends with %>, but because editors
+>> automatically add a newline, it ends with a newline character.
+>> My problem is that the XML output follows after the newline character, but
+>> *must* be at the very beginning of the output - just try opening such a XML
+>> file in Firefox and it will give you an error "XML or text declaration not
+>> at start of entity". Removing the newline character causes mod_python to
+>> throw an error.
+>>
+>>
+>> I tried to work around that problem by including the common file like
+>> this:
+>>
+>> PSP(req, "common.inc").run()
+>>
+>> ...but that gives me the following error:
+>>
+>> MOD_PYTHON ERROR
+>>
+>> ProcessId: ? ? ?2787
+>> Interpreter: ? ?'127.0.1.1'
+>>
+>> ServerName: ? ? '127.0.1.1'
+>> DocumentRoot: ? '/var/www/'
+>>
+>> URI: ? ? ? ? ? ?'/login.psp'
+>> Location: ? ? ? None
+>> Directory: ? ? ?'/var/www/'
+>> Filename: ? ? ? '/var/www/login.psp'
+>> PathInfo: ? ? ? ''
+>>
+>> Phase: ? ? ? ? ?'PythonHandler'
+>> Handler: ? ? ? ?'mod_python.psp'
+>>
+>> Traceback (most recent call last):
+>>
+>> ?File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line
+>> 1537, in HandlerDispatch
+>> ? default=default_handler, arg=req, silent=hlist.silent)
+>> ?File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line
+>> 1229, in _process_target
+>> ? result = _execute_target(config, req, object, arg)
+>> ?File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line
+>> 1128, in _execute_target
+>> ? result = object(arg)
+>> ?File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 337, in
+>> handler
+>> ? p.run()
+>> ?File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 243, in
+>> run
+>> ? exec code in global_scope
+>> ?File "/var/www/login.psp", line 2, in <module>
+>> ? PSP(req, filename = "common.inc")
+>> ?File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 119, in
+>> __init__
+>> ? self.load_from_file()
+>> ?File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 185, in
+>> load_from_file
+>> ? code = self.cfile_get(filename, mtime)
+>> ?File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 169, in
+>> cfile_get
+>> ? return str2code(open(cname).read())
+>> ?File "/usr/lib/python2.5/site-packages/mod_python/psp.py", line 57, in
+>> str2code
+>> ? return new.code(*marshal.loads(s))
+>> MemoryError
+>>
+>>
+>> Using the absolute path /var/www/common.inc doesn't work either. Any
+>> suggestions how to work around this problem??
+>> _______________________________________________
+>> Mod_python mailing list
+>> Mod_python@modpython.org
+>> http://mailman.modpython.org/mailman/listinfo/mod_python
+>>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+
+From graham.dumpleton at gmail.com  Wed Jul  1 19:27:02 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed Jul  1 19:27:11 2009
+Subject: [mod_python] Apache/mod_python with python-ldap implementation 
+	question
+In-Reply-To: <4A4B6C4F.8090807@noaa.gov>
+References: <4A4B6C4F.8090807@noaa.gov>
+Message-ID: <88e286470907011627v3b995c43pe29a2a63c071dd3d@mail.gmail.com>
+
+2009/7/2 wayne collier <Wayne.Collier@noaa.gov>:
+> Hello all. I would like to authenticate and authorize users on a website
+> using Apache and mod_python. I need help clarifying my conceptual
+> understanding.?? If I want authenticate? ldap members/users? who give me
+> their username and password via my login template, do I have to have a
+> specific modification for it in httpd.conf? file? To clarify more, can i
+> simply evoke the commands of the python-ldap module within my source code
+> once I receive the request object.? Is this sound reasoning? Thanks.
+
+Since you are using a web based form type mechanism for supplying
+credentials, then it is totally within the context of your application
+and no special httpd.conf configuration should be needed.
+
+Suggest you search the net for examples of session based login using
+cookies and then simply replace the authentication bit to use LDAP
+instead using python-ldap instead.
+
+Graham
+
+From nsavard at mapgears.com  Thu Jul  2 14:47:30 2009
+From: nsavard at mapgears.com (Normand Savard)
+Date: Thu Jul  2 14:47:38 2009
+Subject: [mod_python] _ssl module not found with mod_python
+Message-ID: <4A4D00C2.8040602@mapgears.com>
+
+I'm having an issue with the ssl module when mod_python is loaded.  I 
+try to import ssl and got a "No module named _ssl" error (see below for 
+the complete error output).  I have an Apache conf file and a Python 
+script that is presented below.  When I use Python through the CGI, I'm 
+able to import ssl with no error (see the Apache conf file and script 
+used down below) as well as when I import the ssl module on the command 
+line.
+
+
+Does someone have a hint of what maybe the problem?
+
+Thanks.
+
+Norm
+
+------------------------------------
+Python mode:
+------------------------------------
+Apache conf file:
+LoadModule python_module libexec/mod_python.so
+
+Alias /test "/home/nsavard/fgsmodpython2/www/htdocs/test"
+
+<Directory /home/nsavard/fgsmodpython2/www/htdocs/test>
+  AddHandler python-program .py
+  PythonHandler http-proxy
+  PythonDebug On
+</Directory>
+
+
+The script is:
+import os
+from mod_python import apache
+import ssl
+
+def handler(req):
+  req.content_type = "text/plain"
+  req.send_http_header()
+  req.write("Proxy Hello World!")
+  req.write('pythonhome   => %s' % os.getenv('PYTHONHOME'))
+  req.write('pythonpath   => %s' % os.getenv('PYTHONPATH'))
+  return apache.OK
+
+
+
+
+The error is:
+
+MOD_PYTHON ERROR
+
+ProcessId:      30036
+Interpreter:    'localhost'
+
+ServerName:     'localhost'
+DocumentRoot:   '/home/nsavard/fgsmodpython2/www/htdocs'
+
+URI:            '/test/http-proxy.py'
+Location:       None
+Directory:      '/home/nsavard/fgsmodpython2/www/htdocs/test/'
+Filename:       '/home/nsavard/fgsmodpython2/www/htdocs/test/http-proxy.py'
+PathInfo:       ''
+
+Phase:          'PythonHandler'
+Handler:        'http-proxy'
+
+Traceback (most recent call last):
+
+  File "/home/nsavard/fgsmodpython2/lib/python2.6/site-packages/mod_python/importer.py", line 1537, in HandlerDispatch
+    default=default_handler, arg=req, silent=hlist.silent)
+
+  File "/home/nsavard/fgsmodpython2/lib/python2.6/site-packages/mod_python/importer.py", line 1202, in _process_target
+    module = import_module(module_name, path=path)
+
+  File "/home/nsavard/fgsmodpython2/lib/python2.6/site-packages/mod_python/importer.py", line 296, in import_module
+    log, import_path)
+
+  File "/home/nsavard/fgsmodpython2/lib/python2.6/site-packages/mod_python/importer.py", line 680, in import_module
+    execfile(file, module.__dict__)
+
+  File "/home/nsavard/fgsmodpython2/www/htdocs/test/http-proxy.py", line 6, in <module>
+    import ssl
+
+  File "/home/nsavard/fgsmodpython2/lib/python2.6/ssl.py", line 60, in <module>
+    import _ssl             # if we can't import it, let the error propagate
+
+ImportError: No module named _ssl
+
+
+MODULE CACHE DETAILS
+
+Accessed:       Thu Jul  2 14:31:48 2009
+Generation:     0
+
+_mp_dcbd4ef7bb04377d9cde8848becdadc4 {
+  FileName:     '/home/nsavard/fgsmodpython2/www/htdocs/test/http-proxy.py'
+  Instance:     1 [IMPORT]
+  Generation:   0 [ERROR]
+  Modified:     Tue Jun 30 16:12:23 2009
+}
+
+
+-----------------------------------------------
+CGI mode
+----------------------------------------------
+The Apache conf file:
+Alias /test "/home/nsavard/fgsmodpython2/www/htdocs/test"
+
+<Directory "/home/nsavard/fgsmodpython2/www/htdocs/test">
+  AllowOverride None
+  Options Indexes FollowSymLinks Multiviews ExecCGI
+  Order allow,deny
+  Allow from all
+</Directory>
+
+
+AddHandler cgi-script .py
+
+The Python script is:
+#!/home/nsavard/fgsmodpython2/bin/python
+print "Content-type: text/html"
+print
+print "hello4"
+
+import ssl
+
+print "hello5"
+
+I
+
+From graham.dumpleton at gmail.com  Thu Jul  2 18:44:45 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu Jul  2 18:44:54 2009
+Subject: [mod_python] _ssl module not found with mod_python
+In-Reply-To: <4A4D00C2.8040602@mapgears.com>
+References: <4A4D00C2.8040602@mapgears.com>
+Message-ID: <88e286470907021544i28e7dfcev6d919ab0c3965f07@mail.gmail.com>
+
+The version of SSL library which Python ssl module is linking with is
+different to that which Apache is linking with, or which Apache has
+compiled into it. Apache would need to be rebuilt with the --with-ssl
+option to configure to reference same installed version of SSL
+libraries.
+
+Graham
+
+2009/7/3 Normand Savard <nsavard@mapgears.com>:
+> I'm having an issue with the ssl module when mod_python is loaded. ?I try to
+> import ssl and got a "No module named _ssl" error (see below for the
+> complete error output). ?I have an Apache conf file and a Python script that
+> is presented below. ?When I use Python through the CGI, I'm able to import
+> ssl with no error (see the Apache conf file and script used down below) as
+> well as when I import the ssl module on the command line.
+>
+>
+> Does someone have a hint of what maybe the problem?
+>
+> Thanks.
+>
+> Norm
+>
+> ------------------------------------
+> Python mode:
+> ------------------------------------
+> Apache conf file:
+> LoadModule python_module libexec/mod_python.so
+>
+> Alias /test "/home/nsavard/fgsmodpython2/www/htdocs/test"
+>
+> <Directory /home/nsavard/fgsmodpython2/www/htdocs/test>
+> ?AddHandler python-program .py
+> ?PythonHandler http-proxy
+> ?PythonDebug On
+> </Directory>
+>
+>
+> The script is:
+> import os
+> from mod_python import apache
+> import ssl
+>
+> def handler(req):
+> ?req.content_type = "text/plain"
+> ?req.send_http_header()
+> ?req.write("Proxy Hello World!")
+> ?req.write('pythonhome ? => %s' % os.getenv('PYTHONHOME'))
+> ?req.write('pythonpath ? => %s' % os.getenv('PYTHONPATH'))
+> ?return apache.OK
+>
+>
+>
+>
+> The error is:
+>
+> MOD_PYTHON ERROR
+>
+> ProcessId: ? ? ?30036
+> Interpreter: ? ?'localhost'
+>
+> ServerName: ? ? 'localhost'
+> DocumentRoot: ? '/home/nsavard/fgsmodpython2/www/htdocs'
+>
+> URI: ? ? ? ? ? ?'/test/http-proxy.py'
+> Location: ? ? ? None
+> Directory: ? ? ?'/home/nsavard/fgsmodpython2/www/htdocs/test/'
+> Filename: ? ? ? '/home/nsavard/fgsmodpython2/www/htdocs/test/http-proxy.py'
+> PathInfo: ? ? ? ''
+>
+> Phase: ? ? ? ? ?'PythonHandler'
+> Handler: ? ? ? ?'http-proxy'
+>
+> Traceback (most recent call last):
+>
+> ?File
+> "/home/nsavard/fgsmodpython2/lib/python2.6/site-packages/mod_python/importer.py",
+> line 1537, in HandlerDispatch
+> ? default=default_handler, arg=req, silent=hlist.silent)
+>
+> ?File
+> "/home/nsavard/fgsmodpython2/lib/python2.6/site-packages/mod_python/importer.py",
+> line 1202, in _process_target
+> ? module = import_module(module_name, path=path)
+>
+> ?File
+> "/home/nsavard/fgsmodpython2/lib/python2.6/site-packages/mod_python/importer.py",
+> line 296, in import_module
+> ? log, import_path)
+>
+> ?File
+> "/home/nsavard/fgsmodpython2/lib/python2.6/site-packages/mod_python/importer.py",
+> line 680, in import_module
+> ? execfile(file, module.__dict__)
+>
+> ?File "/home/nsavard/fgsmodpython2/www/htdocs/test/http-proxy.py", line 6,
+> in <module>
+> ? import ssl
+>
+> ?File "/home/nsavard/fgsmodpython2/lib/python2.6/ssl.py", line 60, in
+> <module>
+> ? import _ssl ? ? ? ? ? ? # if we can't import it, let the error propagate
+>
+> ImportError: No module named _ssl
+>
+>
+> MODULE CACHE DETAILS
+>
+> Accessed: ? ? ? Thu Jul ?2 14:31:48 2009
+> Generation: ? ? 0
+>
+> _mp_dcbd4ef7bb04377d9cde8848becdadc4 {
+> ?FileName: ? ? '/home/nsavard/fgsmodpython2/www/htdocs/test/http-proxy.py'
+> ?Instance: ? ? 1 [IMPORT]
+> ?Generation: ? 0 [ERROR]
+> ?Modified: ? ? Tue Jun 30 16:12:23 2009
+> }
+>
+>
+> -----------------------------------------------
+> CGI mode
+> ----------------------------------------------
+> The Apache conf file:
+> Alias /test "/home/nsavard/fgsmodpython2/www/htdocs/test"
+>
+> <Directory "/home/nsavard/fgsmodpython2/www/htdocs/test">
+> ?AllowOverride None
+> ?Options Indexes FollowSymLinks Multiviews ExecCGI
+> ?Order allow,deny
+> ?Allow from all
+> </Directory>
+>
+>
+> AddHandler cgi-script .py
+>
+> The Python script is:
+> #!/home/nsavard/fgsmodpython2/bin/python
+> print "Content-type: text/html"
+> print
+> print "hello4"
+>
+> import ssl
+>
+> print "hello5"
+>
+> I
+>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+
+From mmckenna at esri.com  Tue Jul 14 17:19:26 2009
+From: mmckenna at esri.com (Matt McKenna)
+Date: Tue Jul 14 17:19:49 2009
+Subject: [mod_python] python apache help
+Message-ID: <AE3F4B53B6E24C4DA63F993A753473DA04F02D30@hal9000mx.den.esri.com>
+
+
+
+I am not a programmer but I do want to learn how to create some web apps
+for use in my admin role at work and I have just started learning
+Python. I would really appreciate any help with this problem. 
+
+I am just getting into using python and am trying to setup an apache
+server to do some web testing and I cannot get past this error.
+************************************************************************
+****
+
+MOD_PYTHON ERROR
+
+ProcessId:      5784
+Interpreter:    'localhost'
+
+ServerName:     'localhost'
+DocumentRoot:   'C:/wamp20h/www/'
+
+URI:            '/test/mptest.py'
+Location:       None
+Directory:      'C:/wamp20h/www/test/'
+Filename:       'C:/wamp20h/www/test/mptest.py'
+PathInfo:       ''
+
+Phase:          'PythonHandler'
+Handler:        'mptest'
+
+Traceback (most recent call last):
+
+  File "D:\Python25\Lib\site-packages\mod_python\importer.py", line
+1537, in HandlerDispatch
+    default=default_handler, arg=req, silent=hlist.silent)
+
+  File "D:\Python25\Lib\site-packages\mod_python\importer.py", line
+1202, in _process_target
+    module = import_module(module_name, path=path)
+
+  File "D:\Python25\Lib\site-packages\mod_python\importer.py", line 296,
+in import_module
+    log, import_path)
+
+  File "D:\Python25\Lib\site-packages\mod_python\importer.py", line 680,
+in import_module
+    execfile(file, module.__dict__)
+
+  File "C:\wamp20h\www\test\mptest.py", line 3
+
+    def handler(req):
+
+   ^
+
+IndentationError: unexpected indent
+
+
+MODULE CACHE DETAILS
+
+Accessed:       Fri Jul 10 16:34:52 2009
+Generation:     0
+
+_mp_d776aaec0b7e9783709d848459898c4a {
+  FileName:     'C:\\wamp20h\\www\\test\\mptest.py'
+  Instance:     1 [IMPORT]
+  Generation:   0 [ERROR]
+  Modified:     Fri Jul 10 15:36:55 2009
+}
+
+************************************************************************
+****
+
+I am using a simple index.html to get to mptest.py
+
+Content of index.html:
+
+<a href="mptest.py">python test</a>
+
+
+Content of mptest.py:
+
+from mod_python import apache
+
+def handler(req):
+    req.log_error('handler')
+    req.content_type = 'text/plain'
+    req.send_http_header()
+    req.write('mptest.py\n')
+    return apache.OK
+
+(I have removed any tab in the code and made sure that there are only 4
+spaces before the code lines.)
+
+Here is the entry that I have in my httpd.conf file to access the
+directory where mptest.py lives:
+
+<Directory "c:/wamp20h/www/test">
+    AddHandler mod_python .py
+    PythonHandler mptest
+    PythonDebug On
+</Directory>
+
+I have the LoadModule line: LoadModule python_module
+modules/mod_python.so in the httpd.conf file.
+
+
+Here is the contents of my apache_error.log:
+
+************************************************************************
+****
+
+Traceback (most recent call last):, referer: http://localhost/test/
+   File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+line  1537, in HandlerDispatch\n    default=default_handler, arg=req,
+silent=hlist.silent), referer: http://localhost/test/
+
+   File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+line 1202, in _process_target\n    module = import_module(module_name,
+path=path), referer: http://localhost/test/
+
+   File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+line 296, in import_module\n    log, import_path), referer:
+http://localhost/test/
+
+   File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+line 680, in import_module\n    execfile(file, module.__dict__),
+referer: http://localhost/test/
+
+   File "C:\\wamp20h\\www\\test\\mptest.py", line 3, referer:
+http://localhost/test/
+
+     def handler(req):, referer: http://localhost/test/
+    ^, referer: http://localhost/test/
+
+ IndentationError: unexpected indent, referer: http://localhost/test/
+
+************************************************************************
+****
+
+I am using Apache version 2.2.11 under WAmp Server install.
+
+
+
+
+Matthew 
+ 
+
+From graham.dumpleton at gmail.com  Tue Jul 14 19:35:59 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Tue Jul 14 19:36:07 2009
+Subject: [mod_python] python apache help
+In-Reply-To: <AE3F4B53B6E24C4DA63F993A753473DA04F02D30@hal9000mx.den.esri.com>
+References: <AE3F4B53B6E24C4DA63F993A753473DA04F02D30@hal9000mx.den.esri.com>
+Message-ID: <88e286470907141635w2805cad7mdb5b9cb937188b5c@mail.gmail.com>
+
+It could be a problem with line endings in the file. Ie. inconsistent
+use of CR and LF. Quite hard to tell because as soon as you post the
+file, such detail is lost. If you were on a UNIX system I would
+suggest you post the output of 'od' run against the file, but you are
+on Windows and that is probably all too hard.
+
+Graham
+
+2009/7/15 Matt McKenna <mmckenna@esri.com>:
+>
+>
+> I am not a programmer but I do want to learn how to create some web apps
+> for use in my admin role at work and I have just started learning
+> Python. I would really appreciate any help with this problem.
+>
+> I am just getting into using python and am trying to setup an apache
+> server to do some web testing and I cannot get past this error.
+> ************************************************************************
+> ****
+>
+> MOD_PYTHON ERROR
+>
+> ProcessId: ? ? ?5784
+> Interpreter: ? ?'localhost'
+>
+> ServerName: ? ? 'localhost'
+> DocumentRoot: ? 'C:/wamp20h/www/'
+>
+> URI: ? ? ? ? ? ?'/test/mptest.py'
+> Location: ? ? ? None
+> Directory: ? ? ?'C:/wamp20h/www/test/'
+> Filename: ? ? ? 'C:/wamp20h/www/test/mptest.py'
+> PathInfo: ? ? ? ''
+>
+> Phase: ? ? ? ? ?'PythonHandler'
+> Handler: ? ? ? ?'mptest'
+>
+> Traceback (most recent call last):
+>
+> ?File "D:\Python25\Lib\site-packages\mod_python\importer.py", line
+> 1537, in HandlerDispatch
+> ? ?default=default_handler, arg=req, silent=hlist.silent)
+>
+> ?File "D:\Python25\Lib\site-packages\mod_python\importer.py", line
+> 1202, in _process_target
+> ? ?module = import_module(module_name, path=path)
+>
+> ?File "D:\Python25\Lib\site-packages\mod_python\importer.py", line 296,
+> in import_module
+> ? ?log, import_path)
+>
+> ?File "D:\Python25\Lib\site-packages\mod_python\importer.py", line 680,
+> in import_module
+> ? ?execfile(file, module.__dict__)
+>
+> ?File "C:\wamp20h\www\test\mptest.py", line 3
+>
+> ? ?def handler(req):
+>
+> ? ^
+>
+> IndentationError: unexpected indent
+>
+>
+> MODULE CACHE DETAILS
+>
+> Accessed: ? ? ? Fri Jul 10 16:34:52 2009
+> Generation: ? ? 0
+>
+> _mp_d776aaec0b7e9783709d848459898c4a {
+> ?FileName: ? ? 'C:\\wamp20h\\www\\test\\mptest.py'
+> ?Instance: ? ? 1 [IMPORT]
+> ?Generation: ? 0 [ERROR]
+> ?Modified: ? ? Fri Jul 10 15:36:55 2009
+> }
+>
+> ************************************************************************
+> ****
+>
+> I am using a simple index.html to get to mptest.py
+>
+> Content of index.html:
+>
+> <a href="mptest.py">python test</a>
+>
+>
+> Content of mptest.py:
+>
+> from mod_python import apache
+>
+> def handler(req):
+> ? ?req.log_error('handler')
+> ? ?req.content_type = 'text/plain'
+> ? ?req.send_http_header()
+> ? ?req.write('mptest.py\n')
+> ? ?return apache.OK
+>
+> (I have removed any tab in the code and made sure that there are only 4
+> spaces before the code lines.)
+>
+> Here is the entry that I have in my httpd.conf file to access the
+> directory where mptest.py lives:
+>
+> <Directory "c:/wamp20h/www/test">
+> ? ?AddHandler mod_python .py
+> ? ?PythonHandler mptest
+> ? ?PythonDebug On
+> </Directory>
+>
+> I have the LoadModule line: LoadModule python_module
+> modules/mod_python.so in the httpd.conf file.
+>
+>
+> Here is the contents of my apache_error.log:
+>
+> ************************************************************************
+> ****
+>
+> Traceback (most recent call last):, referer: http://localhost/test/
+> ? File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+> line ?1537, in HandlerDispatch\n ? ?default=default_handler, arg=req,
+> silent=hlist.silent), referer: http://localhost/test/
+>
+> ? File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+> line 1202, in _process_target\n ? ?module = import_module(module_name,
+> path=path), referer: http://localhost/test/
+>
+> ? File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+> line 296, in import_module\n ? ?log, import_path), referer:
+> http://localhost/test/
+>
+> ? File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+> line 680, in import_module\n ? ?execfile(file, module.__dict__),
+> referer: http://localhost/test/
+>
+> ? File "C:\\wamp20h\\www\\test\\mptest.py", line 3, referer:
+> http://localhost/test/
+>
+> ? ? def handler(req):, referer: http://localhost/test/
+> ? ?^, referer: http://localhost/test/
+>
+> ?IndentationError: unexpected indent, referer: http://localhost/test/
+>
+> ************************************************************************
+> ****
+>
+> I am using Apache version 2.2.11 under WAmp Server install.
+>
+>
+>
+>
+> Matthew
+>
+>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+
+From dave at davebritton.com  Tue Jul 14 21:31:35 2009
+From: dave at davebritton.com (Dave Britton)
+Date: Tue Jul 14 20:28:31 2009
+Subject: [SPAM] Re: [mod_python] python apache help
+References: <AE3F4B53B6E24C4DA63F993A753473DA04F02D30@hal9000mx.den.esri.com>
+	<88e286470907141635w2805cad7mdb5b9cb937188b5c@mail.gmail.com>
+Message-ID: <07d101ca04eb$fea28590$0500a8c0@yoda>
+
+download TextPad (and optionally install python syntax highlighting) and
+look at your file with "show whitespace" on. Or, download and install python
+for windows win32 "Pythonwin" and open your file in its script editor and
+check it with "tab nanny" (the icon to the right of the little running
+figure). It will show you the bad indents.
+----- Original Message -----
+From: "Graham Dumpleton" <graham.dumpleton@gmail.com>
+To: "Matt McKenna" <mmckenna@esri.com>
+Cc: <mod_python@modpython.org>
+Sent: Tuesday, July 14, 2009 6:35 PM
+Subject: Re: [mod_python] python apache help
+
+
+It could be a problem with line endings in the file. Ie. inconsistent
+use of CR and LF. Quite hard to tell because as soon as you post the
+file, such detail is lost. If you were on a UNIX system I would
+suggest you post the output of 'od' run against the file, but you are
+on Windows and that is probably all too hard.
+
+Graham
+
+2009/7/15 Matt McKenna <mmckenna@esri.com>:
+>
+>
+> I am not a programmer but I do want to learn how to create some web apps
+> for use in my admin role at work and I have just started learning
+> Python. I would really appreciate any help with this problem.
+>
+> I am just getting into using python and am trying to setup an apache
+> server to do some web testing and I cannot get past this error.
+> ************************************************************************
+> ****
+>
+> MOD_PYTHON ERROR
+>
+> ProcessId: 5784
+> Interpreter: 'localhost'
+>
+> ServerName: 'localhost'
+> DocumentRoot: 'C:/wamp20h/www/'
+>
+> URI: '/test/mptest.py'
+> Location: None
+> Directory: 'C:/wamp20h/www/test/'
+> Filename: 'C:/wamp20h/www/test/mptest.py'
+> PathInfo: ''
+>
+> Phase: 'PythonHandler'
+> Handler: 'mptest'
+>
+> Traceback (most recent call last):
+>
+> File "D:\Python25\Lib\site-packages\mod_python\importer.py", line
+> 1537, in HandlerDispatch
+> default=default_handler, arg=req, silent=hlist.silent)
+>
+> File "D:\Python25\Lib\site-packages\mod_python\importer.py", line
+> 1202, in _process_target
+> module = import_module(module_name, path=path)
+>
+> File "D:\Python25\Lib\site-packages\mod_python\importer.py", line 296,
+> in import_module
+> log, import_path)
+>
+> File "D:\Python25\Lib\site-packages\mod_python\importer.py", line 680,
+> in import_module
+> execfile(file, module.__dict__)
+>
+> File "C:\wamp20h\www\test\mptest.py", line 3
+>
+> def handler(req):
+>
+> ^
+>
+> IndentationError: unexpected indent
+>
+>
+> MODULE CACHE DETAILS
+>
+> Accessed: Fri Jul 10 16:34:52 2009
+> Generation: 0
+>
+> _mp_d776aaec0b7e9783709d848459898c4a {
+> FileName: 'C:\\wamp20h\\www\\test\\mptest.py'
+> Instance: 1 [IMPORT]
+> Generation: 0 [ERROR]
+> Modified: Fri Jul 10 15:36:55 2009
+> }
+>
+> ************************************************************************
+> ****
+>
+> I am using a simple index.html to get to mptest.py
+>
+> Content of index.html:
+>
+> <a href="mptest.py">python test</a>
+>
+>
+> Content of mptest.py:
+>
+> from mod_python import apache
+>
+> def handler(req):
+> req.log_error('handler')
+> req.content_type = 'text/plain'
+> req.send_http_header()
+> req.write('mptest.py\n')
+> return apache.OK
+>
+> (I have removed any tab in the code and made sure that there are only 4
+> spaces before the code lines.)
+>
+> Here is the entry that I have in my httpd.conf file to access the
+> directory where mptest.py lives:
+>
+> <Directory "c:/wamp20h/www/test">
+> AddHandler mod_python .py
+> PythonHandler mptest
+> PythonDebug On
+> </Directory>
+>
+> I have the LoadModule line: LoadModule python_module
+> modules/mod_python.so in the httpd.conf file.
+>
+>
+> Here is the contents of my apache_error.log:
+>
+> ************************************************************************
+> ****
+>
+> Traceback (most recent call last):, referer: http://localhost/test/
+> File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+> line 1537, in HandlerDispatch\n default=default_handler, arg=req,
+> silent=hlist.silent), referer: http://localhost/test/
+>
+> File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+> line 1202, in _process_target\n module = import_module(module_name,
+> path=path), referer: http://localhost/test/
+>
+> File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+> line 296, in import_module\n log, import_path), referer:
+> http://localhost/test/
+>
+> File "D:\\Python25\\Lib\\site-packages\\mod_python\\importer.py",
+> line 680, in import_module\n execfile(file, module.__dict__),
+> referer: http://localhost/test/
+>
+> File "C:\\wamp20h\\www\\test\\mptest.py", line 3, referer:
+> http://localhost/test/
+>
+> def handler(req):, referer: http://localhost/test/
+> ^, referer: http://localhost/test/
+>
+> IndentationError: unexpected indent, referer: http://localhost/test/
+>
+> ************************************************************************
+> ****
+>
+> I am using Apache version 2.2.11 under WAmp Server install.
+>
+>
+>
+>
+> Matthew
+>
+>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+
+_______________________________________________
+Mod_python mailing list
+Mod_python@modpython.org
+http://mailman.modpython.org/mailman/listinfo/mod_python
+
+From mikei at activestate.com  Tue Jul 14 20:31:47 2009
+From: mikei at activestate.com (Mike Ivanov)
+Date: Tue Jul 14 20:32:20 2009
+Subject: [mod_python] python apache help
+In-Reply-To: <07d101ca04eb$fea28590$0500a8c0@yoda>
+References: <AE3F4B53B6E24C4DA63F993A753473DA04F02D30@hal9000mx.den.esri.com>	<88e286470907141635w2805cad7mdb5b9cb937188b5c@mail.gmail.com>
+	<07d101ca04eb$fea28590$0500a8c0@yoda>
+Message-ID: <4A5D2373.5020805@activestate.com>
+
+Dave Britton wrote:
+> download TextPad (and optionally install python syntax highlighting) and
+> look at your file with "show whitespace" on. Or, download and install python
+> for windows win32 "Pythonwin" and open your file in its script editor and
+> check it with "tab nanny" (the icon to the right of the little running
+> figure). It will show you the bad indents.
+>   
+
+May I suggest Komodo Edit (http://www.activestate.com/komodo_edit/) as 
+well? :-)
+
+Cheers,
+Mike
+
+From shashy at web.de  Thu Jul 16 07:02:48 2009
+From: shashy at web.de (shashy@web.de)
+Date: Thu Jul 16 07:02:57 2009
+Subject: [mod_python] refreshing status-page / long-running process
+Message-ID: <1860192612@web.de>
+
+Hi all,
+I'm on my way of setting up a web server using mod_python. The user fills out a form, the data is passed to a Python script, the result is presented to the user, done -- sounds pretty simple.
+In the first version, I used <form action="run.py" ...>. In the run.py script I get the parameters 
+def index(req):
+  params = req.form
+
+and write something like
+req.content_type = "text/html"
+  req.write('''<html>
+  <head><title>Your request is being processed.</title>
+  ...'''
+
+After some preprocessing the data is finally passed to the actual pipeline:
+    pipe = apache.import_module(pipeline.py")
+    pipe.runme(some,params,here, req)
+
+This script sends status messages to req in between all the calculations it has to do. In the end the user gets a link to his result directory and the run.py script finishes with return.
+
+That worked fine for the start, but it seems a bit awkward that the page is loading during the whole time the process needs to finish (~10 min). Mac's Safari by default has a time-out after 1 min, then it stops loading, so I had to come up with something different.
+
+
+The next idea was to use a system call appending an ampersand -> not to wait for the process to finish:
+  os.system("python pipeline.py %s/ &" % jobdir)
+With the downside, that I have to turn all the Python list and dict objects into text or use the pickle module to pack them and load them again in the script. Also I cannot send status messages from the long-running process.
+
+
+After that I tried to use os.fork() but ended up with a lot of processes that where not finished properly and high CPU usage. 
+
+I read something about double-fork/detaching/daemonizing, but did not entirely get it and think there must be a simpler way to do it.
+
+It's quite common to have a page refreshing every 10 seconds, checking for new results or status messages, while the time-consuming job is running. But I could not find a simple tutorial how to do that with mod_python. Can someone help me out? I'd be very happy. Sorry, if I wrote too much...
+
+I read some similar (but not quite) questions, but all suggestions on them seem to have their own problems. But it were mostly old threads and maybe something happened in the last years, so there is a safe and feasible way to do it.
+
+
+-- One last 'bonus' question, if the user decides (based on the intermediate results that are presented to him) that he does not want to wait for the analysis, he might leave the page or start over with a new analysis using different parameters. Is it possible to stop the running script then? 
+
+
+Thanks for sharing your time and wisdom.
+
+Best regards,
+
+Anne
+________________________________________________________________
+Neu: WEB.DE Doppel-FLAT mit Internet-Flatrate + Telefon-Flatrate
+f?r nur 19,99 Euro/mtl.!* http://produkte.web.de/go/02/
+
+
+From graham.dumpleton at gmail.com  Thu Jul 16 07:13:45 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu Jul 16 07:13:53 2009
+Subject: [mod_python] refreshing status-page / long-running process
+In-Reply-To: <1860192612@web.de>
+References: <1860192612@web.de>
+Message-ID: <88e286470907160413y20c5b307g9c04a76927227126@mail.gmail.com>
+
+2009/7/16  <shashy@web.de>:
+> Hi all,
+> I'm on my way of setting up a web server using mod_python. The user fills out a form, the data is passed to a Python script, the result is presented to the user, done -- sounds pretty simple.
+> In the first version, I used <form action="run.py" ...>. In the run.py script I get the parameters
+> def index(req):
+> ?params = req.form
+>
+> and write something like
+> req.content_type = "text/html"
+> ?req.write('''<html>
+> ?<head><title>Your request is being processed.</title>
+> ?...'''
+>
+> After some preprocessing the data is finally passed to the actual pipeline:
+> ? ?pipe = apache.import_module(pipeline.py")
+> ? ?pipe.runme(some,params,here, req)
+>
+> This script sends status messages to req in between all the calculations it has to do. In the end the user gets a link to his result directory and the run.py script finishes with return.
+>
+> That worked fine for the start, but it seems a bit awkward that the page is loading during the whole time the process needs to finish (~10 min). Mac's Safari by default has a time-out after 1 min, then it stops loading, so I had to come up with something different.
+>
+>
+> The next idea was to use a system call appending an ampersand -> not to wait for the process to finish:
+> ?os.system("python pipeline.py %s/ &" % jobdir)
+> With the downside, that I have to turn all the Python list and dict objects into text or use the pickle module to pack them and load them again in the script. Also I cannot send status messages from the long-running process.
+>
+>
+> After that I tried to use os.fork() but ended up with a lot of processes that where not finished properly and high CPU usage.
+>
+> I read something about double-fork/detaching/daemonizing, but did not entirely get it and think there must be a simpler way to do it.
+>
+> It's quite common to have a page refreshing every 10 seconds, checking for new results or status messages, while the time-consuming job is running. But I could not find a simple tutorial how to do that with mod_python. Can someone help me out? I'd be very happy. Sorry, if I wrote too much...
+>
+> I read some similar (but not quite) questions, but all suggestions on them seem to have their own problems. But it were mostly old threads and maybe something happened in the last years, so there is a safe and feasible way to do it.
+>
+>
+> -- One last 'bonus' question, if the user decides (based on the intermediate results that are presented to him) that he does not want to wait for the analysis, he might leave the page or start over with a new analysis using different parameters. Is it possible to stop the running script then?
+
+Push the work to a backend server using an XML-RPC interface. The
+request should just queue the work and return immediately. A separate
+thread within backend server would then process requests from the
+queue. For status, you make subsequent XML-RPC requests to gauge
+status. Subsequent requests could cancel an in progress job if you
+provide a way of signalling a worker thread that it should stop.
+
+Graham
+
+From evan at eklitzke.org  Thu Jul 16 20:25:48 2009
+From: evan at eklitzke.org (Evan Klitzke)
+Date: Thu Jul 16 20:25:55 2009
+Subject: [mod_python] Question about write method of mp_request objects
+Message-ID: <ae29905b0907161725m1c9bd22dp79a40f71e66d612e@mail.gmail.com>
+
+Hi all,
+
+I've been profiling a mod_python app using cProfile. In the cProfile
+data, I'm noticing that on some slow requests the write() method on
+the mp_request object is taking up a lot of time.
+
+My question is: does the write() method actually include the time sent
+sending data over the wire to the client, or is it just some sort of
+memory copy into the request object, which gets flushed and sent to
+the client further down the line? If the write() method takes a long
+amount of time to send a reasonable amount of data, does it indicate
+that something weird is going on in mod_python, or just that the
+consuming client is slow?
+
+Thanks.
+
+-- 
+Evan Klitzke <evan@eklitzke.org> :wq
+From graham.dumpleton at gmail.com  Thu Jul 16 20:49:03 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu Jul 16 20:49:11 2009
+Subject: [mod_python] Question about write method of mp_request objects
+In-Reply-To: <ae29905b0907161725m1c9bd22dp79a40f71e66d612e@mail.gmail.com>
+References: <ae29905b0907161725m1c9bd22dp79a40f71e66d612e@mail.gmail.com>
+Message-ID: <88e286470907161749n3287af90v8419a79aa3c612c3@mail.gmail.com>
+
+2009/7/17 Evan Klitzke <evan@eklitzke.org>:
+> Hi all,
+>
+> I've been profiling a mod_python app using cProfile. In the cProfile
+> data, I'm noticing that on some slow requests the write() method on
+> the mp_request object is taking up a lot of time.
+>
+> My question is: does the write() method actually include the time sent
+> sending data over the wire to the client, or is it just some sort of
+> memory copy into the request object, which gets flushed and sent to
+> the client further down the line? If the write() method takes a long
+> amount of time to send a reasonable amount of data, does it indicate
+> that something weird is going on in mod_python, or just that the
+> consuming client is slow?
+
+It depends a bit on what Apache output filters are registered and how
+write() is called. By default write() will automatically attempt to
+flush data. So if argument not supplied to say don't flush, then yes,
+would count time to send data.
+
+That said, some output filters may buffer output data for some reason
+and so flush request would be ignored. If no such buffering output
+filters are registered for the request, then it will make it down to
+the core output filter and would only return once all data is written
+or socket error occurs.
+
+Graham
+From ray at aarden.us  Tue Jul 21 07:06:33 2009
+From: ray at aarden.us (ray@aarden.us)
+Date: Tue Jul 21 07:06:44 2009
+Subject: [mod_python] Windows Binaries for Python 2.6
+Message-ID: <20090721040633.1753ead7c2b35a7d15c5b99498690bcc.eac213f9d9.wbe@email.secureserver.net>
+
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090721/572cecef/attachment.html
+From graham.dumpleton at gmail.com  Tue Jul 21 07:21:35 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Tue Jul 21 07:21:45 2009
+Subject: [mod_python] Windows Binaries for Python 2.6
+In-Reply-To: <20090721040633.1753ead7c2b35a7d15c5b99498690bcc.eac213f9d9.wbe@email.secureserver.net>
+References: <20090721040633.1753ead7c2b35a7d15c5b99498690bcc.eac213f9d9.wbe@email.secureserver.net>
+Message-ID: <88e286470907210421o3a642853pd38a546d21eb5bce@mail.gmail.com>
+
+2009/7/21  <ray@aarden.us>:
+> I am planning an installation of Trac, SVN, and Apache.? The current version
+> of Python supported by all is 2.6.? But I don't see an installation package
+> for mod_python for python 2.6.? Did I miss it?? What are my alternatives and
+> what are the risks?
+
+Use mod_wsgi instead. Python 2.6 binaries are on the mod_wsgi site.
+
+  http://www.modwsgi.org
+  http://code.google.com/p/modwsgi/downloads/list
+
+Graham
+
+From scott at zetlan.net  Wed Jul 22 12:47:54 2009
+From: scott at zetlan.net (Scott Zetlan)
+Date: Wed Jul 22 12:48:22 2009
+Subject: [mod_python] Help installing mod_python on OS X Leopard
+Message-ID: <C8D7D907-FEB3-45DA-9AC1-481F54BA6B80@zetlan.net>
+
+Apologies if I'm rehashing an old issue, but I've reviewed threads for  
+installation of mod_python on OS X, and don't seem to be getting the  
+error resolution quite right.
+
+I have a MacPorts-installed Python2.6 as well as the out-of-the-box  
+Python2.5 on my OS X host.  In theory I can swap between them by  
+editing my profile?  So when my path points to the Apple-delivered  
+python (2.5), and I attempt to install, I wind up with a mod_python  
+that appears to be missing references to the framework entirely:
+
+$ otool -L /usr/libexec/apache2/mod_python.so
+/usr/libexec/apache2/mod_python.so:
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current  
+version 111.1.4)
+	/usr/lib/libgcc_s.1.dylib (compatibility version 1.0.0, current  
+version 1.0.0)
+
+and apachectl configtest reports:
+httpd: Syntax error on line 117 of /private/etc/apache2/httpd.conf:  
+Cannot load /usr/libexec/apache2/mod_python.so into server: dlopen(/ 
+usr/libexec/apache2/mod_python.so, 10): Symbol not found:  
+_PyObject_GenericGetAttr\n  Referenced from: /usr/libexec/apache2/ 
+mod_python.so\n  Expected in: dynamic lookup\n
+
+using the MacPorts version, I've changed the LDFLAGS in src/Makefile  
+to read:
+LDFLAGS= -Wl,-framework,Python  -u _PyMac_Error $(PYTHONFRAMEWORKDIR)/ 
+Versions/$(VERSION)/$(PYTHONFRAMEWORK)   -arch ppc -arch i386 -isy     
+sroot /Developer/SDKs/MacOSX10.4u.sdk -g -arch x86_64 -Wl,-F/Library/ 
+Frameworks/Python.framework
+
+and compiling/installing produces /usr/libexec/apache2/mod_python.so,  
+with this otool output:
+$ otool -L /usr/libexec/apache2/mod_python.so
+/usr/libexec/apache2/mod_python.so:
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current  
+version 111.1.4)
+	/Library/Frameworks/Python.framework/Versions/2.6/Python  
+(compatibility version 2.6.0, current version 2.6.0)
+	/usr/lib/libgcc_s.1.dylib (compatibility version 1.0.0, current  
+version 1.0.0)
+
+this seems right, but I get the same dlopen error on apachectl  
+configtest:
+httpd: Syntax error on line 117 of /private/etc/apache2/httpd.conf:  
+Cannot load /usr/libexec/apache2/mod_python.so into server: dlopen(/ 
+usr/libexec/apache2/mod_python.so, 10): Symbol not found:  
+_PyObject_GenericGetAttr\n  Referenced from: /usr/libexec/apache2/ 
+mod_python.so\n  Expected in: dynamic lookup\n
+
+Any clues on what I am doing wrong?
+From graham.dumpleton at gmail.com  Wed Jul 22 21:07:59 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed Jul 22 21:08:01 2009
+Subject: [mod_python] Help installing mod_python on OS X Leopard
+In-Reply-To: <C8D7D907-FEB3-45DA-9AC1-481F54BA6B80@zetlan.net>
+References: <C8D7D907-FEB3-45DA-9AC1-481F54BA6B80@zetlan.net>
+Message-ID: <88e286470907221807o37faa18y8930c7040e152c67@mail.gmail.com>
+
+2009/7/23 Scott Zetlan <scott@zetlan.net>:
+> Apologies if I'm rehashing an old issue, but I've reviewed threads for
+> installation of mod_python on OS X, and don't seem to be getting the error
+> resolution quite right.
+>
+> I have a MacPorts-installed Python2.6 as well as the out-of-the-box
+> Python2.5 on my OS X host. ?In theory I can swap between them by editing my
+> profile? ?So when my path points to the Apple-delivered python (2.5), and I
+> attempt to install, I wind up with a mod_python that appears to be missing
+> references to the framework entirely:
+>
+> $ otool -L /usr/libexec/apache2/mod_python.so
+> /usr/libexec/apache2/mod_python.so:
+> ? ? ? ?/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current
+> version 111.1.4)
+> ? ? ? ?/usr/lib/libgcc_s.1.dylib (compatibility version 1.0.0, current
+> version 1.0.0)
+>
+> and apachectl configtest reports:
+> httpd: Syntax error on line 117 of /private/etc/apache2/httpd.conf: Cannot
+> load /usr/libexec/apache2/mod_python.so into server:
+> dlopen(/usr/libexec/apache2/mod_python.so, 10): Symbol not found:
+> _PyObject_GenericGetAttr\n ?Referenced from:
+> /usr/libexec/apache2/mod_python.so\n ?Expected in: dynamic lookup\n
+>
+> using the MacPorts version, I've changed the LDFLAGS in src/Makefile to
+> read:
+> LDFLAGS= -Wl,-framework,Python ?-u _PyMac_Error
+> $(PYTHONFRAMEWORKDIR)/Versions/$(VERSION)/$(PYTHONFRAMEWORK) ? -arch ppc
+> -arch i386 -isy ? ?sroot /Developer/SDKs/MacOSX10.4u.sdk -g -arch x86_64
+> -Wl,-F/Library/Frameworks/Python.framework
+>
+> and compiling/installing produces /usr/libexec/apache2/mod_python.so, with
+> this otool output:
+> $ otool -L /usr/libexec/apache2/mod_python.so
+> /usr/libexec/apache2/mod_python.so:
+> ? ? ? ?/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current
+> version 111.1.4)
+> ? ? ? ?/Library/Frameworks/Python.framework/Versions/2.6/Python
+> (compatibility version 2.6.0, current version 2.6.0)
+> ? ? ? ?/usr/lib/libgcc_s.1.dylib (compatibility version 1.0.0, current
+> version 1.0.0)
+>
+> this seems right, but I get the same dlopen error on apachectl configtest:
+> httpd: Syntax error on line 117 of /private/etc/apache2/httpd.conf: Cannot
+> load /usr/libexec/apache2/mod_python.so into server:
+> dlopen(/usr/libexec/apache2/mod_python.so, 10): Symbol not found:
+> _PyObject_GenericGetAttr\n ?Referenced from:
+> /usr/libexec/apache2/mod_python.so\n ?Expected in: dynamic lookup\n
+>
+> Any clues on what I am doing wrong?
+
+You are not doing anything wrong, even the mod_python code in
+subversion trunk is now not likely to build properly on newer MacOS X
+versions, especially with MacPorts and newer Python versions.
+
+My first question would be whether you really need to use mod_python?
+
+If you are using a Python web application that supports WSGI, you
+would be better off using mod_wsgi as it has sorted out all these
+build issues for newest MacOS X versions and Python installations.
+Even then for certain combinations, and if wanting to use mod_wsgi
+2.X, as opposed to mod_wsgi 3.0 release candidates, you need to drag
+down configure/Makefile from subversion repository to get it to build.
+There will be a mod_wsgi 2.6 which has more MacOS X build fixes soon
+though.
+
+At the moment I am not particularly inclined to be going back and
+patching mod_python any further to resolve such issues.
+
+Graham
+
+From mihamina at gulfsat.mg  Wed Jul 22 23:49:52 2009
+From: mihamina at gulfsat.mg (Rakotomandimby Mihamina)
+Date: Wed Jul 22 23:50:11 2009
+Subject: [mod_python] spaces from a web form
+Message-ID: <4A67DDE0.6070200@gulfsat.mg>
+
+Hi all
+let the following simplified code be:
+
+   import re
+   textarea=for.getfirst('text')
+   spaces=re.compile('^( )+$')
+   new_txt=re.sub(spaces, '_', textarea)
+
+The HTML is a very simple form with a textarea.
+The substitution doesnt occur. The '+' signs
+in the Url seem to be stripped and replaced by
+something not matched as a space;
+
+I already tried with something like "\s" in the regexp
+but no more luck. Any more tips?
+Thank you.
+
+-- 
+                             Architecte Informatique:
+    Administration Systeme, Recherche & Developpement
+                                   + 261 32 11 401 65
+Pensez a l'environnement avant d'imprimer ce message
+From amand.tihon at alrj.org  Thu Jul 23 01:38:35 2009
+From: amand.tihon at alrj.org (Amand Tihon)
+Date: Thu Jul 23 01:38:47 2009
+Subject: [mod_python] spaces from a web form
+In-Reply-To: <4A67DDE0.6070200@gulfsat.mg>
+References: <4A67DDE0.6070200@gulfsat.mg>
+Message-ID: <200907230738.41117.amand.tihon@alrj.org>
+
+Le jeudi 23 juillet 2009 05:49:52, Rakotomandimby Mihamina a ?crit :
+> Hi all
+> let the following simplified code be:
+>
+>    import re
+>    textarea=for.getfirst('text')
+>    spaces=re.compile('^( )+$')
+
+This regexp will only match a string that contains nothing else than one or 
+more spaces.
+
+^        start of the string
+( )+     one or more space
+$        end of the string
+
+Remove the caret and the dollar sign, and it should be fine.
+
+-- 
+Amand Tihon
+1 Rue du Ruchaux, 1490 Court-St-Etienne, Belgium
++32 479 207 743
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: not available
+Type: application/pgp-signature
+Size: 481 bytes
+Desc: This is a digitally signed message part.
+Url : http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090723/78e21bc5/attachment.bin
+From mihamina at gulfsat.mg  Thu Jul 23 02:21:15 2009
+From: mihamina at gulfsat.mg (Rakotomandimby Mihamina)
+Date: Thu Jul 23 02:21:34 2009
+Subject: [mod_python] spaces from a web form
+In-Reply-To: <200907230738.41117.amand.tihon@alrj.org>
+References: <4A67DDE0.6070200@gulfsat.mg>
+	<200907230738.41117.amand.tihon@alrj.org>
+Message-ID: <4A68015B.4050404@gulfsat.mg>
+
+07/23/2009 08:38 AM, Amand Tihon::
+>> let the following simplified code be:
+>>
+>>     import re
+>>     textarea=for.getfirst('text')
+>>     spaces=re.compile('^( )+$')
+>
+> This regexp will only match a string that contains nothing else than one or
+> more spaces.
+
+That is the goal: If only "spaces", strip it to ''.
+I know there is a built-in stripping utility, but as I said,
+I simplified the problem.
+
+> Remove the caret and the dollar sign, and it should be fine.
+
+That will not achieve our final goal.
+Wa want to consider "only spaces" as ''.
+
+The problem is if I enter manu spaces in the form, and just that,
+it's not matched. already tested in ipython interactive promt,
+the logic is OK.
+
+-- 
+                             Architecte Informatique:
+    Administration Systeme, Recherche & Developpement
+                                   + 261 32 11 401 65
+Pensez a l'environnement avant d'imprimer ce message
+From andy at robotlovesyou.com  Thu Jul 23 06:16:22 2009
+From: andy at robotlovesyou.com (Andrew Smith)
+Date: Thu Jul 23 06:16:33 2009
+Subject: [mod_python] [SPAM] mod_python/mod_wsgi and the apache processing
+	pipeline
+Message-ID: <F6F20765-D38F-43E2-B82D-A30285B024AA@robotlovesyou.com>
+
+Hello
+
+I have a couple of questions about the capabilities of mod_python vs  
+mod_wsgi.
+
+My current (mis?)understanding is that mod_wsgi does not allow me to  
+provide handlers for apache stages such as PostReadRequest or Authz in  
+the same way that mod_python does, though I understand that I can  
+create a mod_wsgi Authentication provider.
+
+So my questions are 1)Is my understanding of the situation correct
+and 2) Are there any future plans for mod_wsgi to allow developers to  
+plug into the apache processing pipeline in the same way that  
+mod_python does now?
+
+Thanks
+
+Andy
+From graham.dumpleton at gmail.com  Thu Jul 23 07:06:30 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu Jul 23 07:06:33 2009
+Subject: [mod_python] [SPAM] mod_python/mod_wsgi and the apache processing
+	pipeline
+In-Reply-To: <F6F20765-D38F-43E2-B82D-A30285B024AA@robotlovesyou.com>
+References: <F6F20765-D38F-43E2-B82D-A30285B024AA@robotlovesyou.com>
+Message-ID: <88e286470907230406k6a9c83dn71ed6f3cff879618@mail.gmail.com>
+
+2009/7/23 Andrew Smith <andy@robotlovesyou.com>:
+> Hello
+>
+> I have a couple of questions about the capabilities of mod_python vs
+> mod_wsgi.
+>
+> My current (mis?)understanding is that mod_wsgi does not allow me to provide
+> handlers for apache stages such as PostReadRequest or Authz in the same way
+> that mod_python does,
+
+Correct.
+
+> though I understand that I can create a mod_wsgi Authentication provider.
+
+As well as custom group authorization mechanism.
+
+> So my questions are 1)Is my understanding of the situation correct
+
+Close enough.
+
+> and 2) Are there any future plans for mod_wsgi to allow developers to plug
+> into the apache processing pipeline in the same way that mod_python does
+> now?
+
+Undecided.
+
+Is interesting challenge, but a huge amount of effort for something
+that would be used by a handful of people.
+
+>From what I have seen people use various handler phases for, they
+would in many cases be able to achieve the same thing using
+mod_headers, mod_rewrite or other custom Apache modules, much more
+easily and much more efficiently. Although Python makes writing
+content handler nicer, the overhead of Python makes it a very poor
+choice for other handler phases and input/output filters.
+
+My question therefore is, what are you trying to do and why do you
+think that Python would be a good way of doing it? In what ways don't
+other Apache modules already do what you want, or allow you a means of
+doing it?
+
+Graham
+From graham.dumpleton at gmail.com  Thu Jul 23 08:23:28 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu Jul 23 08:23:37 2009
+Subject: [mod_python] [SPAM] mod_python/mod_wsgi and the apache processing
+	pipeline
+In-Reply-To: <5D1A7DD7-0400-4840-808C-49B6FF1A3A72@robotlovesyou.com>
+References: <F6F20765-D38F-43E2-B82D-A30285B024AA@robotlovesyou.com>
+	<88e286470907230406k6a9c83dn71ed6f3cff879618@mail.gmail.com>
+	<5D1A7DD7-0400-4840-808C-49B6FF1A3A72@robotlovesyou.com>
+Message-ID: <88e286470907230523u350e0b33m54ea95630ceaba09@mail.gmail.com>
+
+2009/7/23 Andrew Smith <andy@robotlovesyou.com>:
+> Hello Graham
+>
+> Thanks for getting back to me
+>
+> What I am doing is implementing a form based authentication scheme, which I
+> want to work for static content as well as dynamic. (hence implementing it
+> as a handler in python) I don't want to use basic authentication because it
+> does not offer the security or functionality I require. There are obviously
+> already forms based authentication systems available but none which either
+> a) The exact functionality I want, or b) Close enough to modify and coded in
+> a language I already know.
+>
+> Right now the prototype I have is written using mod_python and hooked into
+> apache using the PythonAccessHandler option. (The PythonAuthenHandler phase
+> doesn't seem to fire unless apache is configured to use Authentication for a
+> particular resource, which I guess makes sense.)
+>
+> I realise that there will be a performance hit for implementing this using
+> mod_python but I figure I can manage that by optimising the structure of the
+> site and ensuring that I only authenticate users for resources which
+> actually need it.
+
+Please use reply-all and keep discussion on list.
+
+Have you looked at mod_auth_tkt?
+
+Not that it will help you right now, but Apache 2.4 will have a
+mod_session module along with other modules to help implement SSO
+across static files and dynamic applications using form based
+authentication mechanisms with form provided by however you want to
+provide and in format you want it.
+
+What mod_auth_tkt can achieve now is probably now much different. If
+you have looked at it, why wasn't it suitable?
+
+Graham
+
+> Thanks
+>
+> Andy
+>
+>
+>
+> On 23 Jul 2009, at 12:06, Graham Dumpleton wrote:
+>
+>> 2009/7/23 Andrew Smith <andy@robotlovesyou.com>:
+>>>
+>>> Hello
+>>>
+>>> I have a couple of questions about the capabilities of mod_python vs
+>>> mod_wsgi.
+>>>
+>>> My current (mis?)understanding is that mod_wsgi does not allow me to
+>>> provide
+>>> handlers for apache stages such as PostReadRequest or Authz in the same
+>>> way
+>>> that mod_python does,
+>>
+>> Correct.
+>>
+>>> though I understand that I can create a mod_wsgi Authentication provider.
+>>
+>> As well as custom group authorization mechanism.
+>>
+>>> So my questions are 1)Is my understanding of the situation correct
+>>
+>> Close enough.
+>>
+>>> and 2) Are there any future plans for mod_wsgi to allow developers to
+>>> plug
+>>> into the apache processing pipeline in the same way that mod_python does
+>>> now?
+>>
+>> Undecided.
+>>
+>> Is interesting challenge, but a huge amount of effort for something
+>> that would be used by a handful of people.
+>>
+>> From what I have seen people use various handler phases for, they
+>> would in many cases be able to achieve the same thing using
+>> mod_headers, mod_rewrite or other custom Apache modules, much more
+>> easily and much more efficiently. Although Python makes writing
+>> content handler nicer, the overhead of Python makes it a very poor
+>> choice for other handler phases and input/output filters.
+>>
+>> My question therefore is, what are you trying to do and why do you
+>> think that Python would be a good way of doing it? In what ways don't
+>> other Apache modules already do what you want, or allow you a means of
+>> doing it?
+>>
+>> Graham
+>
+>
+From clodoaldo.pinto.neto at gmail.com  Thu Jul 23 09:32:17 2009
+From: clodoaldo.pinto.neto at gmail.com (Clodoaldo Pinto Neto)
+Date: Thu Jul 23 09:32:27 2009
+Subject: [mod_python] spaces from a web form
+In-Reply-To: <4A67DDE0.6070200@gulfsat.mg>
+References: <4A67DDE0.6070200@gulfsat.mg>
+Message-ID: <a595de7a0907230632re9dcb4cuf6e3c54f47b6b0fa@mail.gmail.com>
+
+2009/7/23 Rakotomandimby Mihamina <mihamina@gulfsat.mg>:
+> Hi all
+> let the following simplified code be:
+>
+> ?import re
+> ?textarea=for.getfirst('text')
+> ?spaces=re.compile('^( )+$')
+> ?new_txt=re.sub(spaces, '_', textarea)
+>
+> The HTML is a very simple form with a textarea.
+> The substitution doesnt occur. The '+' signs
+> in the Url seem to be stripped and replaced by
+> something not matched as a space;
+
+What does this code shows?:
+
+[ord(x) for x in unicode(textarea, 'utf8')]
+
+Replace utf8 for whatever is the used encoding.
+
+The best aproach is to just strip leading and trailing spaces:
+
+new_txt = textarea.lstrip(' ').rstrip(' ')
+
+Regards, Clodoaldo
+
+>
+> I already tried with something like "\s" in the regexp
+> but no more luck. Any more tips?
+> Thank you.
+>
+> --
+> ? ? ? ? ? ? ? ? ? ? ? ? ? ?Architecte Informatique:
+> ? Administration Systeme, Recherche & Developpement
+> ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?+ 261 32 11 401 65
+> Pensez a l'environnement avant d'imprimer ce message
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+
+From scott at zetlan.net  Thu Jul 23 10:34:35 2009
+From: scott at zetlan.net (Scott Zetlan)
+Date: Thu Jul 23 10:34:47 2009
+Subject: [mod_python] Help installing mod_python on OS X Leopard
+In-Reply-To: <88e286470907221807o37faa18y8930c7040e152c67@mail.gmail.com>
+References: <C8D7D907-FEB3-45DA-9AC1-481F54BA6B80@zetlan.net>
+	<88e286470907221807o37faa18y8930c7040e152c67@mail.gmail.com>
+Message-ID: <75F17755-DAD5-4C7C-8924-BADF9078903B@zetlan.net>
+
+
+On Jul 22, 2009, at 9:07 PM, Graham Dumpleton wrote:
+
+> You are not doing anything wrong, even the mod_python code in
+> subversion trunk is now not likely to build properly on newer MacOS X
+> versions, especially with MacPorts and newer Python versions.
+>
+> My first question would be whether you really need to use mod_python?
+
+I suppose not, but the development team I'm working with has a strong  
+preference for python server pages for a particular project, and the  
+creative team handling the front-end interface all uses Macs.  So  
+getting a consolidated environment together on a single platform the  
+creative staff can use is a priority.  I'm betting the development  
+team could learn WSGI, but it's unknown whether the production  
+platform supports it.
+
+I'm unclear on the future of mod_python -- are you saying that it's  
+going away, and being replaced (sort of) by mod_wsgi?  If so, then it  
+would probably be foolish to start any new projects using PSP.
+
+>
+> If you are using a Python web application that supports WSGI, you
+> would be better off using mod_wsgi as it has sorted out all these
+> build issues for newest MacOS X versions and Python installations.
+> Even then for certain combinations, and if wanting to use mod_wsgi
+> 2.X, as opposed to mod_wsgi 3.0 release candidates, you need to drag
+> down configure/Makefile from subversion repository to get it to build.
+> There will be a mod_wsgi 2.6 which has more MacOS X build fixes soon
+> though.
+
+From andy at robotlovesyou.com  Thu Jul 23 15:12:10 2009
+From: andy at robotlovesyou.com (Andrew Smith)
+Date: Thu Jul 23 15:12:20 2009
+Subject: [mod_python] [SPAM] mod_python/mod_wsgi and the apache processing
+	pipeline
+In-Reply-To: <88e286470907230523u350e0b33m54ea95630ceaba09@mail.gmail.com>
+References: <F6F20765-D38F-43E2-B82D-A30285B024AA@robotlovesyou.com>
+	<88e286470907230406k6a9c83dn71ed6f3cff879618@mail.gmail.com>
+	<5D1A7DD7-0400-4840-808C-49B6FF1A3A72@robotlovesyou.com>
+	<88e286470907230523u350e0b33m54ea95630ceaba09@mail.gmail.com>
+Message-ID: <1B38AAEE-2A11-41AF-BE73-138560B5E10B@robotlovesyou.com>
+
+Hello Graham
+
+Apologies for not replying to all before. I'm too used to having my  
+had held for me by google groups ;)
+
+I'd not come across mod_auth_tkt as I'm pretty new to linux/apache  
+having been coding on windows for far far too long and for some reason  
+it didn't come up when I was searching for suitable solutions. It does  
+look very promising though. If that allows me to drop my requirement  
+for a hook into apache's processing pipeline then I'll be able to move  
+across to mod_wsgi, which seems to be the standard for python/apache  
+integration these days.
+
+Thanks!
+
+Andy
+
+
+On 23 Jul 2009, at 13:23, Graham Dumpleton wrote:
+
+> 2009/7/23 Andrew Smith <andy@robotlovesyou.com>:
+>> Hello Graham
+>>
+>> Thanks for getting back to me
+>>
+>> What I am doing is implementing a form based authentication scheme,  
+>> which I
+>> want to work for static content as well as dynamic. (hence  
+>> implementing it
+>> as a handler in python) I don't want to use basic authentication  
+>> because it
+>> does not offer the security or functionality I require. There are  
+>> obviously
+>> already forms based authentication systems available but none which  
+>> either
+>> a) The exact functionality I want, or b) Close enough to modify and  
+>> coded in
+>> a language I already know.
+>>
+>> Right now the prototype I have is written using mod_python and  
+>> hooked into
+>> apache using the PythonAccessHandler option. (The  
+>> PythonAuthenHandler phase
+>> doesn't seem to fire unless apache is configured to use  
+>> Authentication for a
+>> particular resource, which I guess makes sense.)
+>>
+>> I realise that there will be a performance hit for implementing  
+>> this using
+>> mod_python but I figure I can manage that by optimising the  
+>> structure of the
+>> site and ensuring that I only authenticate users for resources which
+>> actually need it.
+>
+> Please use reply-all and keep discussion on list.
+>
+> Have you looked at mod_auth_tkt?
+>
+> Not that it will help you right now, but Apache 2.4 will have a
+> mod_session module along with other modules to help implement SSO
+> across static files and dynamic applications using form based
+> authentication mechanisms with form provided by however you want to
+> provide and in format you want it.
+>
+> What mod_auth_tkt can achieve now is probably now much different. If
+> you have looked at it, why wasn't it suitable?
+>
+> Graham
+>
+>> Thanks
+>>
+>> Andy
+>>
+>>
+>>
+>> On 23 Jul 2009, at 12:06, Graham Dumpleton wrote:
+>>
+>>> 2009/7/23 Andrew Smith <andy@robotlovesyou.com>:
+>>>>
+>>>> Hello
+>>>>
+>>>> I have a couple of questions about the capabilities of mod_python  
+>>>> vs
+>>>> mod_wsgi.
+>>>>
+>>>> My current (mis?)understanding is that mod_wsgi does not allow me  
+>>>> to
+>>>> provide
+>>>> handlers for apache stages such as PostReadRequest or Authz in  
+>>>> the same
+>>>> way
+>>>> that mod_python does,
+>>>
+>>> Correct.
+>>>
+>>>> though I understand that I can create a mod_wsgi Authentication  
+>>>> provider.
+>>>
+>>> As well as custom group authorization mechanism.
+>>>
+>>>> So my questions are 1)Is my understanding of the situation correct
+>>>
+>>> Close enough.
+>>>
+>>>> and 2) Are there any future plans for mod_wsgi to allow  
+>>>> developers to
+>>>> plug
+>>>> into the apache processing pipeline in the same way that  
+>>>> mod_python does
+>>>> now?
+>>>
+>>> Undecided.
+>>>
+>>> Is interesting challenge, but a huge amount of effort for something
+>>> that would be used by a handful of people.
+>>>
+>>> From what I have seen people use various handler phases for, they
+>>> would in many cases be able to achieve the same thing using
+>>> mod_headers, mod_rewrite or other custom Apache modules, much more
+>>> easily and much more efficiently. Although Python makes writing
+>>> content handler nicer, the overhead of Python makes it a very poor
+>>> choice for other handler phases and input/output filters.
+>>>
+>>> My question therefore is, what are you trying to do and why do you
+>>> think that Python would be a good way of doing it? In what ways  
+>>> don't
+>>> other Apache modules already do what you want, or allow you a  
+>>> means of
+>>> doing it?
+>>>
+>>> Graham
+>>
+>>
+
+From graham.dumpleton at gmail.com  Thu Jul 23 19:17:36 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu Jul 23 19:17:45 2009
+Subject: [mod_python] Help installing mod_python on OS X Leopard
+In-Reply-To: <75F17755-DAD5-4C7C-8924-BADF9078903B@zetlan.net>
+References: <C8D7D907-FEB3-45DA-9AC1-481F54BA6B80@zetlan.net>
+	<88e286470907221807o37faa18y8930c7040e152c67@mail.gmail.com>
+	<75F17755-DAD5-4C7C-8924-BADF9078903B@zetlan.net>
+Message-ID: <88e286470907231617w6a08fb63j60f9196064c85068@mail.gmail.com>
+
+2009/7/24 Scott Zetlan <scott@zetlan.net>:
+>
+> On Jul 22, 2009, at 9:07 PM, Graham Dumpleton wrote:
+>
+>> You are not doing anything wrong, even the mod_python code in
+>> subversion trunk is now not likely to build properly on newer MacOS X
+>> versions, especially with MacPorts and newer Python versions.
+>>
+>> My first question would be whether you really need to use mod_python?
+>
+> I suppose not, but the development team I'm working with has a strong
+> preference for python server pages for a particular project, and the
+> creative team handling the front-end interface all uses Macs. ?So getting a
+> consolidated environment together on a single platform the creative staff
+> can use is a priority. ?I'm betting the development team could learn WSGI,
+> but it's unknown whether the production platform supports it.
+
+You don't need to learn WSGI, there are plenty of Python web
+frameworks out there that talk WSGI but then present you with a more
+usable interface. These days there are also much better and much more
+powerful options to PSP.
+
+> I'm unclear on the future of mod_python -- are you saying that it's going
+> away,
+
+There has been no release for a number of years and bo one is actively
+maintaining it. The last official release will no longer build on
+latest Apache versions and packages are only available for Linux boxes
+because Linux package maintainers are patching it in order to get it
+to compile. The last official result will also not build properly on
+MacOS X Leopard if using Apple's own Apache, or with certain versions
+of both fink and MacPorts Python, plus self compiled Python
+installations. The last official release also has bugs in PSP
+functionality in area of module importing and module search paths.
+
+In other words, the software rot is definitely kicking in and it has
+an uncertain future at the moment. No one with any sort of proven
+track record of use of mod_python or Apache module knowledge has
+stepped up to take over and because of rules for ASF projects, not
+even sure how maintenance of the project could even be transitioned
+over to anyone as still wouldn't have enough people to satisfy voting
+requirements as set down by ASF for release.
+
+The mod_python project does in many respects already classify for
+being pushed into the ASF project attic as found at:
+
+  http://attic.apache.org/
+
+This is where unmaintained ASF projects go to die, or wait until
+someone else picks them up and starts looking after them.
+
+> and being replaced (sort of) by mod_wsgi?
+
+For hosting of high level Python web applications or toolkits, the
+answer is arguably yes. The mod_python module should only really be
+required if you absolutely needing a way of hooking into Apache
+handler phases or filtering system.
+
+> If so, then it would
+> probably be foolish to start any new projects using PSP.
+
+I'd suggest that using PSP shouldn't be your first option. Similarly,
+would not be recommending use of mod_python.publisher either. For long
+term survival and maintainability of your code, you would be much
+better off looking at any of the WSGI toolkits or frameworks. The more
+prominent ones worth looking at are Werkzeug, Django, Pylons and
+TurboGears. There are many others besides these though and which you
+might use depends on whether you want a toolkit or a full blown web
+stack.
+
+Graham
+
+>> If you are using a Python web application that supports WSGI, you
+>> would be better off using mod_wsgi as it has sorted out all these
+>> build issues for newest MacOS X versions and Python installations.
+>> Even then for certain combinations, and if wanting to use mod_wsgi
+>> 2.X, as opposed to mod_wsgi 3.0 release candidates, you need to drag
+>> down configure/Makefile from subversion repository to get it to build.
+>> There will be a mod_wsgi 2.6 which has more MacOS X build fixes soon
+>> though.
+>
+>
+
+From lists at theflorys.org  Sun Jul 26 11:19:17 2009
+From: lists at theflorys.org (David)
+Date: Sun Jul 26 21:45:17 2009
+Subject: [mod_python] Re: Windows Binaries for Python 2.6
+In-Reply-To: <88e286470907210421o3a642853pd38a546d21eb5bce@mail.gmail.com>
+References: <20090721040633.1753ead7c2b35a7d15c5b99498690bcc.eac213f9d9.wbe@email.secureserver.net>
+	<88e286470907210421o3a642853pd38a546d21eb5bce@mail.gmail.com>
+Message-ID: <h4hs5m$gue$1@ger.gmane.org>
+
+On 7/21/2009 7:21 AM, Graham Dumpleton wrote:
+> 2009/7/21  <ray@aarden.us>:
+>> I am planning an installation of Trac, SVN, and Apache.  The current version
+>> of Python supported by all is 2.6.  But I don't see an installation package
+>> for mod_python for python 2.6.  Did I miss it?  What are my alternatives and
+>> what are the risks?
+> 
+> Use mod_wsgi instead. Python 2.6 binaries are on the mod_wsgi site.
+> 
+>   http://www.modwsgi.org
+>   http://code.google.com/p/modwsgi/downloads/list
+> 
+> Graham
+Is this a plug for mod_wsgi or an assertion that mod_python has been
+replaced?  Is mod_wsgy a better solution?
+
+From graham.dumpleton at gmail.com  Sun Jul 26 22:02:00 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Sun Jul 26 22:02:04 2009
+Subject: [mod_python] Re: Windows Binaries for Python 2.6
+In-Reply-To: <h4hs5m$gue$1@ger.gmane.org>
+References: <20090721040633.1753ead7c2b35a7d15c5b99498690bcc.eac213f9d9.wbe@email.secureserver.net>
+	<88e286470907210421o3a642853pd38a546d21eb5bce@mail.gmail.com>
+	<h4hs5m$gue$1@ger.gmane.org>
+Message-ID: <88e286470907261902t9c2401fp427c0ee6b8294298@mail.gmail.com>
+
+2009/7/27 David <lists@theflorys.org>:
+> On 7/21/2009 7:21 AM, Graham Dumpleton wrote:
+>> 2009/7/21 ?<ray@aarden.us>:
+>>> I am planning an installation of Trac, SVN, and Apache. ?The current version
+>>> of Python supported by all is 2.6. ?But I don't see an installation package
+>>> for mod_python for python 2.6. ?Did I miss it? ?What are my alternatives and
+>>> what are the risks?
+>>
+>> Use mod_wsgi instead. Python 2.6 binaries are on the mod_wsgi site.
+>>
+>> ? http://www.modwsgi.org
+>> ? http://code.google.com/p/modwsgi/downloads/list
+>>
+>> Graham
+> Is this a plug for mod_wsgi or an assertion that mod_python has been
+> replaced? ?Is mod_wsgy a better solution?
+
+I am the last of the developers who was active on mod_python who even
+bothers to answer emails here any more. I have no intention of doing
+any further coding work on mod_python. I only really stay on the list
+to learn about issues mod_python might be having to make sure that
+mod_wsgi isn't going to be affected by similar issue and fix mod_wsgi
+if need be, or document issue for mod_wsgi if necessary.
+
+So, choice is, use mod_python for which there is no active development
+or maintenance and is effectively unsupported, or move to the WSGI way
+of doing things for which there are many hosting options for many
+servers, including mod_wsgi for Apache.
+
+That said, if you are happy with mod_python, by all means use it, but
+if you have problems don't expect there to be anyone around to fix it
+for you.
+
+PS. And no I didn't author mod_python. Even so, the original author of
+mod_python isn't active on it either.
+
+Graham
+
+From lists at theflorys.org  Sun Jul 26 22:10:22 2009
+From: lists at theflorys.org (David)
+Date: Sun Jul 26 22:10:42 2009
+Subject: [mod_python] Re: Windows Binaries for Python 2.6
+In-Reply-To: <88e286470907261902t9c2401fp427c0ee6b8294298@mail.gmail.com>
+References: <20090721040633.1753ead7c2b35a7d15c5b99498690bcc.eac213f9d9.wbe@email.secureserver.net>	<88e286470907210421o3a642853pd38a546d21eb5bce@mail.gmail.com>	<h4hs5m$gue$1@ger.gmane.org>
+	<88e286470907261902t9c2401fp427c0ee6b8294298@mail.gmail.com>
+Message-ID: <h4j2ae$br9$1@ger.gmane.org>
+
+On 7/26/2009 10:02 PM, Graham Dumpleton wrote:
+> 2009/7/27 David <lists@theflorys.org>:
+>> On 7/21/2009 7:21 AM, Graham Dumpleton wrote:
+>>> 2009/7/21  <ray@aarden.us>:
+>>>> I am planning an installation of Trac, SVN, and Apache.  The current version
+>>>> of Python supported by all is 2.6.  But I don't see an installation package
+>>>> for mod_python for python 2.6.  Did I miss it?  What are my alternatives and
+>>>> what are the risks?
+>>> Use mod_wsgi instead. Python 2.6 binaries are on the mod_wsgi site.
+>>>
+>>>   http://www.modwsgi.org
+>>>   http://code.google.com/p/modwsgi/downloads/list
+>>>
+>>> Graham
+>> Is this a plug for mod_wsgi or an assertion that mod_python has been
+>> replaced?  Is mod_wsgy a better solution?
+> 
+> I am the last of the developers who was active on mod_python who even
+> bothers to answer emails here any more. I have no intention of doing
+> any further coding work on mod_python. I only really stay on the list
+> to learn about issues mod_python might be having to make sure that
+> mod_wsgi isn't going to be affected by similar issue and fix mod_wsgi
+> if need be, or document issue for mod_wsgi if necessary.
+> 
+> So, choice is, use mod_python for which there is no active development
+> or maintenance and is effectively unsupported, or move to the WSGI way
+> of doing things for which there are many hosting options for many
+> servers, including mod_wsgi for Apache.
+> 
+> That said, if you are happy with mod_python, by all means use it, but
+> if you have problems don't expect there to be anyone around to fix it
+> for you.
+> 
+> PS. And no I didn't author mod_python. Even so, the original author of
+> mod_python isn't active on it either.
+> 
+> Graham
+
+Thanks for a good response to a slightly dumb question.  I am in the
+provess of converting my server to mod_wsgi.
+
+David
+
+From ambrose-bulk at vrvl.net  Mon Jul 27 00:12:05 2009
+From: ambrose-bulk at vrvl.net (Ambrose Andrews)
+Date: Mon Jul 27 00:12:13 2009
+Subject: [mod_python] Re: Windows Binaries for Python 2.6
+In-Reply-To: <h4hs5m$gue$1@ger.gmane.org>
+References: <20090721040633.1753ead7c2b35a7d15c5b99498690bcc.eac213f9d9.wbe@email.secureserver.net>
+	<88e286470907210421o3a642853pd38a546d21eb5bce@mail.gmail.com>
+	<h4hs5m$gue$1@ger.gmane.org>
+Message-ID: <20b1e36e0907262112u53cfc208t1f4bbe94a1da3f6f@mail.gmail.com>
+
+2009/7/27 David <lists@theflorys.org>:
+> On 7/21/2009 7:21 AM, Graham Dumpleton wrote:
+>> 2009/7/21 ?<ray@aarden.us>:
+>>> I am planning an installation of Trac, SVN, and Apache. ?The current version
+>>> of Python supported by all is 2.6. ?But I don't see an installation package
+>>> for mod_python for python 2.6. ?Did I miss it? ?What are my alternatives and
+>>> what are the risks?
+>>
+
+I have recently set up Trac, Django and SVN using mod_wsgi with no
+drama at all - and in the case of Django (and mod_gnutls) less drama
+than I had with mod_python.
+
+Unfortunately the documentation for many of the applications continues
+to refer to mod_python prominently and/or as a default option.  This
+will create problems down the road as python3 starts to spread and
+mod_python adopters are all left behind at once.
+
+I wouldn't have known about mod_wsgi otherwise, so I'm glad Graham
+still hangs about here.
+
+  -AA.
+
+
+-- 
+Ambrose Andrews
+LPO box 8274 ANU Acton ACT 0200 Australia
+http://www.vrvl.net/~ambrose/
+mailto:ambrose@vrvl.net
+home:+61_262305976
+work:+61_261256749
+mobile:+61_415544621
+irc:{undernet|freenode|oftc}:znalo
+xmpp:ambrose@jabber.fsfe.org
+sip:znalo@ekiga.net
+CE38 8B79 C0A7 DF4A 4F54  E352 2647 19A1 DB3B F823
+556A 6D19 0904 827C 9DB8  3697 32D0 1E11 403F 2BE1
+
+From marco-oweber at gmx.de  Mon Jul 27 21:24:09 2009
+From: marco-oweber at gmx.de (Marc Weber)
+Date: Mon Jul 27 21:24:19 2009
+Subject: [mod_python] how to configure sys.path when installing not into
+	python's lib directory?
+Message-ID: <1248744241-sup-5623@nixos>
+
+Hi
+
+I'd lite to play with mod_python. I'm running nixos using the nix
+package manager. It's special because every package is installed into
+its own package diroctory by default.
+
+It compiles fine but of course the import path is not correct then:
+
+  [Tue Jul 28 00:59:43 2009] [error] make_obcallback: could not import mod_python.apache.\n
+  ImportError: No module named mod_python.apache
+  [Tue Jul 28 00:59:43 2009] [error] make_obcallback: Python path being used "['/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python25.zip', '/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5', '/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/plat-linux2', '/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/lib-tk', '/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/lib-dynload', '/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/site-packages']".
+
+I read from docs that I can use
+
+  PythonOption mod_python.importer.path "['path']"
+
+but this didn't work? Is it added after the lines
+    m = PyImport_ImportModule("mod_python.apache");
+are executed (mod_python.c)
+
+The README also contains a hint:
+
+  - Running your own version of mod_python without installing it is possible and 
+  useful if you cannot be root, but you're a bit on your own, sorry. You'll have 
+  to make sure MOD_PYTHON/testconf.py points to the right version of 
+  mod_python.so and tweak Apache user's PYTHONPATH environment variable so that
+  mod_python can find its Python modules.
+
+What is the Apache user's PYTHONPATH environment variable?
+I tried adding to my apache config:
+  SetEnv PYTHONPATH $PACKAGE_DIR/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/site-packages
+
+A php test "echo getenv('PYTHONPATH');" showed that the var got assigned.
+Still the path isn't added to the import list.
+
+Is there something else I can try?
+
+Of course I can patch the python install receipt making it install
+mod_python as well. However that's suboptimal.
+
+Can I automatically patch the .c code to add that module directory?
+
+Marc Weber
+From graham.dumpleton at gmail.com  Mon Jul 27 22:31:56 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Mon Jul 27 22:31:57 2009
+Subject: [mod_python] how to configure sys.path when installing not into 
+	python's lib directory?
+In-Reply-To: <1248744241-sup-5623@nixos>
+References: <1248744241-sup-5623@nixos>
+Message-ID: <88e286470907271931s35e01qa180cc2a5f875c76@mail.gmail.com>
+
+2009/7/28 Marc Weber <marco-oweber@gmx.de>:
+> Hi
+>
+> I'd lite to play with mod_python. I'm running nixos using the nix
+> package manager. It's special because every package is installed into
+> its own package diroctory by default.
+>
+> It compiles fine but of course the import path is not correct then:
+>
+> ?[Tue Jul 28 00:59:43 2009] [error] make_obcallback: could not import mod_python.apache.\n
+> ?ImportError: No module named mod_python.apache
+> ?[Tue Jul 28 00:59:43 2009] [error] make_obcallback: Python path being used "['/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python25.zip', '/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5', '/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/plat-linux2', '/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/lib-tk', '/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/lib-dynload', '/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/site-packages']".
+
+Where did the Python modules for mod_python get installed to? By
+rights they should still have been installed into:
+
+  /nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/site-packages
+
+unless the Python installation has been mightily fiddled with as well.
+
+> I read from docs that I can use
+>
+> ?PythonOption mod_python.importer.path "['path']"
+>
+> but this didn't work? Is it added after the lines
+> ? ?m = PyImport_ImportModule("mod_python.apache");
+> are executed (mod_python.c)
+
+That option is totally unrelated, Ignore it.
+
+> The README also contains a hint:
+>
+> ?- Running your own version of mod_python without installing it is possible and
+> ?useful if you cannot be root, but you're a bit on your own, sorry. You'll have
+> ?to make sure MOD_PYTHON/testconf.py points to the right version of
+> ?mod_python.so and tweak Apache user's PYTHONPATH environment variable so that
+> ?mod_python can find its Python modules.
+>
+> What is the Apache user's PYTHONPATH environment variable?
+> I tried adding to my apache config:
+> ?SetEnv PYTHONPATH $PACKAGE_DIR/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/site-packages
+
+You can't use SetEnv to control environment variables that Python
+might be able to use at initialisation time.
+
+What is $PACKAGE_DIR anyway? Isn't the Python installation under:
+
+  /nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4
+
+Why is another prefix needed?
+
+If Python isn't under that directory, then likely that Python command
+line wouldn't work either.
+
+> A php test "echo getenv('PYTHONPATH');" showed that the var got assigned.
+> Still the path isn't added to the import list.
+
+Also, all that stuff you quote relates to running test scripts for
+mod_python from the command line, not an installed installation.
+
+> Is there something else I can try?
+
+If all you want to do is host a WSGI capable Python application, then
+mod_wsgi will likely be a lot easier to get working as it doesn't have
+dependencies on installed Python code files for it itself to work. You
+can also with mod_wsgi set an Apache configuration directive to tell
+it where Python installation is, but then that shouldn't be required
+unless the Python installation has been totally stuffed up with this
+packaging scheme.
+
+> Of course I can patch the python install receipt making it install
+> mod_python as well. However that's suboptimal.
+>
+> Can I automatically patch the .c code to add that module directory?
+
+Sounds like the wrong way of going about it.
+
+State where the Python modules for mod_python are installed and what
+is required may be more obvious.
+
+Graham
+
+From graham.dumpleton at gmail.com  Mon Jul 27 23:39:56 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Mon Jul 27 23:40:04 2009
+Subject: [mod_python] how to configure sys.path when installing not into 
+	python's lib directory?
+In-Reply-To: <1248749300-sup-1090@nixos>
+References: <1248744241-sup-5623@nixos>
+	<88e286470907271931s35e01qa180cc2a5f875c76@mail.gmail.com>
+	<1248749300-sup-1090@nixos>
+Message-ID: <88e286470907272039v75640147p9d1d2593dc7f5706@mail.gmail.com>
+
+Bounced back to mod_python list. I will replay later. Please use
+reply-all in future to keep it on the list. In the mean time look at
+mod_wsgi and WSGI capable Python web frameworks such as Django,
+Pylons, Werkzeug and TurboGears. There are many others though.
+
+Graham
+
+2009/7/28 Marc Weber <marco-oweber@gmx.de>:
+> Hi Graham,
+>
+> mod_python looks in:
+> ?'$PYTHON_INSALL_LOCATION/lib/python25.zip'
+> ?'$PYTHON_INSALL_LOCATION/lib/python2.5'
+> ?'$PYTHON_INSALL_LOCATION/lib/python2.5/plat-linux2'
+> ?'$PYTHON_INSALL_LOCATION/lib/python2.5/lib-tk'
+> ?'$PYTHON_INSALL_LOCATION/lib/python2.5/lib-dynload'
+> ?'$PYTHON_INSALL_LOCATION/lib/python2.5/site-packages'
+> It only contains default paths of the python installation.
+>
+> mod_python has been installed to:
+>
+> ?$PACKAGE_DIR/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/site-packages/mod_python/*
+> ?$PACKAGE_DIR/modules/mod_python.so
+>
+> PACKAGE_DIR ? ? ? ? ? ?= /nix/store/ax9qlhyfjlsnc9lxa3p80gy1qsrjpn2m-apache-httpd-mod-python-3.3.1
+> PYTHON_INSALL_LOCATION = /nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4
+>
+> both are different. Goto www.nixos.org to read up more details about
+> this packaging scheme if you're interested.
+>
+>> /nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/site-packages
+>> unless the Python installation has been mightily fiddled with as well.
+> Yes, I did so to make it install into its own directory. After python
+> has been build no other build process is allowed to write into
+> $PYTHON_INSALL_LOCATION for purity reasons.
+>
+>> You can't use SetEnv to control environment variables that Python
+>> might be able to use at initialisation time.
+> So can I do PYTHONPATH=foo $RUN_APACHE instead? I'll try.
+>
+>> If all you want to do is host a WSGI capable Python application,
+> Basically I'd like to replace some PHP development by Python because I
+> like some Python libraries such as SQLAlchemy. And mod_python was the
+> first solution I found when searching for Apache and Python. I know
+> there is also zope.. But I think deploying some .py files might be
+> faster than setting up another server and http proxies.
+>
+> I'll look into WSGI! Thank you!
+>
+>> it where Python installation is, but then that shouldn't be required
+>> unless the Python installation has been totally stuffed up with this
+>> packaging scheme.
+> Python doesn't fit very well into this packaging scheme for various
+> reasons. On gtk, gnome packages I gave up and made one package
+> installing them all into one package location which is still different
+> from PYTHON_INSALL_LOCATION.
+> That's why I don't know yet how many packages should be
+> packaged in this way at all. Eg setup-tools and eggs seems to be a
+> mature different distribution system. So maybe I'm not going to package
+> much more than the very basic packages this way.
+>
+>> > Can I automatically patch the .c code to add that module directory?
+>> Sounds like the wrong way of going about it.
+> If it solves the problem why not?
+>
+> Thank you for your reply!
+>
+> Marc Weber
+>
+
+From graham.dumpleton at gmail.com  Tue Jul 28 00:32:38 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Tue Jul 28 00:32:48 2009
+Subject: [mod_python] how to configure sys.path when installing not into 
+	python's lib directory?
+In-Reply-To: <1248749300-sup-1090@nixos>
+References: <1248744241-sup-5623@nixos>
+	<88e286470907271931s35e01qa180cc2a5f875c76@mail.gmail.com>
+	<1248749300-sup-1090@nixos>
+Message-ID: <88e286470907272132w25d7238cjccd9e69f4aa764ec@mail.gmail.com>
+
+2009/7/28 Marc Weber <marco-oweber@gmx.de>:
+> Hi Graham,
+>
+> mod_python looks in:
+> ?'$PYTHON_INSALL_LOCATION/lib/python25.zip'
+> ?'$PYTHON_INSALL_LOCATION/lib/python2.5'
+> ?'$PYTHON_INSALL_LOCATION/lib/python2.5/plat-linux2'
+> ?'$PYTHON_INSALL_LOCATION/lib/python2.5/lib-tk'
+> ?'$PYTHON_INSALL_LOCATION/lib/python2.5/lib-dynload'
+> ?'$PYTHON_INSALL_LOCATION/lib/python2.5/site-packages'
+> It only contains default paths of the python installation.
+>
+> mod_python has been installed to:
+>
+> ?$PACKAGE_DIR/nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/site-packages/mod_python/*
+> ?$PACKAGE_DIR/modules/mod_python.so
+>
+> PACKAGE_DIR ? ? ? ? ? ?= /nix/store/ax9qlhyfjlsnc9lxa3p80gy1qsrjpn2m-apache-httpd-mod-python-3.3.1
+> PYTHON_INSALL_LOCATION = /nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4
+
+So mod_python Python modules are installed in:
+
+  /nix/store/ax9qlhyfjlsnc9lxa3p80gy1qsrjpn2m-apache-httpd-mod-python-3.3.1//nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/site-packages/mod_python/*
+
+Are you sure you got things right?
+
+> both are different. Goto www.nixos.org to read up more details about
+> this packaging scheme if you're interested.
+>
+>> /nix/store/axq79wn5py4sfi2n142jfc4arvgyr957-python-2.5.4/lib/python2.5/site-packages
+>> unless the Python installation has been mightily fiddled with as well.
+> Yes, I did so to make it install into its own directory. After python
+> has been build no other build process is allowed to write into
+> $PYTHON_INSALL_LOCATION for purity reasons.
+>
+>> You can't use SetEnv to control environment variables that Python
+>> might be able to use at initialisation time.
+> So can I do PYTHONPATH=foo $RUN_APACHE instead? I'll try.
+
+No.
+
+Depending on mod_python will even work doing it this way, can only
+suggest you use 'virtualenv' to create a Python virtual environment in
+your own writable space.
+
+Then when you build mod_python use --with-python option to configure
+to point at the Python in the virtual environment.
+
+When installed, this should install mod_python stuff in virtual environment.
+
+To get Apache/mod_python to then use this virtual environment at run
+time however, you need to be able to set PYTHONHOME in environment of
+Apache. Unless you are going to run 'httpd' by hand all the time,
+can't usually do that.
+
+If the Apache installation follows a standard ASF install structure,
+there should be a 'envvars' file in  the same directory as 'httpd'
+executable. PYTHONHOME should be set and exported in that. If however
+that is in non writable directory as well, then you are stuffed and
+likely cannot do it easily with your mod_python installation.
+
+In mod_wsgi you wouldn't need to use 'envvars' as can set
+WSGIPythonHome directive in Apache configuration file instead. Even
+then, wouldn't be needed normally as you could just use standard
+Python installation. Although in your case, since you can't install
+other modules into standard site-packages, virtual environments with
+mod_wsgi can still be useful. See:
+
+  http://code.google.com/p/modwsgi/wiki/VirtualEnvironments
+
+Personally I would suggest using a sane Linux distribution such as Ubuntu.
+
+Graham
+
+From Philip.Scott at cantabcapital.com  Tue Jul 28 11:38:43 2009
+From: Philip.Scott at cantabcapital.com (Philip Scott)
+Date: Tue Jul 28 11:39:11 2009
+Subject: [mod_python] HTTP mime header decoding
+Message-ID: <8F54C2FC4227C446AAB91AC0F40A4DC3F75B01@ccpexch04.cantab.local>
+
+Hi all,
+ 
+I was intending to post this to the -dev list, but it appears to have
+moved somewhere I cannot find it, so hopefully this email will find the
+right eyes.
+ 
+I recently upgraded our mod_python from an old version (circa 2004) to
+the latest and greatest Ubuntu had to offer, and unfortunately this
+caused a bit of a regression in our system. We have to interface with a
+rather obscure client, which sends its data through a HTTP POST request
+as a multipart message separated nicely with boundaries, but which does
+not add a new line or carriage return after the final boundary. I am not
+sure whether this is permitted in the standard, but it worked in the old
+version - I think some changes to improve multi-line handling (adding
+the use of a boundary regex) upset this.
+ 
+I have a very small patch for util.py which fixes this on my end, and I
+think should be benign. If someone in the know would like to check it
+won't have any unintended side effects, it would be great to stick it in
+the tree; perhaps there are some more obscure clients that do this as
+well?
+ 
+
+	--- util.py.orig        2009-07-28 16:08:00.000000000 +0100
+	+++ util.py     2009-07-28 16:08:19.000000000 +0100
+	@@ -237,7 +237,7 @@
+	             boundary = ctype[i+9:]
+	             if len(boundary) >= 2 and boundary[0] ==
+boundary[-1] == '"':
+	                 boundary = boundary[1:-1]
+	-            boundary = re.compile("--" + re.escape(boundary) +
+"(--)?\r?\n")
+	+            boundary = re.compile("--" + re.escape(boundary) +
+"(--)?\r?\n?")
+	 
+	         except ValueError:
+	             raise apache.SERVER_RETURN, apache.HTTP_BAD_REQUEST
+	
+
+I think that since we get the line we compare to boundary using
+readline() anyway, it is safe to make the final \n optional. It
+certainly appears to work..
+ 
+Thanks,
+ 
+Philip
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090728/f8fb0028/attachment.html
+From graham.dumpleton at gmail.com  Tue Jul 28 21:42:31 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Tue Jul 28 21:42:40 2009
+Subject: [mod_python] HTTP mime header decoding
+In-Reply-To: <8F54C2FC4227C446AAB91AC0F40A4DC3F75B01@ccpexch04.cantab.local>
+References: <8F54C2FC4227C446AAB91AC0F40A4DC3F75B01@ccpexch04.cantab.local>
+Message-ID: <88e286470907281842h54881662k7edf5e5ac47fceb4@mail.gmail.com>
+
+2009/7/29 Philip Scott <Philip.Scott@cantabcapital.com>:
+> Hi all,
+>
+> I was intending to post this to the -dev list, but it appears to have moved
+> somewhere I cannot find it, so hopefully this email will find the right
+> eyes.
+
+No matter where you sent it, no one is actively developing or
+maintaining mod_python.
+
+All you can do is go to:
+
+  https://issues.apache.org/jira/browse/MODPYTHON
+
+and log a description of the problem and the proposed patch and if
+valid hope it may be addressed one day.
+
+There are other unresolved bug reports about stuff in that same
+section of code, but I believe they are for different issues.
+
+Graham
+
+> I recently upgraded our mod_python from an old version (circa 2004) to the
+> latest and greatest Ubuntu had to offer, and unfortunately this caused a bit
+> of a regression in our system. We have to interface with a rather obscure
+> client, which sends its data through a HTTP POST request as a multipart
+> message separated nicely with boundaries, but which does not add a new line
+> or carriage return?after the final boundary. I am not sure whether this is
+> permitted in the standard, but it worked in the old version - I think some
+> changes to improve multi-line handling (adding the use of a boundary regex)
+> upset this.
+>
+> I have a very small patch for util.py which fixes this on my end, and I
+> think should be benign. If someone in the know would like to check it won't
+> have any unintended side effects, it would be great to stick it in the tree;
+> perhaps there are some more obscure clients that do this as well?
+>
+>
+> --- util.py.orig??????? 2009-07-28 16:08:00.000000000 +0100
+> +++ util.py???? 2009-07-28 16:08:19.000000000 +0100
+> @@ -237,7 +237,7 @@
+> ???????????? boundary = ctype[i+9:]
+> ???????????? if len(boundary) >= 2 and boundary[0] == boundary[-1] == '"':
+> ???????????????? boundary = boundary[1:-1]
+> -??????????? boundary = re.compile("--" + re.escape(boundary) +
+> "(--)?\r?\n")
+> +??????????? boundary = re.compile("--" + re.escape(boundary) +
+> "(--)?\r?\n?")
+>
+> ???????? except ValueError:
+> ???????????? raise apache.SERVER_RETURN, apache.HTTP_BAD_REQUEST
+>
+> I think that since we get the line we compare to boundary using readline()
+> anyway, it is safe to make the final \n optional. It certainly appears to
+> work..
+>
+> Thanks,
+>
+> Philip
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+>
+
+From Philip.Scott at cantabcapital.com  Wed Jul 29 04:04:35 2009
+From: Philip.Scott at cantabcapital.com (Philip Scott)
+Date: Wed Jul 29 04:04:44 2009
+Subject: [mod_python] HTTP mime header decoding
+References: <8F54C2FC4227C446AAB91AC0F40A4DC3F75B01@ccpexch04.cantab.local>
+	<88e286470907281842h54881662k7edf5e5ac47fceb4@mail.gmail.com>
+Message-ID: <8F54C2FC4227C446AAB91AC0F40A4DC3F75B44@ccpexch04.cantab.local>
+
+Hi Graham,
+
+> No matter where you sent it, no one is actively developing or
+maintaining mod_python. 
+
+Ah, I see. Thanks for letting me know!
+
+>All you can do is go to:
+>  https://issues.apache.org/jira/browse/MODPYTHON
+>and log a description of the problem and the proposed patch and if
+valid hope it may be addressed one day.
+
+Will do. Is there some fancy new thing that replaces mod_python that
+tempted the developers away, or was it just finished? Or did they just
+get bored :)
+
+- Philip
+
+From graham.dumpleton at gmail.com  Wed Jul 29 04:06:16 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed Jul 29 04:06:24 2009
+Subject: [mod_python] HTTP mime header decoding
+In-Reply-To: <8F54C2FC4227C446AAB91AC0F40A4DC3F75B44@ccpexch04.cantab.local>
+References: <8F54C2FC4227C446AAB91AC0F40A4DC3F75B01@ccpexch04.cantab.local>
+	<88e286470907281842h54881662k7edf5e5ac47fceb4@mail.gmail.com>
+	<8F54C2FC4227C446AAB91AC0F40A4DC3F75B44@ccpexch04.cantab.local>
+Message-ID: <88e286470907290106x484c4367s8a4039e727dcd7a7@mail.gmail.com>
+
+These days for Python web applications are based on WSGI interface.
+For WSGI there are many hosting options, including adapters for CGI,
+FASTCGI, SCGI and AJP, standalone Python WSGI servers, plus
+Apache/mod_wsgi which embeds Python in Apache like mod_python but also
+supplies a daemon mode like FASTCGI.
+
+Graham
+
+2009/7/29 Philip Scott <Philip.Scott@cantabcapital.com>:
+> Hi Graham,
+>
+>> No matter where you sent it, no one is actively developing or
+> maintaining mod_python.
+>
+> Ah, I see. Thanks for letting me know!
+>
+>>All you can do is go to:
+>> ?https://issues.apache.org/jira/browse/MODPYTHON
+>>and log a description of the problem and the proposed patch and if
+> valid hope it may be addressed one day.
+>
+> Will do. Is there some fancy new thing that replaces mod_python that
+> tempted the developers away, or was it just finished? Or did they just
+> get bored :)
+>
+> - Philip
+>
+
+From sorr at rightnow.com  Thu Jul 30 12:40:36 2009
+From: sorr at rightnow.com (Orr, Steve)
+Date: Thu Jul 30 12:40:48 2009
+Subject: [mod_python] WSGI Behavioral differences: mod_python vs mod_wsgi
+Message-ID: <C3184DD2010F814F88A2A3F1B613A96305C98CF36A@CCRCMS2.corp.rightnow.com>
+
+Running Apache 2.2.4; mod_python 3.3.1; Python 2.4.
+
+Experiencing behavioral problems with WSGI on mod_python. I'm running the exact same code but mod_wsgi works and mod_python does not.
+Here's the code which is the same in 2 files: myapp.wsgi; and myapp.py...
+def application(environ, start_response):
+    status = '200 OK'
+    output = '<html><body>\n'
+    tbl = """<table border="5">"""
+    for k,v in environ.items():
+        tbl += "\n<tr><td>%s</td><td>%s</td></tr>" % (k,v)
+    tbl += "\n</table>"
+    curpath = environ.get('PATH_INFO', '/')
+    if curpath == '/maintenance/':
+        output += '<h1>Maintenance page</h1>'
+    else:
+        output += """<h1>Hell!! Oh... Whirled!</h1>
+<a href="/myapp/maintenance/" target="_blank">Maintenance</a> <br />\n"""
+    output += """%(tbl)s\n</body></html>""" % locals()
+    response_headers = [('Content-type', 'text/html'),
+                        ('Content-Length', str(len(output)))]
+    start_response(status, response_headers)
+    return [output]
+
+The mod_wsgi implementation "routes" to the link properly but the mod_python version does not. With other tests it seems like environ is not in sync when using mod_python. I tried single process mode Apache and experienced the same problem.
+
+For the mod_python handler I've tried the 2 known versions from: Nicholas Borko; and Eli Collins. Both exhibit the same behavior.
+
+Is there some secret Apache directive needed to force mod_python to sync up? Here's how Apache is setup:
+<VirtualHost modwsgi:80>
+    ServerName modwsgi
+    ServerAlias modwsgi.local
+    DocumentRoot /home/hydra/docroot/modwsgi
+    WSGIScriptAlias /myapp /home/hydra/modwsgi/myapp.wsgi
+    <Directory /home/hydra/docroot/modwsgi>
+        Order allow,deny
+        Allow from all
+    </Directory>
+    <Directory /home/hydra/modwsgi>
+        Order allow,deny
+        Allow from all
+    </Directory>
+</VirtualHost>
+
+<VirtualHost modpython:80>
+    ServerName modpython
+    ServerAlias modpython.local
+    DocumentRoot /home/hydra/docroot/modwsgi
+    ScriptAlias /myapp /home/hydra/modwsgi/
+    <Directory /home/hydra/docroot/modwsgi>
+        Order allow,deny
+        Allow from all
+    </Directory>
+    <Directory /home/hydra/modwsgi>
+        SetHandler python-program
+        PythonHandler wsgi_handler
+        PythonOption WSGI.Application myapp::application
+        Order allow,deny
+        Allow from all
+    </Directory>
+</VirtualHost>
+
+Is this a handler problem or a mod_python implementation problem? Or a problem with my understanding?
+
+What do you recommend?
+
+Thanks!
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20090730/ec8114ec/attachment.html
+From graham.dumpleton at gmail.com  Thu Jul 30 19:00:59 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu Jul 30 19:01:09 2009
+Subject: [mod_python] WSGI Behavioral differences: mod_python vs mod_wsgi
+In-Reply-To: <C3184DD2010F814F88A2A3F1B613A96305C98CF36A@CCRCMS2.corp.rightnow.com>
+References: <C3184DD2010F814F88A2A3F1B613A96305C98CF36A@CCRCMS2.corp.rightnow.com>
+Message-ID: <88e286470907301600o274f2b90j7666068a8bc6cbc9@mail.gmail.com>
+
+2009/7/31 Orr, Steve <sorr@rightnow.com>:
+> Running Apache 2.2.4; mod_python 3.3.1; Python 2.4.
+>
+>
+>
+> Experiencing behavioral problems with WSGI on mod_python. I?m running the
+> exact same code but mod_wsgi works and mod_python does not.
+>
+> Here?s the code which is the same in 2 files: myapp.wsgi; and myapp.py?
+>
+> def application(environ, start_response):
+>
+> ??? status = '200 OK'
+>
+> ??? output = '<html><body>\n'
+>
+> ??? tbl = """<table border="5">"""
+>
+> ??? for k,v in environ.items():
+>
+> ??????? tbl += "\n<tr><td>%s</td><td>%s</td></tr>" % (k,v)
+>
+> ??? tbl += "\n</table>"
+>
+> ??? curpath = environ.get('PATH_INFO', '/')
+>
+> ??? if curpath == '/maintenance/':
+>
+> ??????? output += '<h1>Maintenance page</h1>'
+>
+> ??? else:
+>
+> ????? ??output += """<h1>Hell!! Oh... Whirled!</h1>
+>
+> <a href="/myapp/maintenance/" target="_blank">Maintenance</a> <br />\n"""
+>
+> ??? output += """%(tbl)s\n</body></html>""" % locals()
+>
+> ??? response_headers = [('Content-type', 'text/html'),
+>
+> ??????????????????????? ('Content-Length', str(len(output)))]
+>
+> ??? start_response(status, response_headers)
+>
+> ??? return [output]
+>
+>
+>
+> The mod_wsgi implementation ?routes? to the link properly but the mod_python
+> version does not. With other tests it seems like environ is not in sync when
+> using mod_python. I tried single process mode Apache and experienced the
+> same problem.
+>
+>
+>
+> For the mod_python handler I?ve tried the 2 known versions from: Nicholas
+> Borko; and Eli Collins. Both exhibit the same behavior.
+>
+>
+>
+> Is there some secret Apache directive needed to force mod_python to sync up?
+> Here?s how Apache is setup:
+>
+> <VirtualHost modwsgi:80>
+>
+> ??? ServerName modwsgi
+>
+> ??? ServerAlias modwsgi.local
+>
+> ??? DocumentRoot /home/hydra/docroot/modwsgi
+>
+> ??? WSGIScriptAlias /myapp /home/hydra/modwsgi/myapp.wsgi
+>
+> ??? <Directory /home/hydra/docroot/modwsgi>
+>
+> ??????? Order allow,deny
+>
+> ??????? Allow from all
+>
+> ??? </Directory>
+>
+> ?? ?<Directory /home/hydra/modwsgi>
+>
+> ??????? Order allow,deny
+>
+> ??????? Allow from all
+>
+> ??? </Directory>
+>
+> </VirtualHost>
+>
+>
+>
+> <VirtualHost modpython:80>
+>
+> ??? ServerName modpython
+>
+> ??? ServerAlias modpython.local
+>
+> ??? DocumentRoot /home/hydra/docroot/modwsgi
+>
+> ??? ScriptAlias /myapp /home/hydra/modwsgi/
+>
+> ??? <Directory /home/hydra/docroot/modwsgi>
+>
+> ??????? Order allow,deny
+>
+> ??????? Allow from all
+>
+> ??? </Directory>
+>
+> ??? <Directory /home/hydra/modwsgi>
+>
+> ??????? SetHandler python-program
+>
+> ??????? PythonHandler wsgi_handler
+>
+> ??????? PythonOption WSGI.Application myapp::application
+>
+> ??????? Order allow,deny
+>
+> ??????? Allow from all
+>
+> ??? </Directory>
+>
+> </VirtualHost>
+>
+>
+>
+> Is this a handler problem or a mod_python implementation problem? Or a
+> problem with my understanding?
+>
+>
+>
+> What do you recommend?
+
+Not use mod_python. :-)
+
+SCRIPT_NAME/PATH_INFO is critical in WSGI applications for routing and
+mod_python can't provide that information accurately because of the
+way it hooks into Apache. As a result any WSGI adapter for mod_python
+would generally have a option to override what SCRIPT_NAME should be
+with PATH_INFO being recalculated appropriately.
+
+As to mod_wsgi, it hooks into Apache as a resource much like CGI does
+and so SCRIPT_NAME/PATH_INFO will behave as for CGI scripts and will
+thus be correct.
+
+Graham
+
+From sorr at rightnow.com  Fri Jul 31 10:27:04 2009
+From: sorr at rightnow.com (Orr, Steve)
+Date: Fri Jul 31 10:27:16 2009
+Subject: [mod_python] WSGI Behavioral differences: mod_python vs mod_wsgi
+In-Reply-To: <88e286470907301600o274f2b90j7666068a8bc6cbc9@mail.gmail.com>
+References: <C3184DD2010F814F88A2A3F1B613A96305C98CF36A@CCRCMS2.corp.rightnow.com>
+	<88e286470907301600o274f2b90j7666068a8bc6cbc9@mail.gmail.com>
+Message-ID: <C3184DD2010F814F88A2A3F1B613A96305C98CF373@CCRCMS2.corp.rightnow.com>
+
+Thank you very much!! Believe it or not, that was exactly the answer I was looking for. We have several hundred servers with mod_python installed and a BOFH who created his own rudimentary publisher/framework around it. He's also the code tree librarian and Linux RPM dweeb so now I have some ammo to convince him add mod_wsgi to the mix. Wish me luck.
+
+ 
+Steve Orr
+RightNow Technologies
+sorr@rightnow.com
+ 
+-----Original Message-----
+From: Graham Dumpleton [mailto:graham.dumpleton@gmail.com] 
+Sent: Thursday, July 30, 2009 5:01 PM
+To: Orr, Steve
+Cc: mod_python@modpython.org
+Subject: Re: [mod_python] WSGI Behavioral differences: mod_python vs mod_wsgi
+
+2009/7/31 Orr, Steve <sorr@rightnow.com>:
+> Running Apache 2.2.4; mod_python 3.3.1; Python 2.4.
+>
+>
+>
+> Experiencing behavioral problems with WSGI on mod_python. I'm running the
+> exact same code but mod_wsgi works and mod_python does not.
+>
+> Here's the code which is the same in 2 files: myapp.wsgi; and myapp.py.
+>
+> def application(environ, start_response):
+>
+> ??? status = '200 OK'
+>
+> ??? output = '<html><body>\n'
+>
+> ??? tbl = """<table border="5">"""
+>
+> ??? for k,v in environ.items():
+>
+> ??????? tbl += "\n<tr><td>%s</td><td>%s</td></tr>" % (k,v)
+>
+> ??? tbl += "\n</table>"
+>
+> ??? curpath = environ.get('PATH_INFO', '/')
+>
+> ??? if curpath == '/maintenance/':
+>
+> ??????? output += '<h1>Maintenance page</h1>'
+>
+> ??? else:
+>
+> ????? ??output += """<h1>Hell!! Oh... Whirled!</h1>
+>
+> <a href="/myapp/maintenance/" target="_blank">Maintenance</a> <br />\n"""
+>
+> ??? output += """%(tbl)s\n</body></html>""" % locals()
+>
+> ??? response_headers = [('Content-type', 'text/html'),
+>
+> ??????????????????????? ('Content-Length', str(len(output)))]
+>
+> ??? start_response(status, response_headers)
+>
+> ??? return [output]
+>
+>
+>
+> The mod_wsgi implementation "routes" to the link properly but the mod_python
+> version does not. With other tests it seems like environ is not in sync when
+> using mod_python. I tried single process mode Apache and experienced the
+> same problem.
+>
+>
+>
+> For the mod_python handler I've tried the 2 known versions from: Nicholas
+> Borko; and Eli Collins. Both exhibit the same behavior.
+>
+>
+>
+> Is there some secret Apache directive needed to force mod_python to sync up?
+> Here's how Apache is setup:
+>
+> <VirtualHost modwsgi:80>
+>
+> ??? ServerName modwsgi
+>
+> ??? ServerAlias modwsgi.local
+>
+> ??? DocumentRoot /home/hydra/docroot/modwsgi
+>
+> ??? WSGIScriptAlias /myapp /home/hydra/modwsgi/myapp.wsgi
+>
+> ??? <Directory /home/hydra/docroot/modwsgi>
+>
+> ??????? Order allow,deny
+>
+> ??????? Allow from all
+>
+> ??? </Directory>
+>
+> ?? ?<Directory /home/hydra/modwsgi>
+>
+> ??????? Order allow,deny
+>
+> ??????? Allow from all
+>
+> ??? </Directory>
+>
+> </VirtualHost>
+>
+>
+>
+> <VirtualHost modpython:80>
+>
+> ??? ServerName modpython
+>
+> ??? ServerAlias modpython.local
+>
+> ??? DocumentRoot /home/hydra/docroot/modwsgi
+>
+> ??? ScriptAlias /myapp /home/hydra/modwsgi/
+>
+> ??? <Directory /home/hydra/docroot/modwsgi>
+>
+> ??????? Order allow,deny
+>
+> ??????? Allow from all
+>
+> ??? </Directory>
+>
+> ??? <Directory /home/hydra/modwsgi>
+>
+> ??????? SetHandler python-program
+>
+> ??????? PythonHandler wsgi_handler
+>
+> ??????? PythonOption WSGI.Application myapp::application
+>
+> ??????? Order allow,deny
+>
+> ??????? Allow from all
+>
+> ??? </Directory>
+>
+> </VirtualHost>
+>
+>
+>
+> Is this a handler problem or a mod_python implementation problem? Or a
+> problem with my understanding?
+>
+>
+>
+> What do you recommend?
+
+Not use mod_python. :-)
+
+SCRIPT_NAME/PATH_INFO is critical in WSGI applications for routing and
+mod_python can't provide that information accurately because of the
+way it hooks into Apache. As a result any WSGI adapter for mod_python
+would generally have a option to override what SCRIPT_NAME should be
+with PATH_INFO being recalculated appropriately.
+
+As to mod_wsgi, it hooks into Apache as a resource much like CGI does
+and so SCRIPT_NAME/PATH_INFO will behave as for CGI scripts and will
+thus be correct.
+
+Graham
+
+From graham.dumpleton at gmail.com  Fri Jul 31 18:13:31 2009
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Fri Jul 31 18:13:39 2009
+Subject: [mod_python] WSGI Behavioral differences: mod_python vs mod_wsgi
+In-Reply-To: <C3184DD2010F814F88A2A3F1B613A96305C98CF373@CCRCMS2.corp.rightnow.com>
+References: <C3184DD2010F814F88A2A3F1B613A96305C98CF36A@CCRCMS2.corp.rightnow.com>
+	<88e286470907301600o274f2b90j7666068a8bc6cbc9@mail.gmail.com>
+	<C3184DD2010F814F88A2A3F1B613A96305C98CF373@CCRCMS2.corp.rightnow.com>
+Message-ID: <88e286470907311513o3bb0d97cm982572eb675782b0@mail.gmail.com>
+
+You need to be careful of running mod_wsgi on same Apache as
+mod_python. This is because mod_python gets precedence over
+initialisating Python interpreter. This means some of the abilities of
+mod_wsgi which require affecting how Python interpreter is initialised
+will not work. The mod_python module also leaks memory into Apache
+parent process on a 'restart' of Apache and although mod_wsgi fixes
+that, you will still be affected by it because of mod_python having
+control. Other issues can come up with mod_python/Python not installed
+properly so that Python has shared library etc.
+
+Graham
+
+2009/8/1 Orr, Steve <sorr@rightnow.com>:
+> Thank you very much!! Believe it or not, that was exactly the answer I was looking for. We have several hundred servers with mod_python installed and a BOFH who created his own rudimentary publisher/framework around it. He's also the code tree librarian and Linux RPM dweeb so now I have some ammo to convince him add mod_wsgi to the mix. Wish me luck.
+>
+>
+> Steve Orr
+> RightNow Technologies
+> sorr@rightnow.com
+>
+> -----Original Message-----
+> From: Graham Dumpleton [mailto:graham.dumpleton@gmail.com]
+> Sent: Thursday, July 30, 2009 5:01 PM
+> To: Orr, Steve
+> Cc: mod_python@modpython.org
+> Subject: Re: [mod_python] WSGI Behavioral differences: mod_python vs mod_wsgi
+>
+> 2009/7/31 Orr, Steve <sorr@rightnow.com>:
+>> Running Apache 2.2.4; mod_python 3.3.1; Python 2.4.
+>>
+>>
+>>
+>> Experiencing behavioral problems with WSGI on mod_python. I'm running the
+>> exact same code but mod_wsgi works and mod_python does not.
+>>
+>> Here's the code which is the same in 2 files: myapp.wsgi; and myapp.py.
+>>
+>> def application(environ, start_response):
+>>
+>> ??? status = '200 OK'
+>>
+>> ??? output = '<html><body>\n'
+>>
+>> ??? tbl = """<table border="5">"""
+>>
+>> ??? for k,v in environ.items():
+>>
+>> ??????? tbl += "\n<tr><td>%s</td><td>%s</td></tr>" % (k,v)
+>>
+>> ??? tbl += "\n</table>"
+>>
+>> ??? curpath = environ.get('PATH_INFO', '/')
+>>
+>> ??? if curpath == '/maintenance/':
+>>
+>> ??????? output += '<h1>Maintenance page</h1>'
+>>
+>> ??? else:
+>>
+>> ????? ??output += """<h1>Hell!! Oh... Whirled!</h1>
+>>
+>> <a href="/myapp/maintenance/" target="_blank">Maintenance</a> <br />\n"""
+>>
+>> ??? output += """%(tbl)s\n</body></html>""" % locals()
+>>
+>> ??? response_headers = [('Content-type', 'text/html'),
+>>
+>> ??????????????????????? ('Content-Length', str(len(output)))]
+>>
+>> ??? start_response(status, response_headers)
+>>
+>> ??? return [output]
+>>
+>>
+>>
+>> The mod_wsgi implementation "routes" to the link properly but the mod_python
+>> version does not. With other tests it seems like environ is not in sync when
+>> using mod_python. I tried single process mode Apache and experienced the
+>> same problem.
+>>
+>>
+>>
+>> For the mod_python handler I've tried the 2 known versions from: Nicholas
+>> Borko; and Eli Collins. Both exhibit the same behavior.
+>>
+>>
+>>
+>> Is there some secret Apache directive needed to force mod_python to sync up?
+>> Here's how Apache is setup:
+>>
+>> <VirtualHost modwsgi:80>
+>>
+>> ??? ServerName modwsgi
+>>
+>> ??? ServerAlias modwsgi.local
+>>
+>> ??? DocumentRoot /home/hydra/docroot/modwsgi
+>>
+>> ??? WSGIScriptAlias /myapp /home/hydra/modwsgi/myapp.wsgi
+>>
+>> ??? <Directory /home/hydra/docroot/modwsgi>
+>>
+>> ??????? Order allow,deny
+>>
+>> ??????? Allow from all
+>>
+>> ??? </Directory>
+>>
+>> ?? ?<Directory /home/hydra/modwsgi>
+>>
+>> ??????? Order allow,deny
+>>
+>> ??????? Allow from all
+>>
+>> ??? </Directory>
+>>
+>> </VirtualHost>
+>>
+>>
+>>
+>> <VirtualHost modpython:80>
+>>
+>> ??? ServerName modpython
+>>
+>> ??? ServerAlias modpython.local
+>>
+>> ??? DocumentRoot /home/hydra/docroot/modwsgi
+>>
+>> ??? ScriptAlias /myapp /home/hydra/modwsgi/
+>>
+>> ??? <Directory /home/hydra/docroot/modwsgi>
+>>
+>> ??????? Order allow,deny
+>>
+>> ??????? Allow from all
+>>
+>> ??? </Directory>
+>>
+>> ??? <Directory /home/hydra/modwsgi>
+>>
+>> ??????? SetHandler python-program
+>>
+>> ??????? PythonHandler wsgi_handler
+>>
+>> ??????? PythonOption WSGI.Application myapp::application
+>>
+>> ??????? Order allow,deny
+>>
+>> ??????? Allow from all
+>>
+>> ??? </Directory>
+>>
+>> </VirtualHost>
+>>
+>>
+>>
+>> Is this a handler problem or a mod_python implementation problem? Or a
+>> problem with my understanding?
+>>
+>>
+>>
+>> What do you recommend?
+>
+> Not use mod_python. :-)
+>
+> SCRIPT_NAME/PATH_INFO is critical in WSGI applications for routing and
+> mod_python can't provide that information accurately because of the
+> way it hooks into Apache. As a result any WSGI adapter for mod_python
+> would generally have a option to override what SCRIPT_NAME should be
+> with PATH_INFO being recalculated appropriately.
+>
+> As to mod_wsgi, it hooks into Apache as a resource much like CGI does
+> and so SCRIPT_NAME/PATH_INFO will behave as for CGI scripts and will
+> thus be correct.
+>
+> Graham
+>
+

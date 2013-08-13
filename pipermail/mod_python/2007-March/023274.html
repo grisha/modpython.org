@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session persistence issues and interpereter
+	wiedness...
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20persistence%20issues%20and%20interpereter%0A%09wiedness...&In-Reply-To=200703111117.45555.fred%40urlbit.us">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023273.html">
+   <LINK REL="Next"  HREF="023265.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session persistence issues and interpereter
+	wiedness...</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20persistence%20issues%20and%20interpereter%0A%09wiedness...&In-Reply-To=200703111117.45555.fred%40urlbit.us"
+       TITLE="[mod_python] Session persistence issues and interpereter
+	wiedness...">jpg at jgassociates.ca
+       </A><BR>
+    <I>Sun Mar 11 11:26:41 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023273.html">[mod_python] Session persistence issues and interpereter wiedness...
+</A></li>
+        <LI>Next message: <A HREF="023265.html">[mod_python] First mod_python project design teething problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23274">[ date ]</a>
+              <a href="thread.html#23274">[ thread ]</a>
+              <a href="subject.html#23274">[ subject ]</a>
+              <a href="author.html#23274">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Fred of UrlBit.Us wrote:
+&gt;<i> On Friday 09 March 2007 15:43, Fred of UrlBit.Us uttered thusly:
+</I>&gt;&gt;<i> I am having a problem with PSP that seems to be copying objects in the
+</I>&gt;&gt;<i> vars list rather than using the originals.
+</I>&gt;<i> 
+</I>&gt;<i> What I thought was &quot;object duplication&quot; wasn't at all -- actually, I am 
+</I>&gt;<i> seeing two problems (and I mis-read my log dumps).
+</I>&gt;<i> 
+</I>&gt;<i> I am not wanting PSP to automatically handle the session object, since I want 
+</I>&gt;<i> to handle that myself outside of PSP. So I pass in the session object as a 
+</I>&gt;<i> part of a composition object variable to PSP space, so PSP will leave it 
+</I>&gt;<i> alone. Then I explicitly save the Session with session.save().
+</I>&gt;<i> 
+</I>&gt;<i> My problem is that for whatever the reason, the session appears to not be 
+</I>&gt;<i> loading on the next query, even though the SID is still there and the 
+</I>&gt;<i> Session object report it's not new. I have confirmed that the save is saving 
+</I>&gt;<i> the modifications (by hex-dumping the contents of the DBM files, etc., but 
+</I>&gt;<i> they are not loading. No exceptions are generated either. I create the 
+</I>&gt;<i> session in the handler with Session(req).
+</I>
+Make sure you create your session object before sending *any* content 
+back to the client. The response header for the session cookie is set 
+when the session object is created. The first call to req.write(), 
+either explicitly, or implicitly with PSP or publisher, causes the 
+response headers to be sent. If you create your session after that it 
+will be too late. Each new request will always seem to create a new session.
+
+By way of illustration, this bit of code would exhibit the problem:
+
+def handler(req):
+     req.content_type = 'text/plain'
+     req.write('stuff\n') # this forces the response headers to be sent
+     sess = Session(req)  # oops, headers already sent
+                          #  - client never sees the session cookie
+     sess.save()
+     req.write('more stuff')
+     return apache.OK
+
+You can confirm that the session cookie is not getting set by looking at 
+the response headers on the client.
+
+&gt;<i> The 2nd issue I am seeing -- maybe related, but I doubt it -- is that the 
+</I>&gt;<i> interpreter for the virtual server seems to reload every so often, as I 
+</I>&gt;<i> notice modules and plugins being reloaded after so many queries. Is this 
+</I>&gt;<i> suppose to happen?
+</I>
+Am I to assume that your modules are not changing? If so, this could be 
+related to your apache configuration. For prefork-mpm (worker-mpm will 
+be similar), if MaxRequestsPerChild is &gt; 0, then the child process will 
+be killed and a new interpreter created when httpd spawns a new child 
+process.
+
+Likewise, take a look at:
+
+StartServers         5
+MinSpareServers      5
+MaxSpareServers     10
+
+If the load spikes a number of new processes may be created, each 
+getting a new interpreter. When the load falls again httpd will kill 
+some off to somewhere between 5 and 10.
+
+&gt;<i> Running Linux (32-bit), Apache 2.0.55, mod_python 3.3.1, Python 2.5
+</I>
+Jim
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023273.html">[mod_python] Session persistence issues and interpereter wiedness...
+</A></li>
+	<LI>Next message: <A HREF="023265.html">[mod_python] First mod_python project design teething problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23274">[ date ]</a>
+              <a href="thread.html#23274">[ thread ]</a>
+              <a href="subject.html#23274">[ subject ]</a>
+              <a href="author.html#23274">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Headers not being sent when input/output is over a
+	certain size
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Headers%20not%20being%20sent%20when%20input/output%20is%20over%20a%0A%09certain%20size&In-Reply-To=A27E48C051AA49529DD4EA05B09FE963%40topia">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024162.html">
+   <LINK REL="Next"  HREF="024165.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Headers not being sent when input/output is over a
+	certain size</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Headers%20not%20being%20sent%20when%20input/output%20is%20over%20a%0A%09certain%20size&In-Reply-To=A27E48C051AA49529DD4EA05B09FE963%40topia"
+       TITLE="[mod_python] Headers not being sent when input/output is over a
+	certain size">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Tue Aug 28 23:57:35 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024162.html">[mod_python] Re: XSLT and mod_python
+</A></li>
+        <LI>Next message: <A HREF="024165.html">[mod_python] Headers not being sent when input/output is over a
+	certain size
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24164">[ date ]</a>
+              <a href="thread.html#24164">[ thread ]</a>
+              <a href="subject.html#24164">[ subject ]</a>
+              <a href="author.html#24164">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 29/08/2007, Sidnei da Silva &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">sidnei at enfoldsystems.com</A>&gt; wrote:
+&gt;<i> ----- Original Message -----
+</I>&gt;<i> &gt; If you expect to be able to set headers in an output filter based on
+</I>&gt;<i> &gt; the complete content being output, you need to buffer up all your data
+</I>&gt;<i> &gt; and write it in one go after you have updated the headers. You cannot
+</I>&gt;<i> &gt; write the data and then update the headers.
+</I>&gt;<i>
+</I>&gt;<i> That's what I'm doing yes.
+</I>&gt;<i>
+</I>&gt;<i> &gt; Without seeing the code for your output filter, can't comment further
+</I>&gt;<i> &gt; as to what the problem may be.
+</I>&gt;<i>
+</I>&gt;<i> It goes along the lines of (off the top of my head):
+</I>&gt;<i>
+</I>&gt;<i> if &lt;request-not-interesting&gt;:
+</I>&gt;<i>    filter.pass_on()
+</I>&gt;<i>    return
+</I>&gt;<i>
+</I>&gt;<i> ... do buffering ..
+</I>&gt;<i>
+</I>&gt;<i> if &lt;read-returns-None&gt;:
+</I>&gt;<i>   filter.req.set_content_length(&lt;len-of-generated-data&gt;)
+</I>&gt;<i>   filter.req.content_type = 'text/xml'
+</I>&gt;<i>   filter.write(&lt;generated-data&gt;)
+</I>&gt;<i>   filter.close()
+</I>&gt;<i>
+</I>&gt;<i> Again, it works as expected with little data, but when there's just a little
+</I>&gt;<i> bit over 7.5k of buffered input data, when I call filter.write() the
+</I>&gt;<i> Content-Length and Content-Type headers do not get sent.
+</I>
+Do you get a content length header if you enable the Apache
+CONTENT_LENGTH output filter?
+
+Part of the problem may be that output filters in Apache are a
+resource filter and are only possibly supposed to operate on the
+actual body content. I'm not sure if resource filters are supposed to
+be able to operate on headers.
+
+The CONTENT_LENGTH output filter for example which does operate on
+headers, is registered as a protocol filter and not a resource filter.
+
+I don't have the time to investigate this now, but might be able to
+look at what the differences are later and whether you can even set
+headers in mod_python output filters.
+
+/**
+ * Filters have different types/classifications. These are used to group
+ * and sort the filters to properly sequence their operation.
+ *
+ * The types have a particular sort order, which allows us to insert them
+ * into the filter chain in a determistic order. Within a particular grouping,
+ * the ordering is equivalent to the order of calls to ap_add_*_filter().
+ */
+typedef enum {
+    /** These filters are used to alter the content that is passed through
+     *  them. Examples are SSI or PHP. */
+    AP_FTYPE_RESOURCE     = 10,
+    /** These filters are used to alter the content as a whole, but after all
+     *  AP_FTYPE_RESOURCE filters are executed.  These filters should not
+     *  change the content-type.  An example is deflate.  */
+    AP_FTYPE_CONTENT_SET  = 20,
+    /** These filters are used to handle the protocol between server and
+     *  client.  Examples are HTTP and POP. */
+    AP_FTYPE_PROTOCOL     = 30,
+    /** These filters implement transport encodings (e.g., chunking). */
+    AP_FTYPE_TRANSCODE    = 40,
+    /** These filters will alter the content, but in ways that are
+     *  more strongly associated with the connection.  Examples are
+     *  splitting an HTTP connection into multiple requests and
+     *  buffering HTTP responses across multiple requests.
+     *
+     *  It is important to note that these types of filters are not
+     *  allowed in a sub-request. A sub-request's output can certainly
+     *  be filtered by ::AP_FTYPE_RESOURCE filters, but all of the &quot;final
+     *  processing&quot; is determined by the main request. */
+    AP_FTYPE_CONNECTION  = 50,
+    /** These filters don't alter the content.  They are responsible for
+     *  sending/receiving data to/from the client. */
+    AP_FTYPE_NETWORK     = 60
+} ap_filter_type;
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024162.html">[mod_python] Re: XSLT and mod_python
+</A></li>
+	<LI>Next message: <A HREF="024165.html">[mod_python] Headers not being sent when input/output is over a
+	certain size
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24164">[ date ]</a>
+              <a href="thread.html#24164">[ thread ]</a>
+              <a href="subject.html#24164">[ subject ]</a>
+              <a href="author.html#24164">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

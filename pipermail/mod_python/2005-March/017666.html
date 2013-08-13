@@ -1,0 +1,151 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] OS X / Apache 2 / mod_python bug
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20OS%20X%20/%20Apache%202%20/%20mod_python%20bug&In-Reply-To=FA961FA0-264D-4906-BD25-BA0AB4F1CE15%40kirkconsulting.co.uk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017665.html">
+   <LINK REL="Next"  HREF="017672.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] OS X / Apache 2 / mod_python bug</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20OS%20X%20/%20Apache%202%20/%20mod_python%20bug&In-Reply-To=FA961FA0-264D-4906-BD25-BA0AB4F1CE15%40kirkconsulting.co.uk"
+       TITLE="[mod_python] OS X / Apache 2 / mod_python bug">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Mar 16 05:05:13 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017665.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+        <LI>Next message: <A HREF="017672.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17666">[ date ]</a>
+              <a href="thread.html#17666">[ thread ]</a>
+              <a href="subject.html#17666">[ subject ]</a>
+              <a href="author.html#17666">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 16/03/2005, at 8:42 PM, Jamie Kirkpatrick wrote:
+
+&gt;<i> Next after a restart:  just after restarting, before calling anything 
+</I>&gt;<i> I check the logs -
+</I>&gt;<i>
+</I>&gt;<i> [Wed Mar 16 09:33:26 2005] [error] interpreter name that was passed is:
+</I>&gt;<i> [Wed Mar 16 09:33:26 2005] [error] interpreter name that was passed is:
+</I>&gt;<i> [Wed Mar 16 09:33:26 2005] [error] interpreter name that was passed is:
+</I>&gt;<i> [Wed Mar 16 09:33:26 2005] [error] interpreter name that was passed is:
+</I>&gt;<i> [Wed Mar 16 09:33:26 2005] [error] interpreter name that was passed is:
+</I>&gt;<i>
+</I>&gt;<i> A minute or so later I check back and i see
+</I>&gt;<i>
+</I>&gt;<i> [Wed Mar 16 09:33:32 2005] [warn] child process 25283 still did not 
+</I>&gt;<i> exit, sending a SIGTERM
+</I>&gt;<i> [Wed Mar 16 09:33:32 2005] [warn] child process 25284 still did not 
+</I>&gt;<i> exit, sending a SIGTERM
+</I>&gt;<i> [Wed Mar 16 09:33:32 2005] [warn] child process 25285 still did not 
+</I>&gt;<i> exit, sending a SIGTERM
+</I>&gt;<i> [Wed Mar 16 09:33:32 2005] [warn] child process 25286 still did not 
+</I>&gt;<i> exit, sending a SIGTERM
+</I>&gt;<i> [Wed Mar 16 09:33:32 2005] [warn] child process 25287 still did not 
+</I>&gt;<i> exit, sending a SIGTERM
+</I>
+In one place in the code, it passed NULL for the interpreter name so
+the code you added to log the name is probably causing the crash. You
+thus may need to do something like:
+
+   if (name != NULL)
+     ... log that name is NULL
+   else
+     ... log the name
+
+BTW, can you confirm that you have the Mac OS X fix for Python 2.3 
+(standard)
+that I have previously mentioned. If you have applied the patch, in 
+python_init()
+there will be:
+
+     /* initialize global Python interpreter if necessary */
+     if (initialized == 0 || ! Py_IsInitialized())
+     {
+         initialized = 1;
+
+where as unpatched mod_python has:
+
+     /* initialize global Python interpreter if necessary */
+     if (! Py_IsInitialized())
+     {
+
+I ask as the logged message &quot;interpreters dictionary not initialised&quot; 
+indicates
+that it may not and that you are hitting the same problem I saw but 
+that it
+simply doesn't happen all the time.
+
+If you haven't patched it, add log message in if check for 
+Py_IsInitialized
+call in python_init() to see that the code is actually being called and
+thus that &quot;interpreters&quot; is even being initialised.
+
+     /* initialize global Python interpreter if necessary */
+     if (! Py_IsInitialized())
+     {
+
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, srv,
+              &quot;Performing Initialisation.&quot;);
+
+BTW, the Mac OS X patch is a part of general patches included in:
+
+   <A HREF="http://www.dscpl.com.au/projects/vampire/PATCHES">http://www.dscpl.com.au/projects/vampire/PATCHES</A>
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017665.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+	<LI>Next message: <A HREF="017672.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17666">[ date ]</a>
+              <a href="thread.html#17666">[ thread ]</a>
+              <a href="subject.html#17666">[ subject ]</a>
+              <a href="author.html#17666">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

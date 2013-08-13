@@ -1,0 +1,227 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] OS X / Apache 2 / mod_python bug
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20OS%20X%20/%20Apache%202%20/%20mod_python%20bug&In-Reply-To=f6e65387db9eb406302f5c041ea98305%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017666.html">
+   <LINK REL="Next"  HREF="017675.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] OS X / Apache 2 / mod_python bug</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jamie Kirkpatrick</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20OS%20X%20/%20Apache%202%20/%20mod_python%20bug&In-Reply-To=f6e65387db9eb406302f5c041ea98305%40dscpl.com.au"
+       TITLE="[mod_python] OS X / Apache 2 / mod_python bug">jkp at kirkconsulting.co.uk
+       </A><BR>
+    <I>Wed Mar 16 14:03:16 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017666.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+        <LI>Next message: <A HREF="017675.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17672">[ date ]</a>
+              <a href="thread.html#17672">[ thread ]</a>
+              <a href="subject.html#17672">[ subject ]</a>
+              <a href="author.html#17672">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 16 Mar 2005, at 10:05, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 16/03/2005, at 8:42 PM, Jamie Kirkpatrick wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Next after a restart:  just after restarting, before calling 
+</I>&gt;&gt;<i> anything I check the logs -
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> [Wed Mar 16 09:33:26 2005] [error] interpreter name that was passed 
+</I>&gt;&gt;<i> is:
+</I>&gt;&gt;<i> [Wed Mar 16 09:33:26 2005] [error] interpreter name that was passed 
+</I>&gt;&gt;<i> is:
+</I>&gt;&gt;<i> [Wed Mar 16 09:33:26 2005] [error] interpreter name that was passed 
+</I>&gt;&gt;<i> is:
+</I>&gt;&gt;<i> [Wed Mar 16 09:33:26 2005] [error] interpreter name that was passed 
+</I>&gt;&gt;<i> is:
+</I>&gt;&gt;<i> [Wed Mar 16 09:33:26 2005] [error] interpreter name that was passed 
+</I>&gt;&gt;<i> is:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> A minute or so later I check back and i see
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> [Wed Mar 16 09:33:32 2005] [warn] child process 25283 still did not 
+</I>&gt;&gt;<i> exit, sending a SIGTERM
+</I>&gt;&gt;<i> [Wed Mar 16 09:33:32 2005] [warn] child process 25284 still did not 
+</I>&gt;&gt;<i> exit, sending a SIGTERM
+</I>&gt;&gt;<i> [Wed Mar 16 09:33:32 2005] [warn] child process 25285 still did not 
+</I>&gt;&gt;<i> exit, sending a SIGTERM
+</I>&gt;&gt;<i> [Wed Mar 16 09:33:32 2005] [warn] child process 25286 still did not 
+</I>&gt;&gt;<i> exit, sending a SIGTERM
+</I>&gt;&gt;<i> [Wed Mar 16 09:33:32 2005] [warn] child process 25287 still did not 
+</I>&gt;&gt;<i> exit, sending a SIGTERM
+</I>&gt;<i>
+</I>&gt;<i> In one place in the code, it passed NULL for the interpreter name so
+</I>&gt;<i> the code you added to log the name is probably causing the crash. You
+</I>&gt;<i> thus may need to do something like:
+</I>&gt;<i>
+</I>&gt;<i>   if (name != NULL)
+</I>&gt;<i>     ... log that name is NULL
+</I>&gt;<i>   else
+</I>&gt;<i>     ... log the name
+</I>&gt;<i>
+</I>&gt;<i> BTW, can you confirm that you have the Mac OS X fix for Python 2.3 
+</I>&gt;<i> (standard)
+</I>&gt;<i> that I have previously mentioned. If you have applied the patch, in 
+</I>&gt;<i> python_init()
+</I>&gt;<i> there will be:
+</I>&gt;<i>
+</I>&gt;<i>     /* initialize global Python interpreter if necessary */
+</I>&gt;<i>     if (initialized == 0 || ! Py_IsInitialized())
+</I>&gt;<i>     {
+</I>&gt;<i>         initialized = 1;
+</I>&gt;<i>
+</I>&gt;<i> where as unpatched mod_python has:
+</I>&gt;<i>
+</I>&gt;<i>     /* initialize global Python interpreter if necessary */
+</I>&gt;<i>     if (! Py_IsInitialized())
+</I>&gt;<i>     {
+</I>&gt;<i>
+</I>
+I'm unpatched...I tried first by making the alteration to the logging 
+of name and including the other logging statement shown below.
+
+&lt;snip&gt;
+
+&gt;<i> /* initialize global Python interpreter if necessary */
+</I>&gt;<i>     if (! Py_IsInitialized())
+</I>&gt;<i>     {
+</I>&gt;<i>
+</I>&gt;<i>        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, srv,
+</I>&gt;<i>              &quot;Performing Initialisation.&quot;);
+</I>
+So, after a normal start error log shows:
+
+[Wed Mar 16 11:03:43 2005] [notice] mod_python: Creating 32 session 
+mutexes based on 150 max processes and 0 max threads.
+[Wed Mar 16 11:03:43 2005] [error] Performing Initialisation.
+[Wed Mar 16 11:03:43 2005] [notice] Digest: generating secret for 
+digest authentication ...
+[Wed Mar 16 11:03:43 2005] [notice] Digest: done
+[Wed Mar 16 11:03:44 2005] [notice] Apache/2.0.53 (Unix) DAV/2 
+mod_python/3.1.3 Python/2.4 configured -- resuming normal operations
+
+Then I call the test script:
+
+[Wed Mar 16 11:04:52 2005] [error] The name passed was:
+[Wed Mar 16 11:04:52 2005] [error] thegrove.homeip.net
+[Wed Mar 16 11:04:53 2005] [notice] mod_python: (Re)importing module 
+'test'
+[Wed Mar 16 11:04:53 2005] [error] start import
+[Wed Mar 16 11:04:53 2005] [error] end import
+[Wed Mar 16 11:04:53 2005] [error] start handler
+[Wed Mar 16 11:04:53 2005] [error] end handler
+[Wed Mar 16 11:04:53 2005] [error] Name was NULL.
+
+Cool - fixed that crash (my fault!), but it still puzzles me why the 
+handler gets called again here.
+
+Now a restart - the following is added to the logs:
+
+[Wed Mar 16 11:06:01 2005] [error] Name was NULL.
+[Wed Mar 16 11:06:01 2005] [error] Name was NULL.
+[Wed Mar 16 11:06:01 2005] [error] Name was NULL.
+[Wed Mar 16 11:06:01 2005] [error] Name was NULL.
+[Wed Mar 16 11:06:01 2005] [error] Name was NULL.
+[Wed Mar 16 11:06:01 2005] [error] Name was NULL.
+[Wed Mar 16 11:06:07 2005] [notice] SIGHUP received.  Attempting to 
+restart
+[Wed Mar 16 11:06:07 2005] [notice] mod_python: Creating 32 session 
+mutexes based on 150 max processes and 0 max threads.
+[Wed Mar 16 11:06:07 2005] [notice] Digest: generating secret for 
+digest authentication ...
+[Wed Mar 16 11:06:07 2005] [notice] Digest: done
+[Wed Mar 16 11:06:08 2005] [notice] Apache/2.0.53 (Unix) DAV/2 
+mod_python/3.1.3 Python/2.4 configured -- resuming normal operations
+
+Again I have multiple instances of httpd running now ... is this normal?
+
+Now to make the call again:
+
+[Wed Mar 16 11:08:09 2005] [error] The name passed was:
+[Wed Mar 16 11:08:09 2005] [error] thegrove.homeip.net
+[Wed Mar 16 11:08:09 2005] [error] python_handler: interpreters 
+dictionary not initialised.
+
+Same results as before - at least we eliminated the crash i introduced! 
+  Next I tried compiling again with the os x patch started normal and 
+pulled up the page - this yields the same log as what i have posted 
+above.  Now the restart - again, the same logs as i posted above, and 
+pulling up the page works!
+
+So, basically, it seems that I have been unfortunate enough not to have 
+stumbled on your patch when I was working on this.  Is there any reason 
+it hasn't been rolled into the main trunk yet?  A few #IFDEF DARWIN or 
+suchlike could surely allow the inclusion of such a patch.  I will take 
+the immediate measure of posting my findings to the darwinports mailing 
+lists in order to make them aware of the issue and the fix.  I have to 
+say, that from the point of view of an OS X user it would be useful to 
+at least mention the patch in one of the docs in the main disto.  I 
+appologise for seemingly wasting your time, but I honestly spent days 
+on this and never stumbled on that patch - the only patches I saw were 
+for the Makefile's.
+
+Many thanks for all your time and effort - it has been educational for 
+me at least!  I would like to hear whether or not this patch will in 
+some way be added to the main release anyway.
+
+Cheers Graham
+
+Jamie
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017666.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+	<LI>Next message: <A HREF="017675.html">[mod_python] OS X / Apache 2 / mod_python bug
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17672">[ date ]</a>
+              <a href="thread.html#17672">[ thread ]</a>
+              <a href="subject.html#17672">[ subject ]</a>
+              <a href="author.html#17672">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

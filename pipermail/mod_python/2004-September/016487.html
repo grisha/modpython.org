@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Sessions + Publisher
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20%2B%20Publisher&In-Reply-To=77482D7E-0CAB-11D9-A8A8-000A95CCEA34%40itodd.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016485.html">
+   <LINK REL="Next"  HREF="016486.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Sessions + Publisher</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Terry MacDonald</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20%2B%20Publisher&In-Reply-To=77482D7E-0CAB-11D9-A8A8-000A95CCEA34%40itodd.org"
+       TITLE="[mod_python] Sessions + Publisher">terry.macdonald at dsl.pipex.com
+       </A><BR>
+    <I>Wed Sep 22 18:22:09 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016485.html">[mod_python] Sessions + Publisher
+</A></li>
+        <LI>Next message: <A HREF="016486.html">[mod_python] Consulting Project: Anyone interested in porting
+	apython bulletin board application to mp_servlet
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16487">[ date ]</a>
+              <a href="thread.html#16487">[ thread ]</a>
+              <a href="subject.html#16487">[ subject ]</a>
+              <a href="author.html#16487">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>How are you setting up 2 handlers for each request (apache
+configuration)?
+
+Are you using PythonAuthenHandler for your session handler and
+PythonHandler for publisher?
+
+At a guess...
+
+The original request is handled by your session handler. When the
+handler returns apache completes the remaining phases and returns a
+response with the session cookie to the client browser.
+
+I'm pretty sure the redirect generates a new request that is handled
+like an external request, therefore it goes the same route as the
+original request i.e. apache passes the (redirect) request to your
+session handler. The redirect request has no session cookie (as it did
+not come from the browser) therefore a new one is generated and another
+redirect is invoked and there begins your loop. 
+
+You cannot have two content handlers so depending on how you have
+(apache) configured your handlers I would suspect that the publisher is
+not being called either.
+
+
+
+On Wed, 2004-09-22 at 16:24, Todd Boland wrote:
+&gt;<i> On Sep 22, 2004, at 9:50 AM, Terry MacDonald wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; If is_new() is always true it means that a session cookie is not in the
+</I>&gt;<i> &gt; request.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; util.redirect does not set up the cookie in the response, calling
+</I>&gt;<i> &gt; Session(req, secret...) does that (if the request does not have a valid
+</I>&gt;<i> &gt; one already set)
+</I>&gt;<i> 
+</I>&gt;<i> My understanding of Session is as follows: When I call Session(req, 
+</I>&gt;<i> secret=''), I am assuming that the class first checks for existing 
+</I>&gt;<i> cookies sent by the client, if it doesn't find one, it generates the 
+</I>&gt;<i> sid and sends the set-cookie header to the client. It also sets a 
+</I>&gt;<i> private member to 1 for Session.is_new() to return.
+</I>&gt;<i> 
+</I>&gt;<i> Is this accurate?
+</I>&gt;<i> 
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Not knowing what is going on in your login script its hard to tell what
+</I>&gt;<i> &gt; the exact problem is but I would check that session cookies are being
+</I>&gt;<i> &gt; exchnged between the browser and the server.
+</I>&gt;<i> 
+</I>&gt;<i> The cookie is definitely being set. Firefox and Safari both report 
+</I>&gt;<i> having pysid cookies. All my login script is at the moment is:
+</I>&gt;<i> 
+</I>&gt;<i> def login(req, url=None):
+</I>&gt;<i> 	req.write('login')
+</I>&gt;<i> 
+</I>&gt;<i> Safari bitches about too many redirects and firefox is sent into an 
+</I>&gt;<i> infinite redirect loop.
+</I>&gt;<i> 
+</I>&gt;<i> Thanks for your help and time Terry.
+</I>&gt;<i> 
+</I>&gt;<i> Todd
+</I>&gt;<i> 
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On Wed, 2004-09-22 at 01:12, Todd Boland wrote:
+</I>&gt;<i> &gt;&gt; Hello again!
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; In my experiences as a web developer (I'm coming from a Perl/Mason
+</I>&gt;<i> &gt;&gt; environment), I've found that the convenience of &quot;transparently&quot;
+</I>&gt;<i> &gt;&gt; generating sessions outweighs the performance hit.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; I'm trying to implement sessions &quot;transparently&quot; using 2 handlers for
+</I>&gt;<i> &gt;&gt; every request. The first handler makes sure a session is set, if it 
+</I>&gt;<i> &gt;&gt; was
+</I>&gt;<i> &gt;&gt; just created, it will forward the browser to a login page (like the
+</I>&gt;<i> &gt;&gt; documentation suggests). More code that checks session ids against
+</I>&gt;<i> &gt;&gt; values in the database to authenticate users will eventually be added.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; By the time a request gets to the second handler (the Publisher
+</I>&gt;<i> &gt;&gt; handler), sessions have preemptively been taken care of (it's totally
+</I>&gt;<i> &gt;&gt; &quot;transparent&quot;).
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; The problem I'm having is: I end up in an infinite redirect loop:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; The session handler:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; from mod_python import apache, util
+</I>&gt;<i> &gt;&gt; from mod_python.Session import Session
+</I>&gt;<i> &gt;&gt; from RPM.common import web_root
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; def handler(req):
+</I>&gt;<i> &gt;&gt;          session = Session(req, secret='********')
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;          # if the session is new, they need to log in
+</I>&gt;<i> &gt;&gt;          if session.is_new():
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;                  # Using util's redirect will set the cookie
+</I>&gt;<i> &gt;&gt;                  util.redirect(req, web_root('index.py/login?url=%s' %
+</I>&gt;<i> &gt;&gt; req.uri))
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; 	# TODO: Make sure sid is logged in
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; 	# Hand off to Publisher handler by returning 200 OK
+</I>&gt;<i> &gt;&gt;          return apache.OK
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; session.is_new() always returns 1 even after the session cookie is set
+</I>&gt;<i> &gt;&gt; (after the redirect). Any ideas or nudges in the right direction would
+</I>&gt;<i> &gt;&gt; greatly be appreciated. Thanks!
+</I>&gt;<i> &gt; -- 
+</I>&gt;<i> &gt; Terry
+</I>&gt;<i> &gt; Registered Linux User # 311806
+</I>&gt;<i> &gt; www.taumu.com
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> -- 
+</I>&gt;<i> Todd Boland
+</I>&gt;<i> Software Engineer
+</I>&gt;<i> Charged Software
+</I>&gt;<i> (508) 887-2885
+</I>&gt;<i> Facsimile: (978) 264-0058
+</I>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016485.html">[mod_python] Sessions + Publisher
+</A></li>
+	<LI>Next message: <A HREF="016486.html">[mod_python] Consulting Project: Anyone interested in porting
+	apython bulletin board application to mp_servlet
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16487">[ date ]</a>
+              <a href="thread.html#16487">[ thread ]</a>
+              <a href="subject.html#16487">[ subject ]</a>
+              <a href="author.html#16487">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

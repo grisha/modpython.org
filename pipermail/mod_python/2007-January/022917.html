@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] strange behaviour with compressed response
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20strange%20behaviour%20with%20compressed%20response&In-Reply-To=1167791759.876%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022914.html">
+   <LINK REL="Next"  HREF="022918.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] strange behaviour with compressed response</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>m.banaouas</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20strange%20behaviour%20with%20compressed%20response&In-Reply-To=1167791759.876%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] strange behaviour with compressed response">banaouas.medialog at wanadoo.fr
+       </A><BR>
+    <I>Wed Jan  3 04:33:27 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022914.html">[mod_python] strange behaviour with compressed response
+</A></li>
+        <LI>Next message: <A HREF="022918.html">[mod_python] strange behaviour with compressed response
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22917">[ date ]</a>
+              <a href="thread.html#22917">[ thread ]</a>
+              <a href="subject.html#22917">[ subject ]</a>
+              <a href="author.html#22917">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+ &gt;req.sendfile('c:/apache/htdocs/myfile.xml')
+In my real case, the response contain &quot;dynamic&quot; data built with database 
+extracted rows.
+So it's may be not the best thing to do (storing it first in a file).
+
+ &gt;       SetOutputFilter DEFLATE
+Now, it works finally! even without this directive.
+
+In fact the right question would be:
+&quot;what is the difference between req.write(bla) and return bla ?&quot;
+
+Firefox browser is certainly http-tolerant and can manage some 
+&quot;imperfect&quot; http dialogs.
+Of course, the problem I meet could be caused by bad implementation in 
+MyHttpClient side.
+But the same comp in the sames conditions fails when response is 
+&quot;written&quot; and works fine when the response is &quot;returned&quot;, bizare non ?
+I would like to well understand the origin of this difference of 
+behaviour, to avoid to meet it again in prod stage.
+So I will &quot;dive&quot; deeply in apache documentation ...
+
+special thanks for Graham Dumpleton and all his rich comments ...
+
+Graham Dumpleton a &#233;crit :
+ &gt; m.banaouas wrote ..
+ &gt;&gt; hi,
+ &gt;&gt; what is the difference between serving a file directly or by calling a
+ &gt;&gt; script function?
+ &gt;&gt; case 1: <A HREF="http://localhost/myfile.xml">http://localhost/myfile.xml</A>
+ &gt;&gt; case 2: <A HREF="http://localhost/mydir/boo/getfile">http://localhost/mydir/boo/getfile</A>
+ &gt;&gt; Must I do special call to apache api when compression is activated?
+ &gt;&gt; With Firefox, every thing works fine in two cases.
+ &gt;&gt; With a http client component I'm using in my developpements, both case
+ &gt;&gt; 1
+ &gt;&gt; and case 2 works fine if I don't ask for compressed data. If I do
+ &gt;&gt; (Accept-Encoding: gzip), case 1 works fine but case 2 fails.
+ &gt;
+ &gt; Your Apache configuration only enables the DEFLATE output filter for 
+static
+ &gt; files in your htdocs directory, it doesn't enable it for anything 
+under mydir
+ &gt; so unless DEFLATE is being enable somehow elsewhere in the Apache 
+configuration
+ &gt; the output of your published functions would never be compressed.
+ &gt;
+ &gt; See other notes further done mixed in with your code and configuration.
+ &gt;
+ &gt;&gt; I noticed that returning apache.OK adds unexpected extra &quot;0&quot; on the 
+output.
+ &gt;
+ &gt; Which would be what one expects as functions published using
+ &gt; mod_python.publisher are not the same as basic mod_python handlers. 
+When using
+ &gt; mod_python.publisher the result of the published function is 
+converted to a
+ &gt; string and written back as response content. In a basic mod_python 
+handler the
+ &gt; response is a status indicating success of otherwise of the handler. 
+Look at
+ &gt; the documentation again to see the difference.
+ &gt;
+ &gt;&gt; thanks.
+ &gt;&gt;
+ &gt;&gt; DocumentRoot &quot;C:/Apache/htdocs&quot;
+ &gt;&gt; &lt;Directory /&gt;
+ &gt;&gt;     Options FollowSymLinks
+ &gt;&gt;     AllowOverride None
+ &gt;&gt;     Order deny,allow
+ &gt;&gt;     Deny from all
+ &gt;&gt;     Satisfy all
+ &gt;&gt;     SetOutputFilter DEFLATE
+ &gt;&gt; &lt;/Directory&gt;
+ &gt;&gt;
+ &gt;&gt; Alias /mydir &quot;C:/MYDIR&quot;
+ &gt;&gt; &lt;Directory C:/MYDIR&gt;
+ &gt;&gt;     Allow from All
+ &gt;&gt;     SetHandler mod_python
+ &gt;&gt;     PythonHandler mod_python.publisher
+ &gt;
+ &gt; Because this is a separate physical directory with distinct Directory
+ &gt; directive, you would also need here:
+ &gt;
+ &gt;       SetOutputFilter DEFLATE
+ &gt;
+ &gt; to have response from published functions be compressed.
+ &gt;
+ &gt; Do take heed of the Apache documentation I pointed you to originally in
+ &gt; regard to DEFLATE module and a possible need to ensure you don't enable
+ &gt; it for some clients because of broken compressed data implementations
+ &gt; in those clients. Also, you shouldn't enable DEFLATE for all file 
+types as files
+ &gt; such as images are usually already compressed and compressing them
+ &gt; again is a pointless exercise.
+ &gt;
+ &gt; Another alternative with mod_python 3.3 is to actually make the judgement
+ &gt; within the published function as to whether for a specific response 
+the output
+ &gt; should be compressed or not. To do this, before writing back any content
+ &gt; from the function, call:
+ &gt;
+ &gt;     req.add_output_filter('DEFLATE')
+ &gt;
+ &gt; This is the same as having using 'SetOutputFilter' in the Apache 
+configuration.
+ &gt;
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022914.html">[mod_python] strange behaviour with compressed response
+</A></li>
+	<LI>Next message: <A HREF="022918.html">[mod_python] strange behaviour with compressed response
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22917">[ date ]</a>
+              <a href="thread.html#22917">[ thread ]</a>
+              <a href="subject.html#22917">[ subject ]</a>
+              <a href="author.html#22917">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

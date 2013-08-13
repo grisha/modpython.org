@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Status of Mac OS X / Apache 1.3 / mod_python 2.7.10.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Status%20of%20Mac%20OS%20X%20/%20Apache%201.3%20/%20mod_python%202.7.10.&In-Reply-To=8747578C-E654-11D8-A593-000D93AD1DB8%40qutang.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015993.html">
+   <LINK REL="Next"  HREF="016006.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Status of Mac OS X / Apache 1.3 / mod_python 2.7.10.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Status%20of%20Mac%20OS%20X%20/%20Apache%201.3%20/%20mod_python%202.7.10.&In-Reply-To=8747578C-E654-11D8-A593-000D93AD1DB8%40qutang.net"
+       TITLE="[mod_python] Status of Mac OS X / Apache 1.3 / mod_python 2.7.10.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Aug  4 22:37:15 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015993.html">[mod_python] Status of Mac OS X / Apache 1.3 / mod_python 2.7.10.
+</A></li>
+        <LI>Next message: <A HREF="016006.html">[mod_python] Status of Mac OS X / Apache 1.3 / mod_python 2.7.10.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15994">[ date ]</a>
+              <a href="thread.html#15994">[ thread ]</a>
+              <a href="subject.html#15994">[ subject ]</a>
+              <a href="author.html#15994">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Aug 04 15:26, Justin Ryan &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jryan at qutang.net</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Subject: Re: [mod_python] Status of Mac OS X / Apache 1.3 / mod_python 2.7.10.
+</I>&gt;<i>
+</I>&gt;<i> Be careful when playing with the file/directory/link/whateva that is 
+</I>&gt;<i> /System/Library/Frameworks/Python.Framework.  I ran into some wierdness 
+</I>&gt;<i> trying to change this into a symlink and move it around (i.e. change it 
+</I>&gt;<i> back and forth from pointing to Apple's python and my own).
+</I>&gt;<i> 
+</I>&gt;<i> Also, take care when using the 'python' command after installing your 
+</I>&gt;<i> own framework build.  It's kind of a pain to get a framework build to 
+</I>&gt;<i> stick python, pythonw, etc.. in /usr/bin - all of my stuff was in 
+</I>&gt;<i> /usr/local/bin, even though I passed --prefix=/usr to the configure 
+</I>&gt;<i> script.
+</I>
+I would agree and why I didn't want to go down the path of having to replace
+the standard version of Python on MacOSX with a newer version to get mod_python
+to work. Similarly, I didn't want to be replacing their version of Apache.
+
+Anyway, listed below is the changes I had to make to get it to build and work
+on MacOSX (10.3.3) with the standard Python (2.3) and Apache (1.3) that come
+with the operating system.
+
+First off, after running configure, change &quot;src/Makefile&quot; and replace:
+
+  /System/Library/Frameworks/Python.framework/Versions/2.3/lib/python2.3/config/libpython2.3.a
+
+with:
+
+  -framework Python
+
+in LIBS variable.
+
+Second, in the same makefile, change CFLAGS and add in:
+
+  -DEAPI
+
+as a compiler option.
+
+This will allow mod_python to build, but the result will crash.
+
+Final step is to modify src/mod_python.c. The diff is below. There are
+more comments after that diff as to why the original code is wrong anyway.
+
+
+*** mod_python.c.dist   Tue May 29 06:00:41 2001
+--- mod_python.c        Thu Aug  5 13:21:22 2004
+***************
+*** 260,265 ****
+--- 260,268 ----
+  
+      char buff[255];
+  
++     /* fudge for Mac OS X with Apache 1.3 where Py_IsInitialized() broke */
++     static int initialized = 0;
++ 
+      /* pool given to us in ChildInit. We use it for 
+         server.register_cleanup() */
+      pool *child_init_pool = NULL;
+***************
+*** 272,279 ****
+      ap_add_version_component(buff);
+  
+      /* initialize global Python interpreter if necessary */
+!     if (! Py_IsInitialized()) 
+      {
+  
+        /* initialze the interpreter */
+        Py_Initialize();
+--- 275,283 ----
+      ap_add_version_component(buff);
+  
+      /* initialize global Python interpreter if necessary */
+!     if (initialized == 0 || ! Py_IsInitialized())
+      {
++         initialized = 1;
+  
+        /* initialze the interpreter */
+        Py_Initialize();
+
+
+The problem on MacOSX is that Py_IsInitialized() is returning true on the
+first time it is called even though Python hadn't up until that point actually
+been initialised. This means initialisation is skipped and the first time
+something tries to use Python methods later, it crashes.
+
+To my mind the use of Py_IsInitialized() is partly bogus anyway. This is
+because if someone did come up with a different apache module which
+also tried to use Python and it got loaded first and called Py_Initialize(),
+it would mean when mod_python got loaded it would skip initialisation
+and wouldn't initialise as a result the &quot;interpreters&quot; dictionary nor would
+it necessarily initialise threading if the other module didn't do it.
+
+Thus, even though people might reckon that this patch may only be
+relevant to the MacOSX problem I have, I would disagree, because I would
+say the code is wrong anyway.
+
+As a demonstration, you might modify the code and add an extra call to
+Py_Initialize() just prior to the &quot;if&quot; statement where Py_IsInitialized() is
+called as if it was done somewhere else. Do this and mod_python should
+by observation break since &quot;interpreters&quot; will never get set as described above.
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015993.html">[mod_python] Status of Mac OS X / Apache 1.3 / mod_python 2.7.10.
+</A></li>
+	<LI>Next message: <A HREF="016006.html">[mod_python] Status of Mac OS X / Apache 1.3 / mod_python 2.7.10.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15994">[ date ]</a>
+              <a href="thread.html#15994">[ thread ]</a>
+              <a href="subject.html#15994">[ subject ]</a>
+              <a href="author.html#15994">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

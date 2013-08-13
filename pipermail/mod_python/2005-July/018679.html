@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Newbie: mod_python.publisher application structure
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Newbie%3A%20mod_python.publisher%20application%20structure&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018677.html">
+   <LINK REL="Next"  HREF="018686.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Newbie: mod_python.publisher application structure</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>fabiovenni at tin.it</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Newbie%3A%20mod_python.publisher%20application%20structure&In-Reply-To="
+       TITLE="[mod_python] Newbie: mod_python.publisher application structure">fabiovenni at tin.it
+       </A><BR>
+    <I>Wed Jul 13 06:45:27 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018677.html">[mod_python] mod_python crash on MP system
+</A></li>
+        <LI>Next message: <A HREF="018686.html">[mod_python] Newbie: mod_python.publisher application structure
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18679">[ date ]</a>
+              <a href="thread.html#18679">[ thread ]</a>
+              <a href="subject.html#18679">[ subject ]</a>
+              <a href="author.html#18679">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I'm a totally newbie in python and mod_python. Just a couple of weeks of
+part-time toying.
+
+I've managed to write a minimal blog using the mod_python.publisher handler.
+This is the code, gross probably but does the job:
+
+class Blog:
+
+  def index(self, req):
+    return &quot;&quot;&quot;
+  &lt;html&gt;
+      &lt;form action=&quot;post&quot; method=&quot;POST&quot;&gt;
+  &lt;pre&gt;
+  Title: &lt;input style=&quot;vertical-align: top;&quot; type=&quot;text&quot; name=&quot;title&quot;&gt;
+   Body: &lt;textarea style=&quot;vertical-align: top;&quot; name=&quot;body&quot; rows=4 cols=20&gt;&lt;/textarea&gt;
+         &lt;input type=&quot;submit&quot;&gt;
+  &lt;/pre&gt;
+      &lt;/form&gt;
+  &lt;/html&gt;
+  &quot;&quot;&quot;
+
+  def post(self, req, title, body):
+    return &quot;&quot;&quot;
+  &lt;html&gt;
+  &lt;pre&gt;
+  Title: %s
+   Body: %s
+
+  &lt;a href=&quot;save?title=%s&amp;body=%s&quot; title=&quot;save post&quot;&gt;Save!&lt;/a&gt;
+  &lt;/pre&gt;
+  &lt;/html&gt;
+  &quot;&quot;&quot; % (title, body, title, body)
+
+  def save(self, req, title, body):
+    import sys
+    import time
+    now = time.time()
+    filename = req.document_root()+&quot;/posts/&quot;+str(now)[:-3]
+    post = &quot;&quot;&quot;&lt;strong&gt;%s&lt;/strong&gt;\n%s&quot;&quot;&quot; % (title, body)
+    try:
+      fi = open(filename, 'w')
+      fi.write(post)
+      fi.close()
+    except IOError:
+      return '&lt;pre&gt;It hasn\'t been possible to save your post&lt;/pre&gt;'
+
+    return &quot;&quot;&quot;
+  &lt;html&gt;
+    &lt;pre&gt;
+  &lt;strong&gt;%s saved!&lt;/strong&gt;
+  &lt;a href=\&quot;list\&quot; title=\&quot;List\&quot;&gt;List&lt;/a&gt;
+    &lt;/pre&gt;
+  &lt;/html&gt;
+    &quot;&quot;&quot; % (filename)
+
+  def list(self, req):
+    import os 
+    from datetime import datetime
+    dirname = str(req.document_root())+&quot;/posts&quot;
+    output = &quot;&lt;html&gt;\n&lt;pre&gt;\n&quot;
+    for post in os.listdir(dirname)[::-1]:
+      output += &quot;&lt;em&gt;&quot;+str(datetime.fromtimestamp(float(post)))+&quot;&lt;/em&gt;\n&quot;
+      fi = open(dirname+&quot;/&quot;+post, 'r')
+      output += fi.read()
+      fi.close()
+      output += &quot;&lt;hr /&gt;\n&quot;
+    output += &quot;\n\n&lt;a href=\&quot;/\&quot; title=\&quot;New Post\&quot;&gt;New Post&lt;/a&gt;\n&lt;/pre&gt;\n&lt;/html&gt;&quot;
+    return output
+
+Now, I was considering to build up a more complicated example and make it
+my blog actual engine. I've choosen to use publisher because I like the mapping
+URL --&gt; callable object, but now I have some doubts that TFM doesn't solve,
+or probably it will in a couple of month time. What is a callable object
+in python?
+
+As a web designer, navigation is very important to me so I plan websites
+starting from the URL, my problem is that I can't think a class structure
+that does the job:
+
+myblogdomain.net/ 
+myblogdomain.net/index     Resolved as the index page
+
+myblogdomain.net/archives/2005/jun/    Resolved as blog.archives('2005','Jun')
+myblogdomain.net/archives/2005           Resolved as blog.archives('2005')
+
+myblogdomain.net/post/timestamp         Resolved as blog.post('timestamp')
+
+I've been playing around with this:
+<A HREF="http://www.modpython.org/pipermail/mod_python/2005-March/017560.html">http://www.modpython.org/pipermail/mod_python/2005-March/017560.html</A>
+but I'm confused on how to actually implement it. Do I have to put the Blog
+class inside a index.py file? and configure Apache like this:
+
+    &lt;Directory /home/share/mod_python/first/&gt;
+        SetHandler mod_python
+        PythonHandler mod_python.publisher
+        PythonDebug On
+    &lt;/Directory&gt;
+
+What I'm searching for is an application structure suggestion more than a
+coding hint. I would like to have a single controller that handles requests
+and traslate them to Blog's method calls, probably proxied by a class that
+hanldes to fetch request parameters?
+
+I'm confused please help me
+
+Fabio
+
+
+
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018677.html">[mod_python] mod_python crash on MP system
+</A></li>
+	<LI>Next message: <A HREF="018686.html">[mod_python] Newbie: mod_python.publisher application structure
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18679">[ date ]</a>
+              <a href="thread.html#18679">[ thread ]</a>
+              <a href="subject.html#18679">[ subject ]</a>
+              <a href="author.html#18679">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,262 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] util.FieldStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20util.FieldStorage&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022401.html">
+   <LINK REL="Next"  HREF="022410.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] util.FieldStorage</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20util.FieldStorage&In-Reply-To="
+       TITLE="[mod_python] util.FieldStorage">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Oct 27 02:42:38 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022401.html">[SPAM] [Fwd: Re: [mod_python] util.FieldStorage]
+</A></li>
+        <LI>Next message: <A HREF="022410.html">[mod_python] util.FieldStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22402">[ date ]</a>
+              <a href="thread.html#22402">[ thread ]</a>
+              <a href="subject.html#22402">[ subject ]</a>
+              <a href="author.html#22402">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Mike Looijmans wrote ..
+&gt;<i> I for one like the changes - it's much cleaner this way. There's only
+</I>&gt;<i> one list to deal with now, and that list handles all access..
+</I>&gt;<i> 
+</I>&gt;<i> Just one minor optimization, in __len__ i think you can replace:
+</I>&gt;<i>          return len(self.list.table().keys())
+</I>&gt;<i> with
+</I>&gt;<i>          return len(self.list.table())
+</I>&gt;<i> since that prevents the keylist from being generated.
+</I>
+Done.
+
+&gt;<i> We might solve all the &quot;dictionary&quot; questions if we provide a
+</I>&gt;<i> &quot;getdict()&quot; method (which would return a copy of list.table()).
+</I>
+I am wary about making access to the dictionary part of any public API
+as then we end up in the same sort of situation we have with list where
+people modify it directly and then perhaps wander why there changes
+are being reflected in the list. Better to hide the dictionary and mediate
+all access for a public API we define in FieldStorage.
+
+&gt;<i> Another,
+</I>&gt;<i> idea is, could we support the following:
+</I>&gt;<i> 
+</I>&gt;<i> form = FieldStorage(...)
+</I>&gt;<i> myfrm = {}
+</I>&gt;<i> myfrm.update(form)
+</I>
+That works now. possibly because of the items() method.
+
+&gt;<i> This would give those who really want that dictionary a real dictionary
+</I>&gt;<i> to work with, if they don't need the fancy FieldStorage features.
+</I>
+The code provides the basic dictionary type operations already.
+As brought up in prior email about expected behaviour, we could
+sensibly provide __delitem__, but what __setitem__ does is a bit
+open for question. Trac already sets some precedent by saying it is
+additive which isn't dictionary like at all. But then __getitem__
+doesn't work like a normal dictionary either. Thus, question is
+what the consensus is about what __setitem__should do.
+
+Graham
+
+&gt;<i> Mike Looijmans
+</I>&gt;<i> Philips Natlab / Topic Automation
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i> &gt; Mike Looijmans wrote ..
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;&gt;Being the one who moved all that code around, I'm probably the one to
+</I>&gt;<i> &gt;&gt;explain why.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;In the original version, there was a 'bad' way of detecting whether 
+</I>&gt;<i> &gt;&gt;objects were files or not. If one used the callback mechanism, and 
+</I>&gt;<i> &gt;&gt;provided a file-like object, this object would not be recognised as a
+</I>&gt;<i> &gt;&gt;file by that code, and that either resulted in the whole file being read
+</I>&gt;<i> &gt;&gt;into memory as a string or in some obscure exception being thrown.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Okay, so more than just performance issues with field access.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Anyway, I have committed some changes into repository now which
+</I>&gt;<i> &gt; fixes the issue with add_field() but also does things in such a way that
+</I>&gt;<i> &gt; code such as Trac which creates Field instances direct and adds them
+</I>&gt;<i> &gt; to the the list of form fields will still work. It does this by using
+</I>&gt;<i> a
+</I>&gt;<i> &gt; derived list class instance which invalidates the key lookup table on
+</I>&gt;<i> &gt; changes to the list so that the lookup table is rebuilt the next time
+</I>&gt;<i> &gt; it is required. Doing this wasn't as bad as I first thought it would
+</I>&gt;<i> be
+</I>&gt;<i> &gt; as hadn't gone to the extent of properly understanding the code before.
+</I>&gt;<i> &gt; Also include a semi hack in Field class constructor to detect old style
+</I>&gt;<i> &gt; use where code expects more than just the name of the field as
+</I>&gt;<i> &gt; argument and do appropriate initialisation as appropriate.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I'd add a comment to JIRA, but it seems to be playing up at the moment
+</I>&gt;<i> &gt; or at least firewall where I work is screwing up as it tends to do a
+</I>&gt;<i> bit
+</I>&gt;<i> &gt; when JIRA is accessed using https from here.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; In all, what the changes allow is for the following to work:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; from mod_python import util
+</I>&gt;<i> &gt; from StringIO import StringIO
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; def index(req):
+</I>&gt;<i> &gt;   req.content_type = 'text/plain'
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   req.write('%s\n\n' % req.form.keys())
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   for key in req.form.keys():
+</I>&gt;<i> &gt;     req.write('%s %s\n' % (key, req.form.getlist(key)))
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   req.write('\n')
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   req.form.add_field('e', 'f')
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   req.form.list.append(util.Field('g', StringIO('h'),
+</I>&gt;<i> &gt;       &quot;text/plain&quot;, {}, None, {}))
+</I>&gt;<i> &gt;   req.form.list.extend([util.Field('i', StringIO('j'),
+</I>&gt;<i> &gt;       &quot;text/plain&quot;, {}, None, {})])
+</I>&gt;<i> &gt;   req.form.list += [util.Field('k', StringIO('l'),
+</I>&gt;<i> &gt;       &quot;text/plain&quot;, {}, None, {})]
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   req.write('%s\n\n' % req.form.keys())
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   for key in req.form.keys():
+</I>&gt;<i> &gt;     req.write('%s %s\n' % (key, req.form.getlist(key)))
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   req.write('\n')
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   return None
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; If this is accessed with:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   <A HREF="http://localhost:8002/~grahamd/form/?a=b&amp;c=d&amp;e=f">http://localhost:8002/~grahamd/form/?a=b&amp;c=d&amp;e=f</A>
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I get:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; ['a', 'c', 'e']
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; a [Field('a', 'b')]
+</I>&gt;<i> &gt; c [Field('c', 'd')]
+</I>&gt;<i> &gt; e [Field('e', 'f')]
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; ['a', 'c', 'e', 'g', 'i', 'k']
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; a [Field('a', 'b')]
+</I>&gt;<i> &gt; c [Field('c', 'd')]
+</I>&gt;<i> &gt; e [Field('e', 'f'), Field('e', 'f')]
+</I>&gt;<i> &gt; g [Field('g', 'h')]
+</I>&gt;<i> &gt; i [Field('i', 'j')]
+</I>&gt;<i> &gt; k [Field('k', 'l')]
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; As the req.form.keys() method works off the lookup table, you can see
+</I>&gt;<i> &gt; how updates direct to list work okay, meaning stuff like Trac should
+</I>&gt;<i> &gt; work.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; You will also note that the 'dictionary' attribute has gone and is hidden
+</I>&gt;<i> &gt; elsewhere. Hopefully people will not try and directly access the
+</I>&gt;<i> &gt; equivalent, but some stern notes in the documentation saying only
+</I>&gt;<i> &gt; to use documented interface might help. :-)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; If you can test the updates and especially if someone can test it with
+</I>&gt;<i> &gt; older versions of Trac that would be great.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;&gt;Graham Dumpleton wrote:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;I'd probably hold off trying to work out any patches yourself. The more
+</I>&gt;<i> &gt;&gt;&gt;I look at FieldStorage the less I understand why some of the changes
+</I>&gt;<i> &gt;&gt;&gt;were made. I'm not talking about how a dictionary based index was
+</I>&gt;<i> &gt;&gt;&gt;added, but more how some of the code was shifted around when it
+</I>&gt;<i> &gt;&gt;&gt;probably didn't need to, with the result being that the code then became
+</I>&gt;<i> &gt;&gt;&gt;incompatible with versions of Trac which were out at the time. It would
+</I>&gt;<i> &gt;&gt;&gt;not have been that hard to maintain compatibility with Trac and still
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;get
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;the desired gains they were after. I can see myself therefore doing
+</I>&gt;<i> a
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;bit
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;or reorganisation of the code to fix the identified issue, but also
+</I>&gt;<i> &gt;&gt;&gt;reinstate
+</I>&gt;<i> &gt;&gt;&gt;Trac compatibility.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> -- 
+</I>&gt;<i> Mike Looijmans
+</I>&gt;<i> Philips Natlab / Topic Automation
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022401.html">[SPAM] [Fwd: Re: [mod_python] util.FieldStorage]
+</A></li>
+	<LI>Next message: <A HREF="022410.html">[mod_python] util.FieldStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22402">[ date ]</a>
+              <a href="thread.html#22402">[ thread ]</a>
+              <a href="subject.html#22402">[ subject ]</a>
+              <a href="author.html#22402">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

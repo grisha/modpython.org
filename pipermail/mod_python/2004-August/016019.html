@@ -1,0 +1,302 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] HTTP-Keep alive bug?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20HTTP-Keep%20alive%20bug%3F&In-Reply-To=20040809095014.R38983%40onyx.ispol.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016017.html">
+   <LINK REL="Next"  HREF="016002.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] HTTP-Keep alive bug?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>S&#233;bastien Arnaud</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20HTTP-Keep%20alive%20bug%3F&In-Reply-To=20040809095014.R38983%40onyx.ispol.com"
+       TITLE="[mod_python] HTTP-Keep alive bug?">arnaudsj at mac.com
+       </A><BR>
+    <I>Mon Aug  9 21:38:41 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016017.html">[mod_python] HTTP-Keep alive bug?
+</A></li>
+        <LI>Next message: <A HREF="016002.html">[mod_python] mod_pythons answer to PHP's _POST['variable']?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16019">[ date ]</a>
+              <a href="thread.html#16019">[ thread ]</a>
+              <a href="subject.html#16019">[ subject ]</a>
+              <a href="author.html#16019">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Grisha,
+
+Thank you for your enlightenment in those dark areas of my assumptions 
+(oh man, let's say it, I was wrong on the whole HTTP 1.1 thing ;)
+
+Here are 2 simple tests that hopefully will speak for themselves better 
+than I can explain it. I ran with apache bench (2.40) against one 
+simple test page rendered by mod_python.
+
+############# BEGIN: FIRST TEST ##############
+ab -v 3 -n 1 -k <A HREF="http://localhost/test/index.py">http://localhost/test/index.py</A>
+This is ApacheBench, Version 2.0.40-dev &lt;$Revision: 1.121.2.10 $&gt; 
+apache-2.0
+Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, 
+<A HREF="http://www.zeustech.net/">http://www.zeustech.net/</A>
+Copyright (c) 1998-2002 The Apache Software Foundation, 
+<A HREF="http://www.apache.org/">http://www.apache.org/</A>
+
+Benchmarking localhost (be patient)...INFO: POST header ==
+---
+GET /test/index.py HTTP/1.0
+User-Agent: ApacheBench/2.0.40-dev
+Connection: Keep-Alive
+Host: localhost
+Accept: */*
+
+
+---
+LOG: header received:
+HTTP/1.1 200 OK
+Date: Tue, 10 Aug 2004 01:19:55 GMT
+Server: Apache
+Cache-Control: no-cache=&quot;set-cookie&quot;
+Set-Cookie: testcookie=testvalue2; expires=Tue, 10-Aug-2004 01:24:56 GMT
+Connection: close
+Content-Type: text/html
+
+&lt;html&gt;
+&lt;head&gt;
+&lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=UTF-8&quot;&gt;
+&lt;title&gt;Test XSLT View&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;&lt;p&gt;The message is: &lt;span&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;
+&lt;/html&gt;
+
+LOG: Response code = 200
+..done
+
+
+Server Software:        Apache
+Server Hostname:        localhost
+Server Port:            80
+
+Document Path:          /test/index.py
+Document Length:        178 bytes
+
+Concurrency Level:      1
+Time taken for tests:   0.17957 seconds
+Complete requests:      1
+Failed requests:        0
+Write errors:           0
+Keep-Alive requests:    0
+Total transferred:      406 bytes
+HTML transferred:       178 bytes
+Requests per second:    55.69 [#/sec] (mean)
+Time per request:       17.957 [ms] (mean)
+Time per request:       17.957 [ms] (mean, across all concurrent 
+requests)
+Transfer rate:          0.00 [Kbytes/sec] received
+
+Connection Times (ms)
+               min  mean[+/-sd] median   max
+Connect:        0    0   0.0      0       0
+Processing:    17   17   0.0     17      17
+Waiting:        8    8   0.0      8       8
+Total:         17   17   0.0     17      17
+################# END FIRST TEST #####################
+
+Note, the &quot;Connection: close&quot; returned by apache even though ab 
+requested a &quot;Connection: Keep-Alive&quot;
+Now, the same request, but the simple test.py script is now setting 
+req.headers_out['Content-Length']
+
+################ BEGIN SECOND TEST ###################
+ab -v 3 -n 1 -k <A HREF="http://localhost/test/index.py">http://localhost/test/index.py</A>
+This is ApacheBench, Version 2.0.40-dev &lt;$Revision: 1.121.2.10 $&gt; 
+apache-2.0
+Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, 
+<A HREF="http://www.zeustech.net/">http://www.zeustech.net/</A>
+Copyright (c) 1998-2002 The Apache Software Foundation, 
+<A HREF="http://www.apache.org/">http://www.apache.org/</A>
+
+Benchmarking localhost (be patient)...INFO: POST header ==
+---
+GET /test/index.py HTTP/1.0
+User-Agent: ApacheBench/2.0.40-dev
+Connection: Keep-Alive
+Host: localhost
+Accept: */*
+
+
+---
+LOG: header received:
+HTTP/1.1 200 OK
+Date: Tue, 10 Aug 2004 01:19:03 GMT
+Server: Apache
+Cache-Control: no-cache=&quot;set-cookie&quot;
+Set-Cookie: testcookie=testvalue2; expires=Tue, 10-Aug-2004 01:24:03 GMT
+Content-Length: 178
+Keep-Alive: timeout=30, max=1000
+Connection: Keep-Alive
+Content-Type: text/html
+
+&lt;html&gt;
+&lt;head&gt;
+&lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=UTF-8&quot;&gt;
+&lt;title&gt;Test XSLT View&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;&lt;p&gt;The message is: &lt;span&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;
+&lt;/html&gt;
+
+LOG: Response code = 200
+..done
+
+
+Server Software:        Apache
+Server Hostname:        localhost
+Server Port:            80
+
+Document Path:          /test/index.py
+Document Length:        178 bytes
+
+Concurrency Level:      1
+Time taken for tests:   0.282956 seconds
+Complete requests:      1
+Failed requests:        0
+Write errors:           0
+Keep-Alive requests:    1
+Total transferred:      466 bytes
+HTML transferred:       178 bytes
+Requests per second:    3.53 [#/sec] (mean)
+Time per request:       282.956 [ms] (mean)
+Time per request:       282.956 [ms] (mean, across all concurrent 
+requests)
+Transfer rate:          0.00 [Kbytes/sec] received
+
+Connection Times (ms)
+               min  mean[+/-sd] median   max
+Connect:        0    0   0.0      0       0
+Processing:   282  282   0.0    282     282
+Waiting:      247  247   0.0    247     247
+Total:        282  282   0.0    282     282
+#################### END SECOND TEST #############################
+
+Note, that suddenly here Apache replies properly to the keep-alive 
+request with the response headers:
+&quot;Keep-Alive: timeout=30, max=1000&quot; and &quot;Connection: Keep-Alive&quot;. All of 
+this because we did set the &quot;content-length&quot; header in the python code.
+
+Anybody, who has a more in depth knowledge of Apache, tempted to solve 
+this mystery?
+
+Cheers,
+
+S&#233;bastien
+
+
+On Aug 9, 2004, at 9:12 AM, Gregory (Grisha) Trubetskoy wrote:
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Sun, 8 Aug 2004, [ISO-8859-1] S?bastien Arnaud wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> First, I was wrong when I said mod_python was forcing the HTTP Header 
+</I>&gt;&gt;<i> &quot;Connection: Close&quot;, it is in fact responding to a client request 
+</I>&gt;&gt;<i> http keep-alive, but it is missing an important part: the HTTP header 
+</I>&gt;&gt;<i> &quot;Content-Length: xxx&quot;!
+</I>&gt;<i>
+</I>&gt;<i> If this is HTTP 1.1, then absense of content-length indicates that the 
+</I>&gt;<i> browser wants chunked-encoding, which means that the output is a 
+</I>&gt;<i> number indicating size, followed by a chunk of data. With HTTP 1.1 
+</I>&gt;<i> content-length is obsolete. There is a pretty good description of it 
+</I>&gt;<i> here:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://www.apacheweek.com/features/http11">http://www.apacheweek.com/features/http11</A>
+</I>&gt;<i>
+</I>&gt;&gt;<i> Since it is the only way browsers can keep connections alive (to know 
+</I>&gt;&gt;<i> how much bytes they need to expect back from the server),
+</I>&gt;<i>
+</I>&gt;<i> ...not with HTTP 1.1
+</I>&gt;<i>
+</I>&gt;&gt;<i> without it, most browsers will NOT keep the connection alive (maybe 
+</I>&gt;&gt;<i> your version of Firefox is sensitive to this missing header and tries 
+</I>&gt;&gt;<i> to wait for more content to come back from the server)
+</I>&gt;<i>
+</I>&gt;<i> No, this doesn't make a lot of sense. :-) The browser isn't keeping it 
+</I>&gt;<i> alive because it is seeing a Connection: close, most likely.
+</I>&gt;<i>
+</I>&gt;&gt;<i> For the record I got mistaken in my early tests because I used Lynx 
+</I>&gt;&gt;<i> to get the HTTP headers back, and found out that Lynx did not send a 
+</I>&gt;&gt;<i> valid HTTP 1.1 request with keep-alive (duh!), therefore it was ok to 
+</I>&gt;&gt;<i> receive a &quot;Connection: Close&quot; back then.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Anyway, I think it would be nice to have an explanation why 
+</I>&gt;&gt;<i> mod_python is not setting by default the Content-Length HTTP header 
+</I>&gt;&gt;<i> when it is already setting the &quot;Connection: Keep-alive&quot; HTTP header 
+</I>&gt;&gt;<i> in response to a keep-alive request from the client.
+</I>&gt;<i>
+</I>&gt;<i> Mod_python does not set the connection header anywhere in the code, 
+</I>&gt;<i> but other code in Apache probably does. In my experience it is very 
+</I>&gt;<i> smart about it, so there is more than likely a good reason for it. 
+</I>&gt;<i> Something is telling Apache to send a &quot;close&quot;... It could the 
+</I>&gt;<i> configuration, some module in Apache, and it could be something that 
+</I>&gt;<i> the browser has caused (without seeing the actual headers its hard to 
+</I>&gt;<i> tell).
+</I>&gt;<i>
+</I>&gt;<i> Grisha
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: PGP.sig
+Type: application/pgp-signature
+Size: 155 bytes
+Desc: This is a digitally signed message part
+Url : <A HREF="http://modpython.org/pipermail/mod_python/attachments/20040809/2ec59bcf/PGP.bin">http://modpython.org/pipermail/mod_python/attachments/20040809/2ec59bcf/PGP.bin</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016017.html">[mod_python] HTTP-Keep alive bug?
+</A></li>
+	<LI>Next message: <A HREF="016002.html">[mod_python] mod_pythons answer to PHP's _POST['variable']?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16019">[ date ]</a>
+              <a href="thread.html#16019">[ thread ]</a>
+              <a href="subject.html#16019">[ subject ]</a>
+              <a href="author.html#16019">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

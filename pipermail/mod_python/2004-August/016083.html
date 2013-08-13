@@ -1,0 +1,368 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Imports, Caching, Handlers and Page Templates.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Imports%2C%20Caching%2C%20Handlers%20and%20Page%20Templates.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016074.html">
+   <LINK REL="Next"  HREF="016145.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Imports, Caching, Handlers and Page Templates.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Imports%2C%20Caching%2C%20Handlers%20and%20Page%20Templates.&In-Reply-To="
+       TITLE="[mod_python] Imports, Caching, Handlers and Page Templates.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Aug 15 19:22:31 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016074.html">[mod_python] Making error (debug) output more readable.
+</A></li>
+        <LI>Next message: <A HREF="016145.html">[mod_python] Imports, Caching, Handlers and Page Templates.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16083">[ date ]</a>
+              <a href="thread.html#16083">[ thread ]</a>
+              <a href="subject.html#16083">[ subject ]</a>
+              <a href="author.html#16083">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I'll admit that I have only been looking at mod_python for about a 
+month and have only
+been on the mailing list for a couple of weeks. Also, I have 
+exclusively been playing
+with the older 2.7 version of mod_python, as I don't have access to a 
+machine which
+runs Apache 2.0. All the same, I thought it might be a good time to say 
+a few things
+about what I have been up to since I have just made available a new 
+beta version of a
+package I make available and this new version now incorporates some 
+specific support
+for mod_python.
+
+Okay, see it as a bit of advertising for this package if you want, but 
+the mod_python
+handler I have come up with can be separated from the package and used 
+by itself if
+desired. From what I have seen, this mod_python handler provides 
+something a bit
+different to what is out there, but then I could be wrong, as I haven't 
+been looking
+too long and I haven't looked at mod_python 3.1 in any real detail yet. 
+Thus I may have
+missed the obvious and simply reinvented the wheel. Please educate me 
+if necessary. :-)
+
+First off, the package is called OSE and it is available from:
+
+   <A HREF="http://ose.sourceforge.net">http://ose.sourceforge.net</A>
+
+The version just made available is OSE 8.0b4.
+
+I will not go into detail about what OSE is all about as it would take 
+too long. It is
+enough to say that it provides a way of implementing applications 
+distributed across
+multiple processes or multiple machines. This is done using a 
+publish/subscribe and
+request/reply messaging system. Although the core is written in C++, 
+there are some
+Python wrappers provided. As far as mod_python is concerned, the main 
+thing I now
+provide which would be of interest to people here is a specialised 
+mod_python content
+handler.
+
+Now unless I have missed something, there are two ways to setup 
+mod_python to be used.
+You can use &quot;AddHandler&quot; to indicate that a specific handler be used 
+for all requests
+where a specific extension is used, or you can use SetHandler to have 
+all requests be
+processed by a specific content handler. The two cases are represented 
+by mod_python.psp
+in the first instance and mod_python.publisher in the latter.
+
+The mod_python handler I have developed uses SetHandler like 
+mod_python.publisher, but
+whereas mod_python.publisher then does some interpretation of the 
+request and translates
+it into a totally different calling convention, ie., Python method 
+invocation, what I
+have created effectively maps requests back onto different basic 
+content handlers by
+looking at the resource being requested.
+
+In other words, if you had copied the &quot;mptest.py&quot; example file into the 
+directory and
+made a request against &quot;mptest.html&quot;, it would be processed by the 
+&quot;handler()&quot; method
+contained in &quot;mptest.py&quot;. At the same time and in the same directory, 
+if there were
+also a handler defined in &quot;index.py&quot; and a request was made for 
+&quot;index.html&quot; then
+the &quot;handler()&quot; method in &quot;index.py&quot; would be used to process the 
+request.
+
+Thus, without imposing a particular mechanism for how the resultant 
+HTML is generated,
+such as with mod_python.psp, you can have multiple basic content 
+handlers within the one
+directory where which is used is by default determined by stripping off 
+the &quot;.html&quot;
+extension and replacing it with &quot;.py&quot; to arrive at which handler to 
+execute. If it is
+determined that for a particular request of a &quot;.html&quot; file there is no 
+corresponding &quot;.py&quot;
+file, the handler declines to handle the request and thus Apache 
+processes it as per
+normal. Similarly, if the request was for any resource at all it didn't 
+know what to
+do with, it would again pass it back to Apache.
+
+Now I would have thought this would have been quite basic functionality 
+and why I feel
+I must have missed something and that this actually is possible without 
+a specialised
+content handler. So what have I overlooked?
+
+Anyway, to extend on that, as well as dealing with requests for files 
+with a &quot;.html&quot;
+extension, it is possible to define that a content handler can produce 
+other types of
+files as well as, or instead of &quot;.html&quot; files. Thus, you might have in 
+a directory a file
+called &quot;data.csv&quot;. If you were to request this file, the initial 
+handler, not knowing
+what to do with it, will decline to service the request and instead 
+Apache will return
+it instead.
+
+What can now be done though, is to add a &quot;data.py&quot; containing a handler 
+method. This
+isn't going to be used to generate the CSV data, but by defining that 
+this handler be
+called for &quot;.txt&quot; and &quot;.html&quot; requests, ie., requests against 
+&quot;data.txt&quot; and &quot;data.html&quot;,
+it can be used to translate the data in the CSV file into different 
+forms, such as
+tab separated and HTML table formatted data.
+
+In summary, if a directory were to contain the files as described 
+above, plus an
+ordinary HTML file, as listed below:
+
+   mptest.py
+   index.py
+   data.csv
+   data.py
+   basic.html
+
+The result thus of requests would be:
+
+   basic.html - declined by initial handler and content returned by 
+Apache
+   data.csv - declined by initial handler and content returned by Apache
+   missing.html - declined by initial handler and Apache returns &quot;Not 
+Found&quot;
+   index.html - initial handler would execute handler in index.py to 
+generate content
+   mptest.html - initial handler would execute handler in mptest.py to 
+generate content
+   data.txt - initial handler would execute handler in data.py to 
+generate content
+   data.html - initial handler would execute handler in data.py to 
+generate content
+
+One final case, if the extension which a &quot;.py&quot; file is indicated as 
+being able to process
+is set to be empty, then that name can be used like a directory with 
+additional path
+info being passed in to the handler. Ie., if the code file is called 
+&quot;proxy.py&quot;, using
+the URL &quot;proxy/a/b/c&quot; would result in the handler in &quot;proxy.py&quot; being 
+executed and
+with the path info set to &quot;/a/b/c&quot;.
+
+That is the first significant bit of functionality provided. The next 
+relates to the
+fact that to do this effectively, you need to have a caching system for 
+Python code
+which is loaded, to avoid reimporting on every request. Caching is done 
+by mod_python
+itself as well as in systems like mpservlets.
+
+The specialised content handler being supplied actually makes use of a 
+module caching
+system which OSE has had in it for some time, although it has been 
+upgraded a bit
+recently and split into a separate file so it can be split out of OSE 
+if required.
+
+Unlike mod_python and mpservlets the caching system will reload Python 
+code if any
+change occurs in the modification time. These other systems only do so 
+if the modification
+time is newer than before, which is no good if an older version of a 
+file is put
+back in place of the newer one. Only reloading a file if the 
+modification is newer
+can also sometimes be problematic when files are shared across the 
+network using
+something like NFS and machine clocks aren't properly synchronised.
+
+More importantly than that, the module cache system can be used 
+explicitly within a
+loaded module to load additional modules as children and the cache will 
+track the
+relationships between the modules and will reload a parent if any of 
+the children is
+changed. This avoids the problem whereby if you use &quot;import&quot; explicitly 
+to load a
+common bit of code and you change the common code, you are in most 
+cases forced to
+restart Apache to throw out the old code remembered by Python so as to 
+be able to
+pick up the new code.
+
+This mechanism of tracking relationships between loaded modules was 
+originally developed
+for a servlet based system. Specifically, you might have a base class 
+servlet which defines
+a lot of site structure and a derived class which defines specific page 
+content. As
+well as the derived servlet being loaded through the module cache, the 
+derived servlet
+could load the base class servlet via the cache. Now if the base class 
+servlet was
+modified, even though the derived class servlet hadn't, if a request 
+came in which
+meant the derived class servlet were to be executed, the system would 
+detect the change
+in the base class and automatically reload the derived class which 
+would in turn reload
+the base class thus picking up the changes in the site structure.
+
+Although originally used on a servlet based system independent of 
+mod_python and Apache,
+it is still applicable here. The cache also does a few other things to 
+avoid unnecessary
+reimporting as well as cope with removal of files, but enough said on 
+that one.
+
+Next thing which might be of interest is that a wrapper for 
+HTMLTemplate is provided
+along with a template object caching system for its templates. 
+HTMLTemplate is a bit
+different to most systems in that there is a quite clear separation 
+between HTML and
+code used to populate the HTML with data. That is, there is no Python 
+code embedded
+within the HTML, nor is there necessarily any HTML embedded in the 
+Python code. In some
+respects it is DOM like, but not really, as to make things more 
+efficient it only
+indexes and allows you to manipulate nodes marked up in a certain way. 
+Since this is
+a very poor description of HTMLTemplate, you should simply go to its 
+web site for a
+description.
+
+As to the wrappers for HTMLTemplate and the template caching system, 
+what you can end
+up with is:
+
+   index.html
+   index.py
+
+That is, the HTML is all in &quot;index.html&quot;, with necessary node markup 
+defined in elements
+as necessary. When a request comes in for &quot;index.html&quot;, the handler in 
+&quot;index.py&quot; is
+executed. This loads the HTML for &quot;index.html&quot; via the template cache 
+and is given a
+copy to work on. It uses the HTMLTemplate API to fill in the data and 
+writes back the
+rendered result for Apache to to return to the client.
+
+Okay, done for now. If you are interested, get down OSE 8.0b4 and 
+specifically look at:
+
+   examples/apache
+   examples/apache/_mputils
+   netsvc/cache/__init__.py
+   netsvc/apache/__init__.py
+
+The example has the start of some documentation on how it hangs 
+together, but running
+out of time before I go on holidays, so wanted to get something out now.
+
+Knowing that most probably will not care much about the larger 
+functionality of OSE,
+the &quot;examples/apache/README&quot; file describes how to copy the module 
+cache and mod_python
+handler out of OSE proper into the example so you can run it as is, 
+without installing
+OSE.
+
+If you have comments or questions, then post them here on the 
+mod_python mailing list
+and I'll do my best to address them. If there is enough interest I can 
+go on to describe
+how I see all this fitting into the larger scheme of things with 
+respect to the messaging
+system provided with OSE and how one might go about implementing 
+sessions and database
+interfaces.
+
+Enjoy.
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016074.html">[mod_python] Making error (debug) output more readable.
+</A></li>
+	<LI>Next message: <A HREF="016145.html">[mod_python] Imports, Caching, Handlers and Page Templates.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16083">[ date ]</a>
+              <a href="thread.html#16083">[ thread ]</a>
+              <a href="subject.html#16083">[ subject ]</a>
+              <a href="author.html#16083">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

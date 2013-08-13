@@ -1,0 +1,119 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session class or Memcache to reduce load?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20class%20or%20Memcache%20to%20reduce%20load%3F&In-Reply-To=002301c7d7ee%245e60f7f0%241b22e7d0%24%40com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024114.html">
+   <LINK REL="Next"  HREF="024119.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session class or Memcache to reduce load?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20class%20or%20Memcache%20to%20reduce%20load%3F&In-Reply-To=002301c7d7ee%245e60f7f0%241b22e7d0%24%40com"
+       TITLE="[mod_python] Session class or Memcache to reduce load?">jpg at jgassociates.ca
+       </A><BR>
+    <I>Wed Aug  8 10:55:19 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024114.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+        <LI>Next message: <A HREF="024119.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24115">[ date ]</a>
+              <a href="thread.html#24115">[ thread ]</a>
+              <a href="subject.html#24115">[ subject ]</a>
+              <a href="author.html#24115">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Other folks have already replied with good advice, but I want to add a 
+few comments on session handling.
+
+Alec Matusis wrote:
+&gt;<i> Hello, I am sorry if my question is too basic. I would like to reduce the
+</I>&gt;<i> load on apache 2.0 (on 2.6.9 linux) that is running with prefork MPM.
+</I>&gt;<i> There are two main things that are causing the load:
+</I>&gt;<i> 
+</I>&gt;<i> a) Thumbnail images that are requested repeatedly 
+</I>&gt;<i> b) A simple DB query is necessary to locate an image file after the request.
+</I>&gt;<i> The result of the query does not change. DB is located on another machine.
+</I>&gt;<i> 
+</I>&gt;<i> My first question, do we need to cache \thumbnail images at all, or the
+</I>&gt;<i> file-caching by the OS is sufficient?
+</I>&gt;<i> 
+</I>&gt;<i> Second question, to cache the results of the query, should we use
+</I>&gt;<i> mod_python's Session class ( wich will use DbmSession since we are using
+</I>&gt;<i> prefork MPM), or memcache?
+</I>
+Using DbmSession may actually increase your load for a couple of 
+reasons. For starters access to the database is serialized by a global 
+lock which may be a bottleneck.
+
+More seriously, a cleanup of expired sessions is performed after 
+approximately 1000 requests per child. During this cleanup the db will 
+also be locked. If you have a really large number of  sessions (greater 
+than 10,000 for example) the time required for the cleanup will not be 
+trivial and the rate at which requests are served may drop 
+significantly. I did some benchmarking on this and saw the rate at which 
+requests were served drop by 90% in some circumstances (IIRC). If you're 
+really interested you can look in the mail archives on the developer's list.
+
+This cleanup side effect was something I noticed when developing the 
+FileSession class (introduced in 3.2.7). FileSession has a couple of 
+features that avoid the cleanup problems. DbmSession can't be fixed due 
+to some limitations of dbm.
+
+If you decide you do need to use sessions make sure you run some 
+benchmarks first. If you see a problem then either use FileSession or 
+create a backend for a proper relational database where the cleanup can 
+be extremely fast.
+
+Jim
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024114.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+	<LI>Next message: <A HREF="024119.html">[mod_python] Session class or Memcache to reduce load?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24115">[ date ]</a>
+              <a href="thread.html#24115">[ thread ]</a>
+              <a href="subject.html#24115">[ subject ]</a>
+              <a href="author.html#24115">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

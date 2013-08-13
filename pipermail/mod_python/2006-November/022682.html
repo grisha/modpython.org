@@ -1,0 +1,297 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] invalid pointer, child process dies,
+	broken connections
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20invalid%20pointer%2C%20child%20process%20dies%2C%0A%09broken%20connections&In-Reply-To=1164316137.9198%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022679.html">
+   <LINK REL="Next"  HREF="022683.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] invalid pointer, child process dies,
+	broken connections</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Richard Lewis</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20invalid%20pointer%2C%20child%20process%20dies%2C%0A%09broken%20connections&In-Reply-To=1164316137.9198%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] invalid pointer, child process dies,
+	broken connections">richardlewis at fastmail.co.uk
+       </A><BR>
+    <I>Fri Nov 24 08:42:53 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022679.html">[mod_python] invalid pointer, child process dies,
+	broken connections
+</A></li>
+        <LI>Next message: <A HREF="022683.html">[mod_python] hlist repr bug
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22682">[ date ]</a>
+              <a href="thread.html#22682">[ thread ]</a>
+              <a href="subject.html#22682">[ subject ]</a>
+              <a href="author.html#22682">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Thanks for these pointers:
+
+On Thursday 23 November 2006 21:08, Graham Dumpleton wrote:
+&gt;<i> Only suggestions at this point are:
+</I>&gt;<i>
+</I>&gt;<i> 1. Use:
+</I>&gt;<i>
+</I>&gt;<i>   PythonInterpreter main_interpreter
+</I>&gt;<i>
+</I>Didn't seem to make any difference.
+
+&gt;<i>
+</I>&gt;<i> Note that this only applies for mod_python 3.2.10 and later.
+</I>&gt;<i>
+</I>&gt;<i> 2. Read through:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/ExpatCausingApacheCrash">http://www.dscpl.com.au/wiki/ModPython/Articles/ExpatCausingApacheCrash</A>
+</I>&gt;<i>
+</I>I tried this and the expat test worked fine. I'm pretty sure lxml doesn't use 
+expat (because it uses libxml instead).
+
+&gt;<i>
+</I>&gt;<i> 3. Run Apache in single process mode and attach a debugger process
+</I>&gt;<i> ...
+</I>&gt;<i> Type 'cont' command to gdb and then start sending requests until it
+</I>&gt;<i> crashes. Then use 'where' to get a stack trace.
+</I>&gt;<i>
+</I>OK. I've just tried this. I'm not all that familiar with gdb (I'm not a C 
+programmer) but I managed to get it to work, though my session was a bit 
+different to yours.
+
+I think it may have highlighted the source of the problem. I don't know 
+whether you know, but one of the reasons why the lxml module was created was 
+because of memory management problems with the standard Python bindings to 
+libxml. It seems that the stack trace I've got is showing exactly these 
+problems:
+
+#4  0xb7bd0811 in raise () from /lib/tls/i686/cmov/libc.so.6
+#5  0xb7bd1fb9 in abort () from /lib/tls/i686/cmov/libc.so.6
+#6  0xb7c05c8a in __fsetlocking () from /lib/tls/i686/cmov/libc.so.6
+#7  0xb7c0d51f in mallopt () from /lib/tls/i686/cmov/libc.so.6
+#8  0xb7c0d5c2 in free () from /lib/tls/i686/cmov/libc.so.6
+#9  0xb727155d in xmlFreeNodeList () from /usr/lib/libxml2.so.2
+#10 0xb72716a2 in xmlFreeProp () from /usr/lib/libxml2.so.2
+#11 0xb727191b in xmlFreePropList () from /usr/lib/libxml2.so.2
+#12 0xb72714fa in xmlFreeNodeList () from /usr/lib/libxml2.so.2
+#13 0xb72714d6 in xmlFreeNodeList () from /usr/lib/libxml2.so.2
+#14 0xb72714d6 in xmlFreeNodeList () from /usr/lib/libxml2.so.2
+#15 0xb72712fe in xmlFreeDoc () from /usr/lib/libxml2.so.2
+#16 0xb73edcc6 in initTagMatch () 
+from /usr/lib/python2.4/site-packages/lxml/etree.so
+#17 0xb73edaec in initTagMatch () 
+from /usr/lib/python2.4/site-packages/lxml/etree.so
+#18 0xb73b3826 in iteratorStoreNext () 
+from /usr/lib/python2.4/site-packages/lxml/etree.so
+#19 0xb73b368c in iteratorStoreNext () 
+from /usr/lib/python2.4/site-packages/lxml/etree.so
+#20 0xb73b8b06 in iteratorStoreNext () 
+from /usr/lib/python2.4/site-packages/lxml/etree.so
+#21 0xb775b255 in PyTuple_Size () from /usr/lib/libpython2.4.so.1.0
+#22 0xb7786fe3 in PyEval_EvalFrame () from /usr/lib/libpython2.4.so.1.0
+#23 0xb77878a5 in PyEval_EvalFrame () from /usr/lib/libpython2.4.so.1.0
+#24 0xb77878a5 in PyEval_EvalFrame () from /usr/lib/libpython2.4.so.1.0
+#25 0xb778878a in PyEval_EvalCodeEx () from /usr/lib/libpython2.4.so.1.0
+#26 0xb77381c0 in PyClassMethod_New () from /usr/lib/libpython2.4.so.1.0
+#27 0xb771d237 in PyObject_Call () from /usr/lib/libpython2.4.so.1.0
+#28 0xb7724a72 in PyClass_IsSubclass () from /usr/lib/libpython2.4.so.1.0
+#29 0xb771d237 in PyObject_Call () from /usr/lib/libpython2.4.so.1.0
+#30 0xb771f67e in PyObject_CallMethod () from /usr/lib/libpython2.4.so.1.0
+#31 0xb7836455 in python_cleanup () 
+from /usr/lib/apache2/modules/mod_python.so
+#32 0xb7837e1a in python_cleanup () 
+from /usr/lib/apache2/modules/mod_python.so
+#33 0x08074587 in ap_run_handler ()
+#34 0x08077731 in ap_invoke_handler ()
+#35 0x08084728 in ap_process_request ()
+#36 0x080819ce in ap_register_input_filter ()
+#37 0x0807b3c7 in ap_run_process_connection ()
+#38 0x08088704 in ap_graceful_stop_signalled ()
+#39 0x08088964 in ap_graceful_stop_signalled ()
+#40 0x0808972a in ap_mpm_run ()
+#41 0x080621ef in main ()
+
+I don't know what the answer is, though?
+
+The strange thing is that I've used lxml with mod_python before (in my Pycoon 
+project) and I've never had this problem - I hope I'm not about to run into 
+it in the near future!
+
+&gt;<i> 4. It would also be a good idea to simply start paring back the code of
+</I>&gt;<i> your application bit by bit
+</I>
+Yes, this is a good idea, but very unappealing ;-)
+
+&gt;<i>
+</I>&gt;<i> 5. Try the dev snapshot of mod_python 3.3.
+</I>
+OK, I may try this later on, the only thing is that I'm a Debian user and so 
+am quite averse to manual compilation/installation ;-)
+
+&gt;<i>
+</I>&gt;<i> 6. Post just the part of your Apache configuration which relates to how you
+</I>&gt;<i> trigger mod_python and in what context. From that I might see if you are
+</I>&gt;<i> managing to hit any of the issues referred to in 5.
+</I>&gt;<i>
+</I>This is my whole config:
+
+NameVirtualHost *
+
+&lt;VirtualHost *&gt;
+    ServerName localhost
+    DocumentRoot /home/richard/Documents/sara/python
+
+    SetHandler mod_python
+    #PythonInterpreter main_interpreter
+    PythonPath 'sys.path+[&quot;/home/richard/Documents/sara/python&quot;]'
+    #PythonDebug on
+
+    PythonHandler sara.web
+&lt;/VirtualHost&gt;
+
+Thanks for your help!
+
+Cheers,
+Richard
+
+&gt;<i>
+</I>&gt;<i> Richard Lewis wrote ..
+</I>&gt;<i>
+</I>&gt;<i> &gt; Hi there,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Debian unstable; apache: 2.2.3; modpython: 3.2.10; python: 2.4.4; lxml
+</I>&gt;<i> &gt; 1.1.1:
+</I>&gt;<i> &gt; libxml: 2.6.16; libxslt: 1.1.8.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I posted on 2nd Nov about some invalid pointer errors in my Apache error
+</I>&gt;<i> &gt; log.
+</I>&gt;<i> &gt; At the time I thought they were coming from MySQL and received some
+</I>&gt;<i> &gt; interesting replies regarding the incompatibility of the mysql client
+</I>&gt;<i> &gt; libraries compiled into various apache modules.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; However, since then I've decided to cut MySQL out of my web application
+</I>&gt;<i> &gt; and,
+</I>&gt;<i> &gt; instead of dynamically converting database records into XML, use
+</I>&gt;<i> &gt; filesystem-cached XML files which are generated periodically from the
+</I>&gt;<i> &gt; database by a separate process.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; While there are a couple of other advantages to this approach, it hasn't
+</I>&gt;<i> &gt; solved my initial problem! I still have numerous errors like this in my
+</I>&gt;<i> &gt; Apache error log:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; [Mon Nov 20 10:51:58 2006] [notice] child pid 7087 exit signal Aborted
+</I>&gt;<i> &gt; (6)
+</I>&gt;<i> &gt; *** glibc detected *** free(): invalid pointer: 0x0835ab26 ***
+</I>&gt;<i> &gt; *** glibc detected *** free(): invalid pointer: 0x0835ab26 ***
+</I>&gt;<i> &gt; *** glibc detected *** free(): invalid pointer: 0x0835ab26 ***
+</I>&gt;<i> &gt; *** glibc detected *** free(): invalid pointer: 0x0835ab26 ***
+</I>&gt;<i> &gt; [Mon Nov 20 10:54:28 2006] [notice] child pid 7088 exit signal Aborted
+</I>&gt;<i> &gt; (6)
+</I>&gt;<i> &gt; [Mon Nov 20 10:54:28 2006] [notice] child pid 7089 exit signal Aborted
+</I>&gt;<i> &gt; (6)
+</I>&gt;<i> &gt; [Mon Nov 20 10:54:28 2006] [notice] child pid 7098 exit signal Aborted
+</I>&gt;<i> &gt; (6)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; It seems to handle several requests and then you get an error message
+</I>&gt;<i> &gt; from the
+</I>&gt;<i> &gt; client (browser) saying that &quot;the connection is broken&quot;. You can then
+</I>&gt;<i> &gt; retry the request and it works after one or two attempts.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I /think/ there is no direct correlation between the invalid pointer
+</I>&gt;<i> &gt; errors messages and the dropped connections; the times of the messages
+</I>&gt;<i> &gt; seem to be
+</I>&gt;<i> &gt; pretty evenly distributed and don't all result in a broken connection.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Also, the memory addresses of the invalid pointers are often (but not
+</I>&gt;<i> &gt; always) the same. While the child process ids are always different. What
+</I>&gt;<i> &gt; is the child
+</I>&gt;<i> &gt; process? Is it python?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I've checked to make sure that I'm always returning the content length
+</I>&gt;<i> &gt; and
+</I>&gt;<i> &gt; Apache status code; I'm pretty sure I am! My application is using a
+</I>&gt;<i> &gt; frameset where the frame document and its four frames are all generated
+</I>&gt;<i> &gt; using mod_python. Is there anything special I should do to help
+</I>&gt;<i> &gt; mod_python with this? (Like returning special Apache status codes?)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Apart from getting these errors, my code is pretty much ready to go live.
+</I>&gt;<i> &gt; So
+</I>&gt;<i> &gt; it would be really great if anyone could help me sort out this problem!
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Cheers,
+</I>&gt;<i> &gt; Richard
+</I>&gt;<i> &gt; --
+</I>&gt;<i> &gt; -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+</I>&gt;<i> &gt; Richard Lewis
+</I>&gt;<i> &gt; Sonic Arts Research Archive
+</I>&gt;<i> &gt; <A HREF="http://www.sara.uea.ac.uk/">http://www.sara.uea.ac.uk/</A>
+</I>&gt;<i> &gt; JID: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ironchicken at jabber.earth.li</A>
+</I>&gt;<i> &gt; -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+-- 
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Richard Lewis
+Sonic Arts Research Archive
+<A HREF="http://www.sara.uea.ac.uk/">http://www.sara.uea.ac.uk/</A>
+JID: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ironchicken at jabber.earth.li</A>
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022679.html">[mod_python] invalid pointer, child process dies,
+	broken connections
+</A></li>
+	<LI>Next message: <A HREF="022683.html">[mod_python] hlist repr bug
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22682">[ date ]</a>
+              <a href="thread.html#22682">[ thread ]</a>
+              <a href="subject.html#22682">[ subject ]</a>
+              <a href="author.html#22682">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

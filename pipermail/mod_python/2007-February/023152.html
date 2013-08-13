@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] IE rediretcts don't change URL with auth handler?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20IE%20rediretcts%20don%27t%20change%20URL%20with%20auth%20handler%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023159.html">
+   <LINK REL="Next"  HREF="023153.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] IE rediretcts don't change URL with auth handler?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20IE%20rediretcts%20don%27t%20change%20URL%20with%20auth%20handler%3F&In-Reply-To="
+       TITLE="[mod_python] IE rediretcts don't change URL with auth handler?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Feb  1 15:59:20 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023159.html">[mod_python] in modpython ,how to restrict the upload file size?
+</A></li>
+        <LI>Next message: <A HREF="023153.html">[mod_python] Install mod_python for Apache 1.3.37
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23152">[ date ]</a>
+              <a href="thread.html#23152">[ thread ]</a>
+              <a href="subject.html#23152">[ subject ]</a>
+              <a href="author.html#23152">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Your problem may be because you are mucking around with the status
+which would be returned by util.redirect().
+
+Don't use a try/except block around util.redirect(), but also read:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-140">http://issues.apache.org/jira/browse/MODPYTHON-140</A>
+
+This will be an issue for your authenhandler as written if you are
+using mod_python 3.2.X or earlier. If using an older version of mod_python
+instead of 'pass' in the except block, try 'return apache.DONE'.
+
+Graham
+
+Jordan Baker wrote ..
+&gt;<i> Hi,
+</I>&gt;<i> 
+</I>&gt;<i> Summary of problem: IE doesn't change the URL after getting a 302 
+</I>&gt;<i> Redirect the second time through my auth handler.
+</I>&gt;<i> 
+</I>&gt;<i> I've got an auth handler which as many do checks various security 
+</I>&gt;<i> parameters and if they are not met redirects the browser to an 
+</I>&gt;<i> authentication page.
+</I>&gt;<i> 
+</I>&gt;<i> Basically the request flow looks like this:
+</I>&gt;<i> 
+</I>&gt;<i> - User requests a page ie. <A HREF="http://mysite.com/subfolder">http://mysite.com/subfolder</A>
+</I>&gt;<i> 
+</I>&gt;<i> - The authen handler will redirect them to a auth page if they aren't
+</I>&gt;<i>    already authenticated:   <A HREF="http://mysite.com/auth?came_from=/subfolder">http://mysite.com/auth?came_from=/subfolder</A>
+</I>&gt;<i> 
+</I>&gt;<i> The problems begin after the user tries to use the back button after 
+</I>&gt;<i> logging out of the application.
+</I>&gt;<i> 
+</I>&gt;<i> The user hits the back button to return to the site they just logged out
+</I>&gt;<i> of, hits the refresh button and lo! Whereas Firefox redirects the user
+</I>&gt;<i> to the proper /auth URL under IE the user sees the login page however 
+</I>&gt;<i> the URL stays the same.
+</I>&gt;<i> 
+</I>&gt;<i> This seems to be a common enough problem based on web research but I 
+</I>&gt;<i> wasn't able to find a definitive solution and was hoping somewhere in 
+</I>&gt;<i> this forum might have found it.
+</I>&gt;<i> 
+</I>&gt;<i> The code for my authen handler follows in case it is helpful for diagnosis.
+</I>&gt;<i> 
+</I>&gt;<i> TIA,
+</I>&gt;<i> 
+</I>&gt;<i> -jordan.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> def authenhandler(req):
+</I>&gt;<i>    req.user = '' # needed to avoid an error from mod_python when 
+</I>&gt;<i> req.user is NULL?
+</I>&gt;<i>    if not has_valid_proxy_cookies(req, req.unparsed_uri):
+</I>&gt;<i>      req.log_error(&quot;not authorized to use proxy, redirecting to login 
+</I>&gt;<i> page&quot;, apache.APLOG_NOTICE)
+</I>&gt;<i>      # redirect to login
+</I>&gt;<i>      sess = get_session(req)
+</I>&gt;<i>      # pass along some key information to the auth handler
+</I>&gt;<i>      sess['backend'] = get_backend(req)
+</I>&gt;<i>      sess['key_host'] = get_key_host(req)
+</I>&gt;<i>      sess['key_path'] = get_key_path(req)
+</I>&gt;<i>      sess.save()
+</I>&gt;<i> 
+</I>&gt;<i>      try:
+</I>&gt;<i>        util.redirect(req, &quot;/auth?came_from=%s&quot; % (req.unparsed_uri))
+</I>&gt;<i>      except apache.SERVER_RETURN:
+</I>&gt;<i>        pass
+</I>&gt;<i> 
+</I>&gt;<i>      return apache.HTTP_UNAUTHORIZED
+</I>&gt;<i> 
+</I>&gt;<i>    req.log_error(&quot;valid cookie found, renewing&quot;)
+</I>&gt;<i>    issue_cookie(req, get_key_host(req), get_key_path(req))
+</I>&gt;<i>    return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023159.html">[mod_python] in modpython ,how to restrict the upload file size?
+</A></li>
+	<LI>Next message: <A HREF="023153.html">[mod_python] Install mod_python for Apache 1.3.37
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23152">[ date ]</a>
+              <a href="thread.html#23152">[ thread ]</a>
+              <a href="subject.html#23152">[ subject ]</a>
+              <a href="author.html#23152">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

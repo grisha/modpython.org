@@ -1,0 +1,151 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] kernel panic - Attempting to free lock with active
+	waiting queue
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20kernel%20panic%20-%20Attempting%20to%20free%20lock%20with%20active%0A%09waiting%20queue&In-Reply-To=4300C114.8040301%40hostway.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018839.html">
+   <LINK REL="Next"  HREF="018828.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] kernel panic - Attempting to free lock with active
+	waiting queue</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20kernel%20panic%20-%20Attempting%20to%20free%20lock%20with%20active%0A%09waiting%20queue&In-Reply-To=4300C114.8040301%40hostway.com"
+       TITLE="[mod_python] kernel panic - Attempting to free lock with active
+	waiting queue">jg.lists at sympatico.ca
+       </A><BR>
+    <I>Mon Aug 15 17:55:10 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018839.html">[mod_python] kernel panic - Attempting to free lock with active
+	waiting queue
+</A></li>
+        <LI>Next message: <A HREF="018828.html">[mod_python] mod_python.publisher and MultiViews
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18840">[ date ]</a>
+              <a href="thread.html#18840">[ thread ]</a>
+              <a href="subject.html#18840">[ subject ]</a>
+              <a href="author.html#18840">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Huzaifa Tapal wrote:
+&gt;<i> I am not using mod_python Session management in my handler.
+</I>&gt;<i> Huzaifa
+</I>
+I don't think that your problems are related to init_mutexes then. The 
+mutexes are used for 3 things: locking session objects, locking the dbm
+file used for storing session data (in the case of DbmSession), and 
+locking the dbm file used as the psp cache. Oh, I guess I didn't ask you 
+that: are you using psp?
+
+I may be wrong, but I don't see how just initializing the mutexes at 
+mod_python startup could be exercising the bug in the 2.6.12 kernel. You 
+could always try compiling with MAX_LOCKS=2 (defined in 
+src/include/mod_python.h) and see what happens, but I would be suprised 
+if it made a difference. Heck you could even try MAX_LOCKS=0, but I'm 
+not sure what might happen there. I'm pretty sure if you do call 
+_apache._global_lock() with MAX_LOCKS=0 you'll seg fault as I don't 
+thing we check to see if glb-&gt;nlocks==0. Please note that in version 3.2 
+you will be able to specify MAX_LOCKS using configure 
+--with-max-locks=&lt;some integer&gt;.
+
+Jim
+
+
+
+&gt;<i> Jim Gallacher wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> Huzaifa Tapal wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> No, no content was being served from ns, however, our sys dev team 
+</I>&gt;&gt;&gt;<i> here did some investigation and here is what the found:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> in mod_python.c for the  apr_status_t init_mutexes() method which I 
+</I>&gt;&gt;&gt;<i> believe gets called for the Memory Session management, apache's 
+</I>&gt;&gt;&gt;<i> apr_global_mutex_create() locking mechanism is being used to lock a 
+</I>&gt;&gt;&gt;<i> file on the filesystem in cases of a mulit-process and multi-threaded 
+</I>&gt;&gt;&gt;<i> apache configuration to share the session between different child 
+</I>&gt;&gt;&gt;<i> processes.  Apache's  apr_status_t init_mutexes() method is covered 
+</I>&gt;&gt;&gt;<i> with flock() the handling of which in the debian kernel 2.6.12.4 has 
+</I>&gt;&gt;&gt;<i> a bug under severe cases.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> In our testing, under a very, very heavy load of over 800 concurrent 
+</I>&gt;&gt;&gt;<i> connections using a jython-based tool called grinder, a race 
+</I>&gt;&gt;&gt;<i> condiditon is happening at which point the kernel is panicking.  The 
+</I>&gt;&gt;&gt;<i> solution to this problem as we see it is to either change apache's  
+</I>&gt;&gt;&gt;<i> apr_status_t init_mutexes() method ot use fnctl lock instead of 
+</I>&gt;&gt;&gt;<i> flocks, or run apache with only one process at all times.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> In the meantime, we are going to still moderately load test our 
+</I>&gt;&gt;&gt;<i> cluster through out the weekend and see if we can replicate the panic 
+</I>&gt;&gt;&gt;<i> under a moderate load but a long duration of time.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Are you using sessions in your test handler? If so I've got some ideas 
+</I>&gt;&gt;<i> I can share, but I don't want to confuse the issue if you are not 
+</I>&gt;&gt;<i> actually using sessions.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The short answer is that init_mutexes() does indeed allocate mutexes 
+</I>&gt;&gt;<i> for session locking support.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Jim
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018839.html">[mod_python] kernel panic - Attempting to free lock with active
+	waiting queue
+</A></li>
+	<LI>Next message: <A HREF="018828.html">[mod_python] mod_python.publisher and MultiViews
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18840">[ date ]</a>
+              <a href="thread.html#18840">[ thread ]</a>
+              <a href="subject.html#18840">[ subject ]</a>
+              <a href="author.html#18840">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

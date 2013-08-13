@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] requests are blocking when using req.sendfile
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20requests%20are%20blocking%20when%20using%20req.sendfile&In-Reply-To=88e286470809231855pbdbe8c9s3df09cc8290a69ee%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025647.html">
+   <LINK REL="Next"  HREF="025649.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] requests are blocking when using req.sendfile</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Matt Barnicle</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20requests%20are%20blocking%20when%20using%20req.sendfile&In-Reply-To=88e286470809231855pbdbe8c9s3df09cc8290a69ee%40mail.gmail.com"
+       TITLE="[mod_python] requests are blocking when using req.sendfile">mattb at wageslavery.org
+       </A><BR>
+    <I>Thu Sep 25 01:12:11 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025647.html">[mod_python] requests are blocking when using req.sendfile
+</A></li>
+        <LI>Next message: <A HREF="025649.html">[mod_python] requests are blocking when using req.sendfile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25648">[ date ]</a>
+              <a href="thread.html#25648">[ thread ]</a>
+              <a href="subject.html#25648">[ subject ]</a>
+              <a href="author.html#25648">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> 2008/9/24 Matt Barnicle &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mattb at wageslavery.org</A>&gt;:
+</I>&gt;&gt;&gt;<i> Are you setting a content length on the response before calling
+</I>&gt;&gt;&gt;<i> req.sendfile()?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> How many concurrent requests for these files are you receiving and
+</I>&gt;&gt;&gt;<i> how long does it take to download a file?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> yes, i believe so..  now that you mention it, i haven't verified the
+</I>&gt;&gt;<i> file size from the code below, i will do that to be sure.  here is
+</I>&gt;&gt;<i> the code:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> file_path = self.conf.run.app_folder + 'public' + download.path
+</I>&gt;&gt;<i> file_stat = os.stat(file_path)
+</I>&gt;&gt;<i> file_size = str(file_stat.st_size)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> self.req.headers_out['Content-Length'] = file_size
+</I>&gt;&gt;<i> self.req.headers_out['Content-Disposition'] = 'attachment;
+</I>&gt;&gt;<i> filename=%s' % os.path.basename(file_path)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> bytes_sent = self.req.sendfile(file_path)
+</I>&gt;<i>
+</I>&gt;<i> BTW, now that you are using mod_python 3.3.1, instead of using
+</I>&gt;<i> req.sendfile(), you could possibly delegate serving of the static
+</I>file
+&gt;<i> back to Apache. From memory this can be done using:
+</I>&gt;<i>
+</I>&gt;<i>   req.filename = self.conf.run.app_folder + 'public' + download.path
+</I>&gt;<i>   req.finfo = apache.stat(req.filename, apache.APR_FINFO_MIN)
+</I>&gt;<i>   return apache.DECLINED
+</I>&gt;<i>
+</I>&gt;<i> By returning apache.DECLINED you say mod_python handler will not
+</I>&gt;<i> actually handle it, and by having updated req.filename and
+</I>&gt;<i> req.fileinfo updated to new file, when it falls through to
+</I>&gt;<i> default-handler it should serve it as static file.
+</I>&gt;<i>
+</I>&gt;<i> Doing it this way should bypass prior Apache access control checks.
+</I>&gt;<i> Thus file doesn't need to be in Apache document tree or anywhere else
+</I>&gt;<i> that is accessible.
+</I>&gt;<i>
+</I>&gt;<i> I believe doing it this way also has benefit that Apache will
+</I>&gt;<i> automatically set various headers that you probably wouldn't be.
+</I>&gt;<i>
+</I>&gt;<i> Please let us know if this alternate method works.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>
+i'm trying to get this working, but running into a snag..  i'm
+actually running a custom written MVC framework to serve the site
+pages.  the way it was written was to have mod_python be the handler
+for all requests, and a rewrite rule is written to route all
+requests through index.psp which sits in the document root.  i tried
+adding this code to the index.psp but found quickly that it wouldn't
+work.  so it seemed to me that the correct way to do it was to
+change the way pages are served, and run everything through a proper
+request handler, which could return the apache status as described
+above.  had to restructure some of the code, but i did eventually
+*sort of* get it working.
+
+first, i can't seem to figure out how to get all requests, no matter
+what the URI, to be processed through the handler (which for all
+intents and purposes let's call the base controller).  i tried the
+following but it doesn't seem to do what i want:
+
+DocumentRoot /var/www/my/application/public
+&lt;Directory /var/www/my/application/public&gt;
+ AddHandler python-program .py
+ PythonHandler myhandler
+&lt;/Directory&gt;
+
+with the above configuration, when i go to the home page, i see a
+directory listing instead of the handler being executed..
+
+the previous way this was working was to put a rewrite rule in
+.htaccess that routes all requests through index.psp.  so i tried
+changing that to route everything through myhandler.py, and that
+does sort of work, but then i can't seem to read the uri that's in
+the location bar.  when i read req.uri, it's just /myhandler.py. 
+the way we were doing that before was with the following code, which
+no longer works now that i'm serving out of a custom handler, it
+throws an error:
+
+req.add_common_vars()
+env_vars = req.subprocess_env
+uri = env_vars['REDIRECT_URL'].strip('/')
+
+i'm so close to getting this working!
+
+thanks for your help,
+
+- m@
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025647.html">[mod_python] requests are blocking when using req.sendfile
+</A></li>
+	<LI>Next message: <A HREF="025649.html">[mod_python] requests are blocking when using req.sendfile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25648">[ date ]</a>
+              <a href="thread.html#25648">[ thread ]</a>
+              <a href="subject.html#25648">[ subject ]</a>
+              <a href="author.html#25648">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

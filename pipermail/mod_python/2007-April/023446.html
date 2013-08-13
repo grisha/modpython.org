@@ -1,0 +1,251 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Global Interpreter Lock problem with Berkeley DB XML
+	and mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Global%20Interpreter%20Lock%20problem%20with%20Berkeley%20DB%20XML%0A%09and%20mod_python&In-Reply-To=461C1968.3080103%40bittorrent.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023445.html">
+   <LINK REL="Next"  HREF="023447.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Global Interpreter Lock problem with Berkeley DB XML
+	and mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Global%20Interpreter%20Lock%20problem%20with%20Berkeley%20DB%20XML%0A%09and%20mod_python&In-Reply-To=461C1968.3080103%40bittorrent.com"
+       TITLE="[mod_python] Global Interpreter Lock problem with Berkeley DB XML
+	and mod_python">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Tue Apr 10 21:00:29 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023445.html">[mod_python] Global Interpreter Lock problem with Berkeley DB XML
+	and mod_python
+</A></li>
+        <LI>Next message: <A HREF="023447.html">[mod_python] Global Interpreter Lock problem with Berkeley DB XML
+	and mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23446">[ date ]</a>
+              <a href="thread.html#23446">[ thread ]</a>
+              <a href="subject.html#23446">[ subject ]</a>
+              <a href="author.html#23446">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Try rebuilding dbxml but ensure that compiler option:
+
+  -DSWIG_PYTHON_NO_USE_GIL
+
+is used.
+
+I don't know when SWIG changed, it certainly didn't generate these
+PyGILState calls the last time I played with it, which wasn't that
+long ago, but it isn't going to work under mod_python the way they now
+do it as the default.
+
+I'll have to look into this further when I get a chance as this new
+behaviour of SWIG is going to cause all my Apache API SWIG bindings to
+break. :-(
+
+Graham
+
+On 11/04/07, David Schachter &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ds at bittorrent.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i>  Folks--
+</I>&gt;<i>
+</I>&gt;<i>  I'm having a problem embedding Berkeley DB XML into Apache with mod_python.
+</I>&gt;<i> The first attempt to create an XmlManager causes a lockup in Python--the
+</I>&gt;<i> Global Interpreter Lock is deadlocked, I think. (Stack trace below.) Any
+</I>&gt;<i> ideas of how to debug? Is there a BDB XML Python expert? I checked Google
+</I>&gt;<i> without success.
+</I>&gt;<i>
+</I>&gt;<i>  The code to demonstrate the problem is simple and shown below. When the
+</I>&gt;<i> line &quot;xmlManager = dbxml.XmlManager()&quot; is commented out, the code runs ok.
+</I>&gt;<i> Commented in, Apache locks up.
+</I>&gt;<i>
+</I>&gt;<i>  The most recent mod_python has this comment at
+</I>&gt;<i> <A HREF="http://www.modpython.org/live/mod_python-3.3.1/doc-html/app-changes.html:">http://www.modpython.org/live/mod_python-3.3.1/doc-html/app-changes.html:</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Third party C modules that use the simplified API for the Global Interpreter
+</I>&gt;<i> Lock (GIL), as described in PEP 311, can now be used. The only requirement
+</I>&gt;<i> is that such modules can only be used in the context of the
+</I>&gt;<i> &quot;main_interpreter&quot;. (More info at
+</I>&gt;<i> <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-77.">http://issues.apache.org/jira/browse/MODPYTHON-77.</A>)
+</I>&gt;<i>  The documentation for mod_python at
+</I>&gt;<i> <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-interps.html">http://www.modpython.org/live/current/doc-html/pyapi-interps.html</A>
+</I>&gt;<i> says:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Note that if any third party module is being used which has a C code
+</I>&gt;<i> component that uses the simplified API for access to the Global Interpreter
+</I>&gt;<i> Lock (GIL) for Python extension modules, then the interpreter name must be
+</I>&gt;<i> forcibly set to be &quot;main_interpreter&quot;. This is necessary as such a module
+</I>&gt;<i> will only work correctly if run within the context of the first Python
+</I>&gt;<i> interpreter created by the process.
+</I>&gt;<i>  Conforming to this, I set the interpreter name in the httpd.conf file using
+</I>&gt;<i> the directive &quot;PythonInterpreter main_interpreter&quot; and I verified this by
+</I>&gt;<i> printing the interpreter name from my Python code.
+</I>&gt;<i>
+</I>&gt;<i>  In dbxml-2.3.10/dbxml/src/python, there's some code relating to the GIL in
+</I>&gt;<i> dbxml_python_wrap.cpp. If someone else has already beaten this problem into
+</I>&gt;<i> submission, I'd rather not duplicate the effort.
+</I>&gt;<i>
+</I>&gt;<i>                           -- David Schachter
+</I>&gt;<i>
+</I>&gt;<i>  #! /usr/bin/python
+</I>&gt;<i>
+</I>&gt;<i>  import dbxml
+</I>&gt;<i>  from mod_python import apache
+</I>&gt;<i>  import os
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  def handler(req):
+</I>&gt;<i>    id = &quot;pid %d, interpreter '%s'&quot; % (os.getpid(), req.interpreter)
+</I>&gt;<i>
+</I>&gt;<i>    apache.log_error(&quot;About to start BDB XML from %s.&quot; % id)
+</I>&gt;<i>    xmlManager = dbxml.XmlManager()
+</I>&gt;<i>    apache.log_error(&quot;Started BDB XML.&quot;)
+</I>&gt;<i>
+</I>&gt;<i>    req.write(&quot;Hi from %s.&quot; % id)
+</I>&gt;<i>    return apache.OK
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  STACK TRACE IS:
+</I>&gt;<i>
+</I>&gt;<i>  (gdb) bt
+</I>&gt;<i>  #0  0xffffe410 in __kernel_vsyscall ()
+</I>&gt;<i>  #1  0xb7e97af0 in <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">sem_wait at GLIBC_2.0</A> () from
+</I>&gt;<i> /lib/tls/i686/cmov/libpthread.so.0
+</I>&gt;<i>  #2  0x00000004 in ?? ()
+</I>&gt;<i>  #3  0xb7ce7a00 in PyThread_acquire_lock (lock=0x0, waitflag=1) at
+</I>&gt;<i> thread_pthread.h:298
+</I>&gt;<i>  #4  0xb7cb5689 in PyEval_RestoreThread (tstate=0x810f888) at
+</I>&gt;<i> Python/ceval.c:305
+</I>&gt;<i>  #5  0xb7ce16e7 in PyGILState_Ensure () at Python/pystate.c:512
+</I>&gt;<i>  #6  0xb78282f9 in _wrap_new_XmlManager (self=0x0, args=0xb7b9102c) at
+</I>&gt;<i> dbxml_python_wrap.cpp:898
+</I>&gt;<i>       (The reference to line 898 is correct but surprising, the result of a
+</I>&gt;<i> macro expansion at line 4195. --D.S.)
+</I>&gt;<i>  #7  0xb7c65967 in PyObject_Call (func=0x0, arg=0xfffffffc, kw=0xfffffffc)
+</I>&gt;<i> at Objects/abstract.c:1795
+</I>&gt;<i>  #8  0xb7cb9e1d in PyEval_EvalFrame (f=0x822cdbc) at Python/ceval.c:3845
+</I>&gt;<i>  #9  0xb7cbd719 in PyEval_EvalCodeEx (co=0xb6b12e20, globals=0xfffffffc,
+</I>&gt;<i> locals=0x0, args=0x0, argcount=1,
+</I>&gt;<i>      kws=0x0, kwcount=0, defs=0x0, defcount=0, closure=0x0) at
+</I>&gt;<i> Python/ceval.c:2741
+</I>&gt;<i>  #10 0xb7d0d6be in function_call (func=0xb6b0902c, arg=0xb6b892ac, kw=0x0)
+</I>&gt;<i> at Objects/funcobject.c:548
+</I>&gt;<i>  #11 0xb7c65967 in PyObject_Call (func=0x0, arg=0xfffffffc, kw=0xfffffffc)
+</I>&gt;<i> at Objects/abstract.c:1795
+</I>&gt;<i>  #12 0xb7c6e389 in instancemethod_call (func=0xfffffffc, arg=0xb6b892ac,
+</I>&gt;<i> kw=0xfffffffc)
+</I>&gt;<i>      at Objects/classobject.c:2532
+</I>&gt;<i>  #13 0xb7c65967 in PyObject_Call (func=0x0, arg=0xfffffffc, kw=0xfffffffc)
+</I>&gt;<i> at Objects/abstract.c:1795
+</I>&gt;<i>  #14 0xb7c99728 in slot_tp_init (self=0xb6af1fac, args=0xfffffffc,
+</I>&gt;<i> kwds=0xfffffffc)
+</I>&gt;<i>      at Objects/typeobject.c:4774
+</I>&gt;<i>  #15 0xb7c91ad4 in type_call (type=0xb7c99675, args=0xb7b9102c, kwds=0x0) at
+</I>&gt;<i> Objects/typeobject.c:435
+</I>&gt;<i>  #16 0xb7c65967 in PyObject_Call (func=0x0, arg=0xfffffffc, kw=0xfffffffc)
+</I>&gt;<i> at Objects/abstract.c:1795
+</I>&gt;<i>  #17 0xb7cba239 in PyEval_EvalFrame (f=0x820f224) at Python/ceval.c:3776
+</I>&gt;<i>  #18 0xb7cbd0eb in PyEval_EvalFrame (f=0x8195854) at Python/ceval.c:3651
+</I>&gt;<i>  #19 0xb7cbd0eb in PyEval_EvalFrame (f=0x81c9ac4) at Python/ceval.c:3651
+</I>&gt;<i>  #20 0xb7cbd719 in PyEval_EvalCodeEx (co=0xb6b87e20, globals=0xfffffffc,
+</I>&gt;<i> locals=0x0, args=0x7, argcount=0,
+</I>&gt;<i>      kws=0x8282440, kwcount=7, defs=0x0, defcount=0, closure=0x0) at
+</I>&gt;<i> Python/ceval.c:2741
+</I>&gt;<i>  #21 0xb7cbb46a in PyEval_EvalFrame (f=0x82822a4) at Python/ceval.c:3660
+</I>&gt;<i>  #22 0xb7cbd719 in PyEval_EvalCodeEx (co=0xb6b87ee0, globals=0xfffffffc,
+</I>&gt;<i> locals=0x0, args=0x0, argcount=2,
+</I>&gt;<i>      kws=0x0, kwcount=0, defs=0x0, defcount=0, closure=0x0) at
+</I>&gt;<i> Python/ceval.c:2741
+</I>&gt;<i>  #23 0xb7d0d6be in function_call (func=0xb6af3a74, arg=0xb6b7c78c, kw=0x0)
+</I>&gt;<i> at Objects/funcobject.c:548
+</I>&gt;<i>  #24 0xb7c65967 in PyObject_Call (func=0x0, arg=0xfffffffc, kw=0xfffffffc)
+</I>&gt;<i> at Objects/abstract.c:1795
+</I>&gt;<i>  #25 0xb7c6e389 in instancemethod_call (func=0xfffffffc, arg=0xb6b7c78c,
+</I>&gt;<i> kw=0xfffffffc)
+</I>&gt;<i>      at Objects/classobject.c:2532
+</I>&gt;<i>  #26 0xb7c65bf6 in PyObject_CallMethod (o=0x0, name=0xb6b891ec &quot;\001&quot;,
+</I>&gt;<i> format=0xb6b891ec &quot;\001&quot;)
+</I>&gt;<i>      at Objects/abstract.c:1795
+</I>&gt;<i>  #27 0xb7c5f505 in python_handler (req=0x828a7b8, phase=0xb7d16e59
+</I>&gt;<i> &quot;PythonHandler&quot;) at mod_python.c:1652
+</I>&gt;<i>  #28 0x08073daf in ap_run_handler (r=0x828a7b8) at config.c:157
+</I>&gt;<i>  #29 0x080741b1 in ap_invoke_handler (r=0x828a7b8) at config.c:372
+</I>&gt;<i>  ---Type &lt;return&gt; to continue, or q &lt;return&gt; to quit---
+</I>&gt;<i>  #30 0x0808ba77 in ap_process_request (r=0x828a7b8) at http_request.c:258
+</I>&gt;<i>  #31 0x0808929b in ap_process_http_connection (c=0x8185638) at
+</I>&gt;<i> http_core.c:184
+</I>&gt;<i>  #32 0x0807a599 in ap_run_process_connection (c=0x8185638) at
+</I>&gt;<i> connection.c:43
+</I>&gt;<i>  #33 0x0809e55a in child_main (child_num_arg=-4) at prefork.c:640
+</I>&gt;<i>  #34 0x0809e7a8 in make_child (s=0x80c9c80, slot=0) at prefork.c:680
+</I>&gt;<i>  #35 0x0809ee53 in ap_mpm_run (_pconf=0xbf86d6f0, plog=0x81031a0,
+</I>&gt;<i> s=0xbf86d6f4) at prefork.c:956
+</I>&gt;<i>  #36 0x080622c8 in main (argc=2, argv=0xbf86d8b4) at main.c:717
+</I>&gt;<i>  (gdb)
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023445.html">[mod_python] Global Interpreter Lock problem with Berkeley DB XML
+	and mod_python
+</A></li>
+	<LI>Next message: <A HREF="023447.html">[mod_python] Global Interpreter Lock problem with Berkeley DB XML
+	and mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23446">[ date ]</a>
+              <a href="thread.html#23446">[ thread ]</a>
+              <a href="subject.html#23446">[ subject ]</a>
+              <a href="author.html#23446">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

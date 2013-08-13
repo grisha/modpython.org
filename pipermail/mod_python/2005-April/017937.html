@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] psp.PSP(req, string='hello world') causes segfault
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp.PSP%28req%2C%20string%3D%27hello%20world%27%29%20causes%20segfault&In-Reply-To=9f4387af79e092bc1b49d90c29633edc%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017936.html">
+   <LINK REL="Next"  HREF="017938.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] psp.PSP(req, string='hello world') causes segfault</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>dharana</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp.PSP%28req%2C%20string%3D%27hello%20world%27%29%20causes%20segfault&In-Reply-To=9f4387af79e092bc1b49d90c29633edc%40dscpl.com.au"
+       TITLE="[mod_python] psp.PSP(req, string='hello world') causes segfault">dharana at dharana.net
+       </A><BR>
+    <I>Tue Apr 26 18:38:09 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017936.html">[mod_python] psp.PSP(req, string='hello world') causes segfault
+</A></li>
+        <LI>Next message: <A HREF="017938.html">[mod_python] psp.PSP(req, string='hello world') causes segfault
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17937">[ date ]</a>
+              <a href="thread.html#17937">[ thread ]</a>
+              <a href="subject.html#17937">[ subject ]</a>
+              <a href="author.html#17937">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>modified handler
+-- -------------------------------------------------
+from mod_python import apache
+#from mod_python import psp
+
+import sys
+import os
+import marshal
+import new
+from cgi import escape
+import anydbm, whichdb
+import tempfile
+
+def handler(req):
+#    content_file = psp.PSP(req, string='hello world')
+#    content_file.run()
+     return apache.OK
+-----------------------------------------------------
+
+It doesn't segfault like this.
+
+
+
+
+
+
+I tried to hunt it a little bit deeper right into the mod_python's 
+psp.py file:
+
+-- site-packages/mod_python/psp.py snippet ---------------------
+         if filename:
+
+             # if filename is not absolute, default to our guess
+             # of current directory
+             if not os.path.isabs(filename):
+                 base = os.path.split(req.filename)[0]
+                 self.filename = os.path.join(base, filename)
+
+             self.load_from_file()
+         else:
+
+             cached = mem_scache.get(string)
+             if cached:
+                 self.code = cached
+             else:
+(line 118)      self.code = _psp.parsestring(string)
+                 mem_scache.store(string)
+-----------------------------------------------------------------
+
+Commenting out line 118 and trying to run the script in the previous 
+email (the one that is causing the segfault) gives me this error:
+
+--- traceback -------------------------------------------------------
+Mod_python error: &quot;PythonHandler webapps.admin.controller&quot;
+
+Traceback (most recent call last):
+
+   File 
+&quot;/usr/local/hosting/lib/python2.4/site-packages/mod_python/apache.py&quot;, 
+line 299, in HandlerDispatch
+     result = object(req)
+
+   File &quot;/home/dharana/websites/ozone2/webapps/admin/controller.py&quot;, 
+line 13, in handler
+     content_file = psp.PSP(req, string='hello world')
+
+   File 
+&quot;/usr/local/hosting/lib/python2.4/site-packages/mod_python/psp.py&quot;, line 
+119, in __init__
+     mem_scache.store(string)
+
+TypeError: store() takes exactly 3 arguments (2 given)
+-------------------------------------------------------------------
+
+I don't know why this is failling, maybe it has something to do with the 
+problem. _psp.parsestring(string) shouldn't modify &quot;string&quot; in any way 
+nor should it be able to pass hidden args to the mem_scache.store() 
+function, right?
+
+
+
+Anyways, I tried to investigate it further but I couldn't go deeper than 
+the mod_python source file src/_pspmodule.c (lines 129 to 160). My C 
+skills are non-existent.
+
+
+
+
+
+
+Grisha, if you read this, this is one of the previous references I found 
+about the problem:
+
+   <A HREF="http://www.modpython.org/pipermail/mod_python/2004-May/015552.html">http://www.modpython.org/pipermail/mod_python/2004-May/015552.html</A>
+
+Maybe the typo/bugfix didn't completely solve the problem at hand.
+
+
+
+Graham Dumpleton wrote:
+&gt;<i> The segmentation fault problems are generally caused by a mismatch in 
+</I>&gt;<i> versions
+</I>&gt;<i> of shared libraries that various packages have been compiled against. 
+</I>&gt;<i> The main
+</I>&gt;<i> culprits are libexpat, MySQL client libraries and sometimes Sleepycat 
+</I>&gt;<i> DBM. The
+</I>&gt;<i> clash is between the version expected by PHP or Apache, and that which 
+</I>&gt;<i> may be
+</I>&gt;<i> expected by a Python module being used. Because it is an environment 
+</I>&gt;<i> issue, it
+</I>&gt;<i> may well only affect you.
+</I>
+Thank you for the explanation!
+
+-- 
+dharana
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017936.html">[mod_python] psp.PSP(req, string='hello world') causes segfault
+</A></li>
+	<LI>Next message: <A HREF="017938.html">[mod_python] psp.PSP(req, string='hello world') causes segfault
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17937">[ date ]</a>
+              <a href="thread.html#17937">[ thread ]</a>
+              <a href="subject.html#17937">[ subject ]</a>
+              <a href="author.html#17937">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

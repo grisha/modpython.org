@@ -1,0 +1,229 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_ssl variables are not passed to mod_python auth
+	handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_ssl%20variables%20are%20not%20passed%20to%20mod_python%20auth%0A%09handler&In-Reply-To=Pine.GSO.4.58.0602031639500.17606%40rcf2.rhic.bnl.gov">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020196.html">
+   <LINK REL="Next"  HREF="020198.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_ssl variables are not passed to mod_python auth
+	handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_ssl%20variables%20are%20not%20passed%20to%20mod_python%20auth%0A%09handler&In-Reply-To=Pine.GSO.4.58.0602031639500.17606%40rcf2.rhic.bnl.gov"
+       TITLE="[mod_python] mod_ssl variables are not passed to mod_python auth
+	handler">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Feb  3 18:06:33 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020196.html">[mod_python] mod_ssl variables are not passed to mod_python auth
+	handler
+</A></li>
+        <LI>Next message: <A HREF="020198.html">[mod_python] example of mod_python publisher handling html forms
+	and cgi variables
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20197">[ date ]</a>
+              <a href="thread.html#20197">[ thread ]</a>
+              <a href="subject.html#20197">[ subject ]</a>
+              <a href="author.html#20197">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>SSL environment variables are not populated into req.subprocess_env
+until the last stage of execution of the fixuphandler phase. This is a
+pain as you have found because they aren't available during
+authenhandler, only in any actual content handler.
+
+This issue has been noted and the intention is to add support in
+mod_python version 3.3 to support for req.ssl_var_lookup(). Someone has
+already submitted some initial patches that might be used to do this. If
+you want to experiment with the feature, you could try patching your
+mod_python source code to add the feature.
+
+See:
+
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-94">http://issues.apache.org/jira/browse/MODPYTHON-94</A>
+
+for details on this issue.
+
+If you don't want to patch your mod_python source code, I also supplied
+code for an alternate way of doing it a long time ago. This is mentioned
+in:
+
+   <A HREF="http://www.modpython.org/pipermail/mod_python/2005-May/018164.html">http://www.modpython.org/pipermail/mod_python/2005-May/018164.html</A>
+
+Unfortunately the mailing list archive has stuffed the attachment links
+in the post. The actual links are:
+
+   # save as _mp_mod_ssl.c
+    
+<A HREF="http://www.modpython.org/pipermail/mod_python/attachments/20050523/">http://www.modpython.org/pipermail/mod_python/attachments/20050523/</A> 
+9fa0275b/_mp_mod_ssl.obj
+
+   # save as setup.py
+    
+<A HREF="http://www.modpython.org/pipermail/mod_python/attachments/20050523/">http://www.modpython.org/pipermail/mod_python/attachments/20050523/</A> 
+9fa0275b/setup.obj
+
+Fix the path for location of Apache stuff in setup.py and then build  
+like
+a normal Python module.
+
+Graham
+
+On 04/02/2006, at 9:18 AM, Tomasz Wlodek wrote:
+
+&gt;<i> Hello mod_python experts,
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I would like to use mod_python to force Apache to authenticate users  
+</I>&gt;<i> based
+</I>&gt;<i> on their user certificate. I have encountered a problem: SSL  
+</I>&gt;<i> environment
+</I>&gt;<i> variables are not passed by Apache to mod_python authentication  
+</I>&gt;<i> handler.
+</I>&gt;<i>
+</I>&gt;<i> Here is how the whole thing should work.
+</I>&gt;<i>
+</I>&gt;<i> In Apache conf files I tell it to load mod_ssl module
+</I>&gt;<i>
+</I>&gt;<i> LoadModule ssl_module           /usr/lib/httpd/modules/mod_ssl.so
+</I>&gt;<i>
+</I>&gt;<i> then I turn the user verification option in SSL:
+</I>&gt;<i>
+</I>&gt;<i> SSLEngine               on
+</I>&gt;<i> SSLCertificateFile      /etc/...
+</I>&gt;<i> SSLCertificateKeyFile   /etc/...
+</I>&gt;<i> SSLCACertificatePath    /etc/....
+</I>&gt;<i> SSLVerifyClient         optional
+</I>&gt;<i> SSLVerifyDepth          10
+</I>&gt;<i> SSLOptions              +ExportCertData +StdEnvVars
+</I>&gt;<i>
+</I>&gt;<i> I restart Apache and I load a cgi script which dumps the available
+</I>&gt;<i> environment variables. I can see that variables SSL_CLIENT_S_DN and
+</I>&gt;<i> SSL_CLIENT_VERIFY variables are set or not set depending on whether I  
+</I>&gt;<i> have
+</I>&gt;<i> valid certificate in my browser or not. Halleluiah! The certificate  
+</I>&gt;<i> based
+</I>&gt;<i> authentication works in cgi scripts.
+</I>&gt;<i>
+</I>&gt;<i> Now I would like to pass the work of deciding whether user was
+</I>&gt;<i> authenticated or not from cgi script to mod_python authentication  
+</I>&gt;<i> handler.
+</I>&gt;<i> The idea is: mod_python authentication handler will check if the
+</I>&gt;<i> SSL_CLIENT_S_DN variable was defined by SSL. If yes - return  
+</I>&gt;<i> apache.OK. If
+</I>&gt;<i> not return apache.HTTP_FORBIDDEN.
+</I>&gt;<i>
+</I>&gt;<i> Sounds simple. So I set to work. I define mod-python authentication
+</I>&gt;<i> handler:
+</I>&gt;<i>
+</I>&gt;<i> &lt;Directory /var/www/gridsite/cgi&gt;
+</I>&gt;<i>     AddHandler mod_python .py
+</I>&gt;<i>     PythonHandler myhandler
+</I>&gt;<i>     PythonAuthenHandler myhandler
+</I>&gt;<i>     PythonDebug on
+</I>&gt;<i>     PythonPath &quot;sys.path + ['/root/mod_python_handlers']&quot;
+</I>&gt;<i>     AuthType Basic
+</I>&gt;<i>     AuthName &quot;Restricted Area&quot;
+</I>&gt;<i>     require valid-user
+</I>&gt;<i> &lt;/Directory&gt;
+</I>&gt;<i>
+</I>&gt;<i> then I create the actual python handler in file
+</I>&gt;<i> /root/mod_python_handlers/myhandler.py
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i> def authenhandler(req):
+</I>&gt;<i>     # let us make sure that environment variables are loaded
+</I>&gt;<i>     req.add_common_vars()
+</I>&gt;<i>     # we can dump the list of known environment variables, for  
+</I>&gt;<i> debugging
+</I>&gt;<i>     #for line in req.subprocess_env.keys():
+</I>&gt;<i>     #    req.write(line+&quot;&lt;br&gt;\n&quot;)
+</I>&gt;<i>
+</I>&gt;<i>     # now comes the real work: if SSL verified the certificate, then
+</I>&gt;<i>     # SSL_CLIENT_S_DN variable should be set and the user can be  
+</I>&gt;<i> approved
+</I>&gt;<i>     if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+</I>&gt;<i>         return apache.OK
+</I>&gt;<i>     else:
+</I>&gt;<i>         return apache.HTTP_FORBIDDEN
+</I>&gt;<i>
+</I>&gt;<i> That is all. Now I run the thing. It turns out that the SSL environment
+</I>&gt;<i> variables are not visible from /root/mod_python_handlers/myhandler.py   
+</I>&gt;<i> and
+</I>&gt;<i> the handler always returns apache.HTTP_FORBIDDEN !
+</I>&gt;<i>
+</I>&gt;<i> I can see those variables in the cgi scripts, but not in python
+</I>&gt;<i> authentication handler.
+</I>&gt;<i>
+</I>&gt;<i> Does anyone has an idea why? Do I need to call some function to load  
+</I>&gt;<i> them?
+</I>&gt;<i>
+</I>&gt;<i> If I modify the handler to be:
+</I>&gt;<i>
+</I>&gt;<i> def authenhandler(req):
+</I>&gt;<i> 	return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> so that everyone gets approved, and then display the content of
+</I>&gt;<i> SSL_CLIENT_S_DN from cgi scripts then the variable is clearly there!
+</I>&gt;<i>
+</I>&gt;<i> Tomasz Wlodek
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020196.html">[mod_python] mod_ssl variables are not passed to mod_python auth
+	handler
+</A></li>
+	<LI>Next message: <A HREF="020198.html">[mod_python] example of mod_python publisher handling html forms
+	and cgi variables
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20197">[ date ]</a>
+              <a href="thread.html#20197">[ thread ]</a>
+              <a href="subject.html#20197">[ subject ]</a>
+              <a href="author.html#20197">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

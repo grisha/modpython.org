@@ -1,0 +1,137 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] session locking causes hang with mpservlets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20session%20locking%20causes%20hang%20with%20mpservlets&In-Reply-To=6d44e143a7e807ac17c12ff4bbda339b%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017774.html">
+   <LINK REL="Next"  HREF="017777.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] session locking causes hang with mpservlets</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20session%20locking%20causes%20hang%20with%20mpservlets&In-Reply-To=6d44e143a7e807ac17c12ff4bbda339b%40dscpl.com.au"
+       TITLE="[mod_python] session locking causes hang with mpservlets">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Mar 27 20:35:10 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017774.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+        <LI>Next message: <A HREF="017777.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17775">[ date ]</a>
+              <a href="thread.html#17775">[ thread ]</a>
+              <a href="subject.html#17775">[ subject ]</a>
+              <a href="author.html#17775">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 28/03/2005, at 10:31 AM, Graham Dumpleton wrote:
+&gt;<i> The change in mpservlets is:
+</I>&gt;<i>
+</I>&gt;<i>     def __cleanup_session(self):
+</I>&gt;<i>         if self.use_session and self.session is not None:
+</I>&gt;<i>             self.session.save()
+</I>&gt;<i>             self.session.unlock()
+</I>&gt;<i>             self.session = None
+</I>&gt;<i>
+</I>&gt;<i> Ie., add call to unlock() just after saving the session.
+</I>&gt;<i>
+</I>&gt;<i> Normally this unlock() would be called, but only when the Session 
+</I>&gt;<i> object
+</I>&gt;<i> itself is deleted or by way of a cleanup function registered against 
+</I>&gt;<i> the
+</I>&gt;<i> request using req.register_cleanup().
+</I>&gt;<i>
+</I>&gt;<i> The problem is that even though one sets self.session to None, this 
+</I>&gt;<i> doesn't
+</I>&gt;<i> mean it will be deleted immediately as one is in part at the mercy of 
+</I>&gt;<i> the
+</I>&gt;<i> Python garbage collector. That it isn't unlocked may actually keep it 
+</I>&gt;<i> alive
+</I>&gt;<i> longer and normally it may only be unlocked by request cleanup function
+</I>&gt;<i> at which point it then gets destroyed.
+</I>&gt;<i>
+</I>&gt;<i> Unfortunately, because your internal redirect loops back onto the same
+</I>&gt;<i> servlet, the second time through it tries to lock the same session, but
+</I>&gt;<i> where the prior hasn't been unlocked yet. Thus deadlock as lock is not
+</I>&gt;<i> reentrant for same thread.
+</I>&gt;<i>
+</I>&gt;<i> Thus, believe mpservlet possibly needs to be fixed, but might also 
+</I>&gt;<i> question
+</I>&gt;<i> your design anyway, there possibly being better ways of achieving what 
+</I>&gt;<i> you
+</I>&gt;<i> want. You might want to explain to the list what you are wanting to 
+</I>&gt;<i> achieve
+</I>&gt;<i> and you might get some helpful suggestions back.
+</I>
+Actually, it is the registered cleanup function in Session code that 
+keeps
+the session object alive and locked. This is interesting, as it possibly
+means that the general solution we give to people about session locking
+problems and internal redirects should be changed to:
+
+   self.session.save()
+   self.session.unlock()
+   req.internal_redirect(...)
+
+If you don't include the unlock(), any redirect back onto the same 
+handler
+will cause a deadlock as was the case with the mpservlets case.
+
+About time for a FAQ entry for redirects and mention this. I'll add it 
+to my
+list of things to do. :-)
+
+Graham
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017774.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+	<LI>Next message: <A HREF="017777.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17775">[ date ]</a>
+              <a href="thread.html#17775">[ thread ]</a>
+              <a href="subject.html#17775">[ subject ]</a>
+              <a href="author.html#17775">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

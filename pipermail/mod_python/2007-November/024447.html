@@ -1,0 +1,137 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session.py: filesession_cleanup (I)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session.py%3A%20filesession_cleanup%20%28I%29&In-Reply-To=21e523c20711090553g6f14ea6aocf8322d210d26f74%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024446.html">
+   <LINK REL="Next"  HREF="024448.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session.py: filesession_cleanup (I)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session.py%3A%20filesession_cleanup%20%28I%29&In-Reply-To=21e523c20711090553g6f14ea6aocf8322d210d26f74%40mail.gmail.com"
+       TITLE="[mod_python] Session.py: filesession_cleanup (I)">jpg at jgassociates.ca
+       </A><BR>
+    <I>Fri Nov  9 16:21:59 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024446.html">[mod_python] Session.py: filesession_cleanup (I)
+</A></li>
+        <LI>Next message: <A HREF="024448.html">[mod_python] [SPAM] URL returned by test.py
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24447">[ date ]</a>
+              <a href="thread.html#24447">[ thread ]</a>
+              <a href="subject.html#24447">[ subject ]</a>
+              <a href="author.html#24447">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>David Janes wrote:
+&gt;<i> I'm getting random hangs on a mod_python based system under moderately 
+</I>&gt;<i> load. I haven't tracked down the problem yet, but based on some error 
+</I>&gt;<i> logging I've been doing code inspection and have a few comments/questions.
+</I>&gt;<i> 
+</I>&gt;<i> (1)
+</I>&gt;<i> In Session.py, function filesession_cleanup, lines 624-638 there's a 
+</I>&gt;<i> try/except block that returns on an exception. However, to get to this 
+</I>&gt;<i> block, 'lockfp' has to be open -- and there is no close in the exception 
+</I>&gt;<i> block.
+</I>&gt;<i> 
+</I>&gt;<i> Should not this code block be moved inside the next try/finally block 
+</I>&gt;<i> which ensures the file object is closed?
+</I>
+I think it's ok as written. The purpose of the lockfile is to make sure 
+that another process is not already running the cleanup.
+
+lockfp = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0660)
+
+The lockfile is being opened with the os.O_EXCL flag, so if another 
+process has the file open *this* process will fail to open the file and 
+raise an exception.
+
+I can see why there might be some confusion though as the try/except 
+block is doing double duty - making sure another cleanup is not already 
+running *and* removing a potentially stale lockfile. Short circuiting 
+the cleanup in the case of a stale lock file here (with the return) is 
+not really that big of a deal. It's not imperative that we run the 
+cleanup *right now*, just so long as the cleanup happens in the near 
+future where &quot;near&quot; is a pretty fuzzy number.
+
+&gt;<i> (2)
+</I>&gt;<i> In my logs I am getting the error message
+</I>&gt;<i> 
+</I>&gt;<i> python_cleanup: Error calling cleanup object &lt;function 
+</I>&gt;<i> filesession_cleanup at 0xb7b22924&gt;
+</I>&gt;<i> exceptions.TypeError: not enough arguments for format string
+</I>&gt;<i> 
+</I>&gt;<i> The likely culprit for this error is line 705 (-707):
+</I>&gt;<i> 
+</I>&gt;<i>             req.log_error(&quot;FileSession cleanup incomplete: next cleanup 
+</I>&gt;<i> will start at index %d (%02x)&quot;
+</I>&gt;<i>                         % (next_i,),
+</I>&gt;<i>                         apache.APLOG_NOTICE)
+</I>&gt;<i> 
+</I>&gt;<i> Does this make sense?
+</I>
+As I previously noted that one is a bug and should read:
+
+req.log_error(&quot;FileSession cleanup incomplete: next cleanup will start 
+at index %d (%02x)&quot;
+                         % (next_i, next_i),
+                         apache.APLOG_NOTICE)
+
+
+
+I'll fix it in svn.
+
+Just out of curiosity how many session objects do you figure you have?
+
+Jim
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024446.html">[mod_python] Session.py: filesession_cleanup (I)
+</A></li>
+	<LI>Next message: <A HREF="024448.html">[mod_python] [SPAM] URL returned by test.py
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24447">[ date ]</a>
+              <a href="thread.html#24447">[ thread ]</a>
+              <a href="subject.html#24447">[ subject ]</a>
+              <a href="author.html#24447">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

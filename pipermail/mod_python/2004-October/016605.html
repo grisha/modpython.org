@@ -1,0 +1,627 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Udate python modules without restarting Apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=2DECFCA3-19CF-11D9-AAF9-000393DCF16E%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016603.html">
+   <LINK REL="Next"  HREF="016608.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Udate python modules without restarting Apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=2DECFCA3-19CF-11D9-AAF9-000393DCF16E%40dscpl.com.au"
+       TITLE="[mod_python] Udate python modules without restarting Apache">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Oct 10 14:55:03 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016603.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+        <LI>Next message: <A HREF="016608.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16605">[ date ]</a>
+              <a href="thread.html#16605">[ thread ]</a>
+              <a href="subject.html#16605">[ subject ]</a>
+              <a href="author.html#16605">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Apologies in advance, this is a long and complicated email. ;-)
+
+On 09/10/2004, at 6:42 PM, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 09/10/2004, at 6:10 PM, Nicolas Lehuen wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Hi Graham, what are the pros and cons of using the imp module versus 
+</I>&gt;&gt;<i> an
+</I>&gt;&gt;<i> execfile call or an exec call ?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Using Apache 2.0.52 on win32, with a multithreaded MPM, I have 
+</I>&gt;&gt;<i> noticed a few
+</I>&gt;&gt;<i> problem with mod_python.publisher which reloads the same module many 
+</I>&gt;&gt;<i> times
+</I>&gt;&gt;<i> when many threads try to load it concurrently. It seems that either
+</I>&gt;&gt;<i> mod_python.publisher or the imp module does not properly handle this
+</I>&gt;&gt;<i> situation. The result is that I have many instances of the same 
+</I>&gt;&gt;<i> module in
+</I>&gt;&gt;<i> memory, so I got many connection pools instead of only one and so on. 
+</I>&gt;&gt;<i> That's
+</I>&gt;&gt;<i> why I decided to fix this and other problems (the famous 'only one 
+</I>&gt;&gt;<i> index.py
+</I>&gt;&gt;<i> in your application') by reimplementing my own variant of the 
+</I>&gt;&gt;<i> publisher.
+</I>&gt;<i>
+</I>&gt;<i> You have asked me about the one thing that I can't yet comment on. 
+</I>&gt;<i> That is, how
+</I>&gt;<i> threading affects all this.
+</I>
+I have done the bit of research on the threading stuff I needed to do. 
+The
+main thing I wasn't sure on before was the relationship between 
+interpreters
+and threads in threaded MPM and whether or not multiple threads 
+pertaining to
+distinct requests could be operating in the same interpreter at the 
+same time.
+
+Now from what I have seen by way of past comments in mailing list 
+archive is that
+there can be multiple request threads running within one interpreter. 
+It concerns
+me that I couldn't fine a good bit of official documentation on web 
+site which
+explains this relationship, as I would have thought it would have been 
+a quite
+important bit of information. Is there some and I simply missed it?
+
+Anyway, back to your observation about mod_python.publisher reloading 
+the same
+module many times, I believe I can explain that one. I'll try and put 
+down my
+thoughts on some other stuff as well, but perhaps not all in this email
+as I'll try and focus more on problems/issues with imp and 
+load_module() method.
+
+Please, if anyone sees that I say something wrong here, correct it. 
+This is
+all mainly based on reading and theory and not actual first hand 
+experience
+of the particular problem being mentioned.
+
+Quoting &quot;imp&quot; module documentation, the first important bit of 
+information to
+be aware of is:
+
+   On platforms with threads, a thread executing an import holds an 
+internal
+   lock until the import is complete. This lock blocks other threads 
+from doing
+   an import until the original import completes, which in turn prevents 
+other
+   threads from seeing incomplete module objects constructed by the 
+original
+   thread while in the process of completing its import (and the 
+imports, if
+   any, triggered by that).
+
+Thus, once you get inside an import, including using 
+&quot;imp.load_module()&quot;, you
+are guaranteed that no other import will be able to be commenced by 
+another
+thread. This doesn't stop the same threading doing further imports 
+which are
+nested within the initial import though.
+
+Now, going by past comments on the mailing list, it seems therefore 
+people
+believe that initialising globals in an imported module, as the module 
+is being
+imported is safe. I'm not sure that this is correct, and a great deal of
+care would still need to be taken in initialising global data. 
+Basically, this
+is because &quot;apache.import_module()&quot; isn't strictly safe in a threaded 
+environment,
+plus there are other issues as well.
+
+To illustrate the problems, consider the following handler code, which 
+follows
+what some have suggested on the mailing list is the approach to use to 
+ensure
+that your content handler is thread safe.
+
+   lock = Lock()
+
+   myglobal1 = None
+   myglobal2 = None
+   myglobal3 = None
+
+
+   ... arbitrary code to initialise globals
+
+
+   def handler(req):
+       lock.acquire()
+
+       ... use and manipulate my global data
+
+       lock.unlock()
+
+
+Now, what the import lock first ensures is that you cannot have two 
+brand new
+instances of a module being imported at the same time. It also ensures 
+that
+if the module already exists, that you cannot have two module reloads 
+occurring
+at the same time.
+
+Since variable assignments and executable code at global scope only get 
+executed
+at the time of import, all the import lock is doing is ensuring that 
+you can't
+have that code being executed within two threads at the same time.
+
+My understanding is that the import lock can not ensure that a separate 
+thread
+which is already executing code within the module can't access the 
+global data
+in the case where a module reload is occurring. I think this as I can't 
+see how
+this could be implemented in a practical way. It would somehow 
+necessitate a
+lock on every module which would be acquired when any code in that 
+module is
+executing, so as to prevent a reload of the module at the same time.
+
+What this means is that if a HTTP request came in which caused 
+handler() above
+to be executed, and while that request was being handled, the 
+modification time
+of the file was first changed and then a new HTTP request came in 
+before the
+first had even finished, you have the potential for problems with the 
+above code
+as it is written.
+
+Before I get to why, one needs to understand what happens when a module 
+reload
+occurs. Specifically, when a module reload occurs, the existing data 
+within
+the module is not thrown away. That is, where a brand new import 
+occurs, one
+starts out with an empty module, when a module reload occurs, you start 
+out with
+the existing module. Thus, when a module reload occurs and global 
+assignments
+are performed, it is overlaid on or replaces what was there before.
+
+To illustrate this, create a content handler which is triggered using 
+SetHandler
+and which contains the following code. Note this ignores threading 
+issues
+for now.
+
+   from mod_python import apache
+
+   _temp = globals().keys()
+   _temp.sort()
+
+   apache.log_error(&quot;globals 
+&quot;+str(_temp),apache.APLOG_NOERRNO|apache.APLOG_ERR)
+
+   if globals().has_key(&quot;_count&quot;):
+     _count = _count + 1
+     apache.log_error(&quot;reload 
+&quot;+str(_count),apache.APLOG_NOERRNO|apache.APLOG_ERR)
+   else:
+     apache.log_error(&quot;import&quot;,apache.APLOG_NOERRNO|apache.APLOG_ERR)
+     _count = 0
+
+   _value = 0
+
+   apache.log_error(&quot;value 
+&quot;+str(_value),apache.APLOG_NOERRNO|apache.APLOG_ERR)
+
+   _value = _value + 1
+
+   def handler(req):
+     req.content_type = &quot;text/plain&quot;
+     req.send_http_header()
+     req.write(&quot;Hello World!&quot;)
+     return apache.OK
+
+The first time this is accessed you should see in the Apache log file 
+the following.
+
+[Sun Oct 10 11:36:14 2004] [notice] mod_python: (Re)importing module 
+'mptest'
+[Sun Oct 10 11:36:14 2004] [error] globals ['__builtins__', '__doc__', 
+'__file__', '__name__', 'apache']
+[Sun Oct 10 11:36:14 2004] [error] import
+[Sun Oct 10 11:36:14 2004] [error] value 0
+
+That is, code detected that it was a first time import and has logged 
+&quot;import&quot;.
+Now touch the code file and access it again and when you hit the same 
+child
+Apache process, you should see the following.
+
+[Sun Oct 10 11:36:22 2004] [notice] mod_python: (Re)importing module 
+'mptest'
+[Sun Oct 10 11:36:22 2004] [error] globals ['__builtins__', '__doc__', 
+'__file__', '__mtime__', '__name__', '_count', '_temp', '_value', 
+'apache', 'handler']
+[Sun Oct 10 11:36:22 2004] [error] reload 1
+[Sun Oct 10 11:36:22 2004] [error] value 0
+
+Touch it once more, and you should see the following.
+
+[Sun Oct 10 11:36:33 2004] [notice] mod_python: (Re)importing module 
+'mptest'
+[Sun Oct 10 11:36:33 2004] [error] globals ['__builtins__', '__doc__', 
+'__file__', '__mtime__', '__name__', '_count', '_temp', '_value', 
+'apache', 'handler']
+[Sun Oct 10 11:36:33 2004] [error] reload 2
+[Sun Oct 10 11:36:33 2004] [error] value 0
+
+Note how that on the second access, there already exists in the set of 
+globals,
+the &quot;_count&quot; variable and the &quot;handler&quot; function. This shows how a 
+reload will
+overlay what is already there. The check against the presence of 
+&quot;_count&quot; can be
+used to determine that the global scope code which is being executed is 
+in fact
+because of a reload and not an initial import. We use that check here 
+such that
+on a reload, we only increment the value of the existing variable and 
+not set
+it again to 0.
+
+If you don't have this check, as is the case with &quot;_value&quot;, when a 
+reload occurs,
+the value gets reset to whatever its starting value was. Thus, even 
+though &quot;_value&quot;
+was incremented, it gets set back to 0 upon the next reload.
+
+Now think about the consequences of this for the original example. 
+First off, the
+lock variable will get reassigned on a reload of the module. In my 
+understanding
+of Python, what this means is that if the handler() were executing in a 
+separate
+thread and it had acquired the lock, but not yet released it and the 
+reload
+occurred in a new thread, the global lock is going to get replaced with 
+a new one.
+When the handler executing in the original thread goes to release the 
+lock, it will
+call unlock on a different lock.
+
+The next problem is that the intent of the lock is to protect access to 
+the global
+variables. The handler correctly acquires the lock in order to make use 
+of the
+global variables, but the code executed by the subsequent reload does 
+not. Thus,
+not only does it replace the lock and the global variables, the 
+modification of
+the global variables is not done inside of the context of a lock.
+
+This means that the handler which is trying to use the global 
+variables, may find
+they have suddenly been changed when it was expecting to have exclusive 
+access.
+
+In the context of threading and module reloading, the code presented to 
+me would
+thus appear to be quite dangerous. If a module is written like this, 
+one would
+definitely want to head the advice of disabling automatic module 
+reloading in
+a production system if my understanding of reloading is correct.
+
+What one could do though to make the code more robust, is explicitly 
+check when
+a reload is occurring, and not set or change any global variables. If 
+it was
+still necessary somehow to modify the global variables, the code 
+executing at
+module scope when the module is being reloaded, could itself acquire 
+the lock so
+that there is no conflict on access.
+
+Thus, code would be something like the following.
+
+   if not globals().has_key(&quot;lock&quot;):
+     # This is a brand new import and we are inside the scope of the
+     # import lock, so this should all be safe to execute.
+
+     lock = Lock()
+
+     myglobal1 = None
+     myglobal2 = None
+     myglobal3 = None
+
+
+     ... arbitrary code to initialise globals
+
+   lock.acquire()
+
+   ... extra code to fiddle the globals
+
+   lock.unlock()
+
+   def handler(req):
+       lock.acquire()
+
+       ... use and manipulate my global data
+
+       lock.unlock()
+
+Unfortunately where not done yet, as there are still a few more dangers 
+lurking
+here, and I haven't even started on the problems with 
+apache.import_module() yet.
+
+The next thing to be careful of is something like the following.
+
+   def modify1(req):
+     lock.acquire()
+     ...
+     lock.unlock()
+     return value
+
+   def modify2(req,value):
+     lock.acquire()
+     ...
+     lock.unlock()
+
+   def handler(req):
+     value = modify1(req)
+     modify2(req,value)
+     ...
+
+Maybe I am being a bit paranoid on this one, but what happens if the 
+operation of
+modify1() and modify2() is tightly linked such that modify2() expects 
+modify1()
+to return data in a certain way. Imagine now that a module reload 
+occurred between
+the call to modify1() and modify2() and the code for both functions got 
+changed
+and the protocol as to what format modify2() expected to see something 
+as got
+changed. When the handler now executes modify2() it is the newer 
+function and
+it finds data set up in a different way than expected because it was 
+the old
+modify1() that was previously called to get the value it is operating 
+on.
+
+The point I am trying to make is that perhaps locking shouldn't pertain 
+just
+to the global data and that executable code should in some way be 
+protected as well.
+It needs more exploration, but perhaps the module should read something 
+like the
+following (untested).
+
+   if not globals().has_key(&quot;datalock&quot;):
+     # This is a brand new import and we are inside the scope of the
+     # import lock, so this should all be safe to execute.
+
+     datalock = Lock()
+     codelock = Lock()
+
+     myglobal1 = None
+     myglobal2 = None
+     myglobal3 = None
+
+     ... arbitrary code to initialise globals
+
+   codelock.acquire()
+   datalock.acquire()
+
+   ... extra code to fiddle the globals
+
+   def modify1(req):
+     datalock.acquire()
+     ...
+     datalock.unlock()
+     return value
+
+   def modify2(req,value):
+     datalock.acquire()
+     ...
+     datalock.unlock()
+
+   def _handler(req):
+     value = modify1(req)
+     modify2(req,value)
+     ...
+
+   def handler(req):
+     # code for this method should never be changed
+     try:
+       codelock.acquire()
+       result = _handler(req)
+     finally:
+       codelock.unlock()
+     return result
+
+   datalock.unlock()
+   codelock.unlock()
+
+What is trying to be done here is using a lock to ensure that any code 
+itself is
+not replaced while the handler is being executed. The reason for two 
+level handler
+arrangement, is that the lock actually needs to be acquired outside of 
+the real
+handler method being called. If it is done inside, it is too late, as 
+Python
+has already grabbed the existing code for handler and if it gets 
+replaced prior to
+the lock being acquired, everything may have changed.
+
+Am I being too paranoid? I don't understand enough about how code gets 
+replaced when
+a module reload is occurring.
+
+One final thing to cover before moving on to looking at 
+apache.import_module().
+
+Ignore now that we had done all this thread stuff to make things work a 
+bit better
+within a threaded environment, as the next bit pertains even to prefork 
+system.
+
+Remember how &quot;_value&quot; in our original example was replaced with 0 again 
+when the
+module was reloaded. Imagine now that that was a quite complicated 
+Python class
+instance or even a Python class instance which wrapped up C code for 
+something like
+a database connection pool.
+
+With the way the code was, the existing instance of the class would get 
+thrown
+away when a reload occurs. If that class was never designed to be 
+discarded which
+may well be the case in a database pooling scheme, or if the class had 
+a __del__
+method and there were reference cycles that couldn't be broken by the 
+garbage
+collector. The original class instance would hang around. This may 
+simply result
+in ever growing memory use, or a continual growing in the number of 
+socket
+connections to a back end database, as older instances of the database 
+pooling
+interface never got cleaned up.
+
+To see how this latter issue is relevant to the original problem you 
+saw, we now
+need to look at apache.import_module(). The problem with the module 
+importing and
+caching system in the mod_python.apache module is that it doesn't do 
+any thread
+locking at all. That is, many threads can at the same time be 
+consulting the module
+cache, checking modification times, using imp.find_module() and then 
+calling the
+imp.load_module() method.
+
+Think about the case where a module hasn't previously been loaded and a 
+huge number
+of requests suddenly come in which require it be loaded. Because there 
+is no thread
+locking on access to the cache, many threads may at the same time 
+decide that a
+module needs to be loaded. All of these threads will continue through 
+to call the
+imp.load_module() method.
+
+It has already been explained that there is locking on module 
+importation, so it
+isn't possible to import a brand new module from two places at the same 
+time.
+This doesn't stop however all those extra threads from still calling 
+imp.find_module()
+once the initial thread has already imported it.
+
+Why is this bad, well to quote the Python documentation for the 
+imp.load_module().
+
+   This function does more than importing the module: if the module was 
+already
+   imported, it is equivalent to a reload()!
+
+Thus, all those extra calls into imp.load_module() from the other 
+threads that had
+decided at the same time to load the module in, get turned into module 
+reloads.
+
+Link this with what was described about the case of a database pooling 
+instance being
+replaced on module reload and you might see what is happening. It isn't 
+that multiple
+instances of the module corresponding to the handler are loaded into 
+memory at the
+same time, but the one module is reloaded many times in quick 
+succession. In each case
+the database pooling instance would get thrown away, but if it wasn't 
+implemented so as
+to be able to clean up itself when destroyed, if it even is destroyed, 
+it will just
+hang around and accumulate memory and potentially hold open connections 
+to the
+database as well.
+
+Okay, I think am done for now. This doesn't contrast imp vs execfile 
+etc, but I'll
+get to that in another mail.
+
+Hope this has helped.
+
+If anyone who understands this better than I detects falsehoods here, 
+please please
+correct them and explain what actually happens.
+
+Can some please confirm that multiple threads corresponding to 
+different HTTP request
+can be operating with one interpreter at the same time? Certain bits of 
+the above
+analysis are assuming that is the case.
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016603.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+	<LI>Next message: <A HREF="016608.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16605">[ date ]</a>
+              <a href="thread.html#16605">[ thread ]</a>
+              <a href="subject.html#16605">[ subject ]</a>
+              <a href="author.html#16605">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

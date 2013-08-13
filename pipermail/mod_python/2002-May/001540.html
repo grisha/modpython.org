@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] [PATCH] httpd-2.0.36
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5BPATCH%5D%20httpd-2.0.36&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001539.html">
+   <LINK REL="Next"  HREF="001541.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] [PATCH] httpd-2.0.36</H1>
+    <B>Gary Benson</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%5BPATCH%5D%20httpd-2.0.36&In-Reply-To="
+       TITLE="[mod_python] [PATCH] httpd-2.0.36">gbenson at redhat.com
+       </A><BR>
+    <I>Mon May 27 19:02:56 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001539.html">[mod_python] Sub-request/Internal redirect questions
+</A></li>
+        <LI>Next message: <A HREF="001541.html">[mod_python] [PATCH] more httpd-2.0.36
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1540">[ date ]</a>
+              <a href="thread.html#1540">[ thread ]</a>
+              <a href="subject.html#1540">[ subject ]</a>
+              <a href="author.html#1540">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Hi all,
+
+The attached patches to HEAD will allow you to compile and run mod_python
+with httpd-2.0.36. There are still a bunch of compiler warnings which I
+haven't fixed (but intend to), but it seems to run quite nicely (although
+my minimal mod_python knowledge probably isn't stressing it much).
+
+Cheers,
+Gary
+
+[ <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">gbenson at redhat.com</A> ][ GnuPG 85A8F78B ][ <A HREF="http://inauspicious.org/">http://inauspicious.org/</A> ]
+-------------- next part --------------
+An allocator-passing mechanism was added throughout the bucket brigades API
+
+Index: src/filterobject.c
+===================================================================
+RCS file: /cvsroot/modpython/mod_python/src/filterobject.c,v
+retrieving revision 1.4
+diff -u -r1.4 filterobject.c
+--- src/filterobject.c	4 Mar 2002 21:19:17 -0000	1.4
++++ src/filterobject.c	27 May 2002 11:18:30 -0000
+@@ -115,6 +115,7 @@
+ static PyObject *_filter_read(filterobject *self, PyObject *args, int readline)
+ {
+ 
++    conn_rec *c = self-&gt;request_obj-&gt;request_rec-&gt;connection;
+     apr_bucket *b;
+     long bytes_read;
+     PyObject *result;
+@@ -135,7 +136,8 @@
+ 
+ 	/* does the output brigade exist? */
+ 	if (!self-&gt;bb_in) {
+-	    self-&gt;bb_in = apr_brigade_create(self-&gt;f-&gt;r-&gt;pool);
++	    self-&gt;bb_in = apr_brigade_create(self-&gt;f-&gt;r-&gt;pool,
++					     c-&gt;bucket_alloc);
+ 	}
+ 
+ 	Py_BEGIN_ALLOW_THREADS;
+@@ -290,6 +292,7 @@
+ static PyObject *filter_write(filterobject *self, PyObject *args)
+ {
+ 
++    conn_rec *c = self-&gt;request_obj-&gt;request_rec-&gt;connection;
+     char *buff;
+     int len;
+     apr_bucket *b;
+@@ -315,10 +318,12 @@
+ 
+ 	/* does the output brigade exist? */
+ 	if (!self-&gt;bb_out) {
+-	    self-&gt;bb_out = apr_brigade_create(self-&gt;f-&gt;r-&gt;pool);
++	    self-&gt;bb_out = apr_brigade_create(self-&gt;f-&gt;r-&gt;pool,
++					      c-&gt;bucket_alloc);
+ 	}
+ 	
+-	b = apr_bucket_pool_create(buff, len, self-&gt;f-&gt;r-&gt;pool);
++	b = apr_bucket_pool_create(buff, len, self-&gt;f-&gt;r-&gt;pool,
++				   c-&gt;bucket_alloc);
+ 	APR_BRIGADE_INSERT_TAIL(self-&gt;bb_out, b);
+ 	
+ 	self-&gt;bytes_written += len;
+@@ -337,12 +342,15 @@
+ static PyObject *filter_flush(filterobject *self, PyObject *args)
+ {
+ 
++    conn_rec *c = self-&gt;request_obj-&gt;request_rec-&gt;connection;
++
+     /* does the output brigade exist? */
+     if (!self-&gt;bb_out) {
+-	self-&gt;bb_out = apr_brigade_create(self-&gt;f-&gt;r-&gt;pool);
++	self-&gt;bb_out = apr_brigade_create(self-&gt;f-&gt;r-&gt;pool, c-&gt;bucket_alloc);
+     }
+ 
+-    APR_BRIGADE_INSERT_TAIL(self-&gt;bb_out, apr_bucket_flush_create());
++    APR_BRIGADE_INSERT_TAIL(self-&gt;bb_out,
++			    apr_bucket_flush_create(c-&gt;bucket_alloc));
+ 
+     if (ap_pass_brigade(self-&gt;f-&gt;next, self-&gt;bb_out) != APR_SUCCESS) {
+ 	PyErr_SetString(PyExc_IOError, &quot;Flush failed.&quot;);
+@@ -363,16 +371,20 @@
+ static PyObject *filter_close(filterobject *self, PyObject *args)
+ {
+ 
++    conn_rec *c = self-&gt;request_obj-&gt;request_rec-&gt;connection;
++
+     if (! self-&gt;closed) {
+ 
+ 	if (self-&gt;bytes_written) {
+ 
+ 	    /* does the output brigade exist? */
+ 	    if (!self-&gt;bb_out) {
+-		self-&gt;bb_out = apr_brigade_create(self-&gt;f-&gt;r-&gt;pool);
++		self-&gt;bb_out = apr_brigade_create(self-&gt;f-&gt;r-&gt;pool,
++						  c-&gt;bucket_alloc);
+ 	    }
+ 
+-	    APR_BRIGADE_INSERT_TAIL(self-&gt;bb_out, apr_bucket_eos_create());
++	    APR_BRIGADE_INSERT_TAIL(self-&gt;bb_out,
++				    apr_bucket_eos_create(c-&gt;bucket_alloc));
+ 	
+ 	    if (! self-&gt;is_input) {
+ 		ap_pass_brigade(self-&gt;f-&gt;next, self-&gt;bb_out);
+-------------- next part --------------
+Various AP_FTYPE_* constants were changed in 2.0.34
+
+Index: src/mod_python.c
+===================================================================
+RCS file: /cvsroot/modpython/mod_python/src/mod_python.c,v
+retrieving revision 1.59
+diff -u -r1.59 mod_python.c
+--- src/mod_python.c	5 Mar 2002 01:43:39 -0000	1.59
++++ src/mod_python.c	27 May 2002 10:50:15 -0000
+@@ -1467,7 +1467,7 @@
+     /* register the filter NOTE - this only works so long as the
+        directive is only allowed in the main config. For .htaccess we
+        would have to make sure not to duplicate this */
+-    ap_register_input_filter(name, python_input_filter, AP_FTYPE_CONTENT);
++    ap_register_input_filter(name, python_input_filter, AP_FTYPE_RESOURCE);
+  
+     return NULL;
+ }
+@@ -1491,7 +1491,7 @@
+     /* register the filter NOTE - this only works so long as the
+        directive is only allowed in the main config. For .htaccess we
+        would have to make sure not to duplicate this */
+-    ap_register_output_filter(name, python_output_filter, AP_FTYPE_CONTENT);
++    ap_register_output_filter(name, python_output_filter, AP_FTYPE_RESOURCE);
+  
+     return NULL;
+ }
+-------------- next part --------------
+ap_restart_time was moved into the scoreboard global area.
+
+Index: src/serverobject.c
+===================================================================
+RCS file: /cvsroot/modpython/mod_python/src/serverobject.c,v
+retrieving revision 1.8
+diff -u -r1.8 serverobject.c
+--- src/serverobject.c	9 Sep 2001 00:25:37 -0000	1.8
++++ src/serverobject.c	27 May 2002 10:59:54 -0000
+@@ -241,7 +241,7 @@
+ 	return PyInt_FromLong((long)ap_my_generation);
+     }
+     else if (strcmp(name, &quot;restart_time&quot;) == 0) {
+-	return PyInt_FromLong((long)ap_restart_time);
++	return PyInt_FromLong((long)ap_scoreboard_image-&gt;global-&gt;restart_time);
+     }
+     else
+ 	return PyMember_Get((char *)self-&gt;server, server_memberlist, name);
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001539.html">[mod_python] Sub-request/Internal redirect questions
+</A></li>
+	<LI>Next message: <A HREF="001541.html">[mod_python] [PATCH] more httpd-2.0.36
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1540">[ date ]</a>
+              <a href="thread.html#1540">[ thread ]</a>
+              <a href="subject.html#1540">[ subject ]</a>
+              <a href="author.html#1540">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

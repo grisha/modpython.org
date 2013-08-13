@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Help with session.save and register_cleanup
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Help%20with%20session.save%20and%20register_cleanup&In-Reply-To=5aaed53f0705051943s66141514scee614c8d42b9420%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023563.html">
+   <LINK REL="Next"  HREF="023565.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Help with session.save and register_cleanup</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Help%20with%20session.save%20and%20register_cleanup&In-Reply-To=5aaed53f0705051943s66141514scee614c8d42b9420%40mail.gmail.com"
+       TITLE="[mod_python] Help with session.save and register_cleanup">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sun May  6 00:00:54 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023563.html">[mod_python] Help with session.save and register_cleanup
+</A></li>
+        <LI>Next message: <A HREF="023565.html">[mod_python] Help with session.save and register_cleanup
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23564">[ date ]</a>
+              <a href="thread.html#23564">[ thread ]</a>
+              <a href="subject.html#23564">[ subject ]</a>
+              <a href="author.html#23564">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>A cleanup function will always be passed one argument. This will be
+the data which is supplied when register_cleanup() is called. If no
+cleanup data is supplied, then None will be passed as cleanup data.
+Because Session object save() method already has a 'self' argument,
+the cleanup data becomes the second argument it complains about.
+
+In short, do this:
+
+  def _cleanup(session):
+    session.save()
+
+  req.register_cleanup(_cleanup, req.session)
+
+Graham
+
+On 06/05/07, Jeff Hinrichs - DM&amp;T &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jeffh at dundeemt.com</A>&gt; wrote:
+&gt;<i> I know that I am missing something here but googling and banging my
+</I>&gt;<i> head aren't working so I'll ask.
+</I>&gt;<i>
+</I>&gt;<i> I'm trying to register the session.save method from the Session I've
+</I>&gt;<i> attached to the req object in the req.register_cleanup()  like this:
+</I>&gt;<i>
+</I>&gt;<i> # housekeeping setup for a request
+</I>&gt;<i>
+</I>&gt;<i> def housekeeping(fn):
+</I>&gt;<i>
+</I>&gt;<i>     def _setup(req, *args, **kwargs):
+</I>&gt;<i>
+</I>&gt;<i>         #if session isn't part of the req object, add it
+</I>&gt;<i>
+</I>&gt;<i>         if not hasattr(req,&quot;session&quot;):
+</I>&gt;<i>
+</I>&gt;<i>             req.session = Session.Session(req)
+</I>&gt;<i>
+</I>&gt;<i>             req.session['housekeeped']=1
+</I>&gt;<i>
+</I>&gt;<i>         #register session.save as a cleanup
+</I>&gt;<i>
+</I>&gt;<i>         req.register_cleanup(req.session.save)
+</I>&gt;<i>
+</I>&gt;<i>         #now call the original
+</I>&gt;<i>
+</I>&gt;<i>         return fn(req,*args,**kwargs)
+</I>&gt;<i>
+</I>&gt;<i>     return _setup
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> @housekeeping
+</I>&gt;<i> def login(req):
+</I>&gt;<i>
+</I>&gt;<i>     req.session['foo']='bar'
+</I>&gt;<i>
+</I>&gt;<i>     return &quot;We are in login() %s&quot; % req.session.keys()
+</I>&gt;<i>
+</I>&gt;<i> Everything seems peachy, the results returned are:
+</I>&gt;<i>
+</I>&gt;<i>   We are in login() ['foo', 'housekeeped']
+</I>&gt;<i>
+</I>&gt;<i> However, the register_cleanup fails to save the session, and is
+</I>&gt;<i> returning the following err:
+</I>&gt;<i>
+</I>&gt;<i> [notice] vampire: Reimporting module
+</I>&gt;<i> '/usr/home/apache22/lakota.dundeemt.pri/dora/index.py'
+</I>&gt;<i> [error] [client 192.168.2.52] python_cleanup: Error calling cleanup
+</I>&gt;<i> object &lt;bound method DbmSession.save of {'housekeeped': 1}&gt;
+</I>&gt;<i> [error] [client 192.168.2.52]     exceptions.TypeError: save() takes
+</I>&gt;<i> exactly 1 argument (2 given)
+</I>&gt;<i>
+</I>&gt;<i> I've tried changing the register_cleanup to call req.session.save()
+</I>&gt;<i> (as opposed to .save) but that complains, correctly, that save() is
+</I>&gt;<i> not callable.
+</I>&gt;<i>
+</I>&gt;<i> First question, can I register multiple items with multiple calls to
+</I>&gt;<i> req.register_cleanup? i.e.
+</I>&gt;<i> req.register_cleanup(_closedb, req)
+</I>&gt;<i> req.register_cleanup(req.session.save)
+</I>&gt;<i>
+</I>&gt;<i> or is that my problem?  Or have I just been at the keyboard too long
+</I>&gt;<i> to see the error that probably is staring me in the face?  The db
+</I>&gt;<i> cleanup appears to be working without error nor phantom connections.
+</I>&gt;<i>
+</I>&gt;<i> Thanks,
+</I>&gt;<i>
+</I>&gt;<i> Jeff Hinrichs
+</I>&gt;<i> <A HREF="http://www.OmahaPython.org/">http://www.OmahaPython.org/</A>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023563.html">[mod_python] Help with session.save and register_cleanup
+</A></li>
+	<LI>Next message: <A HREF="023565.html">[mod_python] Help with session.save and register_cleanup
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23564">[ date ]</a>
+              <a href="thread.html#23564">[ thread ]</a>
+              <a href="subject.html#23564">[ subject ]</a>
+              <a href="author.html#23564">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

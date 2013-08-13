@@ -1,0 +1,301 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonPath and importer in 3.3
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonPath%20and%20importer%20in%203.3&In-Reply-To=1170795007.3874%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023168.html">
+   <LINK REL="Next"  HREF="023170.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonPath and importer in 3.3</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Dirk van Oosterbosch, IR labs</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonPath%20and%20importer%20in%203.3&In-Reply-To=1170795007.3874%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] PythonPath and importer in 3.3">labs at ixopusada.com
+       </A><BR>
+    <I>Tue Feb  6 18:00:40 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023168.html">[mod_python] PythonPath and importer in 3.3
+</A></li>
+        <LI>Next message: <A HREF="023170.html">[mod_python] PythonPath and importer in 3.3
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23169">[ date ]</a>
+              <a href="thread.html#23169">[ thread ]</a>
+              <a href="subject.html#23169">[ subject ]</a>
+              <a href="author.html#23169">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Thanks for the quick response, guys.
+especially Graham! I certainly don't want to deprive you from your  
+holiday mood. So, if you're still reading this, clap down your laptop  
+and enjoy the sun!
+
+
+&gt;<i> I think you just need to list both directories in new import path.
+</I>&gt;<i>
+</I>&gt;<i> PythonOption mod_python.importer.path [&quot;/Users/me/Sites/www/ 
+</I>&gt;<i> python/&quot;,&quot;/Users/me/Sites/www/python/templates&quot;]
+</I>(	PythonOption mod_python.importer.path &quot;['/Users/me/Sites/www/ 
+python', '/Users/me/Sites/www/python/templates']&quot;
+as I understood it needed extra quotes on the outside.)
+
+Indeed. This solves the problem I had.
+
+Then using
+   module = apache.import_module(template_name)
+works and also everything in the chain of inheritance gets loaded  
+(and shows up in the log!)
+
+However, I am not sure I am 100% happy with adding the path to the  
+templates directory to the directive in httpd.conf. I rather add the  
+extra module-search-directories in the hander module (main.py in my  
+case) itself, possibly determining which directory is extra needed,  
+based on the request. Is there a function to add to the importer path  
+from a module itself?
+
+
+&gt;<i> BTW, where is framework.py. Is it in your '.../www.python' directory
+</I>&gt;<i> and thus would it be getting imported by mod_python importer even if
+</I>&gt;<i> by 'import' rather than import_module()? If it is, that it may be
+</I>&gt;<i> using 'import' should be okay.
+</I>
+Well, the problem wasn't with importing framework.py. I think I  
+explained it a bit lousy. The problem was with the import statement  
+*inside* framework.py. My Cheetah inheritance system works like this:
+[...]/www/python/templates/specialized_item.tmpl (compiled into .py)
+[...]/www/python/templates/page.tmpl (compiled into .py)
+[...]/www/python/framework.py
+[...]/www/python/templates/FrameworkViewComponents.tmpl (compiled  
+into .py)
+[...]/www/python/templates/BaseSkeleton.tmpl (compiled into .py)
+in which specialized_item.tmpl is the first one in the inheritance  
+chain, being loaded with apache.import_module() and in which  
+BaseSkeleton.tmpl is my base class Cheetah template.
+
+The problem was the line
+from FrameworkViewComponents import FrameworkViewComponents
+in framework.py, but this is now solved with the extended  
+PythonOption directive in httpd.conf.
+
+
+Nevertheless, another, *minor* problem popped up, which didn't pop up  
+before:
+I also have a template called image.tmpl (and compiled image.py) in  
+[...]/templates/
+Now, with MP3.3 this gives a problem when using the Python Image  
+Library (PIL) and Image.py  Unfortunately the importer cannot  
+discriminate between image.py and Image.py. Is there a way to  
+explicitly call python import function and have it search only the  
+PythonPath? (i.e. *not* the mp importer path first?)
+Otherwise I'll have to rename the template, no biggie.
+
+
+Finally, especially addressing Graham: please don't let these issues  
+trouble your mind in any way. Happy holidays!
+And thanks a lot for all the response,
+
+dirk
+
+
+
+
+&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> My initial setup was like this:
+</I>&gt;&gt;&gt;<i> in httpd.conf:
+</I>&gt;&gt;&gt;<i> ====================
+</I>&gt;&gt;&gt;<i> &lt;IfModule mod_python.c&gt;
+</I>&gt;&gt;&gt;<i> 	PythonPath &quot;sys.path + ['/Users/me/Sites/www/python/']&quot;
+</I>&gt;&gt;&gt;<i> 	PythonTransHandler translate
+</I>&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> in the .htaccess file in .../www/python/:
+</I>&gt;&gt;&gt;<i> ====================
+</I>&gt;&gt;&gt;<i> AddHandler mod_python .py
+</I>&gt;&gt;&gt;<i> PythonHandler main
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Then in main.py (the main handler which is called for every  
+</I>&gt;&gt;&gt;<i> request):
+</I>&gt;&gt;&gt;<i> ====================
+</I>&gt;&gt;&gt;<i> # for loading a Cheetah template
+</I>&gt;&gt;&gt;<i> templatesFolderLocation = &quot;/Users/me/Sites/www/python/templates&quot;
+</I>&gt;&gt;&gt;<i> if templatesFolderLocation not in sys.path:
+</I>&gt;&gt;&gt;<i> 	sys.path.append(templatesFolderLocation)
+</I>&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;<i> modulename = 'page'
+</I>&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;<i> try:
+</I>&gt;&gt;&gt;<i> 	module = __import__(modulename, globals(), locals(), [modulename])
+</I>&gt;&gt;&gt;<i> except ImportError:
+</I>&gt;&gt;&gt;<i> 	...
+</I>&gt;&gt;&gt;<i> templateClass = getattr(module, name)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> As said, this code works. Though it is not very nice and clean,  
+</I>&gt;&gt;&gt;<i> and I
+</I>&gt;&gt;&gt;<i> understood I had to go this way, while I was waiting for mod_python
+</I>&gt;&gt;&gt;<i> 3.3. Now I got python 3.3 and I read the documentation about
+</I>&gt;&gt;&gt;<i> apache.import_module() and about PythonPath, and I want to change  
+</I>&gt;&gt;&gt;<i> the
+</I>&gt;&gt;&gt;<i> code so it will make proper use of the new importer.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> The first thing I noticed in the docs is that the PythonPath
+</I>&gt;&gt;&gt;<i> shouldn't contain paths which are in the document tree.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This is only really an issue if the modules in the directory in the
+</I>&gt;&gt;<i> document tree are being imported directly by mod_python importer
+</I>&gt;&gt;<i> by reference in Python*Handler, by mod_python.publisher or by
+</I>&gt;&gt;<i> direct use by apache.import_module(). If the modules in said
+</I>&gt;&gt;<i> directory aren't being included in this way, it is okay to list
+</I>&gt;&gt;<i> a subdirectory somewhere in the document tree in PythonPath.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The important thing is that you want to avoid having modules imported
+</I>&gt;&gt;<i> through both mechanisms.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> One step to ensure that anything in a directory isn't used by  
+</I>&gt;&gt;<i> mod_python
+</I>&gt;&gt;<i> in some way inadvertantly by mod_python.publisher, is to add into the
+</I>&gt;&gt;<i> directory a .htaccess file containing:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   deny from all
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If using own handler, not so big a deal.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I have managed to get Cheetah to use mod_python importer from  
+</I>&gt;&gt;<i> within its
+</I>&gt;&gt;<i> generated code before. The trick is to use import_module() instead of
+</I>&gt;&gt;<i> __import__ to import the Cheetah template top level code file.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Ie., don't use:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   module = __import__(modulename, globals(), locals(), [modulename])
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> use:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   module = apache.import_module('/actual/path.py')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Then have the templates directory in:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   PythonOption mod_python.importer.path ['/actual/path/to/templates']
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Try playing with that. If after my nine hour flight to next airport
+</I>&gt;&gt;<i> I find some free internet access, I'll have a look to see how you  
+</I>&gt;&gt;<i> went.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Anyway, hope I didn't muddle that because of being in a hurry.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> :-) :-) :-) :-)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> <A HREF="http://www.modpython.org/live/mod_python-3.3.0b/doc-html/app-">http://www.modpython.org/live/mod_python-3.3.0b/doc-html/app-</A> 
+</I>&gt;&gt;&gt;<i> changes-
+</I>&gt;&gt;&gt;<i> from-3.2.10.html :
+</I>&gt;&gt;&gt;&gt;<i> The PythonPath directive MUST not be used to point at directories
+</I>&gt;&gt;&gt;&gt;<i> within the document tree.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> So I changed the PythonPath line in httpd.conf into
+</I>&gt;&gt;&gt;<i> 	PythonOption mod_python.importer.path &quot;['/Users/dirk/Sites/www/
+</I>&gt;&gt;&gt;<i> python']&quot;
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> But &amp;#8211;as somewhat expected&amp;#8211; this breaks the Cheetah  
+</I>&gt;&gt;&gt;<i> module
+</I>&gt;&gt;<i> importing
+</I>&gt;&gt;&gt;<i> code.
+</I>&gt;&gt;&gt;<i> I tried to change it according to the docs
+</I>&gt;&gt;&gt;<i> (these <A HREF="http://www.modpython.org/live/mod_python-3.3.0b/doc-html/">http://www.modpython.org/live/mod_python-3.3.0b/doc-html/</A> 
+</I>&gt;&gt;&gt;<i> pyapi-
+</I>&gt;&gt;&gt;<i> apmeth.html )
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> So now the code in main.py looks like this:
+</I>&gt;&gt;&gt;<i> ====================
+</I>&gt;&gt;&gt;<i> # for loading a Cheetah template
+</I>&gt;&gt;&gt;<i> templatesFolderLocation = &quot;/Users/me/Sites/www/python/templates&quot;
+</I>&gt;&gt;&gt;<i> # not appending to sys.path anymore
+</I>&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;<i> modulename = 'page'
+</I>&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;<i> try:
+</I>&gt;&gt;&gt;<i> 	module = apache.import_module(modulename, path=
+</I>&gt;&gt;&gt;<i> [templatesFolderLocation])
+</I>&gt;&gt;&gt;<i> except ImportError:
+</I>&gt;&gt;&gt;<i> 	... # importing the module fails here!
+</I>&gt;&gt;&gt;<i> templateClass = getattr(module, name)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> The reason for the failing import seems to be the inheritance system
+</I>&gt;&gt;&gt;<i> of the templates. Inside the chain of Cheetah modules that are
+</I>&gt;&gt;&gt;<i> inheriting eachother, there is a pure python module (framework.py),
+</I>&gt;&gt;&gt;<i> residing in /www/python (not in /www/python/templates/ !) which  
+</I>&gt;&gt;&gt;<i> tries
+</I>&gt;&gt;&gt;<i> to import a module from /www/python/templates/ through this line:
+</I>&gt;&gt;&gt;<i> 	from baseTemplate import baseTemplate
+</I>&gt;&gt;&gt;<i> I believe this fails and is the origin of my new problem.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I thought the module search path, which I supplied with the path=
+</I>&gt;&gt;&gt;<i> argument in import_module() was copied forward to all subsequent
+</I>&gt;&gt;&gt;<i> imports, but it seems this does not work for me.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Now I would be happy to add the templates directory to the python
+</I>&gt;&gt;&gt;<i> path again, but as I understood this is not the proper new  
+</I>&gt;&gt;&gt;<i> mod_python
+</I>&gt;&gt;&gt;<i> way.
+</I>&gt;&gt;&gt;<i> However I am reluctant to change the importing mechanism in
+</I>&gt;&gt;&gt;<i> framework.py and make framework dependant on mod_python's apache,
+</I>&gt;&gt;&gt;<i> since I also want to be able to test the cheetah part of my system
+</I>&gt;&gt;&gt;<i> outside of apache.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I hope I am missing something obvious. What would be the most clean
+</I>&gt;&gt;&gt;<i> and proper way to solve this issue?
+</I>&gt;&gt;&gt;<i>
+</I>
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023168.html">[mod_python] PythonPath and importer in 3.3
+</A></li>
+	<LI>Next message: <A HREF="023170.html">[mod_python] PythonPath and importer in 3.3
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23169">[ date ]</a>
+              <a href="thread.html#23169">[ thread ]</a>
+              <a href="subject.html#23169">[ subject ]</a>
+              <a href="author.html#23169">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

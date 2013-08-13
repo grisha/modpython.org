@@ -1,0 +1,127 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache, Threading and Multi-Processing Modules
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%2C%20Threading%20and%20Multi-Processing%20Modules&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002756.html">
+   <LINK REL="Next"  HREF="002746.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache, Threading and Multi-Processing Modules</H1>
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%2C%20Threading%20and%20Multi-Processing%20Modules&In-Reply-To="
+       TITLE="[mod_python] Apache, Threading and Multi-Processing Modules">mike.looijmans at asml.com
+       </A><BR>
+    <I>Thu Jun 12 07:22:51 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002756.html">[mod_python] Directory or Location?
+</A></li>
+        <LI>Next message: <A HREF="002746.html">[mod_python] Mod_python in real world
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2747">[ date ]</a>
+              <a href="thread.html#2747">[ thread ]</a>
+              <a href="subject.html#2747">[ subject ]</a>
+              <a href="author.html#2747">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+&gt;<i> For example, on a Windows platform where there is a single 
+</I>&gt;<i> multi-threaded Apache process (mpm_wint 
+</I>&gt;<i> [<A HREF="http://httpd.apache.org/docs-2.0/mod/mpm_winnt.html]">http://httpd.apache.org/docs-2.0/mod/mpm_winnt.html]</A>) is it correct to 
+</I>&gt;<i> say that mod_python would not be able to take advantage of a 
+</I>&gt;<i> multi-processor machine due to the GIL?
+</I>
+I don't know what a &quot;GIL&quot; is, but Windows (NT) and apache are both definitely 
+capable of taking advantage of multi-processor machines correctly.
+
+&gt;<i> In another, given Apache running in the prefork MPM 
+</I>&gt;<i> [<A HREF="http://httpd.apache.org/docs-2.0/mod/prefork.html]-">http://httpd.apache.org/docs-2.0/mod/prefork.html]-</A> is it a) possible 
+</I>&gt;<i> or b) useful to have a global, per-Apache-process persitant data 
+</I>&gt;<i> strucuture sharing a pool of (threadsafe) database connections. 
+</I>
+As you already concluded, there is not shared data among the processes, so 
+setting up communication between them is probably not worth considering. Just 
+keep a single DB connection per process, something like:
+
+db = None
+
+def connect():
+    if not db:
+    	db = MySQLdb.connect(...)
+    return db
+
+&gt;<i> Taking the specific example of database connections (let me note I have 
+</I>&gt;<i> read and believe I understand FAQ 3.3) is it ever useful or possible to 
+</I>&gt;<i> share a pool of database connectors, rather than a single connector in 
+</I>&gt;<i> the global namespace. I assume that code such as that in FAQ 3.3 would 
+</I>&gt;<i> require additional locking mechanisms in order to function correctly in 
+</I>&gt;<i> a multi-threaded Apache environment?
+</I>
+It is both useful and possible to do so. Especially when the DBMS is on another 
+machine.
+
+Most databases allow only one session per thread, and as such the best thing to 
+do is to make sure that a connection is used by only one thread at a time.
+ 
+&gt;<i> I bet there must be some code in existing projects that does stuff like 
+</I>&gt;<i> this. Any pointers?
+</I>
+
+No pointers, but what I have been using here for months now on a &quot;worker&quot; mpm:
+
+- Create a threading.Lock object.
+- Create a dictionary (of lists) or list for the db connection pool (I use a 
+dictionary because I have 4 databases where my clients want to grab data)
+
+To get a connection, the lock is aquired and the first matching db connection is 
+taken and removed from the pool, if possible. The lock is released and the 
+connection returned. If the pool was empty, a new db conenction object is 
+created and returned.
+
+When a thread finishes handling a request, it returns the connection object back 
+to the pool. (obtain lock, put connection into pool, release lock)
+
+This guarantees that no two threads share the same connection, and still creates 
+no more connections than neccesary.
+
+--
+Mike Looijmans
+ASML: <A HREF="http://www5nl.asml.nl/~mlooijma">http://www5nl.asml.nl/~mlooijma</A>
+Private: <A HREF="http://www.milosoftware.com">http://www.milosoftware.com</A>
+-- MY text ends here --
+
+
+
+-- 
+The information contained in this communication and any attachments is confidential and may be privileged, and is for the sole use of the intended recipient(s). Any unauthorized review, use, disclosure or distribution is prohibited. If you are not the intended recipient, please notify the sender immediately by replying to this message and destroy all copies of this message and any attachments. ASML is neither liable for the proper and complete transmission of the information contained in this communication, nor for any delay in its receipt.
+-- 
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002756.html">[mod_python] Directory or Location?
+</A></li>
+	<LI>Next message: <A HREF="002746.html">[mod_python] Mod_python in real world
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2747">[ date ]</a>
+              <a href="thread.html#2747">[ thread ]</a>
+              <a href="subject.html#2747">[ subject ]</a>
+              <a href="author.html#2747">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

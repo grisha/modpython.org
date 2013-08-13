@@ -1,0 +1,90 @@
+#include <Python.h>
+
+#include <apr.h>
+#include <mod_python.h>
+
+typedef int (*ssl_is_https_t)(conn_rec*);
+
+static PyObject* is_https(PyObject* module, PyObject* args)
+{
+  requestobject* request_object = 0;
+  ssl_is_https_t ssl_is_https = 0;
+  int result = 0;
+
+  if (!PyArg_ParseTuple(args,"O",&request_object))
+    return 0;
+
+#if 0
+  /* How to ensure symbol is resolved. */
+  if (!MpRequest_Check(request_object))
+    PyErr_SetString(PyExc_TypeError,"not a request object");
+#endif
+
+  ssl_is_https = (ssl_is_https_t)apr_dynamic_fn_retrieve("ssl_is_https");
+
+  if (ssl_is_https == 0)
+    return Py_BuildValue("i",0);
+
+  result = ssl_is_https(request_object->request_rec->connection);
+
+  return Py_BuildValue("i",result);
+}
+
+typedef char* (*ssl_var_lookup_t)(apr_pool_t*,
+ server_rec*, conn_rec*, request_rec*, char*);
+
+static PyObject* var_lookup(PyObject* module, PyObject* args)
+{
+  requestobject* request_object = 0;
+  char* variable_name = 0;
+  ssl_var_lookup_t ssl_var_lookup = 0;
+  char* variable_value = 0;
+  PyObject* result = 0;
+
+  if (!PyArg_ParseTuple(args,"Os",&request_object,&variable_name))
+    return 0;
+
+#if 0
+  /* How to ensure symbol is resolved. */
+  if (!MpRequest_Check(request_object))
+    PyErr_SetString(PyExc_TypeError,"not a request object");
+#endif
+
+  ssl_var_lookup = (ssl_var_lookup_t)apr_dynamic_fn_retrieve("ssl_var_lookup");
+
+  if (ssl_var_lookup == 0)
+  {
+    Py_XINCREF(Py_None);
+      
+    return Py_None;
+  }
+
+  variable_value = ssl_var_lookup(
+   request_object->request_rec->pool,
+   request_object->request_rec->server,
+   request_object->request_rec->connection,
+   request_object->request_rec,
+   variable_name);
+
+  result = Py_BuildValue("s",variable_value);
+
+  free(variable_value);
+
+  return result;
+}
+
+static struct PyMethodDef mp_mod_ssl_methods[] = {
+  { "is_https", is_https, 1 },
+  { "var_lookup", var_lookup, 1 },
+  { NULL, NULL },
+};
+
+void init_mp_mod_ssl(void)
+{
+  PyObject* module;
+
+  module = Py_InitModule("_mp_mod_ssl",mp_mod_ssl_methods);
+
+  if (module == 0)
+    Py_FatalError("can't initialise module _mp_mod_ssl");
+}

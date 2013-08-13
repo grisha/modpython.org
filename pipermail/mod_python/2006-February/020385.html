@@ -1,0 +1,213 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] The Session problem with mod_python3.2.7
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20Session%20problem%20with%20mod_python3.2.7&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020383.html">
+   <LINK REL="Next"  HREF="020378.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] The Session problem with mod_python3.2.7</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Gavin</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20Session%20problem%20with%20mod_python3.2.7&In-Reply-To="
+       TITLE="[mod_python] The Session problem with mod_python3.2.7">gavin at sz.net.cn
+       </A><BR>
+    <I>Tue Feb 21 07:09:54 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020383.html">[mod_python] The Session problem with mod_python3.2.7
+</A></li>
+        <LI>Next message: <A HREF="020378.html">[mod_python] The Session problem with mod_python3.2.7
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20385">[ date ]</a>
+              <a href="thread.html#20385">[ thread ]</a>
+              <a href="subject.html#20385">[ subject ]</a>
+              <a href="author.html#20385">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> 
+</I>&gt;<i> On 21/02/2006, at 10:14 PM, Gavin wrote:
+</I>&gt;&gt;&gt;<i> All I can suggest then is to modify lib/python/mod_python/ 
+</I>&gt;&gt;&gt;<i> Session.py in
+</I>&gt;&gt;&gt;<i> mod_python source code and add in some debug statements to see what
+</I>&gt;&gt;&gt;<i> session database name is being set to.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> class DbmSession(BaseSession):
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     def __init__(self, req, dbm=None, sid=0, secret=None,
+</I>&gt;&gt;&gt;<i> dbmtype=anydbm,
+</I>&gt;&gt;&gt;<i>                  timeout=0, lock=1):
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>         if not dbm:
+</I>&gt;&gt;&gt;<i>             opts = req.get_options()
+</I>&gt;&gt;&gt;<i>             if opts.has_key(&quot;session_dbm&quot;):
+</I>&gt;&gt;&gt;<i>                 dbm = opts[&quot;session_dbm&quot;]
+</I>&gt;&gt;&gt;<i>             else:
+</I>&gt;&gt;&gt;<i>                 dbm = os.path.join(opts.get('session_directory',
+</I>&gt;&gt;&gt;<i> tempdir), 'mp_sess.dbm')
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>         self._dbmfile = dbm
+</I>&gt;&gt;&gt;<i>         self._dbmtype = dbmtype
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>         # XXX DEBUG
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>         apache.log_error(&quot;dbmfile=%s&quot;%self._dbmfile)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Reinstall mod_python and restart Apache.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Then when running test, look in Apache error_log to see where it
+</I>&gt;&gt;&gt;<i> thinks it is getting
+</I>&gt;&gt;&gt;<i> put. See if file exists if not in /tmp.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> mp_sess_test.dbm file doesn't exists in /tmp. error_log file are as  
+</I>&gt;&gt;<i> following:
+</I>&gt;<i> 
+</I>&gt;<i> Run an interactive Python session and try:
+</I>&gt;<i> 
+</I>&gt;<i> grumpy:~ grahamd$ python
+</I>&gt;<i> Python 2.3.5 (#1, Mar 20 2005, 20:38:20)
+</I>&gt;<i> [GCC 3.3 20030304 (Apple Computer, Inc. build 1809)] on darwin
+</I>&gt;<i> Type &quot;help&quot;, &quot;copyright&quot;, &quot;credits&quot; or &quot;license&quot; for more information.
+</I>&gt;<i> &gt;&gt;&gt; import anydbm
+</I>&gt;<i> &gt;&gt;&gt; db = anydbm.open(&quot;/tmp/mp_sess_test.dbm&quot;,'c')
+</I>&gt;<i> &gt;&gt;&gt;
+</I>
+Yes, it works correctly.
+&gt;<i> 
+</I>&gt;<i> If that works, try the same thing in a really simple mod_python handler
+</I>&gt;<i> independent of Session class. Ie.,
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> import anydbm
+</I>&gt;<i> 
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>     req.content_type = 'text/plain'
+</I>&gt;<i>     db = anydbm.open(&quot;/tmp/mp_sess_test.dbm&quot;,'c')
+</I>&gt;<i>     db.close()
+</I>&gt;<i>     req.write('test ok')
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> If it works outside of mod_python and not in mod_python, may be some
+</I>&gt;<i> problem to do with a mixing of wrong versions of shared libraries.
+</I>&gt;<i> 
+</I>&gt;<i> If it doesn't work outside of mod_python either, make sure permissions
+</I>&gt;<i> on &quot;/tmp&quot; directory look correct, or try creating it in a different  
+</I>&gt;<i> directory
+</I>&gt;<i> that you own.
+</I>right. It doesn't work . I create a test directory, and test as following:
+
+&lt;Directory &quot;/data/HTTPD/htdocs/t&quot;&gt;
+
+  AddHandler mod_python  .m .cgi .py
+  #PythonHandler mod_python.psp
+  PythonHandler myhandler
+  PythonOption session_dbm /opt/tmp/mp_sess.dbm
+  PythonPath &quot;['/data/HTTPD/py_api']+['/data/HTTPD/htdocs/t']+sys.path&quot;
+  PythonDebug On
+  Options Indexes FollowSymLinks
+  Order deny,allow
+  Allow from all
+
+&lt;/Directory&gt;
+
+Create a  myhandler.py file in t directory:
+from mod_python import apache
+import anydbm
+
+def handler(req):
+     req.content_type = 'text/plain'
+     db = anydbm.open(&quot;/tmp/mp_sess_test.dbm&quot;,'c')
+     db.close()
+     req.write('test ok')
+     return apache.OK
+
+when accessing by  <A HREF="http://myserver/t/myhandler.py.">http://myserver/t/myhandler.py.</A>  An error
+hanppen as following(the t directory 's permissions is 777.)
+
+Mod_python error: &quot;PythonHandler myhandler&quot;
+
+Traceback (most recent call last):
+
+  File &quot;/usr/local/lib/python2.4/site-packages/mod_python/apache.py&quot;, line 299, in HandlerDispatch
+    result = object(req)
+
+  File &quot;/data/HTTPD/htdocs/t/myhandler.py&quot;, line 7, in handler
+    db = anydbm.open(&quot;/tmp/mp_sess_test.dbm&quot;,'c')
+
+  File &quot;/usr/local/lib/python2.4/anydbm.py&quot;, line 83, in open
+    return mod.open(file, flag, mode)
+
+  File &quot;/usr/local/lib/python2.4/dbhash.py&quot;, line 16, in open
+    return bsddb.hashopen(file, flag, mode)
+
+  File &quot;/usr/local/lib/python2.4/bsddb/__init__.py&quot;, line 285, in hashopen
+    e = _openDBEnv()
+
+  File &quot;/usr/local/lib/python2.4/bsddb/__init__.py&quot;, line 339, in _openDBEnv
+    e.open('.', db.DB_PRIVATE | db.DB_CREATE | db.DB_THREAD | db.DB_INIT_LOCK | db.DB_INIT_MPOOL)
+
+DBError: (147320808, 'Unknown error 147320808')
+
+
+&gt;<i> 
+</I>&gt;<i> Time for me to sleep. Will see how you go in the morning.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020383.html">[mod_python] The Session problem with mod_python3.2.7
+</A></li>
+	<LI>Next message: <A HREF="020378.html">[mod_python] The Session problem with mod_python3.2.7
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20385">[ date ]</a>
+              <a href="thread.html#20385">[ thread ]</a>
+              <a href="subject.html#20385">[ subject ]</a>
+              <a href="author.html#20385">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

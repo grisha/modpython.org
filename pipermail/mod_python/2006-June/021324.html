@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Initial configuration and persistence
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Initial%20configuration%20and%20persistence&In-Reply-To=44846FF7.3060407%40jgassociates.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021316.html">
+   <LINK REL="Next"  HREF="021313.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Initial configuration and persistence</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Richard Lewis</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Initial%20configuration%20and%20persistence&In-Reply-To=44846FF7.3060407%40jgassociates.ca"
+       TITLE="[mod_python] Initial configuration and persistence">richardlewis at fastmail.co.uk
+       </A><BR>
+    <I>Tue Jun  6 06:29:28 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021316.html">[mod_python] Initial configuration and persistence
+</A></li>
+        <LI>Next message: <A HREF="021313.html">[mod_python] global textual constants
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21324">[ date ]</a>
+              <a href="thread.html#21324">[ thread ]</a>
+              <a href="subject.html#21324">[ subject ]</a>
+              <a href="author.html#21324">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Monday 05 June 2006 18:55, Jim Gallacher wrote:
+&gt;<i> Richard Lewis wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Any ideas how to get that SetEnv's value from inside sitemap.py?
+</I>&gt;<i>
+</I>&gt;<i> Use
+</I>&gt;<i>      req.add_common_vars()
+</I>&gt;<i>      env_dict = req.subprocess_env
+</I>&gt;<i>
+</I>&gt;<i> Note that the keys in subprocess_env will be pre-pended with REDIRECT_
+</I>&gt;<i> if you do an internal redirect.
+</I>&gt;<i>
+</I>&gt;<i> Another option would be to use PythonOption.
+</I>&gt;<i>      PythonOption yournamespace.config /path/to/config
+</I>&gt;<i>
+</I>&gt;<i> and retrieve with
+</I>&gt;<i>     option_dict = req.get_options()
+</I>&gt;<i>
+</I>&gt;<i> Note that both of these are only usable when the request is being
+</I>&gt;<i> processed, not when the module is being imported. You could have your
+</I>&gt;<i> handler check if everything is initialized before proceeding. A more
+</I>&gt;<i> transparent way would be to do this check in an earlier phase such as
+</I>&gt;<i> PythonFixupHandler. That way it will be transparent to your handler.
+</I>&gt;<i>
+</I>Thanks for this. I've added some to code to the beginning of my request 
+handler which checks if the global persistant variables are empty and, if 
+they are, it retrieves the name of the configuration file from the SetEnv 
+directive using req.subprocess_env as you suggested and initialises the 
+handler correctly.
+
+&gt;<i> &gt; The other thing I'm stuck on is implementing persistence.
+</I>&gt;<i>
+</I>&gt;<i> Modules loaded with the standard python import statement will not be
+</I>&gt;<i> reloaded by mod_python. That combined with the fact that each
+</I>&gt;<i> interpreter gets it's own namespace may open some other options for you.
+</I>&gt;<i> Something like this may work, but it is totally untested:
+</I>&gt;<i>
+</I>&gt;<i> For each VirtualHost (n) in your apache config:
+</I>&gt;<i>
+</I>&gt;<i> PythonPath &quot;['/path/to/site/virtualhost-n'] + sys.path&quot;
+</I>&gt;<i>
+</I>&gt;<i> Each virtualhost gets its own siteconfig.py, but in directory virutalhost-n
+</I>&gt;<i>
+</I>&gt;<i> In your handler module use:
+</I>&gt;<i>
+</I>&gt;<i> import siteconfig
+</I>&gt;<i>
+</I>&gt;<i> Hopefully (I did say untested, right?) each interpreter will import the
+</I>&gt;<i> correct siteconfig module. You could the use that same module for
+</I>&gt;<i> caching bits of data. The drawback is that you'll need to restart apache
+</I>&gt;<i> when you make any changes to siteconfig.py
+</I>&gt;<i>
+</I>&gt;<i> Either way, you'll need to make sure you are accessing your module data
+</I>&gt;<i> in a thread-safe manner for mpm-worker.
+</I>&gt;<i>
+</I>I have yet to test using my code on the main server which provides all the 
+VirtualHosts I intend to use, but I'll keep this in mind in case I can't get 
+it to work.
+
+On Monday 05 June 2006 18:45, Colin Bean wrote:
+&gt;<i> Hi Richard,
+</I>&gt;<i>
+</I>&gt;<i> Here's a couple of things to address your second question.  If you're
+</I>&gt;<i> seeing messages in your error logs like &quot;(re)importing module *your
+</I>&gt;<i> handler*&quot;, this doesn't necessarily mean that the module was reloaded
+</I>&gt;<i> and your global persistence was lost; it's a diagnostic message
+</I>&gt;<i> generated when you've enabled PythonDebug.
+</I>&gt;<i> One method that I've found useful for determining when global code is
+</I>&gt;<i> executed is to add a print statement in the global scope right after
+</I>&gt;<i> setting up your persistent stuff (to print to the error log without
+</I>&gt;<i> having a request object available, you can do something like this:
+</I>&gt;<i> <A HREF="http://www.modpython.org/FAQ/faqw.py?req=edit&amp;file=faq02.003.htp">http://www.modpython.org/FAQ/faqw.py?req=edit&amp;file=faq02.003.htp</A> ).
+</I>&gt;<i> This will give you a much better idea of when your modules are being
+</I>&gt;<i> reloaded.
+</I>
+Yes, that is the message I was seeing. And I tested it further: if I make lots 
+of requests to my handler, I only get a handful of &quot;(re)importing module&quot; 
+entries, so that must be because of the multiple instances of Apache as you 
+said. I also tried making changes to my XSLT stylesheet source files as a 
+test. These are compiled when the module is loaded and stored as global 
+variables. However, when I changed the stylesheet sources, the handler's 
+response did not reflect the changes until I restarted Apache which means 
+that they must be persisting correctly across requests.
+
+Thanks for your help.
+
+BTW, my set up is apache2.0.55-mpm-prefork, mod_python 3.2.8 both a supplied 
+in Debian.
+
+Cheers,
+Richard
+
+-- 
+-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Richard Lewis
+Sonic Arts Research Archive
+<A HREF="http://www.sara.uea.ac.uk/">http://www.sara.uea.ac.uk/</A>
+-=-=-=-=-=-=-=-=-=-=-=-=-=-
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021316.html">[mod_python] Initial configuration and persistence
+</A></li>
+	<LI>Next message: <A HREF="021313.html">[mod_python] global textual constants
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21324">[ date ]</a>
+              <a href="thread.html#21324">[ thread ]</a>
+              <a href="subject.html#21324">[ subject ]</a>
+              <a href="author.html#21324">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

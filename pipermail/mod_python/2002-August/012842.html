@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Complicated GET configuration
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Complicated%20GET%20configuration&In-Reply-To=1029530494.1195.22.camel%40jade.biology.duke.edu">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012841.html">
+   <LINK REL="Next"  HREF="012849.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Complicated GET configuration</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Hunter Matthews</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Complicated%20GET%20configuration&In-Reply-To=1029530494.1195.22.camel%40jade.biology.duke.edu"
+       TITLE="[mod_python] Complicated GET configuration">thm at duke.edu
+       </A><BR>
+    <I>Fri Aug 16 17:05:28 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012841.html">[mod_python] Complicated GET configuration
+</A></li>
+        <LI>Next message: <A HREF="012849.html">[mod_python] Complicated GET configuration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12842">[ date ]</a>
+              <a href="thread.html#12842">[ thread ]</a>
+              <a href="subject.html#12842">[ subject ]</a>
+              <a href="author.html#12842">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Fri, 2002-08-16 at 16:40, Hunter Matthews wrote:
+&gt;<i> On Fri, 2002-08-16 at 16:27, Ian Clelland wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Because of the &lt;Location&gt; directive, Apache will hand all requests for 
+</I>&gt;<i> &gt; /XMLRPC and any URL below that to your python module. If you don't want 
+</I>&gt;<i> &gt; mod_python to handle the GET requests underneath /XMLRPC, then your 
+</I>&gt;<i> &gt; handler should return apache.DECLINED if req.uri != '/XMLRPC'.
+</I>&gt;<i> 
+</I>&gt;<i> I switched to &lt;Location ~ &quot;/XMLRPC$&quot;&gt;
+</I>&gt;<i> 
+</I>&gt;<i> So right now my apache config looks like: 
+</I>&gt;<i> 
+</I>&gt;<i> Alias /XMLRPC/$RHN/ /local/linux/current/www/
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Directory /local/linux&gt;
+</I>&gt;<i>     # I realize that the default config is to have symlinks on, but the 
+</I>&gt;<i>     # current part should stand on its own.
+</I>&gt;<i>     Options FollowSymLinks
+</I>&gt;<i>     AllowOverride None
+</I>&gt;<i> &lt;/Directory&gt;
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Location ~ &quot;/XMLRPC$&quot;&gt;
+</I>&gt;<i>     PythonPath &quot;sys.path+['/usr/share/current']&quot;
+</I>&gt;<i>     SetHandler python-program
+</I>&gt;<i>     PythonHandler current_apache
+</I>&gt;<i> &lt;/Location&gt;
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Location /XMLRPC/$RHN&gt;
+</I>&gt;<i>     PythonPath &quot;sys.path+['/usr/share/current']&quot;
+</I>&gt;<i>     PythonAuthzHandler current_apache
+</I>&gt;<i> &lt;/Location&gt;
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Also, as far as I understand it, the SetHandler directive shouldn't be 
+</I>&gt;<i> &gt; required in order to invoke a PythonAuthzHandler, but I could be wrong. 
+</I>&gt;<i> &gt; (Not that it will make a difference in your case; the SetHandler for 
+</I>&gt;<i> &gt; /XMLRPC will also affect the /XMLRPC/$RHN subdirectory anyway)
+</I>&gt;<i> 
+</I>&gt;<i> That would be ideal. However, with the following code in 
+</I>&gt;<i> /usr/share/current/current_apache.py:
+</I>&gt;<i> 
+</I>&gt;<i> def authzhandler(req):
+</I>&gt;<i>     &quot;&quot;&quot; temp function for testing&quot;&quot;&quot;
+</I>&gt;<i> 
+</I>&gt;<i>     apache.log_error(&quot;Inside the authzhandler!&quot;)
+</I>&gt;<i>     apache.log_error(&quot;method = %s&quot; % req.method)
+</I>&gt;<i>     apache.log_error(&quot;headers = %s&quot; % pprint.pprint(req.headers_in))
+</I>&gt;<i> 
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> After an apache restart (to make sure all the updated modules get
+</I>&gt;<i> reloaded) I'm not seeing any of those log_errors in the error file.
+</I>&gt;<i> Once I see something (anything) I'll replace that code with the real
+</I>&gt;<i> thing.
+</I>&gt;<i> 
+</I>&gt;<i> I appreciate the help from the list.
+</I>
+Sorry to spam the list so hard today, but I've figured one piece of it
+out:
+
+def authzhandler(req):
+    &quot;&quot;&quot; temp function for testing&quot;&quot;&quot;
+ 
+    apache.log_error(&quot;Inside the authzhandler!&quot;)
+    apache.log_error(&quot;method = %s&quot; % req.method)
+    apache.log_error(&quot;headers = %s&quot; % pprint.pprint(req.headers_in))
+
+    return apache.OK
+
+This code still results in nothing in my logs. On the theory that
+perhaps it was undocumented for a reason, I tried a different (nearly
+random) handler:
+
+
+def headerparserhandler(req):
+    &quot;&quot;&quot; temp function for testing&quot;&quot;&quot;
+
+    apache.log_error(&quot;Inside the headerparserhandler!&quot;)
+    apache.log_error(&quot;method = %s&quot; % req.method)
+#    apache.log_error(&quot;headers = %s&quot; % pprint.pprint(req.headers_in))
+    for key in req.headers_in.keys():
+        apache.log_error(&quot;hdr[%s] = %s&quot; % (key, req.headers_in[key]))
+    return apache.HTTP_UNAUTHORIZED                      
+
+AND THIS WORKS JUST FINE!
+
+If anyone on the list has any ideas why the authz handler, which
+_looked_ like the handler I should use (using HTTP request headers to
+determine if a client was authorized to make this request), isn't
+working, I'd still appreciate knowing. 
+
+However, I should be able to use this handler or maybe even
+PythonAuthenHandler, so its not a critical issue for me now.
+
+THanks everyone.
+
+-- 
+Hunter Matthews                          Unix / Network Administrator
+Office: BioScience 145/244               Duke Univ. Biology Department
+Key: F0F88438 / FFB5 34C0 B350 99A4 BB02  9779 A5DB 8B09 F0F8 8438
+Never take candy from strangers. Especially on the internet.
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012841.html">[mod_python] Complicated GET configuration
+</A></li>
+	<LI>Next message: <A HREF="012849.html">[mod_python] Complicated GET configuration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12842">[ date ]</a>
+              <a href="thread.html#12842">[ thread ]</a>
+              <a href="subject.html#12842">[ subject ]</a>
+              <a href="author.html#12842">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

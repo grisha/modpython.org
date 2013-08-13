@@ -1,0 +1,211 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod_python Security
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20Security&In-Reply-To=c298f2d70603020554j708199bbp%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020485.html">
+   <LINK REL="Next"  HREF="020491.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mod_python Security</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%20Security&In-Reply-To=c298f2d70603020554j708199bbp%40mail.gmail.com"
+       TITLE="[mod_python] Mod_python Security">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Mar  2 15:06:50 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020485.html">[mod_python] Mod_python Security
+</A></li>
+        <LI>Next message: <A HREF="020491.html">[mod_python] Mod_python Security
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20486">[ date ]</a>
+              <a href="thread.html#20486">[ thread ]</a>
+              <a href="subject.html#20486">[ subject ]</a>
+              <a href="author.html#20486">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Some more.
+
+1. If using mod_python.psp and you have PythonDebug enabled
+the source code for your PSP pages can be visible by virtue of
+putting an underscore on the end of the extension. Eg. &quot;.psp_&quot;.
+
+It is thus a good idea not to have PyhthonDebug enabled for production
+and/or public web site if using mod_python.psp. If you really need
+PythonDebug to be on, only enable it for requests coming from
+you own client machine in some way.
+
+2. If Apache has write access to directories, it can drop &quot;.pyc&quot; files
+into the directories for modules loaded. This extension isn't generally
+protected and people can download the &quot;.pyc&quot; files and potentially
+work out what your code is. Use something like:
+
+   &lt;Files *.pyc&gt;
+   deny from all
+   &lt;/Files&gt;
+
+Depending on platform, may have to block access to &quot;.pyo&quot; files as
+well.
+
+3. PythonDebug in general can reveal stack traces to a client when
+something goes wrong. In worst case, this may reveal secret information.
+
+4. Try to avoid putting source code in actual directories visible to
+Apache. Especially do not put sensitive information in such files.
+The reason here is that it only takes one mistake in Apache  
+configuration
+and all your code would be visible.
+
+5. If using an extension such as &quot;.html&quot; with AddHandler to map to
+handler code in actual directory, ensure you block access to &quot;.py&quot;
+extension if need be.
+
+   &lt;Files *.py&gt;
+   deny from all
+   &lt;/Files&gt;
+
+6. If writing a custom handler, if wanting to return apache.DECLINED,
+make sure you understand what it does. Specifically, it will cause the
+builtin default Apache handler to still run, which will serve up static
+files. Like above, you may need to deny access to certain files as a
+result.
+
+That is all I can think of for now. Sorry if some of it makes no sense,
+am in a rush.
+
+Graham
+
+On 03/03/2006, at 12:54 AM, Nicolas Lehuen wrote:
+
+&gt;<i> There's an important rule :
+</I>&gt;<i>
+</I>&gt;<i> If you use the publisher, everything which is defined in a published
+</I>&gt;<i> module is generally accessible from the web, except if its name begins
+</I>&gt;<i> with an underscore.
+</I>&gt;<i>
+</I>&gt;<i> For example :
+</I>&gt;<i>
+</I>&gt;<i> # index.py
+</I>&gt;<i> # BAD !
+</I>&gt;<i> secret_password = &quot;foobar&quot;
+</I>&gt;<i>
+</I>&gt;<i> def index(req,password):
+</I>&gt;<i>     if password != secret_password:
+</I>&gt;<i>         return util.redirect(req,'/rejected.html')
+</I>&gt;<i>     else:
+</I>&gt;<i>         return &quot;Welcome !&quot;
+</I>&gt;<i>
+</I>&gt;<i> Your secret password in accessible through
+</I>&gt;<i> <A HREF="http://my_server/my_folder/index.py/secret_password">http://my_server/my_folder/index.py/secret_password</A>
+</I>&gt;<i>
+</I>&gt;<i> To make sure it won't be accessed, rename secret_password to  
+</I>&gt;<i> _secret_password.
+</I>&gt;<i>
+</I>&gt;<i> There are exceptions to this &quot;everything is accessible&quot; rule, namely
+</I>&gt;<i> imported modules, new-styles classes and built-in functions cannot be
+</I>&gt;<i> traversed nor published. This prevents basic leaks like being able to
+</I>&gt;<i> call sys.exit() from any published module that imports sys. Those
+</I>&gt;<i> rules are specified in the lib/python/mod_python/publisher.py file, if
+</I>&gt;<i> you are curious.
+</I>&gt;<i>
+</I>&gt;<i> But in any case, be aware that any string defined in a published
+</I>&gt;<i> module is accessible unless its name is prefixed by an underscore,
+</I>&gt;<i> which includes your precious database password.
+</I>&gt;<i>
+</I>&gt;<i> Regards,
+</I>&gt;<i> Nicolas
+</I>&gt;<i>
+</I>&gt;<i> 2006/3/2, Mike Looijmans &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nlv11281 at natlab.research.philips.com</A>&gt;:
+</I>&gt;&gt;<i> As with any server-side scripting, there's:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> - Cross-site scripting
+</I>&gt;&gt;<i> - Code injection
+</I>&gt;&gt;<i> - SQL injection
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> But that's typically 'your' fault...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Mike Looijmans
+</I>&gt;&gt;<i> Philips Natlab / Topic Automation
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> marinus van aswegen wrote:
+</I>&gt;&gt;&gt;<i> Hi
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I'd like to publish my page but I'm not sure what security issues
+</I>&gt;&gt;&gt;<i> mod_python typically face.
+</I>&gt;&gt;&gt;<i> Any recommendations?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Regards
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> -------------------------------------------------------------------- 
+</I>&gt;&gt;&gt;<i> ----
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020485.html">[mod_python] Mod_python Security
+</A></li>
+	<LI>Next message: <A HREF="020491.html">[mod_python] Mod_python Security
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20486">[ date ]</a>
+              <a href="thread.html#20486">[ thread ]</a>
+              <a href="subject.html#20486">[ subject ]</a>
+              <a href="author.html#20486">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

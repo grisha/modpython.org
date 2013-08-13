@@ -1,0 +1,380 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] bug in apache.import_module
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20bug%20in%20apache.import_module&In-Reply-To=4276DFCA.9060205%40hostway.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017984.html">
+   <LINK REL="Next"  HREF="017990.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] bug in apache.import_module</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20bug%20in%20apache.import_module&In-Reply-To=4276DFCA.9060205%40hostway.com"
+       TITLE="[mod_python] bug in apache.import_module">nicolas.lehuen at gmail.com
+       </A><BR>
+    <I>Tue May  3 02:14:40 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017984.html">[mod_python] bug in apache.import_module
+</A></li>
+        <LI>Next message: <A HREF="017990.html">[mod_python] bug in apache.import_module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17985">[ date ]</a>
+              <a href="thread.html#17985">[ thread ]</a>
+              <a href="subject.html#17985">[ subject ]</a>
+              <a href="author.html#17985">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Huzaifa,
+
+You're right in thinking that the same method will be accessed at the
+same time, but wrong in thinking that there is a risk that a thread
+messes with another thread's stack.
+
+Multi-threading is perfectly predictable and safe on this level : you
+can launch as many threads as you want running the same
+function/method, each thread will execute in its own environment, each
+one will get its own stack, therefore each one will have its own set
+of local variables (including parameters) when the method will be
+executed. There is absolutely no risk that changing a local parameter
+in one thread messes with a local parameter in another thread.
+
+You only have to worry about synchronization when multiple thread
+share some data ; for example, for a bound method (a method which is
+applied to a specific object instance), even if the threads stacks are
+perfectly isolated, the multiple threads will target the same object
+instance, and therefore one must think about synchronisation issues
+when accessing the members of the object.
+
+To go back to your fix_path() example, only local variables are
+changed in the function. The local &quot;path&quot; variable changes, but not
+the list passed as a parameter. This means the code would be perfectly
+thread-safe even with the locking code removed.
+
+Still, you will tell me, there is the possibility that someone changes
+the shared path while I'm trying to fix it. Then, change your design.
+At the minimum, you should place your locking code where it is needed,
+not in the lowest common factor point.
+
+The one you chose is pretty bad (sorry to be harsh ;-) : imagine you
+want to call fix_path for each request. Bam, for each request, you'll
+hold a global lock just for fixing a path variable ! You'll reduce the
+server performance just for housekeeping issues...
+
+Putting some code where it is needed is what OOP was made for (well,
+it was made for making it easier, at least). What I'm suggesting is to
+encapsulate the shared path variable in an object, and fix it each
+time it is modified, not each time it is accessed. Then, you can use
+whatever locking scheme you need to ensure the consistency of this
+shared path variable.
+
+Also, locking is not the only option for this : you can also copy the
+path list and use a copy in the thread, instead of the original ; you
+won't have to worry about the original list being modified, since each
+thread will have its own copy.
+
+There are many, many design choices to be made when build a
+multi-threaded architecture. One thing is sure : you can't assume the
+worst in each part of the architecture. You have to have places (like
+this utility method) where you can safely assume that the parameters
+you are given won't be modified during the call.
+
+Multi-threading is not about locking everything, not at all, because
+we might as well run in a single thread, the performances would be
+better. It's about putting the right locks at the right place,
+sometimes choosing to copy data instead of sharing it.
+
+Sorry to be so vague, but to go further, I'd need to go deeper in your
+code, and this I have not enough time to do :).
+
+A very good book about multithreading is &quot;Concurrent Programming in
+Java&quot; from Doug Lea. It's about Java and also quite old but a lot of
+information can be applied to any multi-threading problem.
+
+<A HREF="http://www.amazon.com/exec/obidos/tg/detail/-/0201310090/">http://www.amazon.com/exec/obidos/tg/detail/-/0201310090/</A>
+
+Regards,
+Nicolas
+
+2005/5/3, Huzaifa Tapal &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">huzaifa at hostway.com</A>&gt;:
+&gt;<i>  Hello Nicolas,
+</I>&gt;<i>  
+</I>&gt;<i>  What I am really worried about is that in a multi-threaded environment,
+</I>&gt;<i> accessing a modular level method, multiple threads might be accessing the
+</I>&gt;<i> same method at the same time and overwriting the other threads path list as
+</I>&gt;<i> a result.  
+</I>&gt;<i>  
+</I>&gt;<i>  As per your question, I create a _lock object on top of the module.  Pretty
+</I>&gt;<i> much this method was created in a &quot;SharedResources&quot; module as a modular
+</I>&gt;<i> level method.  My framework then imports the method and uses it within to
+</I>&gt;<i> fix the paths.
+</I>&gt;<i>  
+</I>&gt;<i>  What do you think?
+</I>&gt;<i>  
+</I>&gt;<i>  Hozi
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i>  Nicolas Lehuen wrote: 
+</I>&gt;<i>  Hi Huzaifa,
+</I>&gt;<i> 
+</I>&gt;<i> Well, that's really up to you, especially since I don't understand
+</I>&gt;<i> where the _lock variable comes from.
+</I>&gt;<i> 
+</I>&gt;<i> If it's not possible to change the path list which is passed as a
+</I>&gt;<i> parameter without acquiring the lock, then why not, but I'd put the
+</I>&gt;<i> locking mechanism in the calling code rather than in this function.
+</I>&gt;<i> Note that you are not modifying the path list in-place : you just
+</I>&gt;<i> return a copy of the path list with some fixes in it. So there is no
+</I>&gt;<i> need to lock anything here, except if you fear that the path list will
+</I>&gt;<i> be changed during the iteration, but for that, you have to put a
+</I>&gt;<i> locking mechanism somewhere else for any modification of the path
+</I>&gt;<i> list. So my first advice is : keep all locking code in the same place
+</I>&gt;<i> and you'll save time and mental health :).
+</I>&gt;<i> 
+</I>&gt;<i> My second advice is : don't be over-protective at the cost of
+</I>&gt;<i> performance. Trust the users of your code. Provided that they have a
+</I>&gt;<i> proper documentation, it's not necessary to lock anything, because
+</I>&gt;<i> your users will know that bad things will happen if they change the
+</I>&gt;<i> path list during iteration, so they'll do the right stuff accordingly.
+</I>&gt;<i> Likewise, it's not necessary to check whether path is a list, or
+</I>&gt;<i> whether some path entries are None or &quot;&quot;. If your users want to give
+</I>&gt;<i> silly data to your function, let them do it, and let Python throw
+</I>&gt;<i> exceptions at them.
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> 
+</I>&gt;<i> Nicolas
+</I>&gt;<i> 
+</I>&gt;<i> On 4/29/05, Huzaifa Tapal &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">huzaifa at hostway.com</A>&gt; wrote:
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>  I wanted to ask for a piece of advise. So the fix that I have mentioned, I
+</I>&gt;<i> moved that fix (the method I replaced with the map(lambda) solution you had
+</I>&gt;<i> with a minor fix) to another &quot;SharedResources&quot; module that I import in my
+</I>&gt;<i> framework's handler. From within the handler and my app, I am call that
+</I>&gt;<i> method passing in a path argument that it *fixes* and returns back the
+</I>&gt;<i> results. Here is what the new method looks like:
+</I>&gt;<i>  
+</I>&gt;<i>  def fix_paths( path ):
+</I>&gt;<i>  &quot;&quot;&quot; Convenience method for checking and 
+</I>&gt;<i>  adding '/' to the end of paths for compatibility
+</I>&gt;<i>  with mod_python's import_module. &quot;&quot;&quot;
+</I>&gt;<i>  
+</I>&gt;<i>  _lock.acquire()
+</I>&gt;<i>  try:
+</I>&gt;<i>  if path and type(path) == type([]):
+</I>&gt;<i>  path = map(lambda entry : (entry!='' and entry[-1]!='/' and
+</I>&gt;<i> entry+'/') or entry,path)
+</I>&gt;<i>  
+</I>&gt;<i>  return path
+</I>&gt;<i>  finally:
+</I>&gt;<i>  _lock.release()
+</I>&gt;<i>  
+</I>&gt;<i>  Should I have the thread-locking in place or can I get by without having it
+</I>&gt;<i> in place? The reason I did add that was because the path value may get
+</I>&gt;<i> changed, in the process, I thought of making this method thread-safe.
+</I>&gt;<i>  
+</I>&gt;<i>  Also Nicolas, if you notice I added another check in your lambda function
+</I>&gt;<i> to check if the entry is an empty string. If that wasn't there then if an
+</I>&gt;<i> empty string path was passed in the list paths, the function would break. 
+</I>&gt;<i> Thought, i'd let you know if you were gonna add this functionality into the
+</I>&gt;<i> import_module method for apache.py
+</I>&gt;<i>  
+</I>&gt;<i>  Thanks
+</I>&gt;<i>  
+</I>&gt;<i>  Hozi
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i>  Nicolas Lehuen wrote: 
+</I>&gt;<i>  Sorry, reposting to the whole list :
+</I>&gt;<i> 
+</I>&gt;<i> Hi,
+</I>&gt;<i> 
+</I>&gt;<i> The change I've made for MODPYTHON-9 affects only the publisher
+</I>&gt;<i> module. It solves the problem encountered when you had two pages, one
+</I>&gt;<i> at /index.py, and the other at /foobar/index.py.
+</I>&gt;<i> 
+</I>&gt;<i> Huzaifa, what I don't understand here is whether moduleA has the same
+</I>&gt;<i> name as moduleB, and whether you are using mod_python.publisher or
+</I>&gt;<i> not.
+</I>&gt;<i> 
+</I>&gt;<i> If you use the publisher, your problem has been solved in the latest
+</I>&gt;<i> development version, and the fix will be in the next release.
+</I>&gt;<i> 
+</I>&gt;<i> Anyway, if we put aside the fix specific to the publisher, the problem
+</I>&gt;<i> you describe is real, and the workaround you provide is correct.
+</I>&gt;<i> 
+</I>&gt;<i> It is so correct that the only way I see of fixing that is to
+</I>&gt;<i> integrate the workaround in the import_module function, that is to say
+</I>&gt;<i> to check whether each path component passed in the path list argument
+</I>&gt;<i> ends with a '/' (or '\'), and if not, add a '/' (or '\\'). This is
+</I>&gt;<i> done easily in the first line of the function :
+</I>&gt;<i> 
+</I>&gt;<i> if path:
+</I>&gt;<i>  path = map(lambda entry : (entry[-1]!='/' and entry+'/') or entry,path)
+</I>&gt;<i> 
+</I>&gt;<i> However, there is no easy way of telling what directory separator
+</I>&gt;<i> should be used ; theoretically, os.sep gives us the correct directory
+</I>&gt;<i> separator, but even under Win32 Apache admins are advised to use &quot;/&quot;
+</I>&gt;<i> which is compatible (at the OS level). So, we might as well always use
+</I>&gt;<i> &quot;/&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> What I fear is that adding all these checks to import_module will make
+</I>&gt;<i> it a little bit too slow, so what about adding a line or two in the
+</I>&gt;<i> documentation about the fact that all directories mentioned in the
+</I>&gt;<i> path argument should end with a '/' ?
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> 
+</I>&gt;<i> Nicolas
+</I>&gt;<i> 
+</I>&gt;<i> On 4/29/05, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>  Nicolas, does the change you have already made for MODPYTHON-9
+</I>&gt;<i> also address this slightly different variation on the problem?
+</I>&gt;<i> 
+</I>&gt;<i> Original report was based on same name module in parent and child
+</I>&gt;<i> subdirectories, not sibling directories which share a common prefix
+</I>&gt;<i> to the subdirectory name.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> 
+</I>&gt;<i> Huzaifa Tapal wrote ..
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>  For my fix, I patched this issue by passing the import_module function
+</I>&gt;<i> the path with &quot;/&quot; in the end. That way it distinguishes from
+</I>&gt;<i> /home/user/dir1 and /home/user/dir123
+</I>&gt;<i> 
+</I>&gt;<i> hozi
+</I>&gt;<i> 
+</I>&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>  See:
+</I>&gt;<i> 
+</I>&gt;<i>  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-9">http://issues.apache.org/jira/browse/MODPYTHON-9</A>
+</I>&gt;<i>  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-10">http://issues.apache.org/jira/browse/MODPYTHON-10</A>
+</I>&gt;<i>  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-11">http://issues.apache.org/jira/browse/MODPYTHON-11</A>
+</I>&gt;<i> 
+</I>&gt;<i> There are various known issues with using same name module in different
+</I>&gt;<i> directories.
+</I>&gt;<i> 
+</I>&gt;<i> The first one has been addressed for next version of mod_python.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> 
+</I>&gt;<i> On 29/04/2005, at 8:22 AM, Huzaifa Tapal wrote:
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>  I think there is a bug in apache.import_module. I am using
+</I>&gt;<i> apache.import_module passing in the path where I want the module
+</I>&gt;<i> imported from. I am seeing a very odd result as to sometimes, the
+</I>&gt;<i> module that is loaded is not the right one. Instead it loads a
+</I>&gt;<i> module that is of the same name but in a different directory. Here
+</I>&gt;<i> is what is happening:
+</I>&gt;<i> 
+</I>&gt;<i> I have two modules of same name in 2 different directories as follows;
+</I>&gt;<i> 
+</I>&gt;<i> /home/user/dir1/moduleA
+</I>&gt;<i> /home/user/dir123/moduleB
+</I>&gt;<i> 
+</I>&gt;<i> Lets say I restart apache and load up moduleA. At that point there
+</I>&gt;<i> is an entry in sys.modules for moduleA. Lets say then, I load up
+</I>&gt;<i> moduleB, now the original entry for moduleA is overwritten by this
+</I>&gt;<i> new entry. Now when I go back to load moduleA, I get back moduleB
+</I>&gt;<i> results. Here is why:
+</I>&gt;<i> 
+</I>&gt;<i> In apache.import_module if I pass in the path to load moduleA from
+</I>&gt;<i> '/home/user/dir1' and the last module was in '/home/user/dir123' then
+</I>&gt;<i> the check in import_module to make sure both modules aren't the same
+</I>&gt;<i> fails since it does a &quot;file.startswith()&quot; check on the path. Since
+</I>&gt;<i> the path moduleA is in the path to moduleB, it loads the wrong module.
+</I>&gt;<i> 
+</I>&gt;<i> I see that somebody else had complained about this problem in
+</I>&gt;<i> mod_python 1.3.1 but it still has not been patched.
+</I>&gt;<i> 
+</I>&gt;<i> Any ideas?
+</I>&gt;<i> 
+</I>&gt;<i> Hozi
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>  _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i>  _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017984.html">[mod_python] bug in apache.import_module
+</A></li>
+	<LI>Next message: <A HREF="017990.html">[mod_python] bug in apache.import_module
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17985">[ date ]</a>
+              <a href="thread.html#17985">[ thread ]</a>
+              <a href="subject.html#17985">[ subject ]</a>
+              <a href="author.html#17985">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

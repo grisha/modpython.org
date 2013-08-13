@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] lookup_uri
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20lookup_uri&In-Reply-To=4644AF5E.1060504%40rogerbinns.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023602.html">
+   <LINK REL="Next"  HREF="023609.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] lookup_uri</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20lookup_uri&In-Reply-To=4644AF5E.1060504%40rogerbinns.com"
+       TITLE="[mod_python] lookup_uri">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat May 12 00:09:17 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023602.html">[mod_python] lookup_uri
+</A></li>
+        <LI>Next message: <A HREF="023609.html">[mod_python] lookup_uri
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23607">[ date ]</a>
+              <a href="thread.html#23607">[ thread ]</a>
+              <a href="subject.html#23607">[ subject ]</a>
+              <a href="author.html#23607">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 12/05/07, Roger Binns &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rogerb at rogerbinns.com</A>&gt; wrote:
+&gt;<i> -----BEGIN PGP SIGNED MESSAGE-----
+</I>&gt;<i> Hash: SHA1
+</I>&gt;<i>
+</I>&gt;<i> I wrote a week ago about wanting to do subrequests but couldn't find
+</I>&gt;<i> anything in modpython beyond internal_redirect.
+</I>&gt;<i>
+</I>&gt;<i> Anyway it turns out that Apache really does have exactly what I need and
+</I>&gt;<i> they are called subrequests.  The actual method I want to call is
+</I>&gt;<i> lookup_method_uri (assuming it copies authentication information from
+</I>&gt;<i> the parent request).
+</I>
+The problem is that in that discussion where I said:
+
+&quot;&quot;&quot;Even if exposed in mod_python it would still not help given that
+you wouldn't have the auth information available for /admin URL to
+pass  through.&quot;&quot;&quot;
+
+You basically didn't want to agree and said:
+
+&quot;&quot;&quot;That is the easy bit :-)  Just copying the authentication response
+headers from /api will do the trick.&quot;&quot;&quot;
+
+I still believe that you don't quite understand what would happen. Let
+me see if I can explain it again in a way you can understand.
+
+First off, you said that /admin would have no AuthType/AuthName
+directives covering that URL in the Apache configuration. Because of
+this fact, the browser isn't going to be sending any authentication
+information for that URL. Ie., there will be no Authorization header
+available to the request handler for the /admin URL.
+
+Second, you gave the pseudo code for your /admin handler as:
+
+def handler(req):
+ print &quot;Hello world&quot;
+
+ # I can't see how to do the next two lines which could have
+ # different permissions
+ ... check credentials in req against &quot;/api/object/list&quot;
+ ... check credentials in req against &quot;/api/object3/delete&quot;
+
+ # The next two could be done by calling the code that
+ # implements /api directly (or playing with internal_redirect)
+ items=request(&quot;/api/object/list&quot;)
+ request(&quot;/api/%s/delete&quot; % (items[3],))
+
+ print &quot;more output saying item3 was deleted&quot;
+
+Your problem as you see it how to check those credentials. The real
+problem at this point is where are you getting the credentials from if
+the browser isn't going to send them. If you are using either HTTP
+Basic or Digest authentication, which you said was one of your
+options, given that the admin could choose whatever they wanted, in
+order for the browser to send credentials the server has to challenge
+the browser indicating that it is a password authenticated area of the
+server. To do this it has to send back a special header to the browser
+saying what the authentication domain is that credentials need to be
+supplied for. You are skipping this important challenge step by
+assuming the credentials will be there and simply moving to try and
+validate them.
+
+It is also not enough that you have some special separate /login URL
+where AuthType and AuthName may be set as the browser will only send
+through the credentials for that URL and not arbitrary other URLs such
+as /admin which it doesn't know to be in the same AuthName domain.
+
+Where web applications, such as Trac, use a /login URL as a single
+login point, once they have successfully logged in the user they then
+use cookies to track the fact that the user is logged in.
+
+If you still disagree, and maybe I am missing something, by what
+mechanism do you think the credentials will be available in the first
+place? How is the browser going to know to send them for the /admin
+URL. The only way I can think of where credentials may be available
+automatically is if you are using HTTPS with unique client side
+certificates which identify the specific user.
+
+&gt;<i> modpython seems not to have this family of methods.  The Perl equivalent
+</I>&gt;<i> of modpython does:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="http://perl.apache.org/docs/2.0/api/Apache2/SubRequest.html">http://perl.apache.org/docs/2.0/api/Apache2/SubRequest.html</A>
+</I>&gt;<i>
+</I>&gt;<i> Any advice on how to get access to these methods?  I'm happy to do any
+</I>&gt;<i> of the following:
+</I>&gt;<i>
+</I>&gt;<i>   * Modify modpython source code
+</I>
+Go right ahead if you want to modify your mod_python source.
+
+&gt;<i>   * Abuse ctypes in some way
+</I>
+Not something I'd recommend.
+
+&gt;<i>   * Write an additional library to be loaded accessible from python code
+</I>
+Which can also work, with SWIG serving as a useful complement.
+
+&gt;<i> This topic seems to have come up before without apparent resolution:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://www.modpython.org/pipermail/mod_python/2006-September/021994.html">http://www.modpython.org/pipermail/mod_python/2006-September/021994.html</A>
+</I>&gt;<i> <A HREF="http://www.mail-archive.com/python-dev@httpd.apache.org/msg02594.html">http://www.mail-archive.com/python-dev@httpd.apache.org/msg02594.html</A>
+</I>
+More importantly the following which was sent just a week before your
+discussion started up.
+
+  <A HREF="http://www.modpython.org/pipermail/mod_python/2007-April/023494.html">http://www.modpython.org/pipermail/mod_python/2007-April/023494.html</A>
+
+and dictates various approaches to how one might go about extending
+mod_python features without actually modifying mod_python.
+
+Graham
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023602.html">[mod_python] lookup_uri
+</A></li>
+	<LI>Next message: <A HREF="023609.html">[mod_python] lookup_uri
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23607">[ date ]</a>
+              <a href="thread.html#23607">[ thread ]</a>
+              <a href="subject.html#23607">[ subject ]</a>
+              <a href="author.html#23607">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

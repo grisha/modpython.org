@@ -1,0 +1,4763 @@
+From graham.dumpleton at gmail.com  Sat Nov  1 04:48:48 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Sat Nov  1 04:48:52 2008
+Subject: [mod_python] problems uploading large files
+In-Reply-To: <490BC04A.7@gmail.com>
+References: <490B73C0.5040202@gmail.com>
+	<88e286470810311437t1043ae11y51040eedf63cdbab@mail.gmail.com>
+	<88e286470810311543h7ed05f7cta4d01a9cfea378f9@mail.gmail.com>
+	<490BC04A.7@gmail.com>
+Message-ID: <88e286470811010148i49a49752sccc74b50e12b55c2@mail.gmail.com>
+
+2008/11/1 Hector Mu?oz <hectormunozh@gmail.com>:
+> -----BEGIN PGP SIGNED MESSAGE-----
+> Hash: SHA1
+>
+> Hi!
+>
+> Graham Dumpleton escribi?:
+>> Sorry, also provide the Python traceback so can see where in code
+>> I/O Error is coming from.
+>
+> The error description is: IOError: [Errno 28] No space left on device
+>
+> And device has space enough.
+
+The device you are looking at may be, but not the one being used.
+
+The form handling code in mod_python will write a temporary file to
+disk when processing file uploads. On a UNIX system this will be one
+of:
+
+  [ '/tmp', '/var/tmp', '/usr/tmp' ]
+
+On Windows it will be one of:
+
+  [ r'c:\temp', r'c:\tmp', r'\temp', r'\tmp' ]
+
+It is likely that whichever of these is being used is what is running
+out of space and not where you are eventually trying to write the file
+to.
+
+Graham
+
+> Regards!
+> -----BEGIN PGP SIGNATURE-----
+> Version: GnuPG v2.0.9 (GNU/Linux)
+> Comment: Using GnuPG with Mozilla - http://enigmail.mozdev.org
+>
+> iEYEARECAAYFAkkLwEkACgkQkXQuTK97GwMSGgCfQEn9wJv3o0TluSajr6okg9vK
+> oIMAn2zAEO/SsvsVE4Ed7Dyr+LqFevFe
+> =mfRq
+> -----END PGP SIGNATURE-----
+>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+
+From graham.dumpleton at gmail.com  Sat Nov  1 04:51:58 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Sat Nov  1 04:52:01 2008
+Subject: [mod_python] converting site from CGI to mod_python
+In-Reply-To: <490BAB9F.7040805@fastmail.com.au>
+References: <490BAB9F.7040805@fastmail.com.au>
+Message-ID: <88e286470811010151qd700595p841aed45b31fb04f@mail.gmail.com>
+
+2008/11/1 Adam <adam@fastmail.com.au>:
+> Hi,
+> I've made a CGI web app for managing DNS zones. I want to convert my scripts
+> so they use mod_python instead of cgi, but I can't really find any good
+> examples which demonstrate a standard way of doing what I want.
+>
+> So everything to do with my website is stored in this directory:
+> /var/www/localhost/BDNS
+>
+> This directory has three subdirectories.
+>  -config
+>  -content
+>     -templates
+>  -scripts
+>
+> config  - holds user and zone configuration
+> content - originally stored CGI files and templates.
+> scripts - stored the scripts to handle dns updates and manage configuration
+>
+>
+> Now I'm wondering whether this directory structure should be reognanised if
+> I want to use mod_python. The issue is that my documentroot in apache is
+> configured to  /var/www/localhost/BDNS/content and I cannot refer to my
+> config files in mod_python using relative path names. This was not an issue
+> when I was using CGI.
+>
+> Consider this as a simple example. I have a file index.py which wants to
+> open a config file in the config directory.
+>
+> --------------------index.py--------------------
+> from mod_python import apache
+> bdns = apache.import_module("../scripts/bdns.py")
+> tmplutils = apache.import_module("../scripts/tmplutils.py")
+> import sys
+>
+> def index(req):
+>       f = open("../config/bdns.conf")
+
+Use:
+
+  conffile = os.path.join(os.path.dirname(__file__), "..", "config",
+"bdns.conf")
+  f = open(confile, 'r')
+
+If converting from CGI, you may find it better to translate your CGI
+script to WSGI instead of directly to mod_python. By using WSGI, you
+can still run it as CGI using a CGI-WSGI bridge, but also run your
+script under mod_python (with adapter), mod_wsgi (directly), fastcgi
+(flup adapter), scgi (flup adapter) etc etc.
+
+In other words, by using WSGI you retain portability and with WSGI not
+being too different to CGI in some respects, possibly easier to port.
+
+Graham
+
+>       return f.readlines()
+> --------------------------------------------------
+>
+> This code above doesn't work when I browse to index.py. I don't want to use
+> fixed path names.
+>
+> Any help with organising my files and folders would be appreciated.
+>
+> Adam
+>
+>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+From adam at fastmail.com.au  Sun Nov  2 19:30:39 2008
+From: adam at fastmail.com.au (Adam)
+Date: Sun Nov  2 19:30:48 2008
+Subject: [mod_python] converting site from CGI to mod_python
+References: 490BAB9F.7040805@fastmail.com.au
+Message-ID: <490E462F.8030207@fastmail.com.au>
+
+
+> Use:
+>
+>   conffile = os.path.join(os.path.dirname(__file__), "..", "config",
+> "bdns.conf")
+>   f = open(confile, 'r')
+
+Thanks for the reply.
+I did want to try and use mod_python because I think it may be 
+interesting to learn. I'm not sure i entirely understand why the 
+import_module statement works with relative path names but opening a 
+file doesn't work. Does it have to do with the fact that mod_python 
+scripts aren't spawned directly from apache as their own process.
+From adam at fastmail.com.au  Sun Nov  2 19:38:39 2008
+From: adam at fastmail.com.au (Adam)
+Date: Sun Nov  2 19:38:50 2008
+Subject: [mod_python] converting site from CGI to mod_python
+Message-ID: <490E480F.70501@fastmail.com.au>
+
+Actually, just another thing as well, I will need to do the same thing 
+for my templates directory.
+> This directory has three subdirectories.
+>   -config
+>   -content
+>       -templates
+>   -scripts
+
+Is there a standard way of dealing with path names in mod_python, or is 
+the way that you suggested the best method of using files which do not 
+reside in the web site folders.
+From graham.dumpleton at gmail.com  Sun Nov  2 21:46:16 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Sun Nov  2 21:46:19 2008
+Subject: [mod_python] converting site from CGI to mod_python
+In-Reply-To: <490E462F.8030207@fastmail.com.au>
+References: <490E462F.8030207@fastmail.com.au>
+Message-ID: <88e286470811021846x111d9cc2w84659ca933953f67@mail.gmail.com>
+
+2008/11/3 Adam <adam@fastmail.com.au>:
+>
+>> Use:
+>>
+>>  conffile = os.path.join(os.path.dirname(__file__), "..", "config",
+>> "bdns.conf")
+>>  f = open(confile, 'r')
+>
+> Thanks for the reply.
+> I did want to try and use mod_python because I think it may be interesting
+> to learn. I'm not sure i entirely understand why the import_module statement
+> works with relative path names but opening a file doesn't work. Does it have
+> to do with the fact that mod_python scripts aren't spawned directly from
+> apache as their own process.
+
+The import_module() function is special, it internally does some
+really weird stuff, looking at stack and the like to work out file in
+which call was made and looking in the directory of that file before
+looking in other places.
+
+Graham
+From graham.dumpleton at gmail.com  Sun Nov  2 21:49:15 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Sun Nov  2 21:49:21 2008
+Subject: [mod_python] converting site from CGI to mod_python
+In-Reply-To: <490E480F.70501@fastmail.com.au>
+References: <490E480F.70501@fastmail.com.au>
+Message-ID: <88e286470811021849q6b779a86peaa66f389f922ba6@mail.gmail.com>
+
+2008/11/3 Adam <adam@fastmail.com.au>:
+> Actually, just another thing as well, I will need to do the same thing for
+> my templates directory.
+>>
+>> This directory has three subdirectories.
+>>  -config
+>>  -content
+>>      -templates
+>>  -scripts
+>
+> Is there a standard way of dealing with path names in mod_python, or is the
+> way that you suggested the best method of using files which do not reside in
+> the web site folders.
+
+If you want code that you can moved around in filesystems without
+having to change, then basing decisions about where files are relative
+to some anchor such as __file__ is best. Alternatively, you will need
+to define config variables with absolute paths and create paths
+relative to that.
+
+The important thing you need to realise is that you cannot depend on
+the current working directory being a specific value. You cannot even
+set the current working directory and expect it to stay that. This is
+because Apache can be running multiple applications, not just
+mod_python, but PHP etc etc. If any application changes working
+directory then your view of the world will be changed.
+
+Thus, you need to ensure you use absolute path names, constructed
+relative to __file__, or relative to a configuration setting which
+records an absolute base setting.
+
+Graham
+From adam at fastmail.com.au  Mon Nov  3 07:25:59 2008
+From: adam at fastmail.com.au (Adam)
+Date: Mon Nov  3 07:26:10 2008
+Subject: [mod_python] htmltmpl pickle error with mod_python
+Message-ID: <490EEDD7.2080908@fastmail.com.au>
+
+Hello,
+I'm trying to use htmltmpl under modpython and I'm having some issues. 
+When I try and visit my cgi page I receive the error:
+
+TemplateError: Htmltmpl error: Pickling error while saving precompiled template '/var/www/localhost/BDNS/content/./templates/summary.tmplc': Can't pickle _mp_9c83a5362036140a49a9284aab391a5d.Template: import of module _mp_9c83a5362036140a49a9284aab391a5d failed
+
+When I run the scripts as CGI it has no troubles with the templates, so 
+I'm not sure why the problem only happens under mod_python
+From graham.dumpleton at gmail.com  Mon Nov  3 17:07:06 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Mon Nov  3 17:07:09 2008
+Subject: [mod_python] htmltmpl pickle error with mod_python
+In-Reply-To: <490EEDD7.2080908@fastmail.com.au>
+References: <490EEDD7.2080908@fastmail.com.au>
+Message-ID: <88e286470811031407s4ad374c5xe67a2c117baa4514@mail.gmail.com>
+
+2008/11/3 Adam <adam@fastmail.com.au>:
+> Hello,
+> I'm trying to use htmltmpl under modpython and I'm having some issues. When
+> I try and visit my cgi page I receive the error:
+>
+> TemplateError: Htmltmpl error: Pickling error while saving precompiled
+> template '/var/www/localhost/BDNS/content/./templates/summary.tmplc': Can't
+> pickle _mp_9c83a5362036140a49a9284aab391a5d.Template: import of module
+> _mp_9c83a5362036140a49a9284aab391a5d failed
+>
+> When I run the scripts as CGI it has no troubles with the templates, so I'm
+> not sure why the problem only happens under mod_python
+
+Read:
+
+  http://www.dscpl.com.au/wiki/ModPython/Articles/IssuesWithSessionObjects
+
+Move the definitions of the classes etc that you are trying to pickle
+to a separate file located on your sys.path somewhere. It must be
+locatable by standard Python module import mechanisms and cannot be
+loaded directly or indirectly via mod_python module importer.
+
+Graham
+From adam at fastmail.com.au  Mon Nov  3 19:57:51 2008
+From: adam at fastmail.com.au (Adam)
+Date: Mon Nov  3 20:02:24 2008
+Subject: [mod_python] htmltmpl pickle error with mod_python
+In-Reply-To: <88e286470811031407s4ad374c5xe67a2c117baa4514@mail.gmail.com>
+References: <490EEDD7.2080908@fastmail.com.au>
+	<88e286470811031407s4ad374c5xe67a2c117baa4514@mail.gmail.com>
+Message-ID: <490F9E0F.9090507@fastmail.com.au>
+
+Thanks for that,
+installing htmltmpl into python's site-packages directory worked.
+
+Graham Dumpleton wrote:
+> 2008/11/3 Adam <adam@fastmail.com.au>:
+>   
+>> Hello,
+>> I'm trying to use htmltmpl under modpython and I'm having some issues. When
+>> I try and visit my cgi page I receive the error:
+>>
+>> TemplateError: Htmltmpl error: Pickling error while saving precompiled
+>> template '/var/www/localhost/BDNS/content/./templates/summary.tmplc': Can't
+>> pickle _mp_9c83a5362036140a49a9284aab391a5d.Template: import of module
+>> _mp_9c83a5362036140a49a9284aab391a5d failed
+>>
+>> When I run the scripts as CGI it has no troubles with the templates, so I'm
+>> not sure why the problem only happens under mod_python
+>>     
+>
+> Read:
+>
+>   http://www.dscpl.com.au/wiki/ModPython/Articles/IssuesWithSessionObjects
+>
+> Move the definitions of the classes etc that you are trying to pickle
+> to a separate file located on your sys.path somewhere. It must be
+> locatable by standard Python module import mechanisms and cannot be
+> loaded directly or indirectly via mod_python module importer.
+>
+> Graham
+>   
+From hectormunozh at gmail.com  Wed Nov  5 18:00:00 2008
+From: hectormunozh at gmail.com (=?ISO-8859-1?Q?Hector_Mu=F1oz?=)
+Date: Wed Nov  5 17:00:06 2008
+Subject: [mod_python] sessions
+Message-ID: <49122570.7020807@gmail.com>
+
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+Hi!
+
+I want to store in a session a list:
+
+session = Session.Session(req)
+list = []
+session['list'] = list
+session.save()
+
+After this, I want to append values in list in other function:
+
+session = Session.Session(req)
+list = session['list']
+list.append(value)
+session['list'] = list
+session.save()
+
+And in other function I want to access to ALL values
+
+session= Session.Session(req)
+list = session['list']
+for value in list:
+    ....
+
+But there is only a value when I appended more.
+
+How can I recovery all values that I append?
+
+Thanks!
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v2.0.9 (GNU/Linux)
+Comment: Using GnuPG with Mozilla - http://enigmail.mozdev.org
+
+iEYEARECAAYFAkkSJXAACgkQkXQuTK97GwMbdQCfagcXlqow0BeU3g1zTsWvmtaa
+lFoAniAJ7e+d967sbdfTJaxoidypBypp
+=Bwmr
+-----END PGP SIGNATURE-----
+
+From nhall at unixlan.com.ar  Wed Nov  5 22:24:58 2008
+From: nhall at unixlan.com.ar (Normando Hall)
+Date: Wed Nov  5 22:25:16 2008
+Subject: [mod_python] One Apache and two python versions with mod_python
+Message-ID: <4912638A.1020303@unixlan.com.ar>
+
+Hello dear.
+
+I am really neubie with python, so sorry for the questios if it is very 
+silly.
+
+I have searched at the list, google, etc, and I can't to get an answer 
+to my issue.
+
+I have apache 2.0.x running at my server, and python 2.3.4 and python 
+2.4.x. Python 2.3 is the default and I can't to upgrade because use yum 
+and I want to avoid inconcistenteces  at my server in future updates. 
+But some applications need python 2.4, and then I call directly with 
+"python2.4" because it is at the path. Python 2.3 is simple "python".
+
+My question is: Can I use two mod_python (each one compiled under 
+correct python version) and loaded in apache as two differente modules? 
+For instance mod_python.so and mod_python2.so. I presume it is not possible.
+
+Can you give me some light to this issue?
+
+Thank you very much.
+
+Normando
+From graham.dumpleton at gmail.com  Wed Nov  5 22:41:00 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed Nov  5 22:41:06 2008
+Subject: [mod_python] One Apache and two python versions with mod_python
+In-Reply-To: <4912638A.1020303@unixlan.com.ar>
+References: <4912638A.1020303@unixlan.com.ar>
+Message-ID: <88e286470811051941pde9e767mf2def09f267f68ca@mail.gmail.com>
+
+2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+> Hello dear.
+>
+> I am really neubie with python, so sorry for the questios if it is very
+> silly.
+>
+> I have searched at the list, google, etc, and I can't to get an answer to my
+> issue.
+>
+> I have apache 2.0.x running at my server, and python 2.3.4 and python 2.4.x.
+> Python 2.3 is the default and I can't to upgrade because use yum and I want
+> to avoid inconcistenteces  at my server in future updates. But some
+> applications need python 2.4, and then I call directly with "python2.4"
+> because it is at the path. Python 2.3 is simple "python".
+>
+> My question is: Can I use two mod_python (each one compiled under correct
+> python version) and loaded in apache as two differente modules? For instance
+> mod_python.so and mod_python2.so. I presume it is not possible.
+>
+> Can you give me some light to this issue?
+
+No.
+
+If your applications are WSGI capable, use fastcgi/flup instead.
+
+Graham
+From graham.dumpleton at gmail.com  Wed Nov  5 22:58:01 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed Nov  5 22:58:07 2008
+Subject: [mod_python] One Apache and two python versions with mod_python
+In-Reply-To: <49126948.7010806@unixlan.com.ar>
+References: <4912638A.1020303@unixlan.com.ar>
+	<88e286470811051941pde9e767mf2def09f267f68ca@mail.gmail.com>
+	<49126948.7010806@unixlan.com.ar>
+Message-ID: <88e286470811051958v79aedaa1ibb1c7e61e43d0447@mail.gmail.com>
+
+2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>
+>
+> Graham Dumpleton escribi?:
+>
+> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>
+>
+> Hello dear.
+>
+> I am really neubie with python, so sorry for the questios if it is very
+> silly.
+>
+> I have searched at the list, google, etc, and I can't to get an answer to my
+> issue.
+>
+> I have apache 2.0.x running at my server, and python 2.3.4 and python 2.4.x.
+> Python 2.3 is the default and I can't to upgrade because use yum and I want
+> to avoid inconcistenteces  at my server in future updates. But some
+> applications need python 2.4, and then I call directly with "python2.4"
+> because it is at the path. Python 2.3 is simple "python".
+>
+> My question is: Can I use two mod_python (each one compiled under correct
+> python version) and loaded in apache as two differente modules? For instance
+> mod_python.so and mod_python2.so. I presume it is not possible.
+>
+> Can you give me some light to this issue?
+>
+>
+> No.
+>
+> If your applications are WSGI capable, use fastcgi/flup instead.
+>
+> Graham
+>
+>
+>
+>
+> Hello Graham and thanks for the fast reply.
+>
+> I want to use Django and a module named Surftracr for squid reports with web
+> access. I don't know what mean WSGI, but if you can confim these
+> applications are WSGI, I will look at fastcgi/flup options.
+
+Django can host on FASTCGI so that is okay. I don't know what Surftracr is.
+
+PS. Please use reply-all and keep discussion on list.
+
+Graham
+
+From nhall at unixlan.com.ar  Wed Nov  5 23:09:52 2008
+From: nhall at unixlan.com.ar (Normando Hall)
+Date: Wed Nov  5 23:10:09 2008
+Subject: [mod_python] One Apache and two python versions with mod_python
+In-Reply-To: <88e286470811051958v79aedaa1ibb1c7e61e43d0447@mail.gmail.com>
+References: <4912638A.1020303@unixlan.com.ar>	
+	<88e286470811051941pde9e767mf2def09f267f68ca@mail.gmail.com>	
+	<49126948.7010806@unixlan.com.ar>
+	<88e286470811051958v79aedaa1ibb1c7e61e43d0447@mail.gmail.com>
+Message-ID: <49126E10.8010909@unixlan.com.ar>
+
+Opsss, sorry.
+
+Surftrackr is the best squid/dansguardian log analizer app I can found 
+on the web: http://surftrackr.net
+
+Thanks
+
+Normando
+
+Graham Dumpleton escribi?:
+> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>   
+>> Graham Dumpleton escribi?:
+>>
+>> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>>
+>>
+>> Hello dear.
+>>
+>> I am really neubie with python, so sorry for the questios if it is very
+>> silly.
+>>
+>> I have searched at the list, google, etc, and I can't to get an answer to my
+>> issue.
+>>
+>> I have apache 2.0.x running at my server, and python 2.3.4 and python 2.4.x.
+>> Python 2.3 is the default and I can't to upgrade because use yum and I want
+>> to avoid inconcistenteces  at my server in future updates. But some
+>> applications need python 2.4, and then I call directly with "python2.4"
+>> because it is at the path. Python 2.3 is simple "python".
+>>
+>> My question is: Can I use two mod_python (each one compiled under correct
+>> python version) and loaded in apache as two differente modules? For instance
+>> mod_python.so and mod_python2.so. I presume it is not possible.
+>>
+>> Can you give me some light to this issue?
+>>
+>>
+>> No.
+>>
+>> If your applications are WSGI capable, use fastcgi/flup instead.
+>>
+>> Graham
+>>
+>>
+>>
+>>
+>> Hello Graham and thanks for the fast reply.
+>>
+>> I want to use Django and a module named Surftracr for squid reports with web
+>> access. I don't know what mean WSGI, but if you can confim these
+>> applications are WSGI, I will look at fastcgi/flup options.
+>>     
+>
+> Django can host on FASTCGI so that is okay. I don't know what Surftracr is.
+>
+> PS. Please use reply-all and keep discussion on list.
+>
+> Graham
+>
+>
+>   
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081106/86198034/attachment.html
+From graham.dumpleton at gmail.com  Wed Nov  5 23:25:25 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed Nov  5 23:25:32 2008
+Subject: [mod_python] One Apache and two python versions with mod_python
+In-Reply-To: <49126E10.8010909@unixlan.com.ar>
+References: <4912638A.1020303@unixlan.com.ar>
+	<88e286470811051941pde9e767mf2def09f267f68ca@mail.gmail.com>
+	<49126948.7010806@unixlan.com.ar>
+	<88e286470811051958v79aedaa1ibb1c7e61e43d0447@mail.gmail.com>
+	<49126E10.8010909@unixlan.com.ar>
+Message-ID: <88e286470811052025l6dab1286h9f94590c3f18e96e@mail.gmail.com>
+
+2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+> Opsss, sorry.
+>
+> Surftrackr is the best squid/dansguardian log analizer app I can found on
+> the web: http://surftrackr.net
+
+That is a Django sub application by the look of it.
+
+Lets go backwards for a moment, why do you need mod_python for Python
+2.3 still. Why can't you just compile and install mod_python compiled
+against newer version of Python and use that for everything. That way
+you don't need mod_python to handle two versions of Python.
+
+To do this you just need to install newer version of Python under
+/usr/local. You may though need to do a fiddle in Apache startup
+scripts to make sure it picks up Python from correct place.
+
+BTW, if only wanting to host Django, you might also look at mod_wsgi,
+it can be a bit easier to configure especially in respect of pointing
+it at correct Python version as that can be overridden if need be as
+part of Apache configuration files and don't have to fiddle Apache
+startup files like with mod_python.
+
+Graham
+
+> Thanks
+>
+> Normando
+>
+> Graham Dumpleton escribi?:
+>
+> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>
+>
+> Graham Dumpleton escribi?:
+>
+> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>
+>
+> Hello dear.
+>
+> I am really neubie with python, so sorry for the questios if it is very
+> silly.
+>
+> I have searched at the list, google, etc, and I can't to get an answer to my
+> issue.
+>
+> I have apache 2.0.x running at my server, and python 2.3.4 and python 2.4.x.
+> Python 2.3 is the default and I can't to upgrade because use yum and I want
+> to avoid inconcistenteces  at my server in future updates. But some
+> applications need python 2.4, and then I call directly with "python2.4"
+> because it is at the path. Python 2.3 is simple "python".
+>
+> My question is: Can I use two mod_python (each one compiled under correct
+> python version) and loaded in apache as two differente modules? For instance
+> mod_python.so and mod_python2.so. I presume it is not possible.
+>
+> Can you give me some light to this issue?
+>
+>
+> No.
+>
+> If your applications are WSGI capable, use fastcgi/flup instead.
+>
+> Graham
+>
+>
+>
+>
+> Hello Graham and thanks for the fast reply.
+>
+> I want to use Django and a module named Surftracr for squid reports with web
+> access. I don't know what mean WSGI, but if you can confim these
+> applications are WSGI, I will look at fastcgi/flup options.
+>
+>
+> Django can host on FASTCGI so that is okay. I don't know what Surftracr is.
+>
+> PS. Please use reply-all and keep discussion on list.
+>
+> Graham
+>
+>
+>
+
+From nhall at unixlan.com.ar  Thu Nov  6 00:18:56 2008
+From: nhall at unixlan.com.ar (Normando Hall)
+Date: Thu Nov  6 00:19:13 2008
+Subject: [mod_python] One Apache and two python versions with mod_python
+In-Reply-To: <88e286470811052025l6dab1286h9f94590c3f18e96e@mail.gmail.com>
+References: <4912638A.1020303@unixlan.com.ar>	
+	<88e286470811051941pde9e767mf2def09f267f68ca@mail.gmail.com>	
+	<49126948.7010806@unixlan.com.ar>	
+	<88e286470811051958v79aedaa1ibb1c7e61e43d0447@mail.gmail.com>	
+	<49126E10.8010909@unixlan.com.ar>
+	<88e286470811052025l6dab1286h9f94590c3f18e96e@mail.gmail.com>
+Message-ID: <49127E40.8050707@unixlan.com.ar>
+
+I was reading your response and clarified some questions and I think I 
+can run everything.
+
+I have python 2.3 installed by default and can not uninstall it for 
+compatibility reasons. It is installed in /usr/lib/python2.3 and access 
+it through the file (which is on the PATH) "python" in /usr/bin.
+
+Python 2.4 installed under /usr/lib/python2.4 and access to it is 
+through "python2.4" in /usr/bin.
+
+So, if I ran python -V I get:
+[root @ devel-server conf] # python -V
+Python 2.3.4
+
+On the other hand, if I run python2.4 -V I get:
+[root @ devel-server conf] # python2.4 -V
+Python 2.4.2
+
+What I need to do is to compile mod_python against python 2.4, but not 
+as I did before. Before I moved
+cp /usr/bin/python2.4 /usr/bin/python
+
+and I was by default when running python I get python 2.4.2
+
+What I need to do is to compile mod_python against python 2.4 but tell 
+that uses /usr/bin/python2.4 instead of /usr/bin/python
+
+Is there a way to do it?
+
+Thank you
+Normando
+
+Graham Dumpleton escribi?:
+> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>   
+>> Opsss, sorry.
+>>
+>> Surftrackr is the best squid/dansguardian log analizer app I can found on
+>> the web: http://surftrackr.net
+>>     
+>
+> That is a Django sub application by the look of it.
+>
+> Lets go backwards for a moment, why do you need mod_python for Python
+> 2.3 still. Why can't you just compile and install mod_python compiled
+> against newer version of Python and use that for everything. That way
+> you don't need mod_python to handle two versions of Python.
+>
+> To do this you just need to install newer version of Python under
+> /usr/local. You may though need to do a fiddle in Apache startup
+> scripts to make sure it picks up Python from correct place.
+>
+> BTW, if only wanting to host Django, you might also look at mod_wsgi,
+> it can be a bit easier to configure especially in respect of pointing
+> it at correct Python version as that can be overridden if need be as
+> part of Apache configuration files and don't have to fiddle Apache
+> startup files like with mod_python.
+>
+> Graham
+>
+>   
+>> Thanks
+>>
+>> Normando
+>>
+>> Graham Dumpleton escribi?:
+>>
+>> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>>
+>>
+>> Graham Dumpleton escribi?:
+>>
+>> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>>
+>>
+>> Hello dear.
+>>
+>> I am really neubie with python, so sorry for the questios if it is very
+>> silly.
+>>
+>> I have searched at the list, google, etc, and I can't to get an answer to my
+>> issue.
+>>
+>> I have apache 2.0.x running at my server, and python 2.3.4 and python 2.4.x.
+>> Python 2.3 is the default and I can't to upgrade because use yum and I want
+>> to avoid inconcistenteces  at my server in future updates. But some
+>> applications need python 2.4, and then I call directly with "python2.4"
+>> because it is at the path. Python 2.3 is simple "python".
+>>
+>> My question is: Can I use two mod_python (each one compiled under correct
+>> python version) and loaded in apache as two differente modules? For instance
+>> mod_python.so and mod_python2.so. I presume it is not possible.
+>>
+>> Can you give me some light to this issue?
+>>
+>>
+>> No.
+>>
+>> If your applications are WSGI capable, use fastcgi/flup instead.
+>>
+>> Graham
+>>
+>>
+>>
+>>
+>> Hello Graham and thanks for the fast reply.
+>>
+>> I want to use Django and a module named Surftracr for squid reports with web
+>> access. I don't know what mean WSGI, but if you can confim these
+>> applications are WSGI, I will look at fastcgi/flup options.
+>>
+>>
+>> Django can host on FASTCGI so that is okay. I don't know what Surftracr is.
+>>
+>> PS. Please use reply-all and keep discussion on list.
+>>
+>> Graham
+>>
+>>
+>>
+>>     
+>
+>
+>   
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081106/1ba2a840/attachment-0001.html
+From graham.dumpleton at gmail.com  Thu Nov  6 00:24:58 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu Nov  6 00:25:01 2008
+Subject: [mod_python] One Apache and two python versions with mod_python
+In-Reply-To: <49127E40.8050707@unixlan.com.ar>
+References: <4912638A.1020303@unixlan.com.ar>
+	<88e286470811051941pde9e767mf2def09f267f68ca@mail.gmail.com>
+	<49126948.7010806@unixlan.com.ar>
+	<88e286470811051958v79aedaa1ibb1c7e61e43d0447@mail.gmail.com>
+	<49126E10.8010909@unixlan.com.ar>
+	<88e286470811052025l6dab1286h9f94590c3f18e96e@mail.gmail.com>
+	<49127E40.8050707@unixlan.com.ar>
+Message-ID: <88e286470811052124t17084038wb6a98216f269dba8@mail.gmail.com>
+
+2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+> I was reading your response and clarified some questions and I think I can
+> run everything.
+>
+> I have python 2.3 installed by default and can not uninstall it for
+> compatibility reasons. It is installed in /usr/lib/python2.3 and access it
+> through the file (which is on the PATH) "python" in /usr/bin.
+>
+> Python 2.4 installed under /usr/lib/python2.4 and access to it is through
+> "python2.4" in /usr/bin.
+>
+> So, if I ran python -V I get:
+> [root @ devel-server conf] # python -V
+> Python 2.3.4
+>
+> On the other hand, if I run python2.4 -V I get:
+> [root @ devel-server conf] # python2.4 -V
+> Python 2.4.2
+>
+> What I need to do is to compile mod_python against python 2.4, but not as I
+> did before. Before I moved
+> cp /usr/bin/python2.4 /usr/bin/python
+>
+> and I was by default when running python I get python 2.4.2
+>
+> What I need to do is to compile mod_python against python 2.4 but tell that
+> uses /usr/bin/python2.4 instead of /usr/bin/python
+>
+> Is there a way to do it?
+
+If both are already installed under /usr, then use:
+
+  ./configure --with-python=/usr/bin/python2.4
+
+I believe this is documented in the installation instructions in the
+source code.
+
+That should just work without any fiddles in Apache startup scripts.
+The fiddles would only be necessary if had to install second Python
+version under different root and so 'python' executable found by
+mod_python at startup was for wrong version.
+
+Note that that mod_python looks for 'python' executable is only so it
+can work out where corresponding lib directory is, it doesn't actually
+run the 'python' executable as it already embeds the Python
+interpreter code.
+
+Graham
+
+> Thank you
+> Normando
+>
+> Graham Dumpleton escribi?:
+>
+> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>
+>
+> Opsss, sorry.
+>
+> Surftrackr is the best squid/dansguardian log analizer app I can found on
+> the web: http://surftrackr.net
+>
+>
+> That is a Django sub application by the look of it.
+>
+> Lets go backwards for a moment, why do you need mod_python for Python
+> 2.3 still. Why can't you just compile and install mod_python compiled
+> against newer version of Python and use that for everything. That way
+> you don't need mod_python to handle two versions of Python.
+>
+> To do this you just need to install newer version of Python under
+> /usr/local. You may though need to do a fiddle in Apache startup
+> scripts to make sure it picks up Python from correct place.
+>
+> BTW, if only wanting to host Django, you might also look at mod_wsgi,
+> it can be a bit easier to configure especially in respect of pointing
+> it at correct Python version as that can be overridden if need be as
+> part of Apache configuration files and don't have to fiddle Apache
+> startup files like with mod_python.
+>
+> Graham
+>
+>
+>
+> Thanks
+>
+> Normando
+>
+> Graham Dumpleton escribi?:
+>
+> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>
+>
+> Graham Dumpleton escribi?:
+>
+> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>
+>
+> Hello dear.
+>
+> I am really neubie with python, so sorry for the questios if it is very
+> silly.
+>
+> I have searched at the list, google, etc, and I can't to get an answer to my
+> issue.
+>
+> I have apache 2.0.x running at my server, and python 2.3.4 and python 2.4.x.
+> Python 2.3 is the default and I can't to upgrade because use yum and I want
+> to avoid inconcistenteces  at my server in future updates. But some
+> applications need python 2.4, and then I call directly with "python2.4"
+> because it is at the path. Python 2.3 is simple "python".
+>
+> My question is: Can I use two mod_python (each one compiled under correct
+> python version) and loaded in apache as two differente modules? For instance
+> mod_python.so and mod_python2.so. I presume it is not possible.
+>
+> Can you give me some light to this issue?
+>
+>
+> No.
+>
+> If your applications are WSGI capable, use fastcgi/flup instead.
+>
+> Graham
+>
+>
+>
+>
+> Hello Graham and thanks for the fast reply.
+>
+> I want to use Django and a module named Surftracr for squid reports with web
+> access. I don't know what mean WSGI, but if you can confim these
+> applications are WSGI, I will look at fastcgi/flup options.
+>
+>
+> Django can host on FASTCGI so that is okay. I don't know what Surftracr is.
+>
+> PS. Please use reply-all and keep discussion on list.
+>
+> Graham
+>
+>
+>
+>
+>
+>
+
+From nhall at unixlan.com.ar  Thu Nov  6 00:30:26 2008
+From: nhall at unixlan.com.ar (Normando Hall)
+Date: Thu Nov  6 00:30:40 2008
+Subject: [mod_python] One Apache and two python versions with mod_python
+In-Reply-To: <88e286470811052124t17084038wb6a98216f269dba8@mail.gmail.com>
+References: <4912638A.1020303@unixlan.com.ar>	
+	<88e286470811051941pde9e767mf2def09f267f68ca@mail.gmail.com>	
+	<49126948.7010806@unixlan.com.ar>	
+	<88e286470811051958v79aedaa1ibb1c7e61e43d0447@mail.gmail.com>	
+	<49126E10.8010909@unixlan.com.ar>	
+	<88e286470811052025l6dab1286h9f94590c3f18e96e@mail.gmail.com>	
+	<49127E40.8050707@unixlan.com.ar>
+	<88e286470811052124t17084038wb6a98216f269dba8@mail.gmail.com>
+Message-ID: <491280F2.3020900@unixlan.com.ar>
+
+I will try tomorrow and return with results.
+
+Thank you for your great help, it is very usefull for me
+
+Normando
+
+Graham Dumpleton escribi?:
+> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>   
+>> I was reading your response and clarified some questions and I think I can
+>> run everything.
+>>
+>> I have python 2.3 installed by default and can not uninstall it for
+>> compatibility reasons. It is installed in /usr/lib/python2.3 and access it
+>> through the file (which is on the PATH) "python" in /usr/bin.
+>>
+>> Python 2.4 installed under /usr/lib/python2.4 and access to it is through
+>> "python2.4" in /usr/bin.
+>>
+>> So, if I ran python -V I get:
+>> [root @ devel-server conf] # python -V
+>> Python 2.3.4
+>>
+>> On the other hand, if I run python2.4 -V I get:
+>> [root @ devel-server conf] # python2.4 -V
+>> Python 2.4.2
+>>
+>> What I need to do is to compile mod_python against python 2.4, but not as I
+>> did before. Before I moved
+>> cp /usr/bin/python2.4 /usr/bin/python
+>>
+>> and I was by default when running python I get python 2.4.2
+>>
+>> What I need to do is to compile mod_python against python 2.4 but tell that
+>> uses /usr/bin/python2.4 instead of /usr/bin/python
+>>
+>> Is there a way to do it?
+>>     
+>
+> If both are already installed under /usr, then use:
+>
+>   ./configure --with-python=/usr/bin/python2.4
+>
+> I believe this is documented in the installation instructions in the
+> source code.
+>
+> That should just work without any fiddles in Apache startup scripts.
+> The fiddles would only be necessary if had to install second Python
+> version under different root and so 'python' executable found by
+> mod_python at startup was for wrong version.
+>
+> Note that that mod_python looks for 'python' executable is only so it
+> can work out where corresponding lib directory is, it doesn't actually
+> run the 'python' executable as it already embeds the Python
+> interpreter code.
+>
+> Graham
+>
+>   
+>> Thank you
+>> Normando
+>>
+>> Graham Dumpleton escribi?:
+>>
+>> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>>
+>>
+>> Opsss, sorry.
+>>
+>> Surftrackr is the best squid/dansguardian log analizer app I can found on
+>> the web: http://surftrackr.net
+>>
+>>
+>> That is a Django sub application by the look of it.
+>>
+>> Lets go backwards for a moment, why do you need mod_python for Python
+>> 2.3 still. Why can't you just compile and install mod_python compiled
+>> against newer version of Python and use that for everything. That way
+>> you don't need mod_python to handle two versions of Python.
+>>
+>> To do this you just need to install newer version of Python under
+>> /usr/local. You may though need to do a fiddle in Apache startup
+>> scripts to make sure it picks up Python from correct place.
+>>
+>> BTW, if only wanting to host Django, you might also look at mod_wsgi,
+>> it can be a bit easier to configure especially in respect of pointing
+>> it at correct Python version as that can be overridden if need be as
+>> part of Apache configuration files and don't have to fiddle Apache
+>> startup files like with mod_python.
+>>
+>> Graham
+>>
+>>
+>>
+>> Thanks
+>>
+>> Normando
+>>
+>> Graham Dumpleton escribi?:
+>>
+>> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>>
+>>
+>> Graham Dumpleton escribi?:
+>>
+>> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>>
+>>
+>> Hello dear.
+>>
+>> I am really neubie with python, so sorry for the questios if it is very
+>> silly.
+>>
+>> I have searched at the list, google, etc, and I can't to get an answer to my
+>> issue.
+>>
+>> I have apache 2.0.x running at my server, and python 2.3.4 and python 2.4.x.
+>> Python 2.3 is the default and I can't to upgrade because use yum and I want
+>> to avoid inconcistenteces  at my server in future updates. But some
+>> applications need python 2.4, and then I call directly with "python2.4"
+>> because it is at the path. Python 2.3 is simple "python".
+>>
+>> My question is: Can I use two mod_python (each one compiled under correct
+>> python version) and loaded in apache as two differente modules? For instance
+>> mod_python.so and mod_python2.so. I presume it is not possible.
+>>
+>> Can you give me some light to this issue?
+>>
+>>
+>> No.
+>>
+>> If your applications are WSGI capable, use fastcgi/flup instead.
+>>
+>> Graham
+>>
+>>
+>>
+>>
+>> Hello Graham and thanks for the fast reply.
+>>
+>> I want to use Django and a module named Surftracr for squid reports with web
+>> access. I don't know what mean WSGI, but if you can confim these
+>> applications are WSGI, I will look at fastcgi/flup options.
+>>
+>>
+>> Django can host on FASTCGI so that is okay. I don't know what Surftracr is.
+>>
+>> PS. Please use reply-all and keep discussion on list.
+>>
+>> Graham
+>>
+>>
+>>
+>>
+>>
+>>
+>>     
+>
+>
+>   
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081106/8de186cc/attachment.html
+From nhall at unixlan.com.ar  Fri Nov  7 13:54:00 2008
+From: nhall at unixlan.com.ar (Normando Hall)
+Date: Fri Nov  7 13:54:18 2008
+Subject: [mod_python] One Apache and two python versions with mod_python
+In-Reply-To: <88e286470811052124t17084038wb6a98216f269dba8@mail.gmail.com>
+References: <4912638A.1020303@unixlan.com.ar>	
+	<88e286470811051941pde9e767mf2def09f267f68ca@mail.gmail.com>	
+	<49126948.7010806@unixlan.com.ar>	
+	<88e286470811051958v79aedaa1ibb1c7e61e43d0447@mail.gmail.com>	
+	<49126E10.8010909@unixlan.com.ar>	
+	<88e286470811052025l6dab1286h9f94590c3f18e96e@mail.gmail.com>	
+	<49127E40.8050707@unixlan.com.ar>
+	<88e286470811052124t17084038wb6a98216f269dba8@mail.gmail.com>
+Message-ID: <49148EC8.6070404@unixlan.com.ar>
+
+Well, now run like a charm!
+
+I have follow your advices and I compiled under python2.4 with 
+--with-python=/usr/bin/python2.4
+
+Thnak you very much
+
+Normando
+
+Graham Dumpleton escribi?:
+> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>   
+>> I was reading your response and clarified some questions and I think I can
+>> run everything.
+>>
+>> I have python 2.3 installed by default and can not uninstall it for
+>> compatibility reasons. It is installed in /usr/lib/python2.3 and access it
+>> through the file (which is on the PATH) "python" in /usr/bin.
+>>
+>> Python 2.4 installed under /usr/lib/python2.4 and access to it is through
+>> "python2.4" in /usr/bin.
+>>
+>> So, if I ran python -V I get:
+>> [root @ devel-server conf] # python -V
+>> Python 2.3.4
+>>
+>> On the other hand, if I run python2.4 -V I get:
+>> [root @ devel-server conf] # python2.4 -V
+>> Python 2.4.2
+>>
+>> What I need to do is to compile mod_python against python 2.4, but not as I
+>> did before. Before I moved
+>> cp /usr/bin/python2.4 /usr/bin/python
+>>
+>> and I was by default when running python I get python 2.4.2
+>>
+>> What I need to do is to compile mod_python against python 2.4 but tell that
+>> uses /usr/bin/python2.4 instead of /usr/bin/python
+>>
+>> Is there a way to do it?
+>>     
+>
+> If both are already installed under /usr, then use:
+>
+>   ./configure --with-python=/usr/bin/python2.4
+>
+> I believe this is documented in the installation instructions in the
+> source code.
+>
+> That should just work without any fiddles in Apache startup scripts.
+> The fiddles would only be necessary if had to install second Python
+> version under different root and so 'python' executable found by
+> mod_python at startup was for wrong version.
+>
+> Note that that mod_python looks for 'python' executable is only so it
+> can work out where corresponding lib directory is, it doesn't actually
+> run the 'python' executable as it already embeds the Python
+> interpreter code.
+>
+> Graham
+>
+>   
+>> Thank you
+>> Normando
+>>
+>> Graham Dumpleton escribi?:
+>>
+>> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>>
+>>
+>> Opsss, sorry.
+>>
+>> Surftrackr is the best squid/dansguardian log analizer app I can found on
+>> the web: http://surftrackr.net
+>>
+>>
+>> That is a Django sub application by the look of it.
+>>
+>> Lets go backwards for a moment, why do you need mod_python for Python
+>> 2.3 still. Why can't you just compile and install mod_python compiled
+>> against newer version of Python and use that for everything. That way
+>> you don't need mod_python to handle two versions of Python.
+>>
+>> To do this you just need to install newer version of Python under
+>> /usr/local. You may though need to do a fiddle in Apache startup
+>> scripts to make sure it picks up Python from correct place.
+>>
+>> BTW, if only wanting to host Django, you might also look at mod_wsgi,
+>> it can be a bit easier to configure especially in respect of pointing
+>> it at correct Python version as that can be overridden if need be as
+>> part of Apache configuration files and don't have to fiddle Apache
+>> startup files like with mod_python.
+>>
+>> Graham
+>>
+>>
+>>
+>> Thanks
+>>
+>> Normando
+>>
+>> Graham Dumpleton escribi?:
+>>
+>> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>>
+>>
+>> Graham Dumpleton escribi?:
+>>
+>> 2008/11/6 Normando Hall <nhall@unixlan.com.ar>:
+>>
+>>
+>> Hello dear.
+>>
+>> I am really neubie with python, so sorry for the questios if it is very
+>> silly.
+>>
+>> I have searched at the list, google, etc, and I can't to get an answer to my
+>> issue.
+>>
+>> I have apache 2.0.x running at my server, and python 2.3.4 and python 2.4.x.
+>> Python 2.3 is the default and I can't to upgrade because use yum and I want
+>> to avoid inconcistenteces  at my server in future updates. But some
+>> applications need python 2.4, and then I call directly with "python2.4"
+>> because it is at the path. Python 2.3 is simple "python".
+>>
+>> My question is: Can I use two mod_python (each one compiled under correct
+>> python version) and loaded in apache as two differente modules? For instance
+>> mod_python.so and mod_python2.so. I presume it is not possible.
+>>
+>> Can you give me some light to this issue?
+>>
+>>
+>> No.
+>>
+>> If your applications are WSGI capable, use fastcgi/flup instead.
+>>
+>> Graham
+>>
+>>
+>>
+>>
+>> Hello Graham and thanks for the fast reply.
+>>
+>> I want to use Django and a module named Surftracr for squid reports with web
+>> access. I don't know what mean WSGI, but if you can confim these
+>> applications are WSGI, I will look at fastcgi/flup options.
+>>
+>>
+>> Django can host on FASTCGI so that is okay. I don't know what Surftracr is.
+>>
+>> PS. Please use reply-all and keep discussion on list.
+>>
+>> Graham
+>>
+>>
+>>
+>>
+>>
+>>
+>>     
+>
+>
+>   
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081107/1a7266fe/attachment.html
+From johan.nordenswan.479 at student.lu.se  Fri Nov  7 03:31:26 2008
+From: johan.nordenswan.479 at student.lu.se (Johan Nordenswan)
+Date: Fri Nov  7 15:27:44 2008
+Subject: [mod_python] SVN modpython
+In-Reply-To: <88e286470810100619t5cb0ede1tf0652f723b425354@mail.gmail.com>
+References: <48EC8984.7080103@gmail.com> <48ECB396.1030209@gmail.com>
+	<88e286470810080622n282f5460o63dc2f4deca971cb@mail.gmail.com>
+	<88e286470810080627w7c12429crc4a51652e6e8093@mail.gmail.com>
+	<48ECB7DA.3070405@gmail.com>
+	<88e286470810080649i48414d36w352f4ec7d216dd36@mail.gmail.com>
+	<48ECCD87.1060404@luis-speciale.net>
+	<88e286470810091831o6bd2fd0cx8a50d812f6c71e69@mail.gmail.com>
+	<48EF09E7.2070607@gmail.com> <1223586513.19019.2.camel@acer.jgn.se>
+	<88e286470810100619t5cb0ede1tf0652f723b425354@mail.gmail.com>
+Message-ID: <1226046686.7306.13.camel@acer.jgn.se>
+
+On Sat, 2008-10-11 at 00:19 +1100, Graham Dumpleton wrote:
+> 2008/10/10 Johan Nordenswan <johan.nordenswan.479@student.lu.se>:
+> > Anyhoo, thanks for a great piece of software Graham!
+> 
+> I am not the author of mod_python. I am just the last person here left
+> answering questions on a regular basis.
+> 
+> Unless you are specifically writing to mod_python APIs, I'd actually
+> suggest you use mod_wsgi instead and code your Python web application
+> as a WSGI application. :-)
+> 
+> Graham
+
+Thanks Graham
+
+I familiarized myself with mod_wsgi and have been writing my wsgi app
+for it for a couple of weeks now. Great stuff! My project is to create a
+modern, database supported web service and I took this opportunity to
+learn Python as well. I've always had a "java first" sort of approach to
+developing and I've been working quite a bit with Tomcat. Apache with
+mod_wsgi, Python, memcached and MySQL on a Linux system appears to be no
+less potent than any java based platform and so much cleaner and
+simpler. Great, great stuff. Thanks a bunch!
+
+Johan
+
+From polettog at gmail.com  Tue Nov 11 10:22:19 2008
+From: polettog at gmail.com (Poletto Guillaume)
+Date: Tue Nov 11 10:22:48 2008
+Subject: [mod_python] User request cancellation
+Message-ID: <20081111162219.5f239417@gruentoo.gruhome>
+
+Hi there,
+
+I was just wondering : what happens when the user interrupts his request (by hitting the "stop" button in his browser for example)?
+Does the execution continues until the end or is there an exception like when we do Ctrl+C in python interactive mode?
+
+Thanks
+
+From graham.dumpleton at gmail.com  Wed Nov 12 00:10:50 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed Nov 12 00:10:55 2008
+Subject: [mod_python] User request cancellation
+In-Reply-To: <20081111162219.5f239417@gruentoo.gruhome>
+References: <20081111162219.5f239417@gruentoo.gruhome>
+Message-ID: <88e286470811112110w751d0842td1608d42497e8cb8@mail.gmail.com>
+
+2008/11/12 Poletto Guillaume <polettog@gmail.com>:
+> Hi there,
+>
+> I was just wondering : what happens when the user interrupts his request (by hitting the "stop" button in his browser for example)?
+> Does the execution continues until the end or is there an exception like when we do Ctrl+C in python interactive mode?
+
+Depends.
+
+If the handler was still in the process of waiting for request input,
+a Python IOError exception would likely occur when connection broken
+off. How this affects application would depend on how code written,
+but if not caught would cause handler to exit and generate a 500
+error.
+
+If not reading any input, handler would continue to run. If it returns
+all response content in one go, would then return per normal. If it
+sends response in bits and flushes after each, then likely an IOError
+would occur after connection had been broken.
+
+Graham
+From thomasmallen at gmail.com  Sat Nov 15 22:15:22 2008
+From: thomasmallen at gmail.com (Thomas Allen)
+Date: Sat Nov 15 22:15:43 2008
+Subject: [mod_python] [SPAM] 500 Internal Server Error
+Message-ID: <491F904A.6000108@gmail.com>
+
+I'm running mod_python via MacPorts (ports installed Apache, Python, 
+etc.) on a Mac. It looks like mod_python is using my standard Python 
+distribution and not the one located at /opt/local/bin/python2.5. How 
+can I make sure that mod_python uses this Python?
+
+mod_python is at:
+
+<module 'mod_python' from 
+'/opt/local/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/site-packages/mod_python/__init__.pyc'>
+
+which is in that python2.5 sys.path. I use this custom Python because 
+MySQLdb no longer installs on Leopard Macs, and the posts I've seen with 
+possible fixes do not work on this computer.
+
+Here's what I get in my Apache logs:
+
+[Sat Nov 15 22:08:14 2008] [error] make_obcallback: could not import 
+mod_python.apache.\n
+ImportError: No module named mod_python.apache
+[Sat Nov 15 22:08:14 2008] [error] make_obcallback: Python path being 
+used 
+"['/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python25.zip', 
+'/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5', 
+'/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/plat-darwin', 
+'/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/plat-mac', 
+'/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/plat-mac/lib-scriptpackages', 
+'/System/Library/Frameworks/Python.framework/Versions/2.5/Extras/lib/python', 
+'/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/lib-tk', 
+'/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/lib-dynload', 
+'/Library/Python/2.5/site-packages', 
+'/System/Library/Frameworks/Python.framework/Versions/2.5/Extras/lib/python/PyObjC']".
+[Sat Nov 15 22:08:14 2008] [error] get_interpreter: no interpreter 
+callback found.
+[Sat Nov 15 22:08:14 2008] [error] [client ::1] python_handler: Can't 
+get/create interpreter., referer: http://localhost/703Designs/
+
+Thanks,
+Thomas
+From graham.dumpleton at gmail.com  Sun Nov 16 00:26:39 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Sun Nov 16 00:26:44 2008
+Subject: [mod_python] [SPAM] 500 Internal Server Error
+In-Reply-To: <491F904A.6000108@gmail.com>
+References: <491F904A.6000108@gmail.com>
+Message-ID: <88e286470811152126l286ee6b0n2ae7734397de0044@mail.gmail.com>
+
+Have you tried rebuilding mod_python from source code and use
+--with-python option to configure script to have it use alternate
+Python installation?
+
+If on Leopard, you may need to obtain mod_python from subversion
+repository for it to build properly.
+
+If code not mod_python specific but WSGI capable, you may be better
+off using mod_wsgi instead and is does a few things properly for Mac
+platform that mod_python source code doesn't as far as building it.
+
+Graham
+
+2008/11/16 Thomas Allen <thomasmallen@gmail.com>:
+> I'm running mod_python via MacPorts (ports installed Apache, Python, etc.)
+> on a Mac. It looks like mod_python is using my standard Python distribution
+> and not the one located at /opt/local/bin/python2.5. How can I make sure
+> that mod_python uses this Python?
+>
+> mod_python is at:
+>
+> <module 'mod_python' from
+> '/opt/local/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/site-packages/mod_python/__init__.pyc'>
+>
+> which is in that python2.5 sys.path. I use this custom Python because
+> MySQLdb no longer installs on Leopard Macs, and the posts I've seen with
+> possible fixes do not work on this computer.
+>
+> Here's what I get in my Apache logs:
+>
+> [Sat Nov 15 22:08:14 2008] [error] make_obcallback: could not import
+> mod_python.apache.\n
+> ImportError: No module named mod_python.apache
+> [Sat Nov 15 22:08:14 2008] [error] make_obcallback: Python path being used
+> "['/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python25.zip',
+> '/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5',
+> '/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/plat-darwin',
+> '/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/plat-mac',
+> '/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/plat-mac/lib-scriptpackages',
+> '/System/Library/Frameworks/Python.framework/Versions/2.5/Extras/lib/python',
+> '/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/lib-tk',
+> '/System/Library/Frameworks/Python.framework/Versions/2.5/lib/python2.5/lib-dynload',
+> '/Library/Python/2.5/site-packages',
+> '/System/Library/Frameworks/Python.framework/Versions/2.5/Extras/lib/python/PyObjC']".
+> [Sat Nov 15 22:08:14 2008] [error] get_interpreter: no interpreter callback
+> found.
+> [Sat Nov 15 22:08:14 2008] [error] [client ::1] python_handler: Can't
+> get/create interpreter., referer: http://localhost/703Designs/
+>
+> Thanks,
+> Thomas
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+From aw1179 at yahoo.com  Mon Nov 17 19:36:30 2008
+From: aw1179 at yahoo.com (Annie Wang)
+Date: Mon Nov 17 19:36:39 2008
+Subject: [mod_python] mod_python debug level message not logged
+Message-ID: <222933.73382.qm@web111101.mail.gq1.yahoo.com>
+
+Hello,
+
+I'm using Apache/2.2.8 (Unix),  mod_python/3.3.1, Python/2.5.2 and very new to mod_python.  I'm trying to get the logging working for debug and info level in mod_python. Here's the log.py and log is global object that used by the rest of our application to do logging.
+
+log = None
+
+import logging
+
+class StdLogger:
+    """ Simple class delegating logging calls to the standard logging module."""
+    def debug(self,msg):
+        logging.debug(msg)
+
+    def info(self,msg):
+        logging.info(msg)
+
+    def warn(self,msg):
+        logging.warn(msg)
+    
+    def error(self,msg):
+        logging.error(msg)
+
+try:
+    # Configure production logging.
+    import mod_python
+    from mod_python import apache
+    
+    class ProdLogger:
+        """
+        Logger class simulating the standard logging API's Logger but
+        funneling messages through mod_python to the Apache log.
+    
+        TODO: It looks like our calls to log_error below only make
+        it to the apache error log when severity is warn.  We need to
+        figure out how to better connect this code to the combination of
+        apache/mod_python/web.py we're running.
+        """
+    
+        def debug(self,msg):
+            apache.log_error(msg,apache.APLOG_DEBUG)
+    
+        def info(self,msg):
+            apache.log_error(msg,apache.APLOG_INFO)
+    
+        def warn(self,msg):
+            apache.log_error(msg,apache.APLOG_WARNING)
+        
+        def error(self,msg):
+            apache.log_error(msg,apache.APLOG_ERR)
+
+    log = ProdLogger()
+except:
+    log = StdLogger()
+
+
+I read the mod_python manual and know that if there is a reference to the request object, I should use req.log_error, but in my case, the request object is not available, so I have to use the apache.log_error.  However, the manual also said that I need to specify the server parameter in order to be able to log debug and info level messages to the error_log or better yet to its own separate log file.  The server object can be obtained from the request object but I don't have access to the request object.   I searched thru the web and found the following code and tried it out but with no luck:
+ 
+frommod_pythonimportapache
+importlogging
+
+classApacheLogHandler(logging.Handler):
+"""A handler class which sends all logging to Apache."""
+
+def__init__(self,level=logging.NOTSET):
+logging.Handler.__init__(self,level)
+
+"""Map logging levels to Apache codes."""
+self.level_mapping={}
+self.level_mapping[logging.ERROR]=apache.APLOG_ERR
+self.level_mapping[logging.WARNING]=apache.APLOG_WARNING
+self.level_mapping[logging.INFO]=apache.APLOG_INFO
+self.level_mapping[logging.DEBUG]=apache.APLOG_DEBUG
+
+defapache_level(self,record):
+"""Map current record's logging level to Apache code."""
+try:
+ifrecord.levelno:
+returnself.level_mapping[record.levelno]
+else:
+returnself.level_mapping[self.level]
+except(AttributeError,KeyError):
+returnapache.APLOG_ERR
+
+defemit(self,record):
+level=self.apache_level(record)
+"""
+        Set MODPYTHON mp_server object so that vhost logs to its own error_log.
+        """
+try:
+server=record.__dict__['server']
+apache.log_error(record.getMessage(),level,server)
+exceptKeyError:
+apache.log_error(record.getMessage(),level)
+
+I think my problem is record.__dict__['server'] raised an exception and
+it is just calling apache.log_error(record.getMessage(), level) without
+the server parameter so only warn/error messages made it to the
+error_log. So my question is, how do I get a hold of this server object
+other than from the request object ? how do I configure the httpd.conf
+to get this working. Here's a snipplets of the httpd.conf regarding
+logging:
+
+# =================================================
+# Logs
+# =================================================
+LogLevel debug
+LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+LogFormat "%h %l %u %t \"%r\" %>s %b" common
+LogFormat "%{Referer}i -> %U" referer
+LogFormat "%{User-agent}i" agent
+ErrorLog /opt/app/logs/error_log
+CustomLog /opt/app/logs/access_log combined
+CustomLog logs/ssl_request_log \
+"%t %h %{HTTPS}x %{SSL_PROTOCOL}x %{SSL_CIPHER}x \
+%{SSL_CIPHER_USEKEYSIZE}x %{SSL_CLIENT_VERIFY}x \"%r\" %b"
+
+Thanks advance for any suggestions and help I can get.
+Annie
+
+
+      
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081117/3ebaea7f/attachment-0001.html
+From graham.dumpleton at gmail.com  Mon Nov 17 19:55:31 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Mon Nov 17 19:55:39 2008
+Subject: [mod_python] mod_python debug level message not logged
+In-Reply-To: <222933.73382.qm@web111101.mail.gq1.yahoo.com>
+References: <222933.73382.qm@web111101.mail.gq1.yahoo.com>
+Message-ID: <88e286470811171655t66c3cc5cm4ecce34dd5cc2ef8@mail.gmail.com>
+
+2008/11/18 Annie Wang <aw1179@yahoo.com>:
+> I think my problem is record.__dict__['server'] raised an exception and it
+> is just calling apache.log_error(record.getMessage(), level) without the
+> server parameter so only warn/error messages made it to the error_log. So my
+> question is, how do I get a hold of this server object other than from the
+> request object ?
+
+If you are after server object for the virtual host, there is no other
+way of getting it except via request object.
+
+Only other server object available is that for main server, which from
+memory is apache.main_server.
+
+Graham
+From graham.dumpleton at gmail.com  Mon Nov 17 20:18:06 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Mon Nov 17 20:18:08 2008
+Subject: [mod_python] mod_python debug level message not logged
+In-Reply-To: <914094.65962.qm@web111103.mail.gq1.yahoo.com>
+References: <222933.73382.qm@web111101.mail.gq1.yahoo.com>
+	<88e286470811171655t66c3cc5cm4ecce34dd5cc2ef8@mail.gmail.com>
+	<914094.65962.qm@web111103.mail.gq1.yahoo.com>
+Message-ID: <88e286470811171718m4be23810p73d2bbfce7c09dcd@mail.gmail.com>
+
+If they are not working, then you haven't set LogLevel directive in
+Apache to sufficient high level to allow stuff through. Set:
+
+  LogLevel debug
+
+in main part of Apache configuration, ie., outside of VirtualHost, and
+see if it makes a difference.
+
+PS, please use reply-all and keep discussion on the list.
+
+Graham
+
+2008/11/18 Annie Wang <aw1179@yahoo.com>:
+> Hi Graham,
+>
+> So I can use apache.main_server.log_error() instead of apache.log_error(),
+> right ?  I tried that and it didn't work.  I also tried
+> apache.log_error(msg, level, apach.main_server) and didn't work either.
+> Is there other alternative way to do logging for debug/info level messages ?
+>
+> Thanks,
+> Annie
+>
+> ________________________________
+> From: Graham Dumpleton <graham.dumpleton@gmail.com>
+> To: Annie Wang <aw1179@yahoo.com>
+> Cc: mod_python@modpython.org
+> Sent: Monday, November 17, 2008 4:55:31 PM
+> Subject: Re: [mod_python] mod_python debug level message not logged
+>
+> 2008/11/18 Annie Wang <aw1179@yahoo.com>:
+>> I think my problem is record.__dict__['server'] raised an exception and it
+>> is just calling apache.log_error(record.getMessage(), level) without the
+>> server parameter so only warn/error messages made it to the error_log. So
+>> my
+>> question is, how do I get a hold of this server object other than from the
+>> request object ?
+>
+> If you are after server object for the virtual host, there is no other
+> way of getting it except via request object.
+>
+> Only other server object available is that for main server, which from
+> memory is apache.main_server.
+>
+> Graham
+>
+>
+From aw1179 at yahoo.com  Mon Nov 17 21:01:01 2008
+From: aw1179 at yahoo.com (Annie Wang)
+Date: Mon Nov 17 21:01:09 2008
+Subject: [SPAM] Re: [mod_python] mod_python debug level message not logged
+References: <222933.73382.qm@web111101.mail.gq1.yahoo.com>
+	<88e286470811171655t66c3cc5cm4ecce34dd5cc2ef8@mail.gmail.com>
+	<914094.65962.qm@web111103.mail.gq1.yahoo.com>
+	<88e286470811171718m4be23810p73d2bbfce7c09dcd@mail.gmail.com>
+Message-ID: <233796.16641.qm@web111116.mail.gq1.yahoo.com>
+
+Thank you for all your help.  My httpd.conf for LogLevel was set to debug but I final figured what I did wrong; I made the change to the ApacheLogHandler which didn''t work however I realized I made change to the wrong file so I tried the change to the log.py and voila, it works. 
+
+Now my next question is, I want to log all the application messages to a separate file not the apache error_log.  How do I go about doing this? 
+
+Thanks,
+Annie
+
+
+
+
+________________________________
+From: Graham Dumpleton <graham.dumpleton@gmail.com>
+To: Annie Wang <aw1179@yahoo.com>
+Cc: mod python <mod_python@modpython.org>
+Sent: Monday, November 17, 2008 5:18:06 PM
+Subject: Re: [mod_python] mod_python debug level message not logged
+
+If they are not working, then you haven't set LogLevel directive in
+Apache to sufficient high level to allow stuff through. Set:
+
+  LogLevel debug
+
+in main part of Apache configuration, ie., outside of VirtualHost, and
+see if it makes a difference.
+
+PS, please use reply-all and keep discussion on the list.
+
+Graham
+
+2008/11/18 Annie Wang <aw1179@yahoo.com>:
+> Hi Graham,
+>
+> So I can use apache.main_server.log_error() instead of apache.log_error(),
+> right ?  I tried that and it didn't work.  I also tried
+> apache.log_error(msg, level, apach.main_server) and didn't work either.
+> Is there other alternative way to do logging for debug/info level messages ?
+>
+> Thanks,
+> Annie
+>
+> ________________________________
+> From: Graham Dumpleton <graham.dumpleton@gmail.com>
+> To: Annie Wang <aw1179@yahoo.com>
+> Cc: mod_python@modpython.org
+> Sent: Monday, November 17, 2008 4:55:31 PM
+> Subject: Re: [mod_python] mod_python debug level message not logged
+>
+> 2008/11/18 Annie Wang <aw1179@yahoo.com>:
+>> I think my problem is record.__dict__['server'] raised an exception and it
+>> is just calling apache.log_error(record.getMessage(), level) without the
+>> server parameter so only warn/error messages made it to the error_log. So
+>> my
+>> question is, how do I get a hold of this server object other than from the
+>> request object ?
+>
+> If you are after server object for the virtual host, there is no other
+> way of getting it except via request object.
+>
+> Only other server object available is that for main server, which from
+> memory is apache.main_server.
+>
+> Graham
+>
+>
+
+
+
+      
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081117/74c78dfc/attachment.html
+From graham.dumpleton at gmail.com  Mon Nov 17 22:24:03 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Mon Nov 17 22:24:08 2008
+Subject: [mod_python] mod_python debug level message not logged
+In-Reply-To: <233796.16641.qm@web111116.mail.gq1.yahoo.com>
+References: <222933.73382.qm@web111101.mail.gq1.yahoo.com>
+	<88e286470811171655t66c3cc5cm4ecce34dd5cc2ef8@mail.gmail.com>
+	<914094.65962.qm@web111103.mail.gq1.yahoo.com>
+	<88e286470811171718m4be23810p73d2bbfce7c09dcd@mail.gmail.com>
+	<233796.16641.qm@web111116.mail.gq1.yahoo.com>
+Message-ID: <88e286470811171924n1066cbb1q296ffa403565a361@mail.gmail.com>
+
+I believe the logging module has other handlers for that sort of
+stuff. One thing you will need to contend with though is that Apache
+is a multi process web server, so what ever mechanism you use will
+need to deal with possibility of multiple process trying to write to
+same log file. Because of this issue, you may want to look instead at
+a logger which uses syslog and configure syslog for where you want
+output to go.
+
+Graham
+
+2008/11/18 Annie Wang <aw1179@yahoo.com>:
+> Thank you for all your help.  My httpd.conf for LogLevel was set to debug
+> but I final figured what I did wrong; I made the change to the
+> ApacheLogHandler which didn''t work however I realized I made change to the
+> wrong file so I tried the change to the log.py and voila, it works.
+>
+> Now my next question is, I want to log all the application messages to a
+> separate file not the apache error_log.  How do I go about doing this?
+>
+> Thanks,
+> Annie
+>
+> ________________________________
+> From: Graham Dumpleton <graham.dumpleton@gmail.com>
+> To: Annie Wang <aw1179@yahoo.com>
+> Cc: mod python <mod_python@modpython.org>
+> Sent: Monday, November 17, 2008 5:18:06 PM
+> Subject: Re: [mod_python] mod_python debug level message not logged
+>
+> If they are not working, then you haven't set LogLevel directive in
+> Apache to sufficient high level to allow stuff through. Set:
+>
+>   LogLevel debug
+>
+> in main part of Apache configuration, ie., outside of VirtualHost, and
+> see if it makes a difference.
+>
+> PS, please use reply-all and keep discussion on the list.
+>
+> Graham
+>
+> 2008/11/18 Annie Wang <aw1179@yahoo.com>:
+>> Hi Graham,
+>>
+>> So I can use apache.main_server.log_error() instead of apache.log_error(),
+>> right ?  I tried that and it didn't work.  I also tried
+>> apache.log_error(msg, level, apach.main_server) and didn't work either.
+>> Is there other alternative way to do logging for debug/info level messages
+>> ?
+>>
+>> Thanks,
+>> Annie
+>>
+>> ________________________________
+>> From: Graham Dumpleton <graham.dumpleton@gmail.com>
+>> To: Annie Wang <aw1179@yahoo.com>
+>> Cc: mod_python@modpython.org
+>> Sent: Monday, November 17, 2008 4:55:31 PM
+>> Subject: Re: [mod_python] mod_python debug level message not logged
+>>
+>> 2008/11/18 Annie Wang <aw1179@yahoo.com>:
+>>> I think my problem is record.__dict__['server'] raised an exception and
+>>> it
+>>> is just calling apache.log_error(record.getMessage(), level) without the
+>>> server parameter so only warn/error messages made it to the error_log. So
+>>> my
+>>> question is, how do I get a hold of this server object other than from
+>>> the
+>>> request object ?
+>>
+>> If you are after server object for the virtual host, there is no other
+>> way of getting it except via request object.
+>>
+>> Only other server object available is that for main server, which from
+>> memory is apache.main_server.
+>>
+>> Graham
+>>
+>>
+>
+>
+From aw1179 at yahoo.com  Tue Nov 18 17:33:40 2008
+From: aw1179 at yahoo.com (Annie Wang)
+Date: Tue Nov 18 17:33:48 2008
+Subject: [SPAM] Re: [mod_python] mod_python debug level message not logged
+References: <222933.73382.qm@web111101.mail.gq1.yahoo.com>
+	<88e286470811171655t66c3cc5cm4ecce34dd5cc2ef8@mail.gmail.com>
+	<914094.65962.qm@web111103.mail.gq1.yahoo.com>
+	<88e286470811171718m4be23810p73d2bbfce7c09dcd@mail.gmail.com>
+	<233796.16641.qm@web111116.mail.gq1.yahoo.com>
+	<88e286470811171924n1066cbb1q296ffa403565a361@mail.gmail.com>
+Message-ID: <756257.75853.qm@web111103.mail.gq1.yahoo.com>
+
+Is there a way to change the LogLevel on the fly without restarting the apache server  ?  The loglevel is a read-only member so can't change that.  
+
+Thanks,
+Annie
+
+
+
+
+________________________________
+From: Graham Dumpleton <graham.dumpleton@gmail.com>
+To: Annie Wang <aw1179@yahoo.com>
+Cc: mod_python@modpython.org
+Sent: Monday, November 17, 2008 7:24:03 PM
+Subject: Re: [mod_python] mod_python debug level message not logged
+
+I believe the logging module has other handlers for that sort of
+stuff. One thing you will need to contend with though is that Apache
+is a multi process web server, so what ever mechanism you use will
+need to deal with possibility of multiple process trying to write to
+same log file. Because of this issue, you may want to look instead at
+a logger which uses syslog and configure syslog for where you want
+output to go.
+
+Graham
+
+2008/11/18 Annie Wang <aw1179@yahoo.com>:
+> Thank you for all your help.  My httpd.conf for LogLevel was set to debug
+> but I final figured what I did wrong; I made the change to the
+> ApacheLogHandler which didn''t work however I realized I made change to the
+> wrong file so I tried the change to the log.py and voila, it works.
+>
+> Now my next question is, I want to log all the application messages to a
+> separate file not the apache error_log.  How do I go about doing this?
+>
+> Thanks,
+> Annie
+>
+> ________________________________
+> From: Graham Dumpleton <graham.dumpleton@gmail.com>
+> To: Annie Wang <aw1179@yahoo.com>
+> Cc: mod python <mod_python@modpython.org>
+> Sent: Monday, November 17, 2008 5:18:06 PM
+> Subject: Re: [mod_python] mod_python debug level message not logged
+>
+> If they are not working, then you haven't set LogLevel directive in
+> Apache to sufficient high level to allow stuff through. Set:
+>
+>   LogLevel debug
+>
+> in main part of Apache configuration, ie., outside of VirtualHost, and
+> see if it makes a difference.
+>
+> PS, please use reply-all and keep discussion on the list.
+>
+> Graham
+>
+> 2008/11/18 Annie Wang <aw1179@yahoo.com>:
+>> Hi Graham,
+>>
+>> So I can use apache.main_server.log_error() instead of apache.log_error(),
+>> right ?  I tried that and it didn't work.  I also tried
+>> apache.log_error(msg, level, apach.main_server) and didn't work either.
+>> Is there other alternative way to do logging for debug/info level messages
+>> ?
+>>
+>> Thanks,
+>> Annie
+>>
+>> ________________________________
+>> From: Graham Dumpleton <graham.dumpleton@gmail.com>
+>> To: Annie Wang <aw1179@yahoo.com>
+>> Cc: mod_python@modpython.org
+>> Sent: Monday, November 17, 2008 4:55:31 PM
+>> Subject: Re: [mod_python] mod_python debug level message not logged
+>>
+>> 2008/11/18 Annie Wang <aw1179@yahoo.com>:
+>>> I think my problem is record.__dict__['server'] raised an exception and
+>>> it
+>>> is just calling apache.log_error(record.getMessage(), level) without the
+>>> server parameter so only warn/error messages made it to the error_log. So
+>>> my
+>>> question is, how do I get a hold of this server object other than from
+>>> the
+>>> request object ?
+>>
+>> If you are after server object for the virtual host, there is no other
+>> way of getting it except via request object.
+>>
+>> Only other server object available is that for main server, which from
+>> memory is apache.main_server.
+>>
+>> Graham
+>>
+>>
+>
+>
+
+
+
+      
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081118/c462dda7/attachment.html
+From graham.dumpleton at gmail.com  Tue Nov 18 17:34:26 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Tue Nov 18 17:34:31 2008
+Subject: [mod_python] mod_python debug level message not logged
+In-Reply-To: <756257.75853.qm@web111103.mail.gq1.yahoo.com>
+References: <222933.73382.qm@web111101.mail.gq1.yahoo.com>
+	<88e286470811171655t66c3cc5cm4ecce34dd5cc2ef8@mail.gmail.com>
+	<914094.65962.qm@web111103.mail.gq1.yahoo.com>
+	<88e286470811171718m4be23810p73d2bbfce7c09dcd@mail.gmail.com>
+	<233796.16641.qm@web111116.mail.gq1.yahoo.com>
+	<88e286470811171924n1066cbb1q296ffa403565a361@mail.gmail.com>
+	<756257.75853.qm@web111103.mail.gq1.yahoo.com>
+Message-ID: <88e286470811181434i61f4cb4fva251ab54d077dd25@mail.gmail.com>
+
+2008/11/19 Annie Wang <aw1179@yahoo.com>:
+> Is there a way to change the LogLevel on the fly without restarting the
+> apache server  ?  The loglevel is a read-only member so can't change that.
+
+No.
+
+> Thanks,
+> Annie
+>
+> ________________________________
+> From: Graham Dumpleton <graham.dumpleton@gmail.com>
+> To: Annie Wang <aw1179@yahoo.com>
+> Cc: mod_python@modpython.org
+> Sent: Monday, November 17, 2008 7:24:03 PM
+> Subject: Re: [mod_python] mod_python debug level message not logged
+>
+> I believe the logging module has other handlers for that sort of
+> stuff. One thing you will need to contend with though is that Apache
+> is a multi process web server, so what ever mechanism you use will
+> need to deal with possibility of multiple process trying to write to
+> same log file. Because of this issue, you may want to look instead at
+> a logger which uses syslog and configure syslog for where you want
+> output to go.
+>
+> Graham
+>
+> 2008/11/18 Annie Wang <aw1179@yahoo.com>:
+>> Thank you for all your help.  My httpd.conf for LogLevel was set to debug
+>> but I final figured what I did wrong; I made the change to the
+>> ApacheLogHandler which didn''t work however I realized I made change to
+>> the
+>> wrong file so I tried the change to the log.py and voila, it works.
+>>
+>> Now my next question is, I want to log all the application messages to a
+>> separate file not the apache error_log.  How do I go about doing this?
+>>
+>> Thanks,
+>> Annie
+>>
+>> ________________________________
+>> From: Graham Dumpleton <graham.dumpleton@gmail.com>
+>> To: Annie Wang <aw1179@yahoo.com>
+>> Cc: mod python <mod_python@modpython.org>
+>> Sent: Monday, November 17, 2008 5:18:06 PM
+>> Subject: Re: [mod_python] mod_python debug level message not logged
+>>
+>> If they are not working, then you haven't set LogLevel directive in
+>> Apache to sufficient high level to allow stuff through. Set:
+>>
+>>  LogLevel debug
+>>
+>> in main part of Apache configuration, ie., outside of VirtualHost, and
+>> see if it makes a difference.
+>>
+>> PS, please use reply-all and keep discussion on the list.
+>>
+>> Graham
+>>
+>> 2008/11/18 Annie Wang <aw1179@yahoo.com>:
+>>> Hi Graham,
+>>>
+>>> So I can use apache.main_server.log_error() instead of
+>>> apache.log_error(),
+>>> right ?  I tried that and it didn't work.  I also tried
+>>> apache.log_error(msg, level, apach.main_server) and didn't work either.
+>>> Is there other alternative way to do logging for debug/info level
+>>> messages
+>>> ?
+>>>
+>>> Thanks,
+>>> Annie
+>>>
+>>> ________________________________
+>>> From: Graham Dumpleton <graham.dumpleton@gmail.com>
+>>> To: Annie Wang <aw1179@yahoo.com>
+>>> Cc: mod_python@modpython.org
+>>> Sent: Monday, November 17, 2008 4:55:31 PM
+>>> Subject: Re: [mod_python] mod_python debug level message not logged
+>>>
+>>> 2008/11/18 Annie Wang <aw1179@yahoo.com>:
+>>>> I think my problem is record.__dict__['server'] raised an exception and
+>>>> it
+>>>> is just calling apache.log_error(record.getMessage(), level) without the
+>>>> server parameter so only warn/error messages made it to the error_log.
+>>>> So
+>>>> my
+>>>> question is, how do I get a hold of this server object other than from
+>>>> the
+>>>> request object ?
+>>>
+>>> If you are after server object for the virtual host, there is no other
+>>> way of getting it except via request object.
+>>>
+>>> Only other server object available is that for main server, which from
+>>> memory is apache.main_server.
+>>>
+>>> Graham
+>>>
+>>>
+>>
+>>
+>
+>
+From hectormunozh at gmail.com  Thu Nov 20 04:46:26 2008
+From: hectormunozh at gmail.com (=?ISO-8859-1?Q?Hector_Mu=F1oz?=)
+Date: Thu Nov 20 04:45:52 2008
+Subject: [mod_python] upload problems
+Message-ID: <492531F2.4050905@gmail.com>
+
+Hi all,
+
+I have a problem uploading large file in mod_python.
+
+I use a code based in this code [1]. In Firefox, Opera and Safari works 
+fine but when user upload a file through IE, file uploaded is empty when 
+I test it with . Do you know why this happens? Can you give me any idea 
+how solve it?
+
+Thanks.
+
+Regards!
+
+[1] http://webpython.codepoint.net/mod_python_psp_forms_big_file_upload
+From bortzmeyer at nic.fr  Thu Nov 20 06:12:57 2008
+From: bortzmeyer at nic.fr (Stephane Bortzmeyer)
+Date: Thu Nov 20 06:13:03 2008
+Subject: [mod_python] Vampire does not support packages?
+Message-ID: <20081120111257.GA27916@nic.fr>
+
+I'm moving a Vampire site from one machine (Debian "etch") to another
+(Debian "lenny"). I installed Vampire 1.8 on the new machine but the
+site now fails with a puzzling error message:
+
+MOD_PYTHON ERROR
+
+ProcessId:      32531
+Interpreter:    'devel.codev-nic.generic-nic.net'
+
+ServerName:     'devel.codev-nic.generic-nic.net'
+DocumentRoot:   '/var/www/devel.codev-nic.generic-nic.net'
+
+URI:            '/details'
+Location:       None
+Directory:      '/var/www/devel.codev-nic.generic-nic.net/'
+Filename:       '/var/www/devel.codev-nic.generic-nic.net/details'
+PathInfo:       ''
+
+Phase:          'PythonHandler'
+Handler:        'vampire'
+
+Traceback (most recent call last):
+
+  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 1537, in HandlerDispatch
+    default=default_handler, arg=req, silent=hlist.silent)
+
+  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 1229, in _process_target
+    result = _execute_target(config, req, object, arg)
+
+  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 1128, in _execute_target
+    result = object(arg)
+
+  File "/usr/lib/python2.5/site-packages/vampire/lookup.py", line 709, in _handler
+    module = _import(req,file)
+
+  File "/usr/lib/python2.5/site-packages/vampire/lookup.py", line 54, in _import
+    module = _moduleCache.importModule(name,directory,req)
+
+  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 316, in importModule
+    execfile(file,module.__dict__)
+
+  File "/var/www/devel.codev-nic.generic-nic.net/details.py", line 23, in <module>
+    from Site import Site
+
+  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 518, in load_module
+    return importModule(fullname,self.__directory,self.__req)
+
+  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 316, in importModule
+    execfile(file,module.__dict__)
+
+  File "/var/www/devel.codev-nic.generic-nic.net/Site.py", line 23, in <module>
+    from SiteLogic import SiteLogic
+
+  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 518, in load_module
+    return importModule(fullname,self.__directory,self.__req)
+
+  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 316, in importModule
+    execfile(file,module.__dict__)
+
+  File "/var/www/devel.codev-nic.generic-nic.net/SiteLogic.py", line 2, in <module>
+    from codevnic.lib.Config import Config
+
+  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 518, in load_module
+    return importModule(fullname,self.__directory,self.__req)
+
+  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 179, in importModule
+    raise ImportError("Vampire does not support packages.")
+
+ImportError: Vampire does not support packages.
+
+From graham.dumpleton at gmail.com  Thu Nov 20 06:43:32 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu Nov 20 06:43:34 2008
+Subject: [mod_python] Vampire does not support packages?
+In-Reply-To: <20081120111257.GA27916@nic.fr>
+References: <20081120111257.GA27916@nic.fr>
+Message-ID: <88e286470811200343xd4ffdebic4afbb24f0d574ee@mail.gmail.com>
+
+2008/11/20 Stephane Bortzmeyer <bortzmeyer@nic.fr>:
+> I'm moving a Vampire site from one machine (Debian "etch") to another
+> (Debian "lenny"). I installed Vampire 1.8 on the new machine but the
+> site now fails with a puzzling error message:
+>
+> MOD_PYTHON ERROR
+>
+> ProcessId:      32531
+> Interpreter:    'devel.codev-nic.generic-nic.net'
+>
+> ServerName:     'devel.codev-nic.generic-nic.net'
+> DocumentRoot:   '/var/www/devel.codev-nic.generic-nic.net'
+>
+> URI:            '/details'
+> Location:       None
+> Directory:      '/var/www/devel.codev-nic.generic-nic.net/'
+> Filename:       '/var/www/devel.codev-nic.generic-nic.net/details'
+> PathInfo:       ''
+>
+> Phase:          'PythonHandler'
+> Handler:        'vampire'
+>
+> Traceback (most recent call last):
+>
+>  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 1537, in HandlerDispatch
+>    default=default_handler, arg=req, silent=hlist.silent)
+>
+>  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 1229, in _process_target
+>    result = _execute_target(config, req, object, arg)
+>
+>  File "/usr/lib/python2.5/site-packages/mod_python/importer.py", line 1128, in _execute_target
+>    result = object(arg)
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/lookup.py", line 709, in _handler
+>    module = _import(req,file)
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/lookup.py", line 54, in _import
+>    module = _moduleCache.importModule(name,directory,req)
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 316, in importModule
+>    execfile(file,module.__dict__)
+>
+>  File "/var/www/devel.codev-nic.generic-nic.net/details.py", line 23, in <module>
+>    from Site import Site
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 518, in load_module
+>    return importModule(fullname,self.__directory,self.__req)
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 316, in importModule
+>    execfile(file,module.__dict__)
+>
+>  File "/var/www/devel.codev-nic.generic-nic.net/Site.py", line 23, in <module>
+>    from SiteLogic import SiteLogic
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 518, in load_module
+>    return importModule(fullname,self.__directory,self.__req)
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 316, in importModule
+>    execfile(file,module.__dict__)
+>
+>  File "/var/www/devel.codev-nic.generic-nic.net/SiteLogic.py", line 2, in <module>
+>    from codevnic.lib.Config import Config
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 518, in load_module
+>    return importModule(fullname,self.__directory,self.__req)
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 179, in importModule
+>    raise ImportError("Vampire does not support packages.")
+>
+> ImportError: Vampire does not support packages.
+
+Where is codevnic installed? Is it within the Apache document
+directories or installed outside on normal sys.path somewhere? If in
+document directories, trying moving it outside onto sys.path
+somewhere.
+
+Graham
+From clodoaldo.pinto.neto at gmail.com  Thu Nov 20 16:59:55 2008
+From: clodoaldo.pinto.neto at gmail.com (Clodoaldo Pinto Neto)
+Date: Thu Nov 20 16:59:58 2008
+Subject: [mod_python] upload problems
+In-Reply-To: <492531F2.4050905@gmail.com>
+References: <492531F2.4050905@gmail.com>
+Message-ID: <a595de7a0811201359i1307fbacgd871c85973b7cdc6@mail.gmail.com>
+
+2008/11/20 Hector Mu?oz <hectormunozh@gmail.com>:
+> Hi all,
+>
+> I have a problem uploading large file in mod_python.
+>
+> I use a code based in this code [1]. In Firefox, Opera and Safari works fine
+> but when user upload a file through IE, file uploaded is empty when I test
+> it with . Do you know why this happens? Can you give me any idea how solve
+> it?
+
+I works for me in Windows XP SP3 and IE 7. If you use that exact same
+script does it work?
+
+Regards, Clodoaldo
+
+> Thanks.
+>
+> Regards!
+>
+> [1] http://webpython.codepoint.net/mod_python_psp_forms_big_file_upload
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+
+From bortzmeyer at nic.fr  Fri Nov 21 03:26:23 2008
+From: bortzmeyer at nic.fr (Stephane Bortzmeyer)
+Date: Fri Nov 21 03:28:23 2008
+Subject: [mod_python] Re: Vampire does not support packages?
+In-Reply-To: <88e286470811200343xd4ffdebic4afbb24f0d574ee@mail.gmail.com>
+References: <20081120111257.GA27916@nic.fr>
+	<88e286470811200343xd4ffdebic4afbb24f0d574ee@mail.gmail.com>
+Message-ID: <20081121082623.GA9072@sources.org>
+
+On Thu, Nov 20, 2008 at 10:43:32PM +1100,
+ Graham Dumpleton <graham.dumpleton@gmail.com> wrote 
+ a message of 77 lines which said:
+
+> Where is codevnic installed? 
+
+Both in sys.path (/usr/local/lib/python2.5/site-packages, checked with
+Python that it is indeed in sys.path) and in Apache DocumentRoot. Same result.
+
+I have:
+
+PythonOption VampireImportHooks On
+
+(otherwise, my Cheetah modules are not found.)
+
+The rest of the config is:
+
+             SetHandler mod_python
+             PythonHandler vampire
+             PythonDebug On
+             PythonOption VampireImportHooks On
+             PythonOption VampireDefaultHandlers On
+             PythonOption VampireDirectoryIndex index
+
+Same issue with Vampire 1.7 and 1.8
+From reed.rothchild1 at gmail.com  Fri Nov 21 16:13:09 2008
+From: reed.rothchild1 at gmail.com (Reed Rothchild)
+Date: Fri Nov 21 16:13:14 2008
+Subject: [mod_python] Build problem - apxs:Error: Command failed with
+	rc=65536
+Message-ID: <c3a488130811211313j112de2c5i161550f49a38079e@mail.gmail.com>
+
+Hi, I've been troubleshooting building mod_python all day and haven't made
+much progress.  I've built the following from source:
+
+apache 2.2.10
+python 2.5.2
+mod_python-3.3.1 (well trying to...)
+
+Apache and python built fine.  My first attempt to build mod_python resulted
+in one error that was resolved by rebuilding python with --enable-shared.
+However, after untarring the source and running the following, I get the
+output and error at the bottom with the useless error message Command failed
+with rc=65536...  I even tried going into the srclib under apache, building
+apr & apr-util, and rebuilding apache off those.  No luck.  I downloaded
+apache 2.0.63 and it worked fine.  I'm at a loss.  Thanks for any help.
+
+./configure --with-apxs=/usr/local/apache2/bin/apxs
+--with-python=/usr/local/bin/python2.5
+make
+
+Compiling for DSO.
+
+/usr/local/apache2/bin/apxs -I/root/mod_python-3.3.1/src/include
+-I/usr/local/apache2/include -I/usr/local/include/python2.5 -c mod_python.c
+_apachemodule.c requestobject.c tableobject.c util.c serverobject.c
+connobject.c filterobject.c hlist.c hlistobject.c finfoobject.c -Xlinker
+-export-dynamic      -lm  /usr/local/lib/python2.5/config/libpython2.5.a
+-lpthread -ldl -lutil -lm -L/lib -lssl -lcrypto
+/usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+-prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+-O2 -pthread -I/usr/local/apache2/include
+-I/usr/local/apr-httpd//include/apr-1
+-I/usr/local/apr-util-httpd//include/apr-1
+-I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+-I/usr/local/include/python2.5  -c -o mod_python.lo mod_python.c && touch
+mod_python.slo
+mod_python.c: In function 'python_init':
+mod_python.c:826: warning: initialization from incompatible pointer type
+/usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+-prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+-O2 -pthread -I/usr/local/apache2/include
+-I/usr/local/apr-httpd//include/apr-1
+-I/usr/local/apr-util-httpd//include/apr-1
+-I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+-I/usr/local/include/python2.5  -c -o _apachemodule.lo _apachemodule.c &&
+touch _apachemodule.slo
+/usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+-prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+-O2 -pthread -I/usr/local/apache2/include
+-I/usr/local/apr-httpd//include/apr-1
+-I/usr/local/apr-util-httpd//include/apr-1
+-I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+-I/usr/local/include/python2.5  -c -o requestobject.lo requestobject.c &&
+touch requestobject.slo
+/usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+-prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+-O2 -pthread -I/usr/local/apache2/include
+-I/usr/local/apr-httpd//include/apr-1
+-I/usr/local/apr-util-httpd//include/apr-1
+-I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+-I/usr/local/include/python2.5  -c -o tableobject.lo tableobject.c && touch
+tableobject.slo
+tableobject.c:1092: warning: initialization from incompatible pointer type
+/usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+-prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+-O2 -pthread -I/usr/local/apache2/include
+-I/usr/local/apr-httpd//include/apr-1
+-I/usr/local/apr-util-httpd//include/apr-1
+-I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+-I/usr/local/include/python2.5  -c -o util.lo util.c && touch util.slo
+/usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+-prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+-O2 -pthread -I/usr/local/apache2/include
+-I/usr/local/apr-httpd//include/apr-1
+-I/usr/local/apr-util-httpd//include/apr-1
+-I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+-I/usr/local/include/python2.5  -c -o serverobject.lo serverobject.c &&
+touch serverobject.slo
+serverobject.c:387: warning: initialization from incompatible pointer type
+/usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+-prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+-O2 -pthread -I/usr/local/apache2/include
+-I/usr/local/apr-httpd//include/apr-1
+-I/usr/local/apr-util-httpd//include/apr-1
+-I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+-I/usr/local/include/python2.5  -c -o connobject.lo connobject.c && touch
+connobject.slo
+connobject.c: In function '_conn_read':
+connobject.c:142: error: request for member 'next' in something not a
+structure or union
+apxs:Error: Command failed with rc=65536
+.
+make[1]: *** [mod_python.so] Error 1
+make[1]: Leaving directory `/root/mod_python-3.3.1/src'
+make: *** [do_dso] Error 2
+[
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081121/9c4c2203/attachment.html
+From graham.dumpleton at gmail.com  Fri Nov 21 17:12:43 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Fri Nov 21 17:12:46 2008
+Subject: [mod_python] Build problem - apxs:Error: Command failed with
+	rc=65536
+In-Reply-To: <c3a488130811211313j112de2c5i161550f49a38079e@mail.gmail.com>
+References: <c3a488130811211313j112de2c5i161550f49a38079e@mail.gmail.com>
+Message-ID: <88e286470811211412g42ff93dt1e1eb8a6be4d2a4e@mail.gmail.com>
+
+See:
+
+  https://issues.apache.org/jira/browse/MODPYTHON-249
+
+2008/11/22 Reed Rothchild <reed.rothchild1@gmail.com>:
+> Hi, I've been troubleshooting building mod_python all day and haven't made
+> much progress.  I've built the following from source:
+>
+> apache 2.2.10
+> python 2.5.2
+> mod_python-3.3.1 (well trying to...)
+>
+> Apache and python built fine.  My first attempt to build mod_python resulted
+> in one error that was resolved by rebuilding python with --enable-shared.
+> However, after untarring the source and running the following, I get the
+> output and error at the bottom with the useless error message Command failed
+> with rc=65536...  I even tried going into the srclib under apache, building
+> apr & apr-util, and rebuilding apache off those.  No luck.  I downloaded
+> apache 2.0.63 and it worked fine.  I'm at a loss.  Thanks for any help.
+>
+> ./configure --with-apxs=/usr/local/apache2/bin/apxs
+> --with-python=/usr/local/bin/python2.5
+> make
+>
+> Compiling for DSO.
+>
+> /usr/local/apache2/bin/apxs -I/root/mod_python-3.3.1/src/include
+> -I/usr/local/apache2/include -I/usr/local/include/python2.5 -c mod_python.c
+> _apachemodule.c requestobject.c tableobject.c util.c serverobject.c
+> connobject.c filterobject.c hlist.c hlistobject.c finfoobject.c -Xlinker
+> -export-dynamic      -lm  /usr/local/lib/python2.5/config/libpython2.5.a
+> -lpthread -ldl -lutil -lm -L/lib -lssl -lcrypto
+> /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+> -O2 -pthread -I/usr/local/apache2/include
+> -I/usr/local/apr-httpd//include/apr-1
+> -I/usr/local/apr-util-httpd//include/apr-1
+> -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> -I/usr/local/include/python2.5  -c -o mod_python.lo mod_python.c && touch
+> mod_python.slo
+> mod_python.c: In function 'python_init':
+> mod_python.c:826: warning: initialization from incompatible pointer type
+> /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+> -O2 -pthread -I/usr/local/apache2/include
+> -I/usr/local/apr-httpd//include/apr-1
+> -I/usr/local/apr-util-httpd//include/apr-1
+> -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> -I/usr/local/include/python2.5  -c -o _apachemodule.lo _apachemodule.c &&
+> touch _apachemodule.slo
+> /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+> -O2 -pthread -I/usr/local/apache2/include
+> -I/usr/local/apr-httpd//include/apr-1
+> -I/usr/local/apr-util-httpd//include/apr-1
+> -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> -I/usr/local/include/python2.5  -c -o requestobject.lo requestobject.c &&
+> touch requestobject.slo
+> /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+> -O2 -pthread -I/usr/local/apache2/include
+> -I/usr/local/apr-httpd//include/apr-1
+> -I/usr/local/apr-util-httpd//include/apr-1
+> -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> -I/usr/local/include/python2.5  -c -o tableobject.lo tableobject.c && touch
+> tableobject.slo
+> tableobject.c:1092: warning: initialization from incompatible pointer type
+> /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+> -O2 -pthread -I/usr/local/apache2/include
+> -I/usr/local/apr-httpd//include/apr-1
+> -I/usr/local/apr-util-httpd//include/apr-1
+> -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> -I/usr/local/include/python2.5  -c -o util.lo util.c && touch util.slo
+> /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+> -O2 -pthread -I/usr/local/apache2/include
+> -I/usr/local/apr-httpd//include/apr-1
+> -I/usr/local/apr-util-httpd//include/apr-1
+> -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> -I/usr/local/include/python2.5  -c -o serverobject.lo serverobject.c &&
+> touch serverobject.slo
+> serverobject.c:387: warning: initialization from incompatible pointer type
+> /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -g
+> -O2 -pthread -I/usr/local/apache2/include
+> -I/usr/local/apr-httpd//include/apr-1
+> -I/usr/local/apr-util-httpd//include/apr-1
+> -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> -I/usr/local/include/python2.5  -c -o connobject.lo connobject.c && touch
+> connobject.slo
+> connobject.c: In function '_conn_read':
+> connobject.c:142: error: request for member 'next' in something not a
+> structure or union
+> apxs:Error: Command failed with rc=65536
+> .
+> make[1]: *** [mod_python.so] Error 1
+> make[1]: Leaving directory `/root/mod_python-3.3.1/src'
+> make: *** [do_dso] Error 2
+> [
+>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+>
+From reed.rothchild1 at gmail.com  Fri Nov 21 17:23:07 2008
+From: reed.rothchild1 at gmail.com (Reed Rothchild)
+Date: Fri Nov 21 17:23:13 2008
+Subject: [mod_python] Build problem - apxs:Error: Command failed with
+	rc=65536
+In-Reply-To: <88e286470811211412g42ff93dt1e1eb8a6be4d2a4e@mail.gmail.com>
+References: <c3a488130811211313j112de2c5i161550f49a38079e@mail.gmail.com>
+	<88e286470811211412g42ff93dt1e1eb8a6be4d2a4e@mail.gmail.com>
+Message-ID: <c3a488130811211423y4d8fda52yd1f758361c17acda@mail.gmail.com>
+
+Thanks alot, checking it out from apache's svn repository and building it
+from there fixed the problem.
+https://svn.apache.org/repos/asf/quetzalcoatl/mod_python/trunk
+
+On Fri, Nov 21, 2008 at 5:12 PM, Graham Dumpleton <
+graham.dumpleton@gmail.com> wrote:
+
+> See:
+>
+>  https://issues.apache.org/jira/browse/MODPYTHON-249
+>
+> 2008/11/22 Reed Rothchild <reed.rothchild1@gmail.com>:
+> > Hi, I've been troubleshooting building mod_python all day and haven't
+> made
+> > much progress.  I've built the following from source:
+> >
+> > apache 2.2.10
+> > python 2.5.2
+> > mod_python-3.3.1 (well trying to...)
+> >
+> > Apache and python built fine.  My first attempt to build mod_python
+> resulted
+> > in one error that was resolved by rebuilding python with --enable-shared.
+> > However, after untarring the source and running the following, I get the
+> > output and error at the bottom with the useless error message Command
+> failed
+> > with rc=65536...  I even tried going into the srclib under apache,
+> building
+> > apr & apr-util, and rebuilding apache off those.  No luck.  I downloaded
+> > apache 2.0.63 and it worked fine.  I'm at a loss.  Thanks for any help.
+> >
+> > ./configure --with-apxs=/usr/local/apache2/bin/apxs
+> > --with-python=/usr/local/bin/python2.5
+> > make
+> >
+> > Compiling for DSO.
+> >
+> > /usr/local/apache2/bin/apxs -I/root/mod_python-3.3.1/src/include
+> > -I/usr/local/apache2/include -I/usr/local/include/python2.5 -c
+> mod_python.c
+> > _apachemodule.c requestobject.c tableobject.c util.c serverobject.c
+> > connobject.c filterobject.c hlist.c hlistobject.c finfoobject.c -Xlinker
+> > -export-dynamic      -lm  /usr/local/lib/python2.5/config/libpython2.5.a
+> > -lpthread -ldl -lutil -lm -L/lib -lssl -lcrypto
+> > /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> > -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE
+> -g
+> > -O2 -pthread -I/usr/local/apache2/include
+> > -I/usr/local/apr-httpd//include/apr-1
+> > -I/usr/local/apr-util-httpd//include/apr-1
+> > -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> > -I/usr/local/include/python2.5  -c -o mod_python.lo mod_python.c && touch
+> > mod_python.slo
+> > mod_python.c: In function 'python_init':
+> > mod_python.c:826: warning: initialization from incompatible pointer type
+> > /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> > -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE
+> -g
+> > -O2 -pthread -I/usr/local/apache2/include
+> > -I/usr/local/apr-httpd//include/apr-1
+> > -I/usr/local/apr-util-httpd//include/apr-1
+> > -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> > -I/usr/local/include/python2.5  -c -o _apachemodule.lo _apachemodule.c &&
+> > touch _apachemodule.slo
+> > /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> > -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE
+> -g
+> > -O2 -pthread -I/usr/local/apache2/include
+> > -I/usr/local/apr-httpd//include/apr-1
+> > -I/usr/local/apr-util-httpd//include/apr-1
+> > -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> > -I/usr/local/include/python2.5  -c -o requestobject.lo requestobject.c &&
+> > touch requestobject.slo
+> > /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> > -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE
+> -g
+> > -O2 -pthread -I/usr/local/apache2/include
+> > -I/usr/local/apr-httpd//include/apr-1
+> > -I/usr/local/apr-util-httpd//include/apr-1
+> > -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> > -I/usr/local/include/python2.5  -c -o tableobject.lo tableobject.c &&
+> touch
+> > tableobject.slo
+> > tableobject.c:1092: warning: initialization from incompatible pointer
+> type
+> > /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> > -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE
+> -g
+> > -O2 -pthread -I/usr/local/apache2/include
+> > -I/usr/local/apr-httpd//include/apr-1
+> > -I/usr/local/apr-util-httpd//include/apr-1
+> > -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> > -I/usr/local/include/python2.5  -c -o util.lo util.c && touch util.slo
+> > /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> > -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE
+> -g
+> > -O2 -pthread -I/usr/local/apache2/include
+> > -I/usr/local/apr-httpd//include/apr-1
+> > -I/usr/local/apr-util-httpd//include/apr-1
+> > -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> > -I/usr/local/include/python2.5  -c -o serverobject.lo serverobject.c &&
+> > touch serverobject.slo
+> > serverobject.c:387: warning: initialization from incompatible pointer
+> type
+> > /usr/local/apr-httpd//build-1/libtool --silent --mode=compile gcc
+> > -prefer-pic   -DLINUX=2 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE
+> -g
+> > -O2 -pthread -I/usr/local/apache2/include
+> > -I/usr/local/apr-httpd//include/apr-1
+> > -I/usr/local/apr-util-httpd//include/apr-1
+> > -I/root/mod_python-3.3.1/src/include -I/usr/local/apache2/include
+> > -I/usr/local/include/python2.5  -c -o connobject.lo connobject.c && touch
+> > connobject.slo
+> > connobject.c: In function '_conn_read':
+> > connobject.c:142: error: request for member 'next' in something not a
+> > structure or union
+> > apxs:Error: Command failed with rc=65536
+> > .
+> > make[1]: *** [mod_python.so] Error 1
+> > make[1]: Leaving directory `/root/mod_python-3.3.1/src'
+> > make: *** [do_dso] Error 2
+> > [
+> >
+> > _______________________________________________
+> > Mod_python mailing list
+> > Mod_python@modpython.org
+> > http://mailman.modpython.org/mailman/listinfo/mod_python
+> >
+> >
+>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081121/768363cb/attachment-0001.html
+From aventurella at gmail.com  Sun Nov 23 14:09:48 2008
+From: aventurella at gmail.com (Adam Venturella)
+Date: Sun Nov 23 14:09:54 2008
+Subject: [mod_python] mod_python 3.3.1 / python 2.5 /
+	apache.import_module(__init__) help
+Message-ID: <ec6557c00811231109v2376133if594ed8ff6359c69@mail.gmail.com>
+
+The docs here:
+http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html
+
+Mention this bit:
+
+If an __init__.py file is present and it was necessary to import it to
+achieve the same result as importing the root of a true Python package, then
+__init__ can be used as the module name. For example:
+
+    from mod_python import apache
+    module = apache.import_module('dirname/__init__')
+
+
+
+I think I a bit confused about how I understand it.  I read that as follows:
+
+myModule = apache.import_module('dirname/__init__')
+
+where dirname/ contains the following files:
+__init__.py
+application.py
+navigation.py
+
+and dirname/__init__.py contains:
+
+from mod_python import apache
+application = apache.import_module('application');
+navigation  = apache.import_module(navigation');
+
+
+So, in my mind, doing this:
+myModule = apache.import_module('dirname/__init__')
+
+should let me:
+
+from myModule import application
+OR
+from myModule import navigation
+
+That, however, is not the case as I get an ImportError:
+ImportError: No module named myModule
+
+
+can someone correct my understanding of how apache.import_module(__init__)
+is supposed to work / what it's benefit is?
+
+Thanks!
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081123/4b232b85/attachment.html
+From graham.dumpleton at gmail.com  Sun Nov 23 18:29:29 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Sun Nov 23 18:29:33 2008
+Subject: [mod_python] Re: Vampire does not support packages?
+In-Reply-To: <20081121082623.GA9072@sources.org>
+References: <20081120111257.GA27916@nic.fr>
+	<88e286470811200343xd4ffdebic4afbb24f0d574ee@mail.gmail.com>
+	<20081121082623.GA9072@sources.org>
+Message-ID: <88e286470811231529i62d8c55an7b5b2c333f65e0f9@mail.gmail.com>
+
+2008/11/21 Stephane Bortzmeyer <bortzmeyer@nic.fr>:
+> On Thu, Nov 20, 2008 at 10:43:32PM +1100,
+>  Graham Dumpleton <graham.dumpleton@gmail.com> wrote
+>  a message of 77 lines which said:
+>
+>> Where is codevnic installed?
+>
+> Both in sys.path (/usr/local/lib/python2.5/site-packages, checked with
+> Python that it is indeed in sys.path) and in Apache DocumentRoot. Same result.
+>
+> I have:
+>
+> PythonOption VampireImportHooks On
+>
+> (otherwise, my Cheetah modules are not found.)
+>
+> The rest of the config is:
+>
+>             SetHandler mod_python
+>             PythonHandler vampire
+>             PythonDebug On
+>             PythonOption VampireImportHooks On
+>             PythonOption VampireDefaultHandlers On
+>             PythonOption VampireDirectoryIndex index
+>
+> Same issue with Vampire 1.7 and 1.8
+
+Still scratching my head on this one. A few questions, if you add:
+
+  from codevnic.lib.Config import Config
+
+to details.py to force earlier loading does it still occur?
+
+Was the old system also using Python 2.5 and mod_python 3.3.1?
+
+Do you have a Vampire configuration file which sets "path" value in
+appropriate Vampire configuration section?
+
+Is 'codevnic' a real Python package, ie., with __init__.py files, or
+was it just a hierarchy of Python code files?
+
+Sorry about delayed reply, was rather busy over the weekend.
+
+Graham
+From graham.dumpleton at gmail.com  Sun Nov 23 18:33:22 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Sun Nov 23 18:33:24 2008
+Subject: [mod_python] mod_python 3.3.1 / python 2.5 /
+	apache.import_module(__init__) help
+In-Reply-To: <ec6557c00811231109v2376133if594ed8ff6359c69@mail.gmail.com>
+References: <ec6557c00811231109v2376133if594ed8ff6359c69@mail.gmail.com>
+Message-ID: <88e286470811231533x6c07ff57qe9a366b3ad7a9ea0@mail.gmail.com>
+
+2008/11/24 Adam Venturella <aventurella@gmail.com>:
+> The docs here:
+> http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html
+>
+> Mention this bit:
+> If an __init__.py file is present and it was necessary to import it to
+> achieve the same result as importing the root of a true Python package, then
+> __init__ can be used as the module name. For example:
+>     from mod_python import apache
+>     module = apache.import_module('dirname/__init__')
+>
+>
+> I think I a bit confused about how I understand it.  I read that as follows:
+> myModule = apache.import_module('dirname/__init__')
+>
+> where dirname/ contains the following files:
+> __init__.py
+> application.py
+> navigation.py
+> and dirname/__init__.py contains:
+> from mod_python import apache
+> application = apache.import_module('application');
+> navigation  = apache.import_module(navigation');
+>
+> So, in my mind, doing this:
+> myModule = apache.import_module('dirname/__init__')
+>
+> should let me:
+> from myModule import application
+> OR
+> from myModule import navigation
+>
+> That, however, is not the case as I get an ImportError:
+> ImportError: No module named myModule
+>
+>
+> can someone correct my understanding of how apache.import_module(__init__)
+> is supposed to work / what it's benefit is?
+
+Ideally you shouldn't. If this is a proper Python package then put it
+outside of the document tree on sys.path somewhere and use normal
+Python 'import' statement to import it.
+
+Trying to get __init__.py to work is a bit of a fudge and if there are
+absolute imports within the package back onto itself, or even relative
+imports to sub packages, they will not work as it isn't being treated
+as a proper Python package.
+
+Graham
+From bortzmeyer at nic.fr  Mon Nov 24 04:10:54 2008
+From: bortzmeyer at nic.fr (Stephane Bortzmeyer)
+Date: Mon Nov 24 04:11:00 2008
+Subject: [mod_python] Re: Vampire does not support packages?
+In-Reply-To: <88e286470811231529i62d8c55an7b5b2c333f65e0f9@mail.gmail.com>
+References: <20081120111257.GA27916@nic.fr>
+	<88e286470811200343xd4ffdebic4afbb24f0d574ee@mail.gmail.com>
+	<20081121082623.GA9072@sources.org>
+	<88e286470811231529i62d8c55an7b5b2c333f65e0f9@mail.gmail.com>
+Message-ID: <20081124091054.GA23488@nic.fr>
+
+On Mon, Nov 24, 2008 at 10:29:29AM +1100,
+ Graham Dumpleton <graham.dumpleton@gmail.com> wrote 
+ a message of 44 lines which said:
+
+>   from codevnic.lib.Config import Config
+> 
+> to details.py to force earlier loading does it still occur?
+
+Yes:
+
+...
+  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 316, in importModule
+    execfile(file,module.__dict__)
+
+  File "/var/www/devel.codev-nic.generic-nic.net/details.py", line 23, in <module>
+    from codevnic.lib.Config import Config
+
+  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 518, in load_module
+    return importModule(fullname,self.__directory,self.__req)
+
+  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 179, in importModule
+    raise ImportError("Vampire does not support packages.")
+
+ImportError: Vampire does not support packages.
+
+ 
+> Was the old system also using Python 2.5 and mod_python 3.3.1?
+
+No, Python 2.4 and mod_python 3.2.10.
+ 
+> Do you have a Vampire configuration file which sets "path" value in
+> appropriate Vampire configuration section?
+
+No
+
+> Is 'codevnic' a real Python package, ie., with __init__.py files, 
+
+Yes
+
+lilith:/var/www/devel.codev-nic.generic-nic.net %  ls -alt codevnic/
+total 24
+drwxr-sr-x 4 root staff 4096 Nov 21 09:15 .
+drwxr-sr-x 2 root staff 4096 Nov 21 09:15 transfer
+drwxrwsr-x 3 root staff 4096 Nov 21 09:15 ..
+-rw-r--r-- 1 root staff   74 Nov 21 09:15 __init__.py
+-rw-r--r-- 1 root staff  232 Nov 21 09:15 __init__.pyc
+drwxr-sr-x 2 root staff 4096 Nov 21 09:15 lib
+From graham.dumpleton at gmail.com  Mon Nov 24 05:33:15 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Mon Nov 24 05:33:21 2008
+Subject: [mod_python] Re: Vampire does not support packages?
+In-Reply-To: <20081124091054.GA23488@nic.fr>
+References: <20081120111257.GA27916@nic.fr>
+	<88e286470811200343xd4ffdebic4afbb24f0d574ee@mail.gmail.com>
+	<20081121082623.GA9072@sources.org>
+	<88e286470811231529i62d8c55an7b5b2c333f65e0f9@mail.gmail.com>
+	<20081124091054.GA23488@nic.fr>
+Message-ID: <88e286470811240233h7759d60cna01e2cb584f916d5@mail.gmail.com>
+
+Try setting:
+
+ PythonOption mod_python.legacy.importer *
+
+The new module importer in mod_python 3.3.1 is based on the one from
+Vampire. They shouldn't interfere with each other, but possibly they
+are.
+
+The above directive will set back mod_python module importer to what
+it was in mod_python 3.2.10.
+
+Graham
+
+2008/11/24 Stephane Bortzmeyer <bortzmeyer@nic.fr>:
+> On Mon, Nov 24, 2008 at 10:29:29AM +1100,
+>  Graham Dumpleton <graham.dumpleton@gmail.com> wrote
+>  a message of 44 lines which said:
+>
+>>   from codevnic.lib.Config import Config
+>>
+>> to details.py to force earlier loading does it still occur?
+>
+> Yes:
+>
+> ...
+>  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 316, in importModule
+>    execfile(file,module.__dict__)
+>
+>  File "/var/www/devel.codev-nic.generic-nic.net/details.py", line 23, in <module>
+>    from codevnic.lib.Config import Config
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 518, in load_module
+>    return importModule(fullname,self.__directory,self.__req)
+>
+>  File "/usr/lib/python2.5/site-packages/vampire/cache.py", line 179, in importModule
+>    raise ImportError("Vampire does not support packages.")
+>
+> ImportError: Vampire does not support packages.
+>
+>
+>> Was the old system also using Python 2.5 and mod_python 3.3.1?
+>
+> No, Python 2.4 and mod_python 3.2.10.
+>
+>> Do you have a Vampire configuration file which sets "path" value in
+>> appropriate Vampire configuration section?
+>
+> No
+>
+>> Is 'codevnic' a real Python package, ie., with __init__.py files,
+>
+> Yes
+>
+> lilith:/var/www/devel.codev-nic.generic-nic.net %  ls -alt codevnic/
+> total 24
+> drwxr-sr-x 4 root staff 4096 Nov 21 09:15 .
+> drwxr-sr-x 2 root staff 4096 Nov 21 09:15 transfer
+> drwxrwsr-x 3 root staff 4096 Nov 21 09:15 ..
+> -rw-r--r-- 1 root staff   74 Nov 21 09:15 __init__.py
+> -rw-r--r-- 1 root staff  232 Nov 21 09:15 __init__.pyc
+> drwxr-sr-x 2 root staff 4096 Nov 21 09:15 lib
+>
+From cristian.re at gmail.com  Tue Nov 25 06:30:51 2008
+From: cristian.re at gmail.com (Cristian Re)
+Date: Tue Nov 25 06:30:53 2008
+Subject: [mod_python] mod_python and ajax
+Message-ID: <98f794b70811250330l69bb1e77l2a51cfd656d5b917@mail.gmail.com>
+
+Hello, I would like to use mod_python to handle some ajax requests.
+I need that mod_python answers to ajax's requests only when some values on
+db changes.
+I thought to check db changes in a cycle while and wait a condition to
+return data.
+In this way each ajax request could take a long time before end and I don't
+know if mod_python can manage this and I don't know how many simultaneous
+requests can manage.
+
+Thanks
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081125/2154ce2a/attachment.html
+From ccbean at gmail.com  Tue Nov 25 13:18:13 2008
+From: ccbean at gmail.com (Colin Bean)
+Date: Tue Nov 25 13:18:16 2008
+Subject: [mod_python] mod_python and ajax
+In-Reply-To: <98f794b70811250330l69bb1e77l2a51cfd656d5b917@mail.gmail.com>
+References: <98f794b70811250330l69bb1e77l2a51cfd656d5b917@mail.gmail.com>
+Message-ID: <29a6ca010811251018o3e56e0c6v1ddbf09100ed2cf2@mail.gmail.com>
+
+2008/11/25 Cristian Re <cristian.re@gmail.com>:
+> Hello, I would like to use mod_python to handle some ajax requests.
+> I need that mod_python answers to ajax's requests only when some values on
+> db changes.
+> I thought to check db changes in a cycle while and wait a condition to
+> return data.
+> In this way each ajax request could take a long time before end and I don't
+> know if mod_python can manage this and I don't know how many simultaneous
+> requests can manage.
+>
+> Thanks
+>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+>
+
+I'd recommend writing an ajax function that polls your mod_python
+handler every so often, and a server side function that checks the
+value in the database and immediately returns whether it's changed or
+not.  This pattern has worked well for me; I don't know how mod_python
+(or the client) would handle lots of requests that are expected to
+stay open for a while.
+
+Colin
+From luislupe at gmail.com  Tue Nov 25 13:33:09 2008
+From: luislupe at gmail.com (Luis P. Mendes)
+Date: Tue Nov 25 13:33:10 2008
+Subject: [mod_python] mod_python problem in Slackware
+Message-ID: <ce2f2ce20811251033s2605afe5r7ca6d88a156d7cb7@mail.gmail.com>
+
+Hi,
+
+
+I'm trying to install mod_python in Slack 12.1, but have some
+difficulties.
+
+mod_python: 3.3.1
+apache: default (httpd-2.2.8), also tried with 2.2.9
+
+when configuring mod_python for installation: ./configure
+--with-apxs=/usr/sbin/apxs or
+./configure --with-apxs=/usr/sbin/apxs --includedir=/usr/include/httpd/
+
+it returns the error:
+checking Apache version... /usr/sbin/httpd: symbol lookup error:
+/usr/sbin/ httpd: undefined symbol: apr_ldap_ssl_init
+
+this is equivalent to when I issue the comand: # /usr/sbin/httpd -v
+/usr/sbin/httpd: symbol lookup error: /usr/sbin/httpd: undefined symbol:
+apr_ldap_ssl_init
+
+I reinstalled apr and apr-util packages:  apr-1.2.12-i486-1 and apr-
+util-1.2.12-i486-1, but the problem remains.
+
+
+Is it only with my installation? Is there any clue on how to solve this
+issue?
+
+
+Luis
+From list at joreybump.com  Tue Nov 25 14:00:43 2008
+From: list at joreybump.com (Jorey Bump)
+Date: Tue Nov 25 14:01:00 2008
+Subject: [mod_python] mod_python problem in Slackware
+In-Reply-To: <ce2f2ce20811251033s2605afe5r7ca6d88a156d7cb7@mail.gmail.com>
+References: <ce2f2ce20811251033s2605afe5r7ca6d88a156d7cb7@mail.gmail.com>
+Message-ID: <492C4B5B.3050308@joreybump.com>
+
+Luis P. Mendes wrote, at 11/25/2008 01:33 PM:
+
+> I'm trying to install mod_python in Slack 12.1, but have some
+> difficulties.
+> 
+> mod_python: 3.3.1
+> apache: default (httpd-2.2.8), also tried with 2.2.9
+> 
+> when configuring mod_python for installation: ./configure
+> --with-apxs=/usr/sbin/apxs or
+> ./configure --with-apxs=/usr/sbin/apxs --includedir=/usr/include/httpd/
+> 
+> it returns the error:
+> checking Apache version... /usr/sbin/httpd: symbol lookup error:
+> /usr/sbin/ httpd: undefined symbol: apr_ldap_ssl_init
+> 
+> this is equivalent to when I issue the comand: # /usr/sbin/httpd -v
+> /usr/sbin/httpd: symbol lookup error: /usr/sbin/httpd: undefined symbol:
+> apr_ldap_ssl_init
+> 
+> I reinstalled apr and apr-util packages:  apr-1.2.12-i486-1 and apr-
+> util-1.2.12-i486-1, but the problem remains.
+> 
+> Is it only with my installation? Is there any clue on how to solve this
+> issue?
+
+I recently installed it on 12.1, but used the trunk instead. As an
+ordinary user, follow these steps (use a different build directory, if
+you wish):
+
+ mkdir -p ~/src/mod_python
+ cd ~/src/mod_python/
+ svn co http://svn.apache.org/repos/asf/quetzalcoatl/mod_python/trunk
+mod_python-trunk
+ cd mod_python-trunk/
+ ./configure --with-apxs=/usr/sbin/apxs
+ make
+ su -c "make install"
+ cd test/
+ python test.py
+
+On a stock Slackware 12.1, this should work without any problems and
+there should be no errors during the tests.
+
+
+From jforman at wcgltd.com  Tue Nov 25 17:44:54 2008
+From: jforman at wcgltd.com (Josh Forman)
+Date: Tue Nov 25 17:45:01 2008
+Subject: [mod_python] environment variables lost along the way
+Message-ID: <B8B326E4-58F7-4E12-959F-9F1663C20B13@wcgltd.com>
+
+hi.  i've been working with modpython 3.3 on ubuntu 8.10 with python  
+2.5.
+i have a problem where, using a python module works in the python cli  
+without doing anything special, but not in a script being run through  
+apache.
+the module is cx_Oracle, and the error logs complain about being  
+unable to acquire Oracle environment handle, and thus far everything  
+i've read about this error is related to environmental variables  
+needing to be set to something in particular.  so i have them set at  
+boot by defining them in /etc/profile.   that didn't work.
+so i added them into the script being run by assigning them through  
+os.environ before i import cx_Oracle.  that didn't work either.
+so i added them into the virtual host config file as pythonoption  
+directives, again with no luck.
+i'm sure the error has to do with mod_python since the code in the  
+python script works if run through the cli, but i am not sure and i've  
+been pulling my hair out about this all day.
+
+the relevant part of the apache config is shown below:
+<Location /cdrs>
+         Options Indexes FollowSymLinks MultiViews
+         SetHandler mod_python
+         PythonPath "['/var/www/freeswitch'] + sys.path"
+         PythonHandler freeswitch.cdrs
+         PythonOption ORACLE_HOME /usr/lib/oracle/10.2.0.4/client64
+         PythonOption PYTHON_EGG_CACHE /tmp/egg_basket
+         PythonOption LD_LIBRARY_PATH /usr/lib/oracle/10.2.0.4/ 
+client64/lib
+</Location>
+
+From graham.dumpleton at gmail.com  Tue Nov 25 18:06:50 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Tue Nov 25 18:07:42 2008
+Subject: [mod_python] environment variables lost along the way
+In-Reply-To: <B8B326E4-58F7-4E12-959F-9F1663C20B13@wcgltd.com>
+References: <B8B326E4-58F7-4E12-959F-9F1663C20B13@wcgltd.com>
+Message-ID: <88e286470811251506w11785861h4b638d621d46a238@mail.gmail.com>
+
+2008/11/26 Josh Forman <jforman@wcgltd.com>:
+> hi.  i've been working with modpython 3.3 on ubuntu 8.10 with python 2.5.
+> i have a problem where, using a python module works in the python cli
+> without doing anything special, but not in a script being run through
+> apache.
+> the module is cx_Oracle, and the error logs complain about being unable to
+> acquire Oracle environment handle, and thus far everything i've read about
+> this error is related to environmental variables needing to be set to
+> something in particular.  so i have them set at boot by defining them in
+> /etc/profile.   that didn't work.
+
+Apache startup wouldn't use that, so don't expect it would work.
+
+You may have more luck putting it in 'envvars' file in same directory
+as httpd binary. This is presuming you are using Apache compiled from
+source code. If using package Apache that file will not exist as they
+generally do things their own way.
+
+> so i added them into the script being run by assigning them through
+> os.environ before i import cx_Oracle.
+
+That should work. Did you restart Apache after making change to script?
+
+> that didn't work either.
+> so i added them into the virtual host config file as pythonoption
+> directives, again with no luck.
+
+That will not work, and neither will using SetEnv directive.
+
+Graham
+
+> i'm sure the error has to do with mod_python since the code in the python
+> script works if run through the cli, but i am not sure and i've been pulling
+> my hair out about this all day.
+>
+> the relevant part of the apache config is shown below:
+> <Location /cdrs>
+>        Options Indexes FollowSymLinks MultiViews
+>        SetHandler mod_python
+>        PythonPath "['/var/www/freeswitch'] + sys.path"
+>        PythonHandler freeswitch.cdrs
+>        PythonOption ORACLE_HOME /usr/lib/oracle/10.2.0.4/client64
+>        PythonOption PYTHON_EGG_CACHE /tmp/egg_basket
+>        PythonOption LD_LIBRARY_PATH /usr/lib/oracle/10.2.0.4/client64/lib
+> </Location>
+>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+From graham.dumpleton at gmail.com  Tue Nov 25 18:10:34 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Tue Nov 25 18:10:36 2008
+Subject: [mod_python] mod_python problem in Slackware
+In-Reply-To: <ce2f2ce20811251033s2605afe5r7ca6d88a156d7cb7@mail.gmail.com>
+References: <ce2f2ce20811251033s2605afe5r7ca6d88a156d7cb7@mail.gmail.com>
+Message-ID: <88e286470811251510x47593949o5749a25ea80704be@mail.gmail.com>
+
+2008/11/26 Luis P. Mendes <luislupe@gmail.com>:
+> Hi,
+>
+>
+> I'm trying to install mod_python in Slack 12.1, but have some
+> difficulties.
+>
+> mod_python: 3.3.1
+> apache: default (httpd-2.2.8), also tried with 2.2.9
+>
+> when configuring mod_python for installation: ./configure
+> --with-apxs=/usr/sbin/apxs or
+> ./configure --with-apxs=/usr/sbin/apxs --includedir=/usr/include/httpd/
+>
+> it returns the error:
+> checking Apache version... /usr/sbin/httpd: symbol lookup error:
+> /usr/sbin/ httpd: undefined symbol: apr_ldap_ssl_init
+>
+> this is equivalent to when I issue the comand: # /usr/sbin/httpd -v
+> /usr/sbin/httpd: symbol lookup error: /usr/sbin/httpd: undefined symbol:
+> apr_ldap_ssl_init
+
+If this doesn't work, especially when mod_python not even installed,
+then it is a problem with your Apache installation. Trying commenting
+out loading of mod_auth_ldap in Apache configuration.
+
+Graham
+
+> I reinstalled apr and apr-util packages:  apr-1.2.12-i486-1 and apr-
+> util-1.2.12-i486-1, but the problem remains.
+>
+>
+> Is it only with my installation? Is there any clue on how to solve this
+> issue?
+>
+>
+> Luis
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+From cristian.re at gmail.com  Wed Nov 26 06:12:49 2008
+From: cristian.re at gmail.com (Cristian Re)
+Date: Wed Nov 26 06:12:55 2008
+Subject: [mod_python] Cookies
+Message-ID: <98f794b70811260312q3234055do270c623f08c978dd@mail.gmail.com>
+
+Hello, I have a problem with cookies.
+I have a site who makes some cookies in a python cgi using
+Cookie.SimpleCookie().
+Now I want to introduce a script handled by mod_python but i didn't idea how
+to read the cookies.
+I have imported the Cookie module:
+
+from mod_python import Cookie
+
+and in the function i did:
+
+cookies = Cookie.get_cookies(req)
+
+but cookies is always an empty dictionary
+
+Cristian
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081126/0de22bd9/attachment.html
+From graham.dumpleton at gmail.com  Wed Nov 26 06:18:54 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed Nov 26 06:19:03 2008
+Subject: [mod_python] Cookies
+In-Reply-To: <98f794b70811260312q3234055do270c623f08c978dd@mail.gmail.com>
+References: <98f794b70811260312q3234055do270c623f08c978dd@mail.gmail.com>
+Message-ID: <88e286470811260318s7a139dc6s4c665f7489a54c3a@mail.gmail.com>
+
+2008/11/26 Cristian Re <cristian.re@gmail.com>:
+> Hello, I have a problem with cookies.
+> I have a site who makes some cookies in a python cgi using
+> Cookie.SimpleCookie().
+> Now I want to introduce a script handled by mod_python but i didn't idea how
+> to read the cookies.
+> I have imported the Cookie module:
+>
+> from mod_python import Cookie
+>
+> and in the function i did:
+>
+> cookies = Cookie.get_cookies(req)
+>
+> but cookies is always an empty dictionary
+
+This only reads the cookies if set. How are you setting them in the first place?
+
+Have you tried examples as written in:
+
+  http://www.modpython.org/live/current/doc-html/pyapi-cookie-example.html
+
+See also:
+
+  http://webpython.codepoint.net/mod_python_publisher_cookies
+
+Graham
+From cristian.re at gmail.com  Wed Nov 26 06:25:19 2008
+From: cristian.re at gmail.com (Cristian Re)
+Date: Wed Nov 26 06:25:23 2008
+Subject: [mod_python] Cookies
+In-Reply-To: <88e286470811260318s7a139dc6s4c665f7489a54c3a@mail.gmail.com>
+References: <98f794b70811260312q3234055do270c623f08c978dd@mail.gmail.com>
+	<88e286470811260318s7a139dc6s4c665f7489a54c3a@mail.gmail.com>
+Message-ID: <98f794b70811260325q33db18afp3b871f47d9c2bcac@mail.gmail.com>
+
+2008/11/26 Graham Dumpleton <graham.dumpleton@gmail.com>
+
+> This only reads the cookies if set. How are you setting them in the first
+> place?
+>
+> Have you tried examples as written in:
+>
+>  http://www.modpython.org/live/current/doc-html/pyapi-cookie-example.html
+>
+> See also:
+>
+>  http://webpython.codepoint.net/mod_python_publisher_cookies
+>
+> Graham
+>
+
+
+I set the cookies in a .cgi write in python some like:
+
+import Cookie
+
+cook = Cookie.SimpleCookie()
+cook["test"] = "test"
+print cook
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20081126/8a6b1288/attachment-0001.html
+From graham.dumpleton at gmail.com  Wed Nov 26 06:29:19 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Wed Nov 26 06:29:22 2008
+Subject: [mod_python] Cookies
+In-Reply-To: <98f794b70811260325q33db18afp3b871f47d9c2bcac@mail.gmail.com>
+References: <98f794b70811260312q3234055do270c623f08c978dd@mail.gmail.com>
+	<88e286470811260318s7a139dc6s4c665f7489a54c3a@mail.gmail.com>
+	<98f794b70811260325q33db18afp3b871f47d9c2bcac@mail.gmail.com>
+Message-ID: <88e286470811260329y4ebb272dh89bc91c3dafbdb2@mail.gmail.com>
+
+2008/11/26 Cristian Re <cristian.re@gmail.com>:
+>
+>
+> 2008/11/26 Graham Dumpleton <graham.dumpleton@gmail.com>
+>>
+>> This only reads the cookies if set. How are you setting them in the first
+>> place?
+>>
+>> Have you tried examples as written in:
+>>
+>>  http://www.modpython.org/live/current/doc-html/pyapi-cookie-example.html
+>>
+>> See also:
+>>
+>>  http://webpython.codepoint.net/mod_python_publisher_cookies
+>>
+>> Graham
+>
+>
+> I set the cookies in a .cgi write in python some like:
+>
+> import Cookie
+>
+> cook = Cookie.SimpleCookie()
+> cook["test"] = "test"
+> print cook
+
+That doesn't mean that another URL will automatically get it. What was
+the path and domain of the original cookie? If the path is restrictive
+may only go to same URL and not others on same site.
+
+Perhaps post the response headers from CGI script showing cookie being
+set, along with what its URL were and then the URL of what the
+mod_python handler is. Also perhaps post the raw cookie header from
+request headers from later. Protect actual host information if it
+matters.
+
+Graham
+From clodoaldo.pinto.neto at gmail.com  Wed Nov 26 06:56:59 2008
+From: clodoaldo.pinto.neto at gmail.com (Clodoaldo Pinto Neto)
+Date: Wed Nov 26 06:57:03 2008
+Subject: [mod_python] Cookies
+In-Reply-To: <98f794b70811260325q33db18afp3b871f47d9c2bcac@mail.gmail.com>
+References: <98f794b70811260312q3234055do270c623f08c978dd@mail.gmail.com>
+	<88e286470811260318s7a139dc6s4c665f7489a54c3a@mail.gmail.com>
+	<98f794b70811260325q33db18afp3b871f47d9c2bcac@mail.gmail.com>
+Message-ID: <a595de7a0811260356j56bd61eet8adab06aa0a5ceaa@mail.gmail.com>
+
+2008/11/26 Cristian Re <cristian.re@gmail.com>:
+>
+>
+> 2008/11/26 Graham Dumpleton <graham.dumpleton@gmail.com>
+>>
+>> This only reads the cookies if set. How are you setting them in the first
+>> place?
+>>
+>> Have you tried examples as written in:
+>>
+>>  http://www.modpython.org/live/current/doc-html/pyapi-cookie-example.html
+>>
+>> See also:
+>>
+>>  http://webpython.codepoint.net/mod_python_publisher_cookies
+
+This one is CGI specific:
+
+http://webpython.codepoint.net/cookies
+
+Regards, Clodoaldo
+
+>>
+>> Graham
+>
+>
+> I set the cookies in a .cgi write in python some like:
+>
+> import Cookie
+>
+> cook = Cookie.SimpleCookie()
+> cook["test"] = "test"
+> print cook
+>
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+>
+From luislupe at gmail.com  Wed Nov 26 09:58:13 2008
+From: luislupe at gmail.com (Luis P. Mendes)
+Date: Wed Nov 26 09:58:16 2008
+Subject: [mod_python] mod_python problem in Slackware
+In-Reply-To: <88e286470811251510x47593949o5749a25ea80704be@mail.gmail.com>
+References: <ce2f2ce20811251033s2605afe5r7ca6d88a156d7cb7@mail.gmail.com>
+	<88e286470811251510x47593949o5749a25ea80704be@mail.gmail.com>
+Message-ID: <ce2f2ce20811260658m2dc66d7ay1bcf879320e6d495@mail.gmail.com>
+
+2008/11/25 Graham Dumpleton <graham.dumpleton@gmail.com>:
+> 2008/11/26 Luis P. Mendes <luislupe@gmail.com>:
+>> Hi,
+>>
+>>
+>> I'm trying to install mod_python in Slack 12.1, but have some
+>> difficulties.
+>>
+>> mod_python: 3.3.1
+>> apache: default (httpd-2.2.8), also tried with 2.2.9
+>>
+>> when configuring mod_python for installation: ./configure
+>> --with-apxs=/usr/sbin/apxs or
+>> ./configure --with-apxs=/usr/sbin/apxs --includedir=/usr/include/httpd/
+>>
+>> it returns the error:
+>> checking Apache version... /usr/sbin/httpd: symbol lookup error:
+>> /usr/sbin/ httpd: undefined symbol: apr_ldap_ssl_init
+>>
+>> this is equivalent to when I issue the comand: # /usr/sbin/httpd -v
+>> /usr/sbin/httpd: symbol lookup error: /usr/sbin/httpd: undefined symbol:
+>> apr_ldap_ssl_init
+>
+> If this doesn't work, especially when mod_python not even installed,
+> then it is a problem with your Apache installation. Trying commenting
+> out loading of mod_auth_ldap in Apache configuration.
+
+Thank you for your support, but the solution I found was in this blog.
+http://beerpla.net/2008/07/29/how-to-fix-symbol-lookup-error-usrsbinhttpd2-
+prefork-undefined-symbol-apr_ldap_ssl_init-2/
+ tried it and httpd works now.
+
+Just had to `ln -sf libaprutil-1.so.0.2.12 libaprutil-1.so.0`
+
+Apparently the link is the same as the old, but httpd now runs.
+
+It seems that the same problem happens in several distribuitions.
+
+
+Luis
+From list at joreybump.com  Wed Nov 26 10:21:05 2008
+From: list at joreybump.com (Jorey Bump)
+Date: Wed Nov 26 10:21:09 2008
+Subject: [mod_python] mod_python problem in Slackware
+In-Reply-To: <ce2f2ce20811260658m2dc66d7ay1bcf879320e6d495@mail.gmail.com>
+References: <ce2f2ce20811251033s2605afe5r7ca6d88a156d7cb7@mail.gmail.com>	<88e286470811251510x47593949o5749a25ea80704be@mail.gmail.com>
+	<ce2f2ce20811260658m2dc66d7ay1bcf879320e6d495@mail.gmail.com>
+Message-ID: <492D6961.2030901@joreybump.com>
+
+Luis P. Mendes wrote, at 11/26/2008 09:58 AM:
+
+>>> I'm trying to install mod_python in Slack 12.1, but have some
+>>> difficulties.
+>>>
+>>> mod_python: 3.3.1
+>>> apache: default (httpd-2.2.8), also tried with 2.2.9
+
+[snip]
+
+> Thank you for your support, but the solution I found was in this blog.
+> http://beerpla.net/2008/07/29/how-to-fix-symbol-lookup-error-usrsbinhttpd2-
+> prefork-undefined-symbol-apr_ldap_ssl_init-2/
+>  tried it and httpd works now.
+> 
+> Just had to `ln -sf libaprutil-1.so.0.2.12 libaprutil-1.so.0`
+> 
+> Apparently the link is the same as the old, but httpd now runs.
+> 
+> It seems that the same problem happens in several distribuitions.
+
+I haven't seen this error. Are you using the httpd 2.2.9 package that is
+available as a security upgrade for Slackware 12.1? It works fine for me
+(I upgraded from the originally supplied httpd 2.2.8 before installing
+mod_python).
+
+
+
+From luislupe at gmail.com  Wed Nov 26 10:31:21 2008
+From: luislupe at gmail.com (Luis P. Mendes)
+Date: Wed Nov 26 10:31:26 2008
+Subject: [mod_python] mod_python problem in Slackware
+In-Reply-To: <492D6961.2030901@joreybump.com>
+References: <ce2f2ce20811251033s2605afe5r7ca6d88a156d7cb7@mail.gmail.com>
+	<88e286470811251510x47593949o5749a25ea80704be@mail.gmail.com>
+	<ce2f2ce20811260658m2dc66d7ay1bcf879320e6d495@mail.gmail.com>
+	<492D6961.2030901@joreybump.com>
+Message-ID: <ce2f2ce20811260731m78bb279dn30f05875f2197006@mail.gmail.com>
+
+2008/11/26 Jorey Bump <list@joreybump.com>:
+> Luis P. Mendes wrote, at 11/26/2008 09:58 AM:
+>
+>>>> I'm trying to install mod_python in Slack 12.1, but have some
+>>>> difficulties.
+>>>>
+>>>> mod_python: 3.3.1
+>>>> apache: default (httpd-2.2.8), also tried with 2.2.9
+>
+> [snip]
+>
+>> Thank you for your support, but the solution I found was in this blog.
+>> http://beerpla.net/2008/07/29/how-to-fix-symbol-lookup-error-usrsbinhttpd2-
+>> prefork-undefined-symbol-apr_ldap_ssl_init-2/
+>>  tried it and httpd works now.
+>>
+>> Just had to `ln -sf libaprutil-1.so.0.2.12 libaprutil-1.so.0`
+>>
+>> Apparently the link is the same as the old, but httpd now runs.
+>>
+>> It seems that the same problem happens in several distribuitions.
+>
+> I haven't seen this error. Are you using the httpd 2.2.9 package that is
+> available as a security upgrade for Slackware 12.1? It works fine for me
+> (I upgraded from the originally supplied httpd 2.2.8 before installing
+> mod_python).
+
+I tried with default version 2.2.8 and after with 2.2.9 as I said in
+the first post.
+
+Why does this happen I don't know but in that blog I found out it's
+not only with me.
+
+Several people, several distribuitions.
+
+Luis
+From pauljherring at gmail.com  Thu Nov 27 23:17:59 2008
+From: pauljherring at gmail.com (Paul Herring)
+Date: Thu Nov 27 23:18:06 2008
+Subject: [mod_python] Cross compiling mod_python
+Message-ID: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+
+Forgive me if this either
+1) has been asked before, but I've found nothing on google
+(<http://www.google.co.uk/search?q=inurl%3Ahttp%3A//www.modpython.org/pipermail/mod_python+cross+compilation>
+for example, along with general searches involving the terms
+'mod_python', 'module', 'apache', 'apxs', and 'cross-compile'.)
+2) is off topic, in which case I'd be grateful for pointers to the
+right place to ask.
+
+I'm cross-compiling a system, and have successfully (after a steep
+learning curve) managed to get both python and apache to compile to
+the target system, however I've hit a barrier when trying to
+cross-compile mod-python.
+
+After examining the error messages (no apxs, can't find the apache
+config when the target version of apxs is supplied) and the configure
+script itself, it would appear that the configure process requires
+output from pre-existing binaries.
+
+Now since I'm cross-compiling, the target binaries aren't necessarily
+able to run on the compiling system (in this case they can, but , for
+example, apxs is expecting a configuration file in a place where it
+doesn't exist on the build system,) so the configure script cannot
+really be expected to run them, but I cannot find any way of
+overriding the need to run the binaries (unlike, say, apache where you
+can supply expected answers/override this behaviour on the ./configure
+invocation.)
+
+Am I missing something rather obvious in how to cross-compile this
+module, or do I have to resort to 'tweaking' the configure script so
+that I can override this behaviour?
+
+Apologies for the lack of detail for the moment (especially version
+numbers, command line invocations and output/error messages;) I'm not
+at work where the system is. I can provide more detail if required,
+and will probably follow up this message when I do get to work.
+
+TIA.
+
+-- 
+PJH
+From graham.dumpleton at gmail.com  Thu Nov 27 23:33:41 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Thu Nov 27 23:33:46 2008
+Subject: [mod_python] Cross compiling mod_python
+In-Reply-To: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+References: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+Message-ID: <88e286470811272033l345691ehd8643b434a307a0a@mail.gmail.com>
+
+2008/11/28 Paul Herring <pauljherring@gmail.com>:
+> Forgive me if this either
+> 1) has been asked before, but I've found nothing on google
+> (<http://www.google.co.uk/search?q=inurl%3Ahttp%3A//www.modpython.org/pipermail/mod_python+cross+compilation>
+> for example, along with general searches involving the terms
+> 'mod_python', 'module', 'apache', 'apxs', and 'cross-compile'.)
+> 2) is off topic, in which case I'd be grateful for pointers to the
+> right place to ask.
+>
+> I'm cross-compiling a system, and have successfully (after a steep
+> learning curve) managed to get both python and apache to compile to
+> the target system, however I've hit a barrier when trying to
+> cross-compile mod-python.
+>
+> After examining the error messages (no apxs, can't find the apache
+> config when the target version of apxs is supplied) and the configure
+> script itself, it would appear that the configure process requires
+> output from pre-existing binaries.
+>
+> Now since I'm cross-compiling, the target binaries aren't necessarily
+> able to run on the compiling system (in this case they can, but , for
+> example, apxs is expecting a configuration file in a place where it
+> doesn't exist on the build system,) so the configure script cannot
+> really be expected to run them, but I cannot find any way of
+> overriding the need to run the binaries (unlike, say, apache where you
+> can supply expected answers/override this behaviour on the ./configure
+> invocation.)
+>
+> Am I missing something rather obvious in how to cross-compile this
+> module, or do I have to resort to 'tweaking' the configure script so
+> that I can override this behaviour?
+>
+> Apologies for the lack of detail for the moment (especially version
+> numbers, command line invocations and output/error messages;) I'm not
+> at work where the system is. I can provide more detail if required,
+> and will probably follow up this message when I do get to work.
+
+What are you ultimately wanting to run on top of mod_python?
+
+If it is a WSGI capable application you will probably find things a
+lot simpler if you use mod_wsgi. It may not compile out of the box
+either, but may have a much better chance given it is one C code file
+only.
+
+As to mod_python, I'd probably suggest you are going to be on your own
+as far as trying to get it built under a cross compilation environment
+unless someone else has specifically done it.
+
+Graham
+From pauljherring at gmail.com  Thu Nov 27 23:49:10 2008
+From: pauljherring at gmail.com (Paul Herring)
+Date: Thu Nov 27 23:49:13 2008
+Subject: [mod_python] Cross compiling mod_python
+In-Reply-To: <88e286470811272033l345691ehd8643b434a307a0a@mail.gmail.com>
+References: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+	<88e286470811272033l345691ehd8643b434a307a0a@mail.gmail.com>
+Message-ID: <c50ba9940811272049o69a18168r6bdf9ed760b35b21@mail.gmail.com>
+
+On Fri, Nov 28, 2008 at 4:33 AM, Graham Dumpleton
+<graham.dumpleton@gmail.com> wrote:
+> 2008/11/28 Paul Herring <pauljherring@gmail.com>:
+[...]
+>> Am I missing something rather obvious in how to cross-compile this
+>> module, or do I have to resort to 'tweaking' the configure script so
+>> that I can override this behaviour?
+[...]
+
+Many thanks for such a speedy reply Graham...
+
+> What are you ultimately wanting to run on top of mod_python?
+
+Pass, unfortuately. This is work, and I have very little experience
+with python itself. I was merely tasked with getting some more
+software on this other platform, and the requirements (besides apache
+and python itself) included mod_python. I have no real idea what's
+actually going to be using it.
+
+> If it is a WSGI capable application you will probably find things a
+> lot simpler if you use mod_wsgi. It may not compile out of the box
+> either, but may have a much better chance given it is one C code file
+> only.
+
+I'll pass the question on the the relevant parties to see if this will suffice.
+
+> As to mod_python, I'd probably suggest you are going to be on your own
+> as far as trying to get it built under a cross compilation environment
+> unless someone else has specifically done it.
+
+I'll wait and see if anyone else replies to this thread.
+
+Once again, thanks for taking the trouble to reply.
+
+-- 
+PJH
+From pauljherring at gmail.com  Fri Nov 28 03:20:23 2008
+From: pauljherring at gmail.com (Paul Herring)
+Date: Fri Nov 28 03:20:29 2008
+Subject: [mod_python] Re: Cross compiling mod_python
+In-Reply-To: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+References: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+Message-ID: <c50ba9940811280020i677e4a3bi3d301cd1674a8db4@mail.gmail.com>
+
+On Fri, Nov 28, 2008 at 4:17 AM, Paul Herring <pauljherring@gmail.com> wrote:
+[...]
+> Apologies for the lack of detail for the moment (especially version
+> numbers, command line invocations and output/error messages;) I'm not
+> at work where the system is. I can provide more detail if required,
+> and will probably follow up this message when I do get to work.
+
+Following up with some details in case they're useful.
+
+Version of mod_python: 3.3.1
+Apache: 2.2.10
+Python: 2.4.4 (I realise this is an old version, but this was
+requested due to compatibility issues with other software that's
+used.)
+
+configure without apxs:
+------------->8===========
+./configure --build=i586-cross-linux-gnu --host=i686-pc-linux-gnu \
+                --prefix=/f15_nsb
+checking for i686-pc-linux-gnu-gcc... i686-pc-linux-gnu-gcc
+checking for C compiler default output file name... a.out
+checking whether the C compiler works... yes
+checking whether we are cross compiling... yes
+checking for suffix of executables...
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether i686-pc-linux-gnu-gcc accepts -g... yes
+checking for i686-pc-linux-gnu-gcc option to accept ANSI C... none needed
+checking for ar... i686-pc-linux-gnu-ar
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether make sets $(MAKE)... yes
+checking for main in -lm... yes
+checking for an ANSI C-conforming const... yes
+checking your blood pressure... a bit high, but we can proceed
+configure: checking whether apxs is available...
+checking for --with-apxs... no
+checking for apxs in /usr/local/apache/sbin... no
+checking for apxs in your PATH... checking for apxs... no
+checking for apxs2 in your PATH... checking for apxs2... no
+configure: WARNING: **** apxs was not found, DSO compilation will not
+be available.
+configure: WARNING: **** You can use --with-apxs to specify where your apxs is.
+configure: error: Neither static nor DSO option available, there is no
+point in continuing.
+------------->8===========
+
+configure using target version of apxs:
+
+------------->8===========
+./configure --build=i586-cross-linux-gnu --host=i686-pc-linux-gnu \
+                --prefix=/f15_nsb \
+                --with-apxs=/f15_nsb/usr/local/bin/apxs
+checking for i686-pc-linux-gnu-gcc... i686-pc-linux-gnu-gcc
+checking for C compiler default output file name... a.out
+checking whether the C compiler works... yes
+checking whether we are cross compiling... yes
+checking for suffix of executables...
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether i686-pc-linux-gnu-gcc accepts -g... yes
+checking for i686-pc-linux-gnu-gcc option to accept ANSI C... none needed
+checking for ar... i686-pc-linux-gnu-ar
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether make sets $(MAKE)... yes
+checking for main in -lm... yes
+checking for an ANSI C-conforming const... yes
+checking your blood pressure... a bit high, but we can proceed
+configure: checking whether apxs is available...
+checking for --with-apxs... /f15_nsb/usr/local/bin/apxs executable, good
+checking Apache version... cannot open
+/usr/local/conf/build/config_vars.mk: No such file or directory at
+/f15_nsb/usr/local/bin/apxs line 218.
+cannot open /usr/local/conf/build/config_vars.mk: No such file or
+directory at /f15_nsb/usr/local/bin/apxs line 218.
+ running %/% cannot open /usr/local/conf/build/config_vars.mk: No such
+file or directory at /f15_nsb/usr/local/bin/apxs line 218.
+cannot open /usr/local/conf/build/config_vars.mk: No such file or
+directory at /f15_nsb/usr/local/bin/apxs line 218.
+./configure: line 2714: /: is a directory
+
+configure: error: This version of mod_python only works with Apache 2.
+The one you have seems to be .
+------------->8===========
+
+
+-- 
+PJH
+
+http://shabbleland.myminicity.com/tra
+From graham.dumpleton at gmail.com  Fri Nov 28 04:17:03 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Fri Nov 28 04:17:07 2008
+Subject: [mod_python] Re: Cross compiling mod_python
+In-Reply-To: <c50ba9940811280020i677e4a3bi3d301cd1674a8db4@mail.gmail.com>
+References: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+	<c50ba9940811280020i677e4a3bi3d301cd1674a8db4@mail.gmail.com>
+Message-ID: <88e286470811280117rab4fbbep7bb1976cb5daa2fe@mail.gmail.com>
+
+2008/11/28 Paul Herring <pauljherring@gmail.com>:
+> On Fri, Nov 28, 2008 at 4:17 AM, Paul Herring <pauljherring@gmail.com> wrote:
+> [...]
+>> Apologies for the lack of detail for the moment (especially version
+>> numbers, command line invocations and output/error messages;) I'm not
+>> at work where the system is. I can provide more detail if required,
+>> and will probably follow up this message when I do get to work.
+>
+> Following up with some details in case they're useful.
+>
+> Version of mod_python: 3.3.1
+> Apache: 2.2.10
+> Python: 2.4.4 (I realise this is an old version, but this was
+> requested due to compatibility issues with other software that's
+> used.)
+>
+> configure without apxs:
+> ------------->8===========
+> ./configure --build=i586-cross-linux-gnu --host=i686-pc-linux-gnu \
+>                --prefix=/f15_nsb
+> checking for i686-pc-linux-gnu-gcc... i686-pc-linux-gnu-gcc
+> checking for C compiler default output file name... a.out
+> checking whether the C compiler works... yes
+> checking whether we are cross compiling... yes
+> checking for suffix of executables...
+> checking for suffix of object files... o
+> checking whether we are using the GNU C compiler... yes
+> checking whether i686-pc-linux-gnu-gcc accepts -g... yes
+> checking for i686-pc-linux-gnu-gcc option to accept ANSI C... none needed
+> checking for ar... i686-pc-linux-gnu-ar
+> checking for a BSD-compatible install... /usr/bin/install -c
+> checking whether make sets $(MAKE)... yes
+> checking for main in -lm... yes
+> checking for an ANSI C-conforming const... yes
+> checking your blood pressure... a bit high, but we can proceed
+> configure: checking whether apxs is available...
+> checking for --with-apxs... no
+> checking for apxs in /usr/local/apache/sbin... no
+> checking for apxs in your PATH... checking for apxs... no
+> checking for apxs2 in your PATH... checking for apxs2... no
+> configure: WARNING: **** apxs was not found, DSO compilation will not
+> be available.
+> configure: WARNING: **** You can use --with-apxs to specify where your apxs is.
+> configure: error: Neither static nor DSO option available, there is no
+> point in continuing.
+> ------------->8===========
+>
+> configure using target version of apxs:
+>
+> ------------->8===========
+> ./configure --build=i586-cross-linux-gnu --host=i686-pc-linux-gnu \
+>                --prefix=/f15_nsb \
+>                --with-apxs=/f15_nsb/usr/local/bin/apxs
+> checking for i686-pc-linux-gnu-gcc... i686-pc-linux-gnu-gcc
+> checking for C compiler default output file name... a.out
+> checking whether the C compiler works... yes
+> checking whether we are cross compiling... yes
+> checking for suffix of executables...
+> checking for suffix of object files... o
+> checking whether we are using the GNU C compiler... yes
+> checking whether i686-pc-linux-gnu-gcc accepts -g... yes
+> checking for i686-pc-linux-gnu-gcc option to accept ANSI C... none needed
+> checking for ar... i686-pc-linux-gnu-ar
+> checking for a BSD-compatible install... /usr/bin/install -c
+> checking whether make sets $(MAKE)... yes
+> checking for main in -lm... yes
+> checking for an ANSI C-conforming const... yes
+> checking your blood pressure... a bit high, but we can proceed
+> configure: checking whether apxs is available...
+> checking for --with-apxs... /f15_nsb/usr/local/bin/apxs executable, good
+> checking Apache version... cannot open
+> /usr/local/conf/build/config_vars.mk: No such file or directory at
+> /f15_nsb/usr/local/bin/apxs line 218.
+> cannot open /usr/local/conf/build/config_vars.mk: No such file or
+> directory at /f15_nsb/usr/local/bin/apxs line 218.
+>  running %/% cannot open /usr/local/conf/build/config_vars.mk: No such
+> file or directory at /f15_nsb/usr/local/bin/apxs line 218.
+> cannot open /usr/local/conf/build/config_vars.mk: No such file or
+> directory at /f15_nsb/usr/local/bin/apxs line 218.
+> ./configure: line 2714: /: is a directory
+
+This indicates that the apxs installation you are trying to use is
+broken in some way. Specifically, appears to be looking in a location
+for its files where they aren't.
+
+On the command line run:
+
+  /f15_nsb/usr/local/bin/apxs -q LIBDIR
+
+If that errors, then definitely broken.
+
+Graham
+
+
+> configure: error: This version of mod_python only works with Apache 2.
+> The one you have seems to be .
+> ------------->8===========
+>
+>
+> --
+> PJH
+>
+> http://shabbleland.myminicity.com/tra
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+From pauljherring at gmail.com  Fri Nov 28 05:10:25 2008
+From: pauljherring at gmail.com (Paul Herring)
+Date: Fri Nov 28 05:10:28 2008
+Subject: [mod_python] Re: Cross compiling mod_python
+In-Reply-To: <88e286470811280117rab4fbbep7bb1976cb5daa2fe@mail.gmail.com>
+References: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+	<c50ba9940811280020i677e4a3bi3d301cd1674a8db4@mail.gmail.com>
+	<88e286470811280117rab4fbbep7bb1976cb5daa2fe@mail.gmail.com>
+Message-ID: <c50ba9940811280210j7499f149ra28a6718bcba2503@mail.gmail.com>
+
+On Fri, Nov 28, 2008 at 9:17 AM, Graham Dumpleton
+<graham.dumpleton@gmail.com> wrote:
+[...]
+>> cannot open /usr/local/conf/build/config_vars.mk: No such file or
+>> directory at /f15_nsb/usr/local/bin/apxs line 218.
+>> ./configure: line 2714: /: is a directory
+>
+> This indicates that the apxs installation you are trying to use is
+> broken in some way.
+
+It's not broken. It also shouldn't be executed as part of the build process....
+
+> Specifically, appears to be looking in a location
+> for its files where they aren't.
+
+Indeed.
+
+Assuming that I should be/could run  target binaries on the host
+system, apxs needs to look in the target directory of
+/f15_nsb/usr/local/conf/build/config_vars.mk, for the cross compile to
+work ( - instead it's looking in the host directory.)  Yes I realise
+that apxs is a perl script, but further along in the configure script
+it attempts to run httpd. Something that almost certainly shouldn't be
+executed on the host during a cross compile.
+
+This goes back to my earlier comment about the ./configure script
+trying to run the target binaries/whatever.
+
+> On the command line run:
+>
+>  /f15_nsb/usr/local/bin/apxs -q LIBDIR
+
+On the host system:
+
+=====>8-----
+cannot open /usr/local/conf/build/config_vars.mk: No such file or
+directory at /f15_nsb/usr/local/bin/apxs line 218.
+=====>8-----
+
+> If that errors, then definitely broken.
+
+It's not broken, it's just being run under circumstances it shouldn't.
+It works fine when run on the target.
+
+In summary, during the build process:
+
+1) I can't use the target version of apxs, since it's not running on
+the target (and cannot find the files it needs in the places it
+expects them.)
+2) I can't use the local/host version of apxs, since it doesn't refer
+to the version of apache that will be on the target system.
+
+I'm currently looking into modifying configure.in to be able to supply
+overrides to everything that currently uses target binaries, in much
+the same way that httpd does.
+
+-- 
+PJH
+From graham.dumpleton at gmail.com  Fri Nov 28 07:07:54 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Fri Nov 28 07:08:00 2008
+Subject: [mod_python] Re: Cross compiling mod_python
+In-Reply-To: <c50ba9940811280210j7499f149ra28a6718bcba2503@mail.gmail.com>
+References: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+	<c50ba9940811280020i677e4a3bi3d301cd1674a8db4@mail.gmail.com>
+	<88e286470811280117rab4fbbep7bb1976cb5daa2fe@mail.gmail.com>
+	<c50ba9940811280210j7499f149ra28a6718bcba2503@mail.gmail.com>
+Message-ID: <88e286470811280407h32ca52fdt921808b2e8c2dffb@mail.gmail.com>
+
+2008/11/28 Paul Herring <pauljherring@gmail.com>:
+> On Fri, Nov 28, 2008 at 9:17 AM, Graham Dumpleton
+> <graham.dumpleton@gmail.com> wrote:
+> [...]
+>>> cannot open /usr/local/conf/build/config_vars.mk: No such file or
+>>> directory at /f15_nsb/usr/local/bin/apxs line 218.
+>>> ./configure: line 2714: /: is a directory
+>>
+>> This indicates that the apxs installation you are trying to use is
+>> broken in some way.
+>
+> It's not broken. It also shouldn't be executed as part of the build process....
+
+It has to be executed. You seem to fail to understand that 'apxs' is
+the Apache tool for building Apache modules. You therefore can't avoid
+it being used.
+
+You would need to fudge a version of 'apxs' which is capable of doing
+cross compilation. This will likely be non trivial as it is more than
+just configuration but also it usage of 'libtool', which would also
+need to be made cross compilation aware.
+
+The 'httpd' is executed only to determine Apache version, that could
+be hacked around, but you can't avoid 'apxs'. Even if you avoid it in
+'configure' script, it is still used from Makefile to do the build.
+
+Graham
+
+>> Specifically, appears to be looking in a location
+>> for its files where they aren't.
+>
+> Indeed.
+>
+> Assuming that I should be/could run  target binaries on the host
+> system, apxs needs to look in the target directory of
+> /f15_nsb/usr/local/conf/build/config_vars.mk, for the cross compile to
+> work ( - instead it's looking in the host directory.)  Yes I realise
+> that apxs is a perl script, but further along in the configure script
+> it attempts to run httpd. Something that almost certainly shouldn't be
+> executed on the host during a cross compile.
+>
+> This goes back to my earlier comment about the ./configure script
+> trying to run the target binaries/whatever.
+>
+>> On the command line run:
+>>
+>>  /f15_nsb/usr/local/bin/apxs -q LIBDIR
+>
+> On the host system:
+>
+> =====>8-----
+> cannot open /usr/local/conf/build/config_vars.mk: No such file or
+> directory at /f15_nsb/usr/local/bin/apxs line 218.
+> =====>8-----
+>
+>> If that errors, then definitely broken.
+>
+> It's not broken, it's just being run under circumstances it shouldn't.
+> It works fine when run on the target.
+>
+> In summary, during the build process:
+>
+> 1) I can't use the target version of apxs, since it's not running on
+> the target (and cannot find the files it needs in the places it
+> expects them.)
+> 2) I can't use the local/host version of apxs, since it doesn't refer
+> to the version of apache that will be on the target system.
+>
+> I'm currently looking into modifying configure.in to be able to supply
+> overrides to everything that currently uses target binaries, in much
+> the same way that httpd does.
+>
+> --
+> PJH
+>
+From pauljherring at gmail.com  Fri Nov 28 07:46:01 2008
+From: pauljherring at gmail.com (Paul Herring)
+Date: Fri Nov 28 07:46:08 2008
+Subject: [mod_python] Re: Cross compiling mod_python
+In-Reply-To: <88e286470811280407h32ca52fdt921808b2e8c2dffb@mail.gmail.com>
+References: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+	<c50ba9940811280020i677e4a3bi3d301cd1674a8db4@mail.gmail.com>
+	<88e286470811280117rab4fbbep7bb1976cb5daa2fe@mail.gmail.com>
+	<c50ba9940811280210j7499f149ra28a6718bcba2503@mail.gmail.com>
+	<88e286470811280407h32ca52fdt921808b2e8c2dffb@mail.gmail.com>
+Message-ID: <c50ba9940811280446u7740f673t1483257589e7c5f5@mail.gmail.com>
+
+On Fri, Nov 28, 2008 at 12:07 PM, Graham Dumpleton
+<graham.dumpleton@gmail.com> wrote:
+> > [...apxs...]
+> It has to be executed. You seem to fail to understand that 'apxs' is
+> the Apache tool for building Apache modules. You therefore can't avoid
+> it being used.
+[...]
+
+So basically I need a cross-platform version of apxs, and am thus on
+the wrong list.
+
+Ta for your input.
+
+-- 
+PJH
+
+http://shabbleland.myminicity.com/tra
+From graham.dumpleton at gmail.com  Fri Nov 28 15:50:58 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Fri Nov 28 15:51:01 2008
+Subject: [mod_python] Re: Cross compiling mod_python
+In-Reply-To: <c50ba9940811280446u7740f673t1483257589e7c5f5@mail.gmail.com>
+References: <c50ba9940811272017j51b6ed12ibbc456cbc197d12e@mail.gmail.com>
+	<c50ba9940811280020i677e4a3bi3d301cd1674a8db4@mail.gmail.com>
+	<88e286470811280117rab4fbbep7bb1976cb5daa2fe@mail.gmail.com>
+	<c50ba9940811280210j7499f149ra28a6718bcba2503@mail.gmail.com>
+	<88e286470811280407h32ca52fdt921808b2e8c2dffb@mail.gmail.com>
+	<c50ba9940811280446u7740f673t1483257589e7c5f5@mail.gmail.com>
+Message-ID: <88e286470811281250q34dff458j2bef567951e6d6d4@mail.gmail.com>
+
+2008/11/28 Paul Herring <pauljherring@gmail.com>:
+> On Fri, Nov 28, 2008 at 12:07 PM, Graham Dumpleton
+> <graham.dumpleton@gmail.com> wrote:
+>> > [...apxs...]
+>> It has to be executed. You seem to fail to understand that 'apxs' is
+>> the Apache tool for building Apache modules. You therefore can't avoid
+>> it being used.
+> [...]
+>
+> So basically I need a cross-platform version of apxs, and am thus on
+> the wrong list.
+>
+> Ta for your input.
+
+You will also need to resolve issue that 'python' executable is called
+from 'configure' as well to get compilation config out of the Python
+installation. This config needs to be from target Python, but
+obviously you can't run that on build box either.
+
+Graham
+From luke at demonware.net  Fri Nov 28 17:35:47 2008
+From: luke at demonware.net (Luke Burden)
+Date: Fri Nov 28 17:35:52 2008
+Subject: [mod_python] Mod-Python / MySQL client libs causing apache to
+	seg-fault
+Message-ID: <fb502710811281435l10a55aefp34c7d3212c87aaab@mail.gmail.com>
+
+Hi Graham,
+
+I'm a developer for a internally facing web application, which uses
+apache + mod_python + mysql.
+As the application is being increasingly used, I've noticed several
+errors occurring sporadically, but regularly enough to be cause for
+concern.  Concern morphed into alarm when I found I could reproduce
+the problems by quickly and repeatedly refreshing a page that causes a
+number of queries to be executed!
+
+The problem manifests itself in either bad behavior from the python
+MySQLDb module:
+
+InterfaceError: (0, '')
+OperationalError: (2013, 'Lost connection to MySQL server during query')
+ProgrammingError: (2014, "Commands out of sync; you can't run this
+command now") (<- might be unrelated)
+.. and NoneType result sets where the data is basically not there,
+when it should be.
+
+Or in apache seg-faulting:
+
+[Fri Nov 28 21:34:42 2008] [notice] mod_python: Creating 8 session
+mutexes based on 6 max processes and 25 max threads.
+[Fri Nov 28 21:34:42 2008] [notice] mod_python: using mutex_directory /tmp
+[Fri Nov 28 21:34:42 2008] [notice] Apache/2.2.4 (Ubuntu)
+mod_python/3.3.1 Python/2.5.1 configured -- resuming normal operations
+[Fri Nov 28 21:35:03 2008] [error] [client 192.168.179.1] File does
+not exist: /var/www/favicon.ico
+[Fri Nov 28 21:35:04 2008] [error] [client 192.168.179.1] File does
+not exist: /var/www/favicon.ico
+[Fri Nov 28 21:35:06 2008] [error] [client 192.168.179.1] File does
+not exist: /var/www/favicon.ico
+[Fri Nov 28 21:35:06 2008] [error] [client 192.168.179.1] File does
+not exist: /var/www/favicon.ico
+[Fri Nov 28 21:35:07 2008] [notice] child pid 17523 exit signal
+Segmentation fault (11)
+[Fri Nov 28 21:35:07 2008] [error] [client 192.168.179.1] File does
+not exist: /var/www/favicon.ico
+[Fri Nov 28 21:35:07 2008] [error] [client 192.168.179.1] File does
+not exist: /var/www/favicon.ico
+[Fri Nov 28 21:35:08 2008] [error] [client 192.168.179.1] File does
+not exist: /var/www/favicon.ico
+[Fri Nov 28 21:35:15 2008] [notice] child pid 17525 exit signal
+Segmentation fault (11)
+[Fri Nov 28 21:35:15 2008] [notice] child pid 17579 exit signal
+Segmentation fault (11)
+[Fri Nov 28 21:35:16 2008] [error] [client 192.168.179.1] File does
+not exist: /var/www/favicon.ico
+[Fri Nov 28 21:35:17 2008] [notice] child pid 17607 exit signal
+Segmentation fault (11)
+[Fri Nov 28 21:35:19 2008] [error] [client 192.168.179.1] File does
+not exist: /var/www/favicon.ico
+... etc ...
+
+A closer look at one of the segmentation faults:
+
+*** glibc detected *** /usr/sbin/apache2: double free or corruption (!prev):
+0x000000000212a1c0 ***
+======= Backtrace: =========
+/lib/libc.so.6[0x2b6915ed7b0a]
+/lib/libc.so.6(cfree+0x8c)[0x2b6915edb6fc]
+/usr/lib/libmysqlclient_r.so.15(vio_delete+0x19)[0x2aaaadef6ff9]
+/usr/lib/libmysqlclient_r.so.15(end_server+0x2f)[0x2aaaadef2eff]
+/usr/lib/libmysqlclient_r.so.15(cli_safe_read+0x2b)[0x2aaaadef305b]
+/usr/lib/libmysqlclient_r.so.15(cli_advanced_command+0x195)[0x2aaaadef5675]
+/usr/lib/libmysqlclient_r.so.15(mysql_ping+0x31)[0x2aaaadec71a1]
+/var/lib/python-support/python2.5/_mysql.so[0x2aaaadc5e7e6]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6335)[0x2b691a2ccd15]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x553d)[0x2b691a2cbf1d]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6564)[0x2b691a2ccf44]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6564)[0x2b691a2ccf44]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x553d)[0x2b691a2cbf1d]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x553d)[0x2b691a2cbf1d]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6564)[0x2b691a2ccf44]
+/usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+/usr/lib/libpython2.5.so.1.0[0x2b691a26dc5e]
+/usr/lib/libpython2.5.so.1.0(PyObject_Call+0x13)[0x2b691a24c323]
+/usr/lib/libpython2.5.so.1.0[0x2b691a253aad]
+/usr/lib/libpython2.5.so.1.0(PyObject_Call+0x13)[0x2b691a24c323]
+/usr/lib/libpython2.5.so.1.0[0x2b691a24c547]
+/usr/lib/libpython2.5.so.1.0(PyObject_CallMethod+0xc0)[0x2b691a24e610]
+/usr/lib/apache2/modules/mod_python.so[0x2b6919ff91bc]
+/usr/lib/apache2/modules/mod_python.so[0x2b6919ffb687]
+/usr/sbin/apache2(ap_run_handler+0x7a)[0x437c4a]
+/usr/sbin/apache2(ap_invoke_handler+0x7c)[0x43affc]
+/usr/sbin/apache2(ap_process_request+0x178)[0x447248]
+/usr/sbin/apache2[0x44468c]
+/usr/sbin/apache2(ap_run_process_connection+0x72)[0x43ec22]
+/usr/sbin/apache2[0x44b696]
+/lib/libpthread.so.0[0x2b6915a4d317]
+/lib/libc.so.6(clone+0x6d)[0x2b6915f39d5d]
+======= Memory map: ========
+[Fri Nov 28 02:52:57 2008] [notice] child pid 28387 exit signal Aborted (6)
+
+Seems to clearly point the finger at the mysql client library.
+
+Google shows a few similar looking cases, usually solved by removing
+PHP, which in this case is not installed.  Nor is expat XML parser
+used.  Nor mhash.so. :)
+
+The problem occurs on both Ubuntu 7.10, and 8.04 installs using the
+default packages for apache, python, mod python, mysql.  From the 7.10
+instance:
+
+luke@luke-ubuntu:~$ dpkg -l | grep mysql
+ii  libdbd-mysql-perl                          4.004-2
+            A Perl5 database interface to the MySQL data
+ii  libmysqlclient15off                        5.0.45-1ubuntu3.3
+            MySQL database client library
+ii  mysql-client-5.0                           5.0.45-1ubuntu3.3
+            MySQL database client binaries
+ii  mysql-common                               5.0.45-1ubuntu3.3
+            MySQL database common files
+ii  mysql-server                               5.0.45-1ubuntu3.3
+            MySQL database server (meta package dependin
+ii  mysql-server-5.0                           5.0.45-1ubuntu3.3
+            MySQL database server binaries
+ii  python-mysqldb                             1.2.2-3ubuntu1
+            A Python interface to MySQL
+
+luke@luke-ubuntu:~$ dpkg -l | grep mod-python
+ii  libapache2-mod-python                      3.3.1-2
+            Apache 2 module that embeds Python within th
+
+All running on Python 2.5.
+
+I'm thinking of getting the source and building the libmysqlclient
+myself now, but I'm hoping you've got some wise suggestions for me.
+
+Thanks very much for your time!
+
+Regards,
+
+Luke
+From graham.dumpleton at gmail.com  Fri Nov 28 17:41:55 2008
+From: graham.dumpleton at gmail.com (Graham Dumpleton)
+Date: Fri Nov 28 17:42:00 2008
+Subject: [mod_python] Mod-Python / MySQL client libs causing apache to
+	seg-fault
+In-Reply-To: <fb502710811281435l10a55aefp34c7d3212c87aaab@mail.gmail.com>
+References: <fb502710811281435l10a55aefp34c7d3212c87aaab@mail.gmail.com>
+Message-ID: <88e286470811281441l7473a875gca2e9fa2bd49acd4@mail.gmail.com>
+
+Would be wise to ensure using recent MySQL client libraries and Python
+wrappers if need be, as there are some dodgy versions that have been
+known to cause problems under mod_python.
+
+Other than that, since you seemed to have checked PHP conflict
+problems, only thing can mention is to make sure you don't have any
+other Apache modules installed with use MySQL such as a
+mod_auth_mysql.
+
+Graham
+
+2008/11/29 Luke Burden <luke@demonware.net>:
+> Hi Graham,
+>
+> I'm a developer for a internally facing web application, which uses
+> apache + mod_python + mysql.
+> As the application is being increasingly used, I've noticed several
+> errors occurring sporadically, but regularly enough to be cause for
+> concern.  Concern morphed into alarm when I found I could reproduce
+> the problems by quickly and repeatedly refreshing a page that causes a
+> number of queries to be executed!
+>
+> The problem manifests itself in either bad behavior from the python
+> MySQLDb module:
+>
+> InterfaceError: (0, '')
+> OperationalError: (2013, 'Lost connection to MySQL server during query')
+> ProgrammingError: (2014, "Commands out of sync; you can't run this
+> command now") (<- might be unrelated)
+> .. and NoneType result sets where the data is basically not there,
+> when it should be.
+>
+> Or in apache seg-faulting:
+>
+> [Fri Nov 28 21:34:42 2008] [notice] mod_python: Creating 8 session
+> mutexes based on 6 max processes and 25 max threads.
+> [Fri Nov 28 21:34:42 2008] [notice] mod_python: using mutex_directory /tmp
+> [Fri Nov 28 21:34:42 2008] [notice] Apache/2.2.4 (Ubuntu)
+> mod_python/3.3.1 Python/2.5.1 configured -- resuming normal operations
+> [Fri Nov 28 21:35:03 2008] [error] [client 192.168.179.1] File does
+> not exist: /var/www/favicon.ico
+> [Fri Nov 28 21:35:04 2008] [error] [client 192.168.179.1] File does
+> not exist: /var/www/favicon.ico
+> [Fri Nov 28 21:35:06 2008] [error] [client 192.168.179.1] File does
+> not exist: /var/www/favicon.ico
+> [Fri Nov 28 21:35:06 2008] [error] [client 192.168.179.1] File does
+> not exist: /var/www/favicon.ico
+> [Fri Nov 28 21:35:07 2008] [notice] child pid 17523 exit signal
+> Segmentation fault (11)
+> [Fri Nov 28 21:35:07 2008] [error] [client 192.168.179.1] File does
+> not exist: /var/www/favicon.ico
+> [Fri Nov 28 21:35:07 2008] [error] [client 192.168.179.1] File does
+> not exist: /var/www/favicon.ico
+> [Fri Nov 28 21:35:08 2008] [error] [client 192.168.179.1] File does
+> not exist: /var/www/favicon.ico
+> [Fri Nov 28 21:35:15 2008] [notice] child pid 17525 exit signal
+> Segmentation fault (11)
+> [Fri Nov 28 21:35:15 2008] [notice] child pid 17579 exit signal
+> Segmentation fault (11)
+> [Fri Nov 28 21:35:16 2008] [error] [client 192.168.179.1] File does
+> not exist: /var/www/favicon.ico
+> [Fri Nov 28 21:35:17 2008] [notice] child pid 17607 exit signal
+> Segmentation fault (11)
+> [Fri Nov 28 21:35:19 2008] [error] [client 192.168.179.1] File does
+> not exist: /var/www/favicon.ico
+> ... etc ...
+>
+> A closer look at one of the segmentation faults:
+>
+> *** glibc detected *** /usr/sbin/apache2: double free or corruption (!prev):
+> 0x000000000212a1c0 ***
+> ======= Backtrace: =========
+> /lib/libc.so.6[0x2b6915ed7b0a]
+> /lib/libc.so.6(cfree+0x8c)[0x2b6915edb6fc]
+> /usr/lib/libmysqlclient_r.so.15(vio_delete+0x19)[0x2aaaadef6ff9]
+> /usr/lib/libmysqlclient_r.so.15(end_server+0x2f)[0x2aaaadef2eff]
+> /usr/lib/libmysqlclient_r.so.15(cli_safe_read+0x2b)[0x2aaaadef305b]
+> /usr/lib/libmysqlclient_r.so.15(cli_advanced_command+0x195)[0x2aaaadef5675]
+> /usr/lib/libmysqlclient_r.so.15(mysql_ping+0x31)[0x2aaaadec71a1]
+> /var/lib/python-support/python2.5/_mysql.so[0x2aaaadc5e7e6]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6335)[0x2b691a2ccd15]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x553d)[0x2b691a2cbf1d]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6564)[0x2b691a2ccf44]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6564)[0x2b691a2ccf44]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x553d)[0x2b691a2cbf1d]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x553d)[0x2b691a2cbf1d]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6564)[0x2b691a2ccf44]
+> /usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+> /usr/lib/libpython2.5.so.1.0[0x2b691a26dc5e]
+> /usr/lib/libpython2.5.so.1.0(PyObject_Call+0x13)[0x2b691a24c323]
+> /usr/lib/libpython2.5.so.1.0[0x2b691a253aad]
+> /usr/lib/libpython2.5.so.1.0(PyObject_Call+0x13)[0x2b691a24c323]
+> /usr/lib/libpython2.5.so.1.0[0x2b691a24c547]
+> /usr/lib/libpython2.5.so.1.0(PyObject_CallMethod+0xc0)[0x2b691a24e610]
+> /usr/lib/apache2/modules/mod_python.so[0x2b6919ff91bc]
+> /usr/lib/apache2/modules/mod_python.so[0x2b6919ffb687]
+> /usr/sbin/apache2(ap_run_handler+0x7a)[0x437c4a]
+> /usr/sbin/apache2(ap_invoke_handler+0x7c)[0x43affc]
+> /usr/sbin/apache2(ap_process_request+0x178)[0x447248]
+> /usr/sbin/apache2[0x44468c]
+> /usr/sbin/apache2(ap_run_process_connection+0x72)[0x43ec22]
+> /usr/sbin/apache2[0x44b696]
+> /lib/libpthread.so.0[0x2b6915a4d317]
+> /lib/libc.so.6(clone+0x6d)[0x2b6915f39d5d]
+> ======= Memory map: ========
+> [Fri Nov 28 02:52:57 2008] [notice] child pid 28387 exit signal Aborted (6)
+>
+> Seems to clearly point the finger at the mysql client library.
+>
+> Google shows a few similar looking cases, usually solved by removing
+> PHP, which in this case is not installed.  Nor is expat XML parser
+> used.  Nor mhash.so. :)
+>
+> The problem occurs on both Ubuntu 7.10, and 8.04 installs using the
+> default packages for apache, python, mod python, mysql.  From the 7.10
+> instance:
+>
+> luke@luke-ubuntu:~$ dpkg -l | grep mysql
+> ii  libdbd-mysql-perl                          4.004-2
+>            A Perl5 database interface to the MySQL data
+> ii  libmysqlclient15off                        5.0.45-1ubuntu3.3
+>            MySQL database client library
+> ii  mysql-client-5.0                           5.0.45-1ubuntu3.3
+>            MySQL database client binaries
+> ii  mysql-common                               5.0.45-1ubuntu3.3
+>            MySQL database common files
+> ii  mysql-server                               5.0.45-1ubuntu3.3
+>            MySQL database server (meta package dependin
+> ii  mysql-server-5.0                           5.0.45-1ubuntu3.3
+>            MySQL database server binaries
+> ii  python-mysqldb                             1.2.2-3ubuntu1
+>            A Python interface to MySQL
+>
+> luke@luke-ubuntu:~$ dpkg -l | grep mod-python
+> ii  libapache2-mod-python                      3.3.1-2
+>            Apache 2 module that embeds Python within th
+>
+> All running on Python 2.5.
+>
+> I'm thinking of getting the source and building the libmysqlclient
+> myself now, but I'm hoping you've got some wise suggestions for me.
+>
+> Thanks very much for your time!
+>
+> Regards,
+>
+> Luke
+> _______________________________________________
+> Mod_python mailing list
+> Mod_python@modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+From luke at demonware.net  Fri Nov 28 18:16:08 2008
+From: luke at demonware.net (Luke Burden)
+Date: Fri Nov 28 18:16:16 2008
+Subject: [mod_python] Mod-Python / MySQL client libs causing apache to
+	seg-fault
+In-Reply-To: <88e286470811281441l7473a875gca2e9fa2bd49acd4@mail.gmail.com>
+References: <fb502710811281435l10a55aefp34c7d3212c87aaab@mail.gmail.com>
+	<88e286470811281441l7473a875gca2e9fa2bd49acd4@mail.gmail.com>
+Message-ID: <fb502710811281516k549b15c6s9a63305601241b84@mail.gmail.com>
+
+Hmm, MySQLdb is certainly up to date - no new release since early
+2007! .. Might be able to force an upgrade of the mysqlclient libs
+though.
+
+Do any of the following python modules potentially use mysql?  Besides
+mod_python, I wouldn't have thought so .. it's more or less a vanilla
+install of apache.
+
+alias.conf
+authz_default.load
+autoindex.conf
+dir.conf
+mime.load
+setenvif.conf
+alias.load
+authz_groupfile.load
+autoindex.load
+dir.load
+mod_python.load
+setenvif.load
+auth_basic.load
+authz_host.load
+cgid.conf
+env.load
+negotiation.conf
+status.conf
+authn_file.load
+authz_user.load
+cgid.load
+mime.conf
+negotiation.load
+status.load
+
+Thanks
+
+Luke
+
+On Fri, Nov 28, 2008 at 2:41 PM, Graham Dumpleton
+<graham.dumpleton@gmail.com> wrote:
+> Would be wise to ensure using recent MySQL client libraries and Python
+> wrappers if need be, as there are some dodgy versions that have been
+> known to cause problems under mod_python.
+>
+> Other than that, since you seemed to have checked PHP conflict
+> problems, only thing can mention is to make sure you don't have any
+> other Apache modules installed with use MySQL such as a
+> mod_auth_mysql.
+>
+> Graham
+>
+> 2008/11/29 Luke Burden <luke@demonware.net>:
+>> Hi Graham,
+>>
+>> I'm a developer for a internally facing web application, which uses
+>> apache + mod_python + mysql.
+>> As the application is being increasingly used, I've noticed several
+>> errors occurring sporadically, but regularly enough to be cause for
+>> concern.  Concern morphed into alarm when I found I could reproduce
+>> the problems by quickly and repeatedly refreshing a page that causes a
+>> number of queries to be executed!
+>>
+>> The problem manifests itself in either bad behavior from the python
+>> MySQLDb module:
+>>
+>> InterfaceError: (0, '')
+>> OperationalError: (2013, 'Lost connection to MySQL server during query')
+>> ProgrammingError: (2014, "Commands out of sync; you can't run this
+>> command now") (<- might be unrelated)
+>> .. and NoneType result sets where the data is basically not there,
+>> when it should be.
+>>
+>> Or in apache seg-faulting:
+>>
+>> [Fri Nov 28 21:34:42 2008] [notice] mod_python: Creating 8 session
+>> mutexes based on 6 max processes and 25 max threads.
+>> [Fri Nov 28 21:34:42 2008] [notice] mod_python: using mutex_directory /tmp
+>> [Fri Nov 28 21:34:42 2008] [notice] Apache/2.2.4 (Ubuntu)
+>> mod_python/3.3.1 Python/2.5.1 configured -- resuming normal operations
+>> [Fri Nov 28 21:35:03 2008] [error] [client 192.168.179.1] File does
+>> not exist: /var/www/favicon.ico
+>> [Fri Nov 28 21:35:04 2008] [error] [client 192.168.179.1] File does
+>> not exist: /var/www/favicon.ico
+>> [Fri Nov 28 21:35:06 2008] [error] [client 192.168.179.1] File does
+>> not exist: /var/www/favicon.ico
+>> [Fri Nov 28 21:35:06 2008] [error] [client 192.168.179.1] File does
+>> not exist: /var/www/favicon.ico
+>> [Fri Nov 28 21:35:07 2008] [notice] child pid 17523 exit signal
+>> Segmentation fault (11)
+>> [Fri Nov 28 21:35:07 2008] [error] [client 192.168.179.1] File does
+>> not exist: /var/www/favicon.ico
+>> [Fri Nov 28 21:35:07 2008] [error] [client 192.168.179.1] File does
+>> not exist: /var/www/favicon.ico
+>> [Fri Nov 28 21:35:08 2008] [error] [client 192.168.179.1] File does
+>> not exist: /var/www/favicon.ico
+>> [Fri Nov 28 21:35:15 2008] [notice] child pid 17525 exit signal
+>> Segmentation fault (11)
+>> [Fri Nov 28 21:35:15 2008] [notice] child pid 17579 exit signal
+>> Segmentation fault (11)
+>> [Fri Nov 28 21:35:16 2008] [error] [client 192.168.179.1] File does
+>> not exist: /var/www/favicon.ico
+>> [Fri Nov 28 21:35:17 2008] [notice] child pid 17607 exit signal
+>> Segmentation fault (11)
+>> [Fri Nov 28 21:35:19 2008] [error] [client 192.168.179.1] File does
+>> not exist: /var/www/favicon.ico
+>> ... etc ...
+>>
+>> A closer look at one of the segmentation faults:
+>>
+>> *** glibc detected *** /usr/sbin/apache2: double free or corruption (!prev):
+>> 0x000000000212a1c0 ***
+>> ======= Backtrace: =========
+>> /lib/libc.so.6[0x2b6915ed7b0a]
+>> /lib/libc.so.6(cfree+0x8c)[0x2b6915edb6fc]
+>> /usr/lib/libmysqlclient_r.so.15(vio_delete+0x19)[0x2aaaadef6ff9]
+>> /usr/lib/libmysqlclient_r.so.15(end_server+0x2f)[0x2aaaadef2eff]
+>> /usr/lib/libmysqlclient_r.so.15(cli_safe_read+0x2b)[0x2aaaadef305b]
+>> /usr/lib/libmysqlclient_r.so.15(cli_advanced_command+0x195)[0x2aaaadef5675]
+>> /usr/lib/libmysqlclient_r.so.15(mysql_ping+0x31)[0x2aaaadec71a1]
+>> /var/lib/python-support/python2.5/_mysql.so[0x2aaaadc5e7e6]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6335)[0x2b691a2ccd15]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x553d)[0x2b691a2cbf1d]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6564)[0x2b691a2ccf44]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6564)[0x2b691a2ccf44]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x553d)[0x2b691a2cbf1d]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x553d)[0x2b691a2cbf1d]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalFrameEx+0x6564)[0x2b691a2ccf44]
+>> /usr/lib/libpython2.5.so.1.0(PyEval_EvalCodeEx+0x836)[0x2b691a2cdb06]
+>> /usr/lib/libpython2.5.so.1.0[0x2b691a26dc5e]
+>> /usr/lib/libpython2.5.so.1.0(PyObject_Call+0x13)[0x2b691a24c323]
+>> /usr/lib/libpython2.5.so.1.0[0x2b691a253aad]
+>> /usr/lib/libpython2.5.so.1.0(PyObject_Call+0x13)[0x2b691a24c323]
+>> /usr/lib/libpython2.5.so.1.0[0x2b691a24c547]
+>> /usr/lib/libpython2.5.so.1.0(PyObject_CallMethod+0xc0)[0x2b691a24e610]
+>> /usr/lib/apache2/modules/mod_python.so[0x2b6919ff91bc]
+>> /usr/lib/apache2/modules/mod_python.so[0x2b6919ffb687]
+>> /usr/sbin/apache2(ap_run_handler+0x7a)[0x437c4a]
+>> /usr/sbin/apache2(ap_invoke_handler+0x7c)[0x43affc]
+>> /usr/sbin/apache2(ap_process_request+0x178)[0x447248]
+>> /usr/sbin/apache2[0x44468c]
+>> /usr/sbin/apache2(ap_run_process_connection+0x72)[0x43ec22]
+>> /usr/sbin/apache2[0x44b696]
+>> /lib/libpthread.so.0[0x2b6915a4d317]
+>> /lib/libc.so.6(clone+0x6d)[0x2b6915f39d5d]
+>> ======= Memory map: ========
+>> [Fri Nov 28 02:52:57 2008] [notice] child pid 28387 exit signal Aborted (6)
+>>
+>> Seems to clearly point the finger at the mysql client library.
+>>
+>> Google shows a few similar looking cases, usually solved by removing
+>> PHP, which in this case is not installed.  Nor is expat XML parser
+>> used.  Nor mhash.so. :)
+>>
+>> The problem occurs on both Ubuntu 7.10, and 8.04 installs using the
+>> default packages for apache, python, mod python, mysql.  From the 7.10
+>> instance:
+>>
+>> luke@luke-ubuntu:~$ dpkg -l | grep mysql
+>> ii  libdbd-mysql-perl                          4.004-2
+>>            A Perl5 database interface to the MySQL data
+>> ii  libmysqlclient15off                        5.0.45-1ubuntu3.3
+>>            MySQL database client library
+>> ii  mysql-client-5.0                           5.0.45-1ubuntu3.3
+>>            MySQL database client binaries
+>> ii  mysql-common                               5.0.45-1ubuntu3.3
+>>            MySQL database common files
+>> ii  mysql-server                               5.0.45-1ubuntu3.3
+>>            MySQL database server (meta package dependin
+>> ii  mysql-server-5.0                           5.0.45-1ubuntu3.3
+>>            MySQL database server binaries
+>> ii  python-mysqldb                             1.2.2-3ubuntu1
+>>            A Python interface to MySQL
+>>
+>> luke@luke-ubuntu:~$ dpkg -l | grep mod-python
+>> ii  libapache2-mod-python                      3.3.1-2
+>>            Apache 2 module that embeds Python within th
+>>
+>> All running on Python 2.5.
+>>
+>> I'm thinking of getting the source and building the libmysqlclient
+>> myself now, but I'm hoping you've got some wise suggestions for me.
+>>
+>> Thanks very much for your time!
+>>
+>> Regards,
+>>
+>> Luke
+>> _______________________________________________
+>> Mod_python mailing list
+>> Mod_python@modpython.org
+>> http://mailman.modpython.org/mailman/listinfo/mod_python
+>>
+>
+> ______________________________________________________________________
+> This email has been scanned by the MessageLabs Email Security System.
+> For more information please visit http://www.messagelabs.com/email
+> ______________________________________________________________________
+>

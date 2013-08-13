@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] BUG compiling Python 2.0 with dinamic modules in Solaris, with GCC
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20BUG%20compiling%20Python%202.0%20with%20dinamic%20modules%20in%20Solaris%2C%20with%20GCC&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007776.html">
+   <LINK REL="Next"  HREF="007778.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] BUG compiling Python 2.0 with dinamic modules in Solaris, with GCC</H1>
+    <B>Jesus Cea Avion</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20BUG%20compiling%20Python%202.0%20with%20dinamic%20modules%20in%20Solaris%2C%20with%20GCC&In-Reply-To="
+       TITLE="[mod_python] BUG compiling Python 2.0 with dinamic modules in Solaris, with GCC">jcea at argo.es
+       </A><BR>
+    <I>Tue Oct 24 17:29:15 EST 2000</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007776.html">[mod_python] bug in PythonAuthenHandler?
+</A></li>
+        <LI>Next message: <A HREF="007778.html">[mod_python] make_obcallback returned no obCallBack!
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7775">[ date ]</a>
+              <a href="thread.html#7775">[ thread ]</a>
+              <a href="subject.html#7775">[ subject ]</a>
+              <a href="author.html#7775">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>(I can't post the patch in sourceforge since the SSL login seems to be
+down in the last three hours)
+
+Python 2.0 (dinamic modules)
+Mod_Python 2.6.2 (dinamic module)
+GCC 2.95.2
+Apache 1.3.14 (dinamic modules)
+SunOS5 (Solaris 2.x)
+
+I send the email also to &quot;mod_python&quot; mailing list since I detect the
+problem using this package. Other developers could see the very same
+problem!.
+
+
+Mod_python runs smoothly until I do a &quot;import zlib&quot;, for example, in a
+handler. In this case, the request is aborted with the following log:
+
+&gt;&gt;&gt;&gt;&gt;<i>
+</I>[Tue Oct 24 16:27:40 2000] [error] PythonHandler cache: Traceback (most
+recent call last):
+[Tue Oct 24 16:27:40 2000] [error] PythonHandler cache:   File
+&quot;/usr/local/lib/python2.0/site-packages/mod_python/apache.py&quot;, line 185,
+in Dispatch
+    result = object(self.req)
+[Tue Oct 24 16:27:40 2000] [error] PythonHandler cache:   File
+&quot;/export/home/webmaster/www.argo.es/servicios/cache.py&quot;, line 47, in
+handler
+    exec(cache[f][1])
+[Tue Oct 24 16:27:40 2000] [error] PythonHandler cache:   File
+&quot;/export/home/webmaster/www.argo.es/servicios/borra_email&quot;, line 183, in
+?
+    req2=wrap(req)
+[Tue Oct 24 16:27:40 2000] [error] PythonHandler cache:   File
+&quot;/export/home/webmaster/www.argo.es/servicios/borra_email&quot;, line 159, in
+__init__
+    import zlib
+[Tue Oct 24 16:27:40 2000] [error] PythonHandler cache: ImportError:
+ld.so.1: /opt/local/apache/bin/httpd: fatal: relocation error: file
+/usr/local/lib/python2.0/lib-dynload/zlibmodule.so: symbol main:
+referenced symbol not found
+&lt;&lt;&lt;&lt;&lt;
+
+That is, &quot;zlibmodule.so&quot; tries to link to a function called &quot;main&quot;.
+
+Doing a &quot;nm object|grep main&quot;, I see the unresolved reference in
+&quot;zlibmodule.so&quot;, but not in &quot;zlibmodule.o&quot;. So, the problem seems to be
+the creation of the shared library.
+
+I tracked down the problem to the &quot;configure&quot; script: &quot;cc -G&quot; is (I
+think) the right thing to do to create a shared library if you are using
+the Sun compiler, but if you are using GCC (like me), the right command
+is &quot;gcc -shared&quot;.
+
+Patch for Python 2.0:
+
+&gt;&gt;&gt;&gt;&gt;<i>
+</I>Index: configure
+===================================================================
+RCS file: /opt/src/cvsroot/python/configure,v
+retrieving revision 1.1.1.2
+retrieving revision 1.1.1.2.2.1
+diff -c -r1.1.1.2 -r1.1.1.2.2.1
+*** configure   2000/10/18 19:06:44     1.1.1.2
+--- configure   2000/10/24 14:19:01     1.1.1.2.2.1
+***************
+*** 2650,2656 ****
+        SunOS/4*) LDSHARED=&quot;ld&quot;;;
+        SunOS/5*) 
+                if test &quot;$GCC&quot; = &quot;yes&quot;
+!               then LDSHARED='$(CC) -G'
+                else LDSHARED=&quot;ld -G&quot;;
+                fi ;;
+        hp*|HP*) LDSHARED=&quot;ld -b&quot;;;
+--- 2650,2656 ----
+        SunOS/4*) LDSHARED=&quot;ld&quot;;;
+        SunOS/5*) 
+                if test &quot;$GCC&quot; = &quot;yes&quot;
+!               then LDSHARED='$(CC) -shared'
+                else LDSHARED=&quot;ld -G&quot;;
+                fi ;;
+        hp*|HP*) LDSHARED=&quot;ld -b&quot;;;
+Index: configure.in
+===================================================================
+RCS file: /opt/src/cvsroot/python/configure.in,v
+retrieving revision 1.1.1.2
+retrieving revision 1.1.1.2.2.1
+diff -c -r1.1.1.2 -r1.1.1.2.2.1
+*** configure.in        2000/10/18 19:06:45     1.1.1.2
+--- configure.in        2000/10/24 14:19:03     1.1.1.2.2.1
+***************
+*** 564,570 ****
+        SunOS/4*) LDSHARED=&quot;ld&quot;;;
+        SunOS/5*) 
+                if test &quot;$GCC&quot; = &quot;yes&quot;
+!               then LDSHARED='$(CC) -G'
+                else LDSHARED=&quot;ld -G&quot;;
+                fi ;;
+        hp*|HP*) LDSHARED=&quot;ld -b&quot;;;
+--- 564,570 ----
+        SunOS/4*) LDSHARED=&quot;ld&quot;;;
+        SunOS/5*) 
+                if test &quot;$GCC&quot; = &quot;yes&quot;
+!               then LDSHARED='$(CC) -shared'
+                else LDSHARED=&quot;ld -G&quot;;
+                fi ;;
+        hp*|HP*) LDSHARED=&quot;ld -b&quot;;;
+&lt;&lt;&lt;&lt;&lt;
+
+-- 
+Jesus Cea Avion                         _/_/      _/_/_/        _/_/_/
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jcea at argo.es</A> <A HREF="http://www.argo.es/~jcea/">http://www.argo.es/~jcea/</A> _/_/    _/_/  _/_/    _/_/  _/_/
+                                      _/_/    _/_/          _/_/_/_/_/
+PGP Key Available at KeyServ   _/_/  _/_/    _/_/          _/_/  _/_/
+&quot;Things are not so easy&quot;      _/_/  _/_/    _/_/  _/_/    _/_/  _/_/
+&quot;My name is Dump, Core Dump&quot;   _/_/_/        _/_/_/      _/_/  _/_/
+&quot;El amor es poner tu felicidad en la felicidad de otro&quot; - Leibniz
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007776.html">[mod_python] bug in PythonAuthenHandler?
+</A></li>
+	<LI>Next message: <A HREF="007778.html">[mod_python] make_obcallback returned no obCallBack!
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7775">[ date ]</a>
+              <a href="thread.html#7775">[ thread ]</a>
+              <a href="subject.html#7775">[ subject ]</a>
+              <a href="author.html#7775">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

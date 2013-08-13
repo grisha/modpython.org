@@ -1,0 +1,242 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] installing mod_python -- sharing experiences
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20installing%20mod_python%20--%20sharing%20experiences&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015039.html">
+   <LINK REL="Next"  HREF="015040.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] installing mod_python -- sharing experiences</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Lipp, Wolfgang</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20installing%20mod_python%20--%20sharing%20experiences&In-Reply-To="
+       TITLE="[mod_python] installing mod_python -- sharing experiences">w.lipp at bgbm.org
+       </A><BR>
+    <I>Mon Feb 16 10:00:17 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015039.html">[mod_python] Mod Python 3.0.4 Filter Issue
+</A></li>
+        <LI>Next message: <A HREF="015040.html">[mod_python] default function?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15038">[ date ]</a>
+              <a href="thread.html#15038">[ thread ]</a>
+              <a href="subject.html#15038">[ subject ]</a>
+              <a href="author.html#15038">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+
+i would like to briefly share my experiences with
+installing mod_python on a w2000 box. i must say that i
+believe the installation process to be unnecessarily
+complicated by the simple fact that the installer itself
+seems to be buggy -- in my case, no combination of
+mod_python 3.0.4, 3.1.2b and python 2.2.3, 2.3.3 ever
+came to completion. rather, the installer would exit --
+after an initial declaration of having successfully
+found python in the registry -- with the words that it
+'could not load python'. i now believe this may be due
+to python being absent from ``path`` and a missing value
+in ``pythonhome`` (see below), but on the other hand,
+all my other package installations with this particular
+installer brand had never given me any troubles. it
+would be a nice thing if the installer was smart enough
+to dispense some hints in such a case.
+
+it is important to check that the correct python version
+is selected for the respective version of mod_python --
+as far as i can see, both 3.0.4 and 3.1.2b are built for
+python 2.3, which at least in the former case is not so
+clear from descriptions or filenames. whatever version
+you downloaded, you can quickly check this by 1)
+unpacking the ``*.exe`` file with a zip tool, 2) go to
+the contained folder ``DATA``, open the binary
+``mod_python.so`` in any text editor, and 3) search for
+the string ``python2``. this should yield a single hit,
+from which you can glean the expected version of the
+python dll. since i never managed to finish the
+installation process with the installer, i think it is
+the best idea to then proceed like this:
+
+
+1) simply grab that ``python_mod.so`` file and drop it
+in the ``apache/modules`` folder; likewise, go to the
+directory ``PURELIB/mod_python`` in the executable
+archive and copy it as ``python/Lib/site-
+packages/mod_python``.
+
+
+2) in apaches ``httpd.conf``, do a test configuration
+like this::
+
+    #   NB.: When setting an alias, both the alias
+    #   and the aliased location should end in a
+    #   slash or avoid it.
+
+    Alias /mod_python0 &quot;drive:/some/path/mod_python/test0&quot;
+
+    &lt;Directory &quot;drive:/some/path/mod_python/test0&quot;&gt;
+        Options                     Indexes
+        AddHandler                  python-program .py
+        PythonHandler               myhandler
+        PythonDebug                 On
+    &lt;/Directory&gt;
+
+observe that ``.py`` does start with a dot -- this does
+not seem to be essential, though.
+
+one important point is that you had better make sure
+that python scripts are not declared as cgi scripts in a
+parent directory. if you absolutely need this, try
+later, but for the moment it is important to understand
+that the ``ExecCGI`` and the ``python-program``
+declarations are enemies. -- restart apache (must be
+version 2, btw, afaics), either from the services
+management console, or, much better, from a terminal
+window by saying
+
+    apache.exe -k restart
+
+(if you have your apache installed as a service). the
+terminal window method has the distinct advantage that
+any error messages due to problems with the httpd.conf
+do appear right in front of your eyes, instead of being
+silently swallowed by the system. of course, you can
+also simply start apache as an ordinary program with a
+line like ::
+
+    apache -w -f drive:\path\to\apache\conf\httpd.conf
+
+
+3) create .../mod_python/test0/myhandler.py and make
+it contain something like this::
+
+    #
+    # -*- coding: utf-8 -*-
+
+    from mod_python import apache
+
+    def handler(req):
+
+        req.content_type = &quot;text/plain&quot;
+        req.write(&quot;Hello World!&quot;)
+        return apache.OK
+
+observe that the ``import`` statement prohibits the
+execution of this snippet as a script, since it causes
+the import of a module that is only available from
+``mod_python.so`` -- maybe someone can come up with a
+good idea how to make mod_python web scripts executable
+from the command line some day; developers will love
+that.
+
+
+4) in case the directory where the pythonXX.dll is to be
+found should *not* appear on the environment variable
+``path``, apache will refuse to start and issue the
+following message::
+
+    Cannot load drive/dir/Apache2/modules/mod_python.so
+    into server: The specified module could not be
+    found.
+
+this may be a problem with per-user python installations
+that put the dll into the python directory, not into the
+windows directory.
+
+
+5) you also may want to consider setting the
+``pythonhome`` environment variable -- while
+experimenting, this solved my problems in one case, but
+for some reason, i found myself unable to reproduce the
+behavior later. anyhow, you'd simply type ::
+
+    set pythonhome=drive:\path\to\python
+
+or create an entry in ``autoexec.bat``, or set the
+variable in the system administration.
+
+
+6) one user also mentioned insufficient access rights in
+the scripts directory as a potential cause of
+malfunction -- apache does ordinarily not run as a
+common user, but under a special account that must be
+granted execution access to the directories where you
+deploy your web application (i did not have his problem,
+but may be this is due to apache running with
+administrator rights, which is not a brilliant idea to
+boot).
+
+
+7) enjoy.
+
+
+greetings,
+
+_wolf
+
+
+ps. i should add that one must make sure that sufficient
+rights are granted to whatever account the apache
+service is run under to read and execute not only in the
+web application directory, but also *in the python
+directory* -- i guess this point is easily missed. as a
+quick check whether this may be one of your problems
+(which normally results in the message ``could not
+import mod_python.apache`` in the apache errors log
+file) you can =either= temporarily set the apache
+service account to administrator (provided you have the
+rights to do so) =or=, alternatively, go to the python
+directory and grant the ``SYSTEM`` account execution
+rights. of course, this does not work on fat32 volumes.
+-- hope these tips in conjunction with my preceding
+posting help people fly their apps, -- _w
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015039.html">[mod_python] Mod Python 3.0.4 Filter Issue
+</A></li>
+	<LI>Next message: <A HREF="015040.html">[mod_python] default function?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15038">[ date ]</a>
+              <a href="thread.html#15038">[ thread ]</a>
+              <a href="subject.html#15038">[ subject ]</a>
+              <a href="author.html#15038">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

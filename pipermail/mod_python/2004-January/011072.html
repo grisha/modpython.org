@@ -1,0 +1,215 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and mysql - wierd problem!
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20mysql%20-%20wierd%20problem%21&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="011074.html">
+   <LINK REL="Next"  HREF="011079.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] mod_python and mysql - wierd problem!</H1>
+    <B>David Geller</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20mysql%20-%20wierd%20problem%21&In-Reply-To="
+       TITLE="[mod_python] mod_python and mysql - wierd problem!">dg at sponsera.com
+       </A><BR>
+    <I>Fri Jan  9 00:30:03 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="011074.html">[mod_python] get_options() problem
+</A></li>
+        <LI>Next message: <A HREF="011079.html">[mod_python] How to set connection parameters?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11072">[ date ]</a>
+              <a href="thread.html#11072">[ thread ]</a>
+              <a href="subject.html#11072">[ subject ]</a>
+              <a href="author.html#11072">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Paul Querna wrote:
+
+&gt;<i> David Geller wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> 1. As far as I know, I am not running any other apache modules using 
+</I>MySQL ( I am not sure how to check this out definitely, but I cannot
+seem to find any references anywhere to such modules....)
+&gt;&gt;<i>
+</I>&gt;&gt;<i> 2. Yes, I built mysql,mod_python, python, MySQL, apache,.... from 
+</I>source.
+&gt;&gt;<i>
+</I>&gt;&gt;<i> Also, everything (my entire mod_python application, including all 
+</I>mysql accessing), seems to run *fine* on my home machine
+(redhat8-based). It is when I have tried running on our redhat-9-based
+server where these problems start to appear....(note that I reuilt all
+the sources on the redhat9 machine...)
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Could you try to get a Backtrace in GDB from the Apache Core Files?
+</I>
+
+
+
+Stack trace from wierd mod_python/mysql bug obtained!
+
+================== basic program (outline) being run
+from mod_python import util
+from mod_python import apache
+import MySQLdb
+
+def hander(req):
+
+db = MySQLdb.connect(db=&quot;quest1&quot;,
+                          host=&quot;localhost&quot;,
+                          user=&quot;dg&quot;,
+                          passwd=&quot;pass&quot;)
+
+     c = db.cursor(MySQLdb.cursors.DictCursor)
+    sql = &quot;&quot;&quot;select * from subject&quot;&quot;&quot;
+
+     c.execute(sql)
+==================================
+Note that we get Seg fault on the c.execute().
+And note also: with certain sql statements, does not crash but obtain
+inconsistant results.
+
+
+=====================GDB Stack ========================================
+
+(gdb) r
+Starting program: /usr/local/apache2/sbin/httpd -DONE_PROCESS
+[New Thread 16384 (LWP 17860)]
+
+Program received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 16384 (LWP 17860)]
+0x402f8a92 in do_mkvalue (p_format=0xa, p_va=0xa) at Python/modsupport.c:334
+
+(gdb) where
+#0  0x402f8a92 in do_mkvalue (p_format=0xa, p_va=0xa)
+     at Python/modsupport.c:334
+#1  0x402f8f9a in do_mktuple (p_format=0xbfffe790, p_va=0xbfffe794,
+     endchar=41, n=7) at Python/modsupport.c:223
+#2  0x402f88cf in do_mkvalue (p_format=0xbfffe790, p_va=0xbfffe794)
+     at Python/modsupport.c:247
+#3  0x402f8b4c in Py_VaBuildValue (format=0x0, va=0x0)
+     at Python/modsupport.c:428
+#4  0x402f8aea in Py_BuildValue (format=0x406ceb95 &quot;(siiiiii)&quot;)
+     at Python/modsupport.c:399
+#5  0x406cce33 in _mysql_ResultObject_describe (self=0x828f160, args=0x0)
+     at _mysql.c:737
+#6  0x402d6988 in fast_cfunction (func=0x0, pp_stack=0xbfffe8c4, na=-1)
+     at Python/ceval.c:3132
+#7  0x402d51d5 in eval_frame (f=0x822baec) at Python/ceval.c:2017
+#8  0x402d5be3 in PyEval_EvalCodeEx (co=0x81fa500, globals=0x0, locals=0x0,
+     args=0x822b73c, argcount=2, kws=0x822b744, kwcount=0, defs=0x0,
+     defcount=0, closure=0x0) at Python/ceval.c:2595
+#9  0x402d6a1f in fast_function (func=0x0, pp_stack=0x0, n=0, na=2, nk=0)
+     at Python/ceval.c:3170
+#10 0x402d514f in eval_frame (f=0x822b5e4) at Python/ceval.c:2034
+#11 0x402d5be3 in PyEval_EvalCodeEx (co=0x8285908, globals=0x0, locals=0x0,
+     args=0x82491dc, argcount=2, kws=0x82491e4, kwcount=0, defs=0x0,
+     defcount=0, closure=0x0) at Python/ceval.c:2595
+#12 0x402d6a1f in fast_function (func=0x0, pp_stack=0x0, n=0, na=2, nk=0)
+     at Python/ceval.c:3170
+#13 0x402d514f in eval_frame (f=0x8249064) at Python/ceval.c:2034
+#14 0x402d5be3 in PyEval_EvalCodeEx (co=0x81f95d0, globals=0x0, locals=0x0,
+     args=0x817341c, argcount=3, kws=0x8173428, kwcount=0, defs=0x0,
+     defcount=0, closure=0x0) at Python/ceval.c:2595
+#15 0x402d6a1f in fast_function (func=0x0, pp_stack=0x0, n=0, na=3, nk=0)
+     at Python/ceval.c:3170
+#16 0x402d514f in eval_frame (f=0x81732c4) at Python/ceval.c:2034
+#17 0x402d5be3 in PyEval_EvalCodeEx (co=0x81f8df8, globals=0x0, locals=0x0,
+     args=0x8173410, argcount=2, kws=0x823b4a0, kwcount=0, defs=0x8289a80,
+     defcount=1, closure=0x0) at Python/ceval.c:2595
+#18 0x402d6a1f in fast_function (func=0x0, pp_stack=0x0, n=0, na=2, nk=0)
+     at Python/ceval.c:3170
+#19 0x402d514f in eval_frame (f=0x823b32c) at Python/ceval.c:2034
+#20 0x402d5be3 in PyEval_EvalCodeEx (co=0x823ef80, globals=0x0, locals=0x0,
+     args=0x8233280, argcount=1, kws=0x8233284, kwcount=0, defs=0x0,
+     defcount=0, closure=0x0) at Python/ceval.c:2595
+#21 0x402d6a1f in fast_function (func=0x0, pp_stack=0x0, n=0, na=1, nk=0)
+     at Python/ceval.c:3170
+#22 0x402d514f in eval_frame (f=0x82330d4) at Python/ceval.c:2034
+#23 0x402d5be3 in PyEval_EvalCodeEx (co=0x81e6b18, globals=0x0, locals=0x0,
+     args=0x81d0640, argcount=2, kws=0x0, kwcount=0, defs=0x0, defcount=0,
+     closure=0x0) at Python/ceval.c:2595
+#24 0x4031a729 in function_call (func=0x822f7d4, arg=0x81d0634, kw=0x0)
+     at Objects/funcobject.c:476
+#25 0x4029d0b8 in PyObject_Call (func=0xffffffff, arg=0x81d0634, kw=0x0)
+     at Objects/abstract.c:1688
+#26 0x402a3148 in instancemethod_call (func=0x822f7d4, arg=0x81d0634,
+kw=0x0)
+     at Objects/classobject.c:2315
+#27 0x4029d0b8 in PyObject_Call (func=0xffffffff, arg=0x81e99d4, kw=0x0)
+     at Objects/abstract.c:1688
+#28 0x402d6847 in PyEval_CallObjectWithKeywords (func=0x81cc8b4,
+     arg=0x81e99d4, kw=0x0) at Python/ceval.c:3058
+#29 0x4029aa8d in PyObject_CallMethod (o=0x0, name=0x81e99d4 &quot;\002&quot;,
+     format=0x81e99d4 &quot;\002&quot;) at Objects/abstract.c:1679
+#30 0x402985fc in python_handler (req=0x81bb018,
+     phase=0x4031ee18 &quot;PythonHandler&quot;) at mod_python.c:899
+#31 0x4029973e in PythonHandler (req=0x81bb018) at mod_python.c:1699
+#32 0x0807baca in ap_run_handler (r=0x81bb018) at config.c:195
+#33 0x0807bfe2 in ap_invoke_handler (r=0x81bb018) at config.c:401
+#34 0x0806bd8b in ap_process_request (r=0x81bb018) at http_request.c:288
+#35 0x08067f25 in ap_process_http_connection (c=0x81b6fe8) at
+http_core.c:293
+#36 0x0808493a in ap_run_process_connection (c=0x81b6fe8) at connection.c:85
+#37 0x0807a67f in child_main (child_num_arg=0) at prefork.c:694
+#38 0x0807a82a in make_child (s=0x80b7118, slot=0) at prefork.c:734
+#39 0x0807a883 in startup_children (number_to_start=5) at prefork.c:806
+#40 0x0807af75 in ap_mpm_run (_pconf=0x8079f68, plog=0x80ecaf0, s=0x80b7118)
+     at prefork.c:1022
+#41 0x0807fd02 in main (argc=2, argv=0xbffff404) at main.c:660
+#42 0x401415cd in __libc_start_main () from /lib/libc.so.6
+(gdb)
+
+
+
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="011074.html">[mod_python] get_options() problem
+</A></li>
+	<LI>Next message: <A HREF="011079.html">[mod_python] How to set connection parameters?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11072">[ date ]</a>
+              <a href="thread.html#11072">[ thread ]</a>
+              <a href="subject.html#11072">[ subject ]</a>
+              <a href="author.html#11072">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,236 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Sessions performance and some numbers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20performance%20and%20some%20numbers&In-Reply-To=887ae6bd9aca159c5532ee3895892535%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017836.html">
+   <LINK REL="Next"  HREF="017839.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Sessions performance and some numbers</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>dharana</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20performance%20and%20some%20numbers&In-Reply-To=887ae6bd9aca159c5532ee3895892535%40dscpl.com.au"
+       TITLE="[mod_python] Sessions performance and some numbers">dharana at dharana.net
+       </A><BR>
+    <I>Thu Apr  7 11:01:34 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017836.html">[mod_python] Sessions performance and some numbers
+</A></li>
+        <LI>Next message: <A HREF="017839.html">[mod_python] Sessions performance and some numbers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17837">[ date ]</a>
+              <a href="thread.html#17837">[ thread ]</a>
+              <a href="subject.html#17837">[ subject ]</a>
+              <a href="author.html#17837">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+
+Graham Dumpleton wrote:
+&gt;<i> 
+</I>&gt;<i> On 07/04/2005, at 8:08 PM, dharana wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> If you want I can send my modified Session.py with the new FileSession 
+</I>&gt;&gt;<i> class for review.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> There probably shouldn't have been a need for you to copy/modify the actual
+</I>&gt;<i> Session.py file which came with mod_python as your derived version could
+</I>&gt;<i> live quite happily in its own module and simply used the installed Session
+</I>&gt;<i> module.
+</I>&gt;<i> 
+</I>
+I presumptuously thought that it could fit into the official mod_python 
+package due to it's high performance when compared to DbmSession.
+
+ &gt;
+&gt;<i> Anyway, by all means post your code as sure it will be of interest to
+</I>&gt;<i> someone, if not now then maybe in the future. If there are any problems
+</I>&gt;<i> in what you have done, someone is also bound to point it out.
+</I>&gt;<i> 
+</I>
+Here it goes. Please point out any obvious problem. Apart from being new 
+to mod_python I'm also new to Python in general. For example, I don't 
+think the exception handling I've put is completely correct.
+
+
+In anticipation for any possible attachment problems i pasted it 
+directly. (I have read PEP 0008 and the 4 spaces indentation level 
+recommendation but I'm in a hurry right now, sorry.)
+
+
+--- FileSession.py -----------------------------------------------------
+import cPickle
+import tempfile
+
+from mod_python import Session
+
+tempdir = tempfile.gettempdir()
+
+
+class FileSession(Session.BaseSession):
+
+   def __init__(self, req, sid=0, secret=None, timeout=0, lock=1):
+
+     Session.BaseSession.__init__(self, req, sid=sid, secret=secret,
+                          timeout=timeout, lock=lock)
+
+   def do_cleanup(self):
+     import os
+
+     # is there any faster way of doing this?
+     for f in os.listdir(tempdir):
+       if f.find('mp_sess_', 0, 11) == -1:
+         continue
+
+       fp = file('%s%s' % (tempdir, f))
+       dict = cPickle.load(fp)
+       fp.close()
+
+       if (time() - dict['_accessed']) &gt; dict['_timeout']:
+         os.unlink('%s%s' % (tempdir, f))
+
+
+   def do_load(self):
+     try:
+     # again, is there a more pythonic way of doing this check?
+       fp = file('%s/mp_sess_%s' % (tempdir, self._sid))
+     except Exception:
+       return None
+     else:
+       try:
+         data = cPickle.load(fp)
+         fp.close()
+         return data
+
+       except Exception:
+         fp.close()
+         pass
+
+
+   def do_save(self, dict):
+     fp = file('%s/mp_sess_%s' % (tempdir, self._sid), 'w+')
+     cPickle.dump(dict, fp)
+     fp.close()
+
+
+   def do_delete(self):
+     try:
+       unlink('%s/mp_sess_%s' % (tempdir, self._sid))
+     except Exception:
+       pass
+------------------------------------------------------------------------
+
+-- 
+Juan Alonso
+<A HREF="http://gamersmafia.com">http://gamersmafia.com</A> | <A HREF="http://laflecha.net">http://laflecha.net</A>
+-------------- next part --------------
+import cPickle
+import tempfile
+
+from mod_python import Session
+
+tempdir = tempfile.gettempdir()
+
+
+class FileSession(Session.BaseSession):
+
+  def __init__(self, req, sid=0, secret=None, timeout=0, lock=1):
+
+    Session.BaseSession.__init__(self, req, sid=sid, secret=secret,
+                         timeout=timeout, lock=lock)
+
+  def do_cleanup(self):
+    import os
+
+    # is there any faster way of doing this?
+    for f in os.listdir(tempdir):
+      if f.find('mp_sess_', 0, 11) == -1:
+        continue
+
+      fp = file('%s%s' % (tempdir, f))
+      dict = cPickle.load(fp)
+      fp.close()
+
+      if (time() - dict['_accessed']) &gt; dict['_timeout']:
+        os.unlink('%s%s' % (tempdir, f))
+
+
+  def do_load(self):
+    try:
+    # again, is there a more pythonic way of doing this check?
+      fp = file('%s/mp_sess_%s' % (tempdir, self._sid))
+    except Exception:
+      return None
+    else:
+      try:
+        data = cPickle.load(fp)
+        fp.close()
+        return data
+
+      except Exception:
+        fp.close()
+        pass
+
+
+  def do_save(self, dict):
+    fp = file('%s/mp_sess_%s' % (tempdir, self._sid), 'w+')
+    cPickle.dump(dict, fp)
+    fp.close()
+
+
+  def do_delete(self):
+    try:
+      unlink('%s/mp_sess_%s' % (tempdir, self._sid))
+    except Exception: 
+      pass
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017836.html">[mod_python] Sessions performance and some numbers
+</A></li>
+	<LI>Next message: <A HREF="017839.html">[mod_python] Sessions performance and some numbers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17837">[ date ]</a>
+              <a href="thread.html#17837">[ thread ]</a>
+              <a href="subject.html#17837">[ subject ]</a>
+              <a href="author.html#17837">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

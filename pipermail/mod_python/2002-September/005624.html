@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod_python 3.0 BETA / Apache2 segfault
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%203.0%20BETA%20/%20Apache2%20segfault&In-Reply-To=200209131604.02633.bryan%40eevolved.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005623.html">
+   <LINK REL="Next"  HREF="005632.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mod_python 3.0 BETA / Apache2 segfault</H1>
+    <B>Jeff Davis</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod_python%203.0%20BETA%20/%20Apache2%20segfault&In-Reply-To=200209131604.02633.bryan%40eevolved.com"
+       TITLE="[mod_python] Mod_python 3.0 BETA / Apache2 segfault">list-mod_python at empires.org
+       </A><BR>
+    <I>Fri Sep 13 14:00:16 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005623.html">[mod_python] Mod_python 3.0 BETA / Apache2 segfault
+</A></li>
+        <LI>Next message: <A HREF="005632.html">[mod_python] Mod_python and Sub-Interpreter segregation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5624">[ date ]</a>
+              <a href="thread.html#5624">[ thread ]</a>
+              <a href="subject.html#5624">[ subject ]</a>
+              <a href="author.html#5624">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>Thanks!
+
+For those who don't want to find those lines in the file, a patch is included 
+below this message.
+
+I don't know what the impact of that is either. I hope it's good :)
+
+Regards,
+	Jeff
+
+
+On Friday 13 September 2002 09:04 am, Bryan Mongeau wrote:
+&gt;<i> Hello,
+</I>&gt;<i>
+</I>&gt;<i> I have tested out the 3.0 BETA with apache 2 and discovered a segfault.
+</I>&gt;<i>
+</I>&gt;<i> $ gdb ./httpd
+</I>&gt;<i> GNU gdb 5.2.1
+</I>&gt;<i> (gdb) run -X
+</I>&gt;<i> Starting program: /usr/local/apache2/bin/httpd -X
+</I>&gt;<i>
+</I>&gt;<i> Program received signal SIGSEGV, Segmentation fault.
+</I>&gt;<i> 0x400e8eef in apr_pstrcat (a=0x81d7fe8) at apr_strings.c:175
+</I>&gt;<i> 175             apr_size_t cplen = strlen(cp);
+</I>&gt;<i> (gdb) bt
+</I>&gt;<i> #0  0x400e8eef in apr_pstrcat (a=0x81d7fe8) at apr_strings.c:175
+</I>&gt;<i> #1  0x402ed68d in python_handler (req=0x81d8020, phase=0x40369247
+</I>&gt;<i> &quot;PythonTransHandler&quot;)
+</I>&gt;<i>     at mod_python.c:764
+</I>&gt;<i> #2  0x402eea6d in PythonTransHandler (req=0x81d8020) at mod_python.c:1687
+</I>&gt;<i> #3  0x0808cd48 in ap_run_translate_name (r=0x81d8020) at request.c:108
+</I>&gt;<i> #4  0x0808d5ec in ap_process_request_internal (r=0x81d8020) at
+</I>&gt;<i> request.c:167 #5  0x08069e02 in ap_process_request (r=0x81d8020) at
+</I>&gt;<i> http_request.c:255 #6  0x08065dab in ap_process_http_connection
+</I>&gt;<i> (c=0x81d40e0) at http_core.c:293 #7  0x080831c8 in
+</I>&gt;<i> ap_run_process_connection (c=0x81d40e0) at connection.c:85 #8  0x0808346f
+</I>&gt;<i> in ap_process_connection (c=0x81d40e0, csd=0x81d4010) at connection.c:207
+</I>&gt;<i> #9  0x08078cc2 in child_main (child_num_arg=0) at prefork.c:696
+</I>&gt;<i> #10 0x08078d80 in make_child (s=0x80b5378, slot=0) at prefork.c:736
+</I>&gt;<i> #11 0x08078e71 in startup_children (number_to_start=5) at prefork.c:808
+</I>&gt;<i> #12 0x0807917d in ap_mpm_run (_pconf=0x80b2cb0, plog=0x80ead90,
+</I>&gt;<i> s=0x80b5378) at prefork.c:1024
+</I>&gt;<i> #13 0x0807e67c in main (argc=2, argv=0xbffff934) at main.c:645
+</I>&gt;<i> #14 0x401933c1 in __libc_start_main () from /lib/libc.so.6
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> FIX: Comment out lines 764-767 and 770 of mod_python.c. Seems to compile
+</I>&gt;<i> and run fine. Impact on functionality unknown.
+</I>&gt;<i>
+</I>
+
+
+--- mod_python.c.old	2002-09-13 13:51:09.000000000 -0700
++++ mod_python.c	2002-09-13 13:51:38.000000000 -0700
+@@ -759,15 +759,7 @@
+             ext = apr_pstrcat(req-&gt;pool, &quot;.&quot;, ext, NULL);
+     }
+ 
+-    /* is there an hlist entry, i.e. a handler? */
+-    /* try with extension */
+-    hle = (hl_entry *)apr_hash_get(conf-&gt;hlists, 
+-                                   apr_pstrcat(req-&gt;pool, phase, ext, NULL),
+-                                   APR_HASH_KEY_STRING);
+-    if (!hle) {
+-        /* try without extension */
+         hle = (hl_entry *)apr_hash_get(conf-&gt;hlists, phase, 
+APR_HASH_KEY_STRING);
+-    }
+     
+     req_conf = (py_req_config *) ap_get_module_config(req-&gt;request_config,
+                                                       &amp;python_module);
+
+
+
+
+
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005623.html">[mod_python] Mod_python 3.0 BETA / Apache2 segfault
+</A></li>
+	<LI>Next message: <A HREF="005632.html">[mod_python] Mod_python and Sub-Interpreter segregation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5624">[ date ]</a>
+              <a href="thread.html#5624">[ thread ]</a>
+              <a href="subject.html#5624">[ subject ]</a>
+              <a href="author.html#5624">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

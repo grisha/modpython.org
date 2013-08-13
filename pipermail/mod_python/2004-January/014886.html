@@ -1,0 +1,231 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and mysql - problem solved!
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20mysql%20-%20problem%20solved%21&In-Reply-To=20040122224654.86549.qmail%40web40017.mail.yahoo.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014880.html">
+   <LINK REL="Next"  HREF="014879.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python and mysql - problem solved!</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>David Geller</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20mysql%20-%20problem%20solved%21&In-Reply-To=20040122224654.86549.qmail%40web40017.mail.yahoo.com"
+       TITLE="[mod_python] mod_python and mysql - problem solved!">dg at sponsera.com
+       </A><BR>
+    <I>Sat Jan 24 17:14:45 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014880.html">[mod_python] Dies on Database connection?
+</A></li>
+        <LI>Next message: <A HREF="014879.html">[mod_python] [ANNOUNCE] Mod_python 2.7.10
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14886">[ date ]</a>
+              <a href="thread.html#14886">[ thread ]</a>
+              <a href="subject.html#14886">[ subject ]</a>
+              <a href="author.html#14886">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>All:
+
+Awhile ago I posted an issue under &quot;mod_python and mysql - wierd 
+problem!' 1/8/2004
+
+I was having similar problems to those described here:
+
+1. python program with sql queries worked fine in &quot;console&quot; mode
+2. under mod_python, when I called &quot;c.execute()&quot;, httpd would get a 
+&quot;segmentation fault&quot;  (this was apparent in the httpd error log)
+3. sometimes, instead, I would get weird, inconsistant errors, like 
+Petros decribes.
+
+Paul Querna actually hinted at what was wrong - but it took me awhile to 
+find it (what was especially strange, and still unexplained, is why  
+things worked fine under mod_python on my redhat8 machine, but then 
+failed on the redhat9 server).
+
+Explanation(?):
+
+ In my httpd.conf I was loading two DSO modules: mod_python and php4. It 
+turns out, when I removed the reference to php4, the mod_python worked 
+perfectly. Now, why was this? Well, I went back to the php4 module, and 
+checked out &quot;configure&quot; - if you know anything about php, it was being 
+configured with the &quot;--with-mysql&quot; flag, which tells it to use an 
+&quot;internal&quot; version of mysql libs. Apparently, this is fine - as long as 
+*no other modules use mysql* (the php configure tells you this at the 
+end). If they do, you should specify the actual mysql library directory. 
+Well, mod_python was basically another module using mysql. Duuuuh! 
+(well, not so obvious to me, really). When I specified the actual mysql 
+library to php configure,  and recompiled and reinstalled the PHP, I 
+could have LoadModules for both php and mod_python and both *appear* to 
+work.
+
+Not completely sure why this is, but it seems to have solved the problem.
+
+David
+
+
+Petros Keshishian wrote:
+
+&gt;<i>Ross:
+</I>&gt;<i>
+</I>&gt;<i>I had the same problem in mod_python with MySQL:
+</I>&gt;<i>Namely the script was working from python shell, but
+</I>&gt;<i>not in mod_python. I discovered that when I query only
+</I>&gt;<i>one column  , e.g. 
+</I>&gt;<i>C.execute('select id from cities where id=17;')
+</I>&gt;<i>than it worked in mod_python as well, but when I try
+</I>&gt;<i>for more that one column it dies. Unfortunatly I could
+</I>&gt;<i>not find a solution and since my database is very
+</I>&gt;<i>small I wrote a script that queries the database for
+</I>&gt;<i>each column separately and then combines and returns
+</I>&gt;<i>the result. This is not really a solution because it
+</I>&gt;<i>does not address the problem and can slow down your
+</I>&gt;<i>program significantly if your database is large.
+</I>&gt;<i>
+</I>&gt;<i>Try to see whether your script works when you query
+</I>&gt;<i>only one column. I am very intersted in the solution
+</I>&gt;<i>of this problem.
+</I>&gt;<i>
+</I>&gt;<i>-Petros
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>= = = Original message = = =
+</I>&gt;<i>
+</I>&gt;<i>Hello,
+</I>&gt;<i>
+</I>&gt;<i>I am working on porting some scripts over to
+</I>&gt;<i>mod_python, but my scripts 
+</I>&gt;<i>die when I attempt to execute a MySQL query.
+</I>&gt;<i>
+</I>&gt;<i>Here is a demonstration of the problem: 
+</I>&gt;<i><A HREF="http://localfeeds.com/near/display-rss.app">http://localfeeds.com/near/display-rss.app</A>
+</I>&gt;<i>
+</I>&gt;<i>In mozilla, it loads a blank page, on Safari, I get a
+</I>&gt;<i>&quot;page returned no 
+</I>&gt;<i>data&quot; error.
+</I>&gt;<i>
+</I>&gt;<i>The code in display-rss.py is:
+</I>&gt;<i>-------------------------------
+</I>&gt;<i>DB = &quot;db&quot;
+</I>&gt;<i>USER = &quot;user&quot;
+</I>&gt;<i>PASS = &quot;password&quot;
+</I>&gt;<i>
+</I>&gt;<i>import MySQLdb
+</I>&gt;<i>
+</I>&gt;<i>def index(req):
+</I>&gt;<i>   
+</I>&gt;<i>    DB_CONN = MySQLdb.connect(db=DB, user=USER,
+</I>&gt;<i>passwd=PASS)
+</I>&gt;<i>    C=DB_CONN.cursor()
+</I>&gt;<i>    C.execute('select * from cities where id=17;')
+</I>&gt;<i>    return &quot;Something&quot;
+</I>&gt;<i>-------------------------------
+</I>&gt;<i>
+</I>&gt;<i>I have also tried using the code from : 
+</I>&gt;<i><A HREF="http://www.modpython.org/FAQ/faqw.py?req=all#3.3">http://www.modpython.org/FAQ/faqw.py?req=all#3.3</A>
+</I>&gt;<i>
+</I>&gt;<i>If I comment out the 'execute' statement, it works
+</I>&gt;<i>fine, the page that 
+</I>&gt;<i>comes back displays the word &quot;Something:&quot;, as
+</I>&gt;<i>expected.
+</I>&gt;<i>
+</I>&gt;<i>I am using  Apache/2.0.48
+</I>&gt;<i>Python 2.3.3
+</I>&gt;<i>mod_python 3.0.4
+</I>&gt;<i>on FreeBSD 4.9
+</I>&gt;<i>
+</I>&gt;<i>My Apache configuration is:
+</I>&gt;<i>AddHandler python-program .app
+</I>&gt;<i>PythonHandler mod_python.publisher
+</I>&gt;<i>PythonAutoReload On
+</I>&gt;<i>PythonDebug On
+</I>&gt;<i>
+</I>&gt;<i>I suspect this will be related to the Apache/FreeBSD
+</I>&gt;<i>threading can of 
+</I>&gt;<i>worms... but I'm hoping there is another answer. If
+</I>&gt;<i>anyone has a spare 
+</I>&gt;<i>clue to offer, I'd really appreciate it.
+</I>&gt;<i>
+</I>&gt;<i>Thanks!,
+</I>&gt;<i>
+</I>&gt;<i>-Ross
+</I>&gt;<i>_______________________________________________
+</I>&gt;<i>Mod_python mailing list
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>___________________________________________________________
+</I>&gt;<i>Sent by ePrompter, the premier email notification
+</I>&gt;<i>software.
+</I>&gt;<i>Free download at <A HREF="http://www.ePrompter.com.">http://www.ePrompter.com.</A>
+</I>&gt;<i>
+</I>&gt;<i>__________________________________
+</I>&gt;<i>Do you Yahoo!?
+</I>&gt;<i>Yahoo! SiteBuilder - Free web site building tool. Try it!
+</I>&gt;<i><A HREF="http://webhosting.yahoo.com/ps/sb/">http://webhosting.yahoo.com/ps/sb/</A>
+</I>&gt;<i>_______________________________________________
+</I>&gt;<i>Mod_python mailing list
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>
+-- 
+David Geller
+Sponsera, LLC
+dg at sponsera.com
+www.sponsera.com
+Phone: 703.532.6812
+Fax: 703.532.6058
+
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014880.html">[mod_python] Dies on Database connection?
+</A></li>
+	<LI>Next message: <A HREF="014879.html">[mod_python] [ANNOUNCE] Mod_python 2.7.10
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14886">[ date ]</a>
+              <a href="thread.html#14886">[ thread ]</a>
+              <a href="subject.html#14886">[ subject ]</a>
+              <a href="author.html#14886">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Dynamic &lt;IMG&gt; with PIL
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Dynamic%20%3CIMG%3E%20with%20PIL&In-Reply-To=4ca92f240705181648k7d57fc58r7eae46dadc0ae890%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023648.html">
+   <LINK REL="Next"  HREF="023650.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Dynamic &lt;IMG&gt; with PIL</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Colin Bean</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Dynamic%20%3CIMG%3E%20with%20PIL&In-Reply-To=4ca92f240705181648k7d57fc58r7eae46dadc0ae890%40mail.gmail.com"
+       TITLE="[mod_python] Dynamic &lt;IMG&gt; with PIL">ccbean at gmail.com
+       </A><BR>
+    <I>Fri May 18 20:36:08 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023648.html">[mod_python] Dynamic &lt;IMG&gt; with PIL
+</A></li>
+        <LI>Next message: <A HREF="023650.html">[mod_python] Dynamic &lt;IMG&gt; with PIL
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23649">[ date ]</a>
+              <a href="thread.html#23649">[ thread ]</a>
+              <a href="subject.html#23649">[ subject ]</a>
+              <a href="author.html#23649">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Robert,
+
+An image tag in your document won't contain any actual image data, it
+simply provides a URL which the browser uses to fetch that image data.
+ So in order to do what you want to do, you'll need at least two
+separate handlers: one to generate the initial page and one to
+generate some dynamic image content.
+To explain a little better: after a browser initially loads an HTML
+page, it will find the SRC attribute for each IMG tag and then perform
+a *separate* HTTP request to that URL, and expect some understandable
+image data back.  So you will need to generate the image content
+separately from the page, and vice versa.
+
+The suggestion that you posted is probably pretty close to what you
+will want to do:  you'll have a hander which generates your image in
+PIL, sets the content type, and writes the properly encoded image data
+(and nothing else) to the request.  I don't use publisher, but I'm
+pretty sure this will NOT work with publisher, you will probably have
+to write a small custom handler to do this.  Might look something like
+this pseudocode (note I haven't tested this in any way):
+
+from cStringIO import StringIO  #Way to hold the encoded image data, for now
+
+def handler(req):
+    #Grab whatever parameters you need...
+    #Generate a PIL image, let's call it img....
+
+    s = StringIO()
+    img.save(s, 'jpeg')  #We have to encode this as a jpeg or similar format,
+                                #if we send the raw PIL data the
+client won't understand it
+
+    s.seek(0)
+    req.content_type = 'image/jpeg'  #Or whatever matches what we save
+it as above
+
+    #Would be nice to set the content length, too...
+
+    req.write(s.getvalue()) #Send the encoded image data as our body
+    return apache.OK
+
+A good place to start might be setting this up so you can enter a url
+like /myimagehanlder?id=foo and have it display just the image in your
+browser.  Then integrating it into your page may make more sense.  I
+would also recommend implementing some kind of caching mechanism, as
+the above code will be a lot of work for your server.
+
+HTH,
+
+Colin
+
+
+
+On 5/18/07, Robert Norman &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">tfcrobert at gmail.com</A>&gt; wrote:
+&gt;<i> I'm trying to create graphs on the fly with mod-python.  Using PIL I can get
+</I>&gt;<i> a &quot;jpeg&quot; image as a string. Is there some way to wrap this information in an
+</I>&gt;<i> IMG tag?  I gather that  src parameter in IMG is required so anythink like:
+</I>&gt;<i>
+</I>&gt;<i> req.write(&quot;&lt;IMG %s&gt;&quot;  % myString)
+</I>&gt;<i>
+</I>&gt;<i> is not going to work.
+</I>&gt;<i>
+</I>&gt;<i> One suggestion was to:
+</I>&gt;<i>
+</I>&gt;<i>  &lt;img src=&quot; get-graph.py?graphId=xyz&quot; /&gt;
+</I>&gt;<i>
+</I>&gt;<i> where:
+</I>&gt;<i>
+</I>&gt;<i> &quot;get-graph.py is a python script. it sets the header to &quot;image/jpeg&quot; or
+</I>&gt;<i> whatever format you want to use than you can use some python libraries to
+</I>&gt;<i> create the image. Instead of saving the image to a file you just write it to
+</I>&gt;<i> stdout.&quot;
+</I>&gt;<i>
+</I>&gt;<i> I don't understand the suggestion especially in the context of mod-python
+</I>&gt;<i> since we want to use req to write the page.
+</I>&gt;<i>
+</I>&gt;<i> What is a reasonable method to generate dynamic image graphics?
+</I>&gt;<i>
+</I>&gt;<i> Robert
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023648.html">[mod_python] Dynamic &lt;IMG&gt; with PIL
+</A></li>
+	<LI>Next message: <A HREF="023650.html">[mod_python] Dynamic &lt;IMG&gt; with PIL
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23649">[ date ]</a>
+              <a href="thread.html#23649">[ thread ]</a>
+              <a href="subject.html#23649">[ subject ]</a>
+              <a href="author.html#23649">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

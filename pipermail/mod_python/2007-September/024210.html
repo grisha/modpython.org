@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] MODPYTHON-225
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20MODPYTHON-225&In-Reply-To=88e286470709140257t229341b7mb34a676be3feea3e%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024208.html">
+   <LINK REL="Next"  HREF="024211.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] MODPYTHON-225</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Porcari Giovanni</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20MODPYTHON-225&In-Reply-To=88e286470709140257t229341b7mb34a676be3feea3e%40mail.gmail.com"
+       TITLE="[mod_python] MODPYTHON-225">giovanni.porcari at gmail.com
+       </A><BR>
+    <I>Fri Sep 14 06:26:20 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024208.html">[mod_python] MODPYTHON-225
+</A></li>
+        <LI>Next message: <A HREF="024211.html">[mod_python] MODPYTHON-225
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24210">[ date ]</a>
+              <a href="thread.html#24210">[ thread ]</a>
+              <a href="subject.html#24210">[ subject ]</a>
+              <a href="author.html#24210">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Il giorno 14/set/07, alle ore 11:57, Graham Dumpleton ha scritto:
+
+&gt;<i> How did you install Python 2.5, from source code or a binary  
+</I>&gt;<i> installer?
+</I>&gt;<i>
+</I>&gt;<i> The OS supplied Python framework is located at:
+</I>&gt;<i>
+</I>&gt;<i>   /System/Library/Frameworks/Python.framework
+</I>&gt;<i>
+</I>&gt;<i> In your case, for whatever reason is it instead at:
+</I>&gt;<i>
+</I>&gt;<i>   /Library/Frameworks/Python.framework
+</I>&gt;<i>
+</I>&gt;<i> I don't trust binary installers to not screw up my OS version so don't
+</I>&gt;<i> install them, thus don't know if them installing in
+</I>&gt;<i> /Library/Frameworks is what they do or not.
+</I>&gt;<i>
+</I>&gt;<i> Anyway, use:
+</I>&gt;<i>
+</I>&gt;<i>    -Wl,-F/Library/Frameworks
+</I>&gt;<i>
+</I>
+
+Sorry to bother you but I'm not very expert about this stuff so I
+simply added to makefile the line you suggested me.
+But it resulted in this error:
+
+Makefile:18: *** missing separator.  Stop.
+
+Can you explain the modification i have to do ?
+
+Thank you
+G.
+
+
+
+
+
+original makefile:
+--------------------
+# Copyright 2004 Apache Software Foundation
+#
+#  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      <A HREF="http://www.apache.org/licenses/LICENSE-2.0">http://www.apache.org/licenses/LICENSE-2.0</A>
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or  
+implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+# Originally developed by Gregory Trubetskoy.
+#
+
+
+
+LIBEXECDIR=/usr/local/apache2/modules
+AP_SRC=
+AP_SRC_OWN=
+AP_SRC_GRP=
+INSTALL=/usr/bin/install -c
+PYTHON_BIN=/Library/Frameworks/Python.framework/Versions/Current/bin/ 
+python
+PY_STD_LIB=/Library/Frameworks/Python.framework/Versions/2.5/lib/ 
+python2.5
+
+all: dso
+
+dso: do_dso
+
+do_dso:
+	@cd src &amp;&amp; $(MAKE)
+	@cd dist &amp;&amp; $(MAKE) build
+	@echo
+	@echo 'Now su and make install'
+	@echo '  (or, if you only want to perform a partial install,'
+	@echo '   you can use make install_dso and make install_py_lib)'
+	@echo
+
+no_dso:
+	@echo
+	@echo &quot;DSO compilation not available. (Probably because apxs could  
+not be found).&quot;
+	@echo
+
+static: no_static
+
+no_static:
+	@echo
+	@echo &quot;Static compilation not available. (Probably because --with- 
+apache was not specified).&quot;
+	@echo
+
+install: src/.install
+	@if test &quot;`cat src/.install`&quot; = &quot;dso&quot;; then \
+		$(MAKE) install_dso; \
+		$(MAKE) install_py_lib; \
+	else $(MAKE) install_static; fi
+
+install_dso:	dso
+	@echo
+	@echo &quot;Performing DSO installation.&quot;
+	@echo
+	$(INSTALL) -d $(DESTDIR)$(LIBEXECDIR)
+	$(INSTALL) src/mod_python.so $(DESTDIR)$(LIBEXECDIR)
+	@echo
+	@echo &quot;Now don't forget to edit your main config and add&quot;
+	@echo &quot;    LoadModule python_module $(LIBEXECDIR)/mod_python.so&quot;
+	@echo &quot;and if your configuration uses ClearModuleList, then also&quot;
+	@echo &quot;    AddModule mod_python.c&quot;
+	@echo
+
+install_py_lib:
+	cd dist &amp;&amp; $(MAKE) install_py_lib
+
+clean:
+	cd src &amp;&amp; $(MAKE) clean
+	cd dist &amp;&amp; $(MAKE) clean
+	cd test &amp;&amp; $(MAKE) clean
+	rm -f core
+
+distclean: clean
+	cd src &amp;&amp; $(MAKE) distclean
+	cd Doc &amp;&amp; $(MAKE) distclean
+	cd dist &amp;&amp; $(MAKE) distclean
+	cd test &amp;&amp; $(MAKE) distclean
+	rm -rf Makefile config.h config.status config.cache config.log \
+		test/testconf.py
+
+check:
+	cd test &amp;&amp; $(MAKE) check
+
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024208.html">[mod_python] MODPYTHON-225
+</A></li>
+	<LI>Next message: <A HREF="024211.html">[mod_python] MODPYTHON-225
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24210">[ date ]</a>
+              <a href="thread.html#24210">[ thread ]</a>
+              <a href="subject.html#24210">[ subject ]</a>
+              <a href="author.html#24210">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

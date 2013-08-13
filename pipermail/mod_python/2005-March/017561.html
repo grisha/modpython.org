@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python.publisher and req.path_info.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python.publisher%20and%20req.path_info.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017560.html">
+   <LINK REL="Next"  HREF="017562.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python.publisher and req.path_info.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python.publisher%20and%20req.path_info.&In-Reply-To="
+       TITLE="[mod_python] mod_python.publisher and req.path_info.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Mar  1 18:39:27 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017560.html">[mod_python] mod_python.publisher and req.path_info.
+</A></li>
+        <LI>Next message: <A HREF="017562.html">[mod_python] run scripts not under web server user
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17561">[ date ]</a>
+              <a href="thread.html#17561">[ thread ]</a>
+              <a href="subject.html#17561">[ subject ]</a>
+              <a href="author.html#17561">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote ..
+&gt;<i> Now I haven't looked too deeply into new style classes, but from some
+</I>&gt;<i> where I have got it in my head that one should be able to using new
+</I>&gt;<i> style classes create new methods and dynamically setup the parameters
+</I>&gt;<i> they accept. If this is true then _extra_path_info could be replaced
+</I>&gt;<i> with a magic method which would create a wrapper around a function
+</I>&gt;<i> and automatically fill into the __call__() method all the parameters
+</I>&gt;<i> which the wrapped method was expecting. Used in conjunction with
+</I>&gt;<i> decorators in Python 2.4, I am speculating that one could simple write:
+</I>&gt;<i> 
+</I>&gt;<i> @extra_path_info
+</I>&gt;<i> def method(req):
+</I>&gt;<i>   return req.path_info,req.extra_path_info
+</I>&gt;<i> 
+</I>&gt;<i> The only problem with this even if it can be done, is that the object which
+</I>&gt;<i> wraps the function most likely is an instance of a new style class and
+</I>&gt;<i> presently, mod_python.publisher cannot traverse into new style classes.
+</I>&gt;<i> Luckily the vampire::publisher code I have and will release at some point
+</I>&gt;<i> will, so I can try it out and see how it goes.
+</I>
+Actually, in vampire::publisher I don't need new style classes as I can
+reuse one of my internal methods for parameter matching and write:
+
+from vampire.lookup import _params
+
+class _extra_path_info_kw:
+  def __init__(self,callback,path=&quot;&quot;):
+    self.__callback = callback
+    self.__path = path
+  def __call__(self,**args):
+    if args.has_key(&quot;req&quot;):
+      args[&quot;req&quot;].extra_path_info = self.__path
+    status,kwargs,expected = _params(self.__callback)
+    if status != apache.OK:
+      raise apache.SERVER_RETURN, status
+    if kwargs == False:
+      for name in args.keys():
+        if name not in expected:
+          del args[name]
+    return self.__callback(**args)
+  def __getattr__(self,name):
+    if name[0] != '_':
+      return _extra_path_info_kw(self.__callback,'/'.join([self.__path,name]))
+    raise AttributeError()
+
+class A:
+  def __init__(self):
+    self.method = _extra_path_info_kw(self.method)
+  def method(self,req,arg1=&quot;1&quot;,arg2=&quot;2&quot;):
+    return req.path_info,req.extra_path_info,arg1,arg2
+
+a = A()
+
+This gives me with one method a way of wrapping methods with
+arbitrary form parameters.
+
+In mod_python.publisher there is parameter matching code as well in
+util.apply_fs_data() and as a result one can write:
+
+from mod_python import util 
+
+class _extra_path_info_kw:
+  def __init__(self,callback,path=&quot;&quot;):
+    self.__callback = callback
+    self.__path = path
+  def __call__(self,req):
+    req.extra_path_info = self.__path
+    return util.apply_fs_data(self.__callback,req.form,req=req)
+  def __getattr__(self,name):
+    if name[0] != '_':
+      return _extra_path_info_kw(self.__callback,'/'.join([self.__path,name]))
+    raise AttributeError()
+
+class A:
+  def __init__(self):
+    self.method = _extra_path_info_kw(self.method)
+  def method(self,req,arg1=&quot;1&quot;,arg2=&quot;2&quot;):
+    return req.path_info,req.extra_path_info,arg1,arg2
+
+a = A()
+
+This is though going to result in a second processing of req.form in the
+case of mod_python.publisher.
+
+Anyway, time to get back to some real work. :-)
+
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017560.html">[mod_python] mod_python.publisher and req.path_info.
+</A></li>
+	<LI>Next message: <A HREF="017562.html">[mod_python] run scripts not under web server user
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17561">[ date ]</a>
+              <a href="thread.html#17561">[ thread ]</a>
+              <a href="subject.html#17561">[ subject ]</a>
+              <a href="author.html#17561">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

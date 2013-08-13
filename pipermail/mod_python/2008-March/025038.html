@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Chaining handlers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Chaining%20handlers&In-Reply-To=88e286470803192051i7a4fb590m51581815c1498463%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025033.html">
+   <LINK REL="Next"  HREF="025052.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Chaining handlers</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>David Champion</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Chaining%20handlers&In-Reply-To=88e286470803192051i7a4fb590m51581815c1498463%40mail.gmail.com"
+       TITLE="[mod_python] Chaining handlers">dgc at uchicago.edu
+       </A><BR>
+    <I>Thu Mar 20 15:26:19 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025033.html">[mod_python] Chaining handlers
+</A></li>
+        <LI>Next message: <A HREF="025052.html">[mod_python] Chaining handlers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25038">[ date ]</a>
+              <a href="thread.html#25038">[ thread ]</a>
+              <a href="subject.html#25038">[ subject ]</a>
+              <a href="author.html#25038">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> The access, authentication and authorisation handler phases are:
+</I>&gt;<i> 
+</I>&gt;<i>   <A HREF="http://www.modpython.org/live/current/doc-html/dir-handlers-ach.html">http://www.modpython.org/live/current/doc-html/dir-handlers-ach.html</A>
+</I>&gt;<i>   <A HREF="http://www.modpython.org/live/current/doc-html/dir-handlers-auh.html">http://www.modpython.org/live/current/doc-html/dir-handlers-auh.html</A>
+</I>&gt;<i>   <A HREF="http://www.modpython.org/live/current/doc-html/dir-handlers-auzh.html">http://www.modpython.org/live/current/doc-html/dir-handlers-auzh.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> To get some context also see:
+</I>&gt;<i> 
+</I>&gt;<i>   <A HREF="http://www.fmc-modeling.org/category/projects/apache/amp/4_4Request_Response_Loop.html">http://www.fmc-modeling.org/category/projects/apache/amp/4_4Request_Response_Loop.html</A>
+</I>
+I did read those sections of the mod_python manual.  I also just looked
+at the response loop document, and all seem to agree that under various
+circumstances (depending on which handler phase you're in) returning OK
+or DECLINED should pass the request to the next handler.
+
+My code does this, but no matter which phase I've tried (access, auth,
+headers, fixup, and more) the most I can get is my CGI served as a
+static text/plain file.  Could it be a matter of priority?  It seems
+that I'm able to position a C module first in the handler stack; maybe
+that's why it works (see end).
+
+
+&gt;<i> Although authentication phase handler is mainly used for HTTP Basic
+</I>&gt;<i> authentication, it can be adapted for use in form based login
+</I>&gt;<i> mechanism. It is a bit more tricky to do though.
+</I>
+It doesn't seem any different from trying to accomplish authN in some
+other phase, but I might be missing something.  Anyway I'm getting the
+same results from all phases.
+
+
+&gt;<i> If you can find a separate Apache module that handles the concept of
+</I>&gt;<i> form based login but can use an Apache 2.2 auth provider, then
+</I>&gt;<i> mod_wsgi could still be used.
+</I>
+I haven't used WSGI before, but it might be worth a look sometime.
+
+For now, I have the C module working just about perfectly.  It's too bad
+I can't get it working in mod_python though, since it would allow me to
+share the python module my CGI uses to build the security tokens.
+
+
+&gt;<i> Also go to <A HREF="http://books.google.com">http://books.google.com</A> and plug in search term of
+</I>&gt;<i> 'authn_cookie'. This should yield snippet of Nick Kew's book on
+</I>&gt;<i> writing Apache modules. Read it as well as surrounding pages.
+</I>
+Thanks for this.  I didn't know about this book, but it looks like a
+good resource.  I haven't found ORA's &quot;Writing Apache Modules with Perl
+and C&quot; all that helpful, but it's possible I'm too distracted by my
+distaste for perl. :)
+
+
+
+This doesn't bear directly on my problem, but it might be interesting
+nonetheless: what I have already is a python module called HashCookie.py
+which takes arbitrary dictionary values from its client and hashes them
+together with current and expiration time values and a shared secret.
+It passes the dictionary data (excluding the shared secret) as the
+HC_DATA cookie, and the md5 or sha1 hash as HC_HASH.
+
+I'm nearly finished with mod_hashcookie, which is the C version of the
+server side which I had included in HashCookie.py.  It evaluates these
+cookies, taking the shared secret from its Apache configuration.  If
+the cookies are not present or do not hash correctly, it redirects to
+an authN URL -- a CGI that uses HashCookie.py to construct cookies and
+redirect back to the original resource.  If the hashes compare, the
+timestamps are checked to ensure that the cookies are still valid.  And
+if that passes, then the document is served.  This seems to be working
+exactly as desired in its core functionality.
+
+
+Thanks for your help.  I wrote the C version to verify that I knew
+what I was doing and that it was conceptually workable.  If I can figure
+out how to make the mod_python version work, I'm still interested, but
+mod_hashcookie should solve it if not.
+
+
+-- 
+ -D.    <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">dgc at uchicago.edu</A>    NSIT    University of Chicago
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025033.html">[mod_python] Chaining handlers
+</A></li>
+	<LI>Next message: <A HREF="025052.html">[mod_python] Chaining handlers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25038">[ date ]</a>
+              <a href="thread.html#25038">[ thread ]</a>
+              <a href="subject.html#25038">[ subject ]</a>
+              <a href="author.html#25038">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

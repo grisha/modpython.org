@@ -1,0 +1,228 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Trouble importing files through mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Trouble%20importing%20files%20through%20mod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025326.html">
+   <LINK REL="Next"  HREF="025329.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Trouble importing files through mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>hungrybackspace at gmail.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Trouble%20importing%20files%20through%20mod_python&In-Reply-To="
+       TITLE="[mod_python] Trouble importing files through mod_python">hungrybackspace at gmail.com
+       </A><BR>
+    <I>Mon Jun  2 15:58:33 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025326.html">[mod_python] Windows performance problem
+</A></li>
+        <LI>Next message: <A HREF="025329.html">[mod_python] Trouble importing files through mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25328">[ date ]</a>
+              <a href="thread.html#25328">[ thread ]</a>
+              <a href="subject.html#25328">[ subject ]</a>
+              <a href="author.html#25328">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Greetings,
+
+We're having a bit of a time importing modules that aren't in the
+standard library while using mod_python on this particular server.  We
+have had, however, success with other servers.  We're trying to run a
+tiny application that looks like this:
+
+
+on the console side:
+~/scratch/
+          RunImportTest.py
+          __init__.py
+          ImportTest/
+                     ImportTest.py
+                     __init__.py
+
+
+...and the web side:
+/home/httpd/html/beta/
+                      RunImportTestModPython.py
+
+
+Below, the contents of the three files:
+
+RunImportTest.py:
+=================
+from ImportTest.ImportTest import TEST_CONSTANT
+
+print TEST_CONSTANT
+
+
+RunImportTestModPython.py:
+==========================
+from mod_python import apache
+from ImportTest.ImportTest import TEST_CONSTANT
+
+def handler(req):
+    req.content_type = 'text/plain'
+    req.write(TEST_CONSTANT)
+    return apache.OK
+
+
+ImportTest/ImportTest.py:
+=========================
+TEST_CONSTANT = &quot;success&quot;
+
+
+Output from the import test from command line:
+~/scratch&gt; python RunImportTest.py
+success
+
+So we know the little program does indeed work.  Here is the output
+from Apache via mod_python:
+
+========================
+MOD_PYTHON ERROR
+
+ProcessId:      18704
+Interpreter:    'beta.company.com'
+
+ServerName:     'beta.company.com'
+DocumentRoot:   '/home/httpd/html/beta'
+
+URI:            '/RunImportTestModPython.py'
+Location:       None
+Directory:      '/home/httpd/html/beta/'
+Filename:       '/home/httpd/html/beta/RunImportTestModPython.py'
+PathInfo:       ''
+
+Phase:          'PythonHandler'
+Handler:        'RunImportTestModPython'
+
+Traceback (most recent call last):
+
+  File &quot;/usr/local/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+line 1537, in HandlerDispatch
+    default=default_handler, arg=req, silent=hlist.silent)
+
+  File &quot;/usr/local/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+line 1202, in _process_target
+    module = import_module(module_name, path=path)
+
+  File &quot;/usr/local/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+line 296, in import_module
+    log, import_path)
+
+  File &quot;/usr/local/lib/python2.5/site-packages/mod_python/importer.py&quot;,
+line 680, in import_module
+    execfile(file, module.__dict__)
+
+  File &quot;/home/httpd/html/beta/RunImportTestModPython.py&quot;, line 2, in &lt;module&gt;
+    from ImportTest.ImportTest import TEST_CONSTANT
+
+ImportError: No module named ImportTest.ImportTest
+
+
+MODULE CACHE DETAILS
+
+Accessed:       Mon Jun  2 14:21:49 2008
+Generation:     0
+
+_mp_df6c4429391f4fb65dc56704a2c1e0e2 {
+  FileName:     '/home/httpd/html/beta/RunImportTestModPython.py'
+  Instance:     1 [IMPORT]
+  Generation:   0 [ERROR]
+  Modified:     Mon Jun  2 11:49:11 2008
+}
+
+
+...and here's an .htaccess file we're using in the directory
+/home/httpd/html/beta, the directory that RunImportTestModPython.py is
+in:
+=========================
+Options Indexes FollowSymLinks MultiViews
+AddHandler mod_python .py
+PythonDebug On
+PythonHandler RunImportTestModPython
+PythonAutoReload On
+PythonPath &quot;['/home/me/scratch', '/home/me/scratch/ImportTest',
+'/usr/lib/python2.5/', '/usr/lib/python2.5/lib-dynload/',
+'/usr/lib/python2.5/site-packages/']&quot;
+
+
+...where /home/me is the user directory referenced at the top of the message.
+
+It's quite likely we're overlooking something very simple--but this
+same setup works without hitch on another system (granted, versions of
+OS, Apache, mod_python and Python are slightly different...).  This
+non-functioning setup is:
+
+* CentOS 5
+* Apache 2.2.8
+* PHP 5.2.6
+* Python 2.5.2
+* mod_python 3.3.1
+* cx_oracle 4.3.3
+
+some of those are kind of irrelevant for the specific application
+here, but there might be hidden conflicts that I'm not aware of. I
+have read some stuff about using mod_python's native import methods,
+and I'd very much like to use the standard python import method
+instead, as it preserves command-line execution without having to add
+a lot of overhead.  And in fact, I shouldn't have to because this
+setup works on another server.  Unfortunately, I can't simply use the
+other server...
+
+Hope this isn't all too much information--I'm very grateful for any
+help anyone may provide.
+
+many thanks,
+MC
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025326.html">[mod_python] Windows performance problem
+</A></li>
+	<LI>Next message: <A HREF="025329.html">[mod_python] Trouble importing files through mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25328">[ date ]</a>
+              <a href="thread.html#25328">[ thread ]</a>
+              <a href="subject.html#25328">[ subject ]</a>
+              <a href="author.html#25328">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

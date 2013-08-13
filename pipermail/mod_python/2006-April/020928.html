@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonAuthzHandler not working
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthzHandler%20not%20working&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020927.html">
+   <LINK REL="Next"  HREF="020957.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonAuthzHandler not working</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthzHandler%20not%20working&In-Reply-To="
+       TITLE="[mod_python] PythonAuthzHandler not working">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Apr 20 22:15:17 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020927.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+        <LI>Next message: <A HREF="020957.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20928">[ date ]</a>
+              <a href="thread.html#20928">[ thread ]</a>
+              <a href="subject.html#20928">[ subject ]</a>
+              <a href="author.html#20928">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Add to config:
+
+  AuthAuthoritative Off
+  Require dummy
+
+The value to Require cannot be:
+
+  valid-user
+  user ???
+  group ???
+
+it has to be something of your own creation that your authz handler then
+interprets.
+
+I am noting that authzhandler() can't return DECLINED, but must be OK,
+or presumable HTTP_UNAUTHORIZED. Returning DECLINED results in 500
+error and:
+
+[Fri Apr 21 12:10:43 2006] [crit] [client ::1] configuration error:  couldn't check access.  No groups file?: /~grahamd/authz/index.py
+
+
+Graham
+
+Graham Dumpleton wrote ..
+&gt;<i> Jim Gallacher wrote ..
+</I>&gt;<i> &gt; I've been pulling my hair out all day trying to get PythonAuthzHandler
+</I>&gt;<i> &gt; to work and I'm either missing something obvious or there is a problem
+</I>&gt;<i> &gt; with mod_python. What the heck is the magic required to make Apache call
+</I>&gt;<i> &gt; my authzhander? Using Apache 2.0.55 with the latest 3.3.0-dev, all my
+</I>&gt;<i> &gt; handlers including authenhandler get called, *except* for authzhandler.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; &lt;Directory /srv/projects/aos/html/aos-admin/&gt;
+</I>&gt;<i> &gt;    DirectoryIndex index.py
+</I>&gt;<i> &gt;    AllowOverride None
+</I>&gt;<i> &gt;    AddHandler mod_python .py
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;    AuthType PyCookie
+</I>&gt;<i> &gt;    AuthName &quot;Restricted&quot;
+</I>&gt;<i> &gt;    Require valid-user
+</I>&gt;<i> &gt;    Require admin
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;    PythonAccessHandler mprest.authtest
+</I>&gt;<i> &gt;    PythonAuthenHandler mprest.authtest
+</I>&gt;<i> &gt;    PythonAuthzHandler mprest.authtest
+</I>&gt;<i> &gt;    PythonHandler mprest.authtest
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; &lt;/Directory&gt;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; authtest.py contains the appropriate handlers that do nothing more than
+</I>&gt;<i> &gt; call req.log_error().
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; To aid in my efforts I modified python_handler in mod_python.c to log
+</I>&gt;<i> &gt; the status of each phase.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Simplified error_log output:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; $ cut -f 4 -d &quot;]&quot;  error.log
+</I>&gt;<i> &gt; mod_python.c python_handler: DECLINED PythonInitHandler phase
+</I>&gt;<i> &gt; mod_python.c python_handler: DECLINED PythonPostReadRequestHandler phase
+</I>&gt;<i> &gt; mod_python.c python_handler: DECLINED PythonTransHandler phase
+</I>&gt;<i> &gt; mod_python.c python_handler: DECLINED PythonHeaderParserHandler phase
+</I>&gt;<i> &gt; mod_python.c python_handler: PROCESS  PythonAccessHandler phase
+</I>&gt;<i> &gt; authtest.py  accesshandler called
+</I>&gt;<i> &gt; mod_python.c python_handler: PROCESS  PythonAuthenHandler phase
+</I>&gt;<i> &gt; authtest.py  authenhandler called
+</I>&gt;<i> &gt; mod_python.c python_handler: DECLINED PythonFixupHandler phase
+</I>&gt;<i> &gt; mod_python.c python_handler: PROCESS  PythonHandler phase
+</I>&gt;<i> &gt; authtest.py  handler called
+</I>&gt;<i> &gt; mod_python.c python_handler: DECLINED PythonLogHandler phase
+</I>&gt;<i> &gt; mod_python.c python_handler: DECLINED PythonCleanupHandler phase
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Please save me before I've gone completely bald. Otherwise at that point
+</I>&gt;<i> &gt; I'll have to start poking myself with a pointed stick. Madness can't
+</I>&gt;<i> be
+</I>&gt;<i> &gt; too far off in my future. :)
+</I>&gt;<i> 
+</I>&gt;<i> Behaviour confirmed.
+</I>&gt;<i> 
+</I>&gt;<i> I don't have much hair left already.
+</I>&gt;<i> 
+</I>&gt;<i> What is stranger is that if you use:
+</I>&gt;<i> 
+</I>&gt;<i> #PythonAccessHandler handlers
+</I>&gt;<i> #PythonAuthenHandler handlers
+</I>&gt;<i> #PythonAuthzHandler handlers
+</I>&gt;<i> #PythonHandler handlers
+</I>&gt;<i> PythonHandlerModule handlers
+</I>&gt;<i> 
+</I>&gt;<i> you get a 500 error and the Apache log file says:
+</I>&gt;<i> 
+</I>&gt;<i> [Fri Apr 21 11:45:13 2006] [crit] [client ::1] configuration error:  couldn't
+</I>&gt;<i> check user.  No user file?: /~grahamd/authz/index.py
+</I>&gt;<i> 
+</I>&gt;<i> Using the new module importer with its slightly different treatment of
+</I>&gt;<i> handler responses makes no difference.
+</I>&gt;<i> 
+</I>&gt;<i> Note that I have the following in my authenhandler().
+</I>&gt;<i> 
+</I>&gt;<i>   req.user = &quot;dummy&quot;
+</I>&gt;<i>   req.ap_auth_type = &quot;dummy&quot;
+</I>&gt;<i> 
+</I>&gt;<i> If I don't, I get a 500 error and:
+</I>&gt;<i> 
+</I>&gt;<i> [Fri Apr 21 11:48:25 2006] [error] [client ::1] python_handler: After PythonAuthenHandler
+</I>&gt;<i> req-&gt;user is NULL. Assign something to req.user if returning OK to avoid
+</I>&gt;<i> this error.
+</I>&gt;<i> 
+</I>&gt;<i> This error is actually from mod_python and was originally a fudge from
+</I>&gt;<i> some problem with Apache from back in time. Maybe it should be
+</I>&gt;<i> removed as comments suggest it should have been at some point.
+</I>&gt;<i> 
+</I>&gt;<i> Time to start augmenting Apache itself with some debug logging
+</I>&gt;<i> as it all does make a great deal of sense. :-(
+</I>&gt;<i> 
+</I>&gt;<i> More later.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020927.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+	<LI>Next message: <A HREF="020957.html">[mod_python] PythonAuthzHandler not working
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20928">[ date ]</a>
+              <a href="thread.html#20928">[ thread ]</a>
+              <a href="subject.html#20928">[ subject ]</a>
+              <a href="author.html#20928">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session unable to acquire mutex lock?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20unable%20to%20acquire%20mutex%20lock%3F&In-Reply-To=20031228132058.S70904%40onyx.ispol.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003612.html">
+   <LINK REL="Next"  HREF="003616.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session unable to acquire mutex lock?</H1>
+    <B>Russell Lear</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20unable%20to%20acquire%20mutex%20lock%3F&In-Reply-To=20031228132058.S70904%40onyx.ispol.com"
+       TITLE="[mod_python] Session unable to acquire mutex lock?">RussLear314 at yahoo.com
+       </A><BR>
+    <I>Mon Dec 29 08:57:00 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003612.html">[mod_python] Session unable to acquire mutex lock?
+</A></li>
+        <LI>Next message: <A HREF="003616.html">[mod_python] Session unable to acquire mutex lock?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3614">[ date ]</a>
+              <a href="thread.html#3614">[ thread ]</a>
+              <a href="subject.html#3614">[ subject ]</a>
+              <a href="author.html#3614">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Grisha,
+
+Thanks for the suggestions.  
+
+I did a stop/start and the problem happens on the first hit.
+
+I enabled some debug logging (See below).  
+
+There are two things I notice that seem odd to my inexperienced eye: 
+
+1) During apache's startup, mod_python says
+    &quot;Creating 32 session mutexes based on 150 max processes and 0 max threads&quot;.  
+Is &quot;0 max threads&quot; correct, or do I have something misconfigured? 
+Seems like max threads ought to be at least 1 or 2 ??
+
+2) When I invoke my test, there is a warning
+    &quot;Permission denied: Failed to acquire global mutex lock at index 17&quot;.  
+Is that just saying that it failed to get a mutex lock or do I have bad permissions someplace?
+
+Thanks,
+Russell.
+
+====================
+Apache error_log exerpt:
+[... 08:30:57 ] [info] Server: Apache/2.0.48, Interface: mod_ssl/2.0.48, Library: OpenSSL/0.9.7b
+[... 08:30:57 ] [notice] suEXEC mechanism enabled (wrapper: /usr/sbin/suexec2)
+[... 08:31:00 ] [info] Init: Initializing OpenSSL library
+[... 08:31:00 ] [info] Init: Seeding PRNG with 0 bytes of entropy
+[... 08:31:00 ] [info] Init: Generating temporary RSA private keys (512/1024 bits)
+[... 08:31:00 ] [info] Init: Generating temporary DH parameters (512/1024 bits)
+[... 08:31:00 ] [info] Init: Initializing (virtual) servers for SSL
+[... 08:31:00 ] [info] Server: Apache/2.0.48, Interface: mod_ssl/2.0.48, Library: OpenSSL/0.9.7b
+[... 08:31:02 ] [notice] mod_python: Creating 32 session mutexes based on 150 max processes and 0 max threads.
+[... 08:31:02 ] [notice] Apache/2.0.48 (Linux/SuSE) mod_ssl/2.0.48 OpenSSL/0.9.7b PHP/4.3.3 mod_python/3.1.2b Python/2.3+ configured -- resuming normal operations
+[... 08:31:02 ] [info] Server built: Nov 10 2003 11:47:10
+[... 08:31:02 ] [debug] prefork.c(1037): AcceptMutex: sysvsem (default: sysvsem)
+[... 08:31:15 ] [notice] mod_python: (Re)importing module 'mptest'
+[... 08:31:16 ] [warn] (13)Permission denied: Failed to acquire global mutex lock at index 17
+[... 08:31:16 ] [error] [client ::1] PythonHandler mptest: Traceback (most recent call last):
+[... 08:31:16 ] [error] [client ::1] PythonHandler mptest: 
+    File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 338, in HandlerDispatch
+    result = object(req)
+[... 08:31:16 ] [error] [client ::1] PythonHandler mptest:
+    File &quot;/srv/www/htdocs/test/mptest.py&quot;, line 7, in handler
+    sess = Session.Session(req)
+[... 08:31:16 ] [error] [client ::1] PythonHandler mptest:
+    File &quot;/usr/lib/python2.3/site-packages/mod_python/Session.py&quot;, line 411, in Session
+    timeout=timeout)
+[... 08:31:16 ] [error] [client ::1] PythonHandler mptest:
+    File &quot;/usr/lib/python2.3/site-packages/mod_python/Session.py&quot;, line 316, in __init__
+    secret=secret, timeout=timeout)
+[... 08:31:16 ] [error] [client ::1] PythonHandler mptest:   
+    File &quot;/usr/lib/python2.3/site-packages/mod_python/Session.py&quot;, line 170, in __init__
+    self.lock()                 # lock new sid
+[... 08:31:16 ] [error] [client ::1] PythonHandler mptest:   
+    File &quot;/usr/lib/python2.3/site-packages/mod_python/Session.py&quot;, line 241, in lock
+    _apache._global_lock(self._req.server, self._sid)
+[... 08:31:16 ] [error] [client ::1] PythonHandler mptest: 
+    ValueError: Failed to acquire global mutex lock
+
+====================
+
+On Sunday 28 December 2003 10:28, Gregory (Grisha) Trubetskoy wrote:
+&gt;<i> If you restart the server, and try this code, does the error happen on the
+</I>&gt;<i> first hit, or only starting with the second and after waiting for a while?
+</I>&gt;<i>
+</I>&gt;<i> If if it's the former, then there probably is some problem with locking in
+</I>&gt;<i> general (are there any warning messages on server startup?). ...
+</I>&gt;<i>
+</I>&gt;<i> Grisha
+</I>&gt;<i>
+</I>&gt;<i> On Sat, 27 Dec 2003, Russell Lear wrote:
+</I>&gt;<i> &gt; Hi,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; [RLear: 2003/12/29: deleted text to avoid overly long attachment]
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     from mod_python import apache, Session
+</I>&gt;<i> &gt;     import sys
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     def handler(req):
+</I>&gt;<i> &gt;         req.content_type = 'text/plain'
+</I>&gt;<i> &gt;         req.write(&quot;Creating...\n&quot;)
+</I>&gt;<i> &gt;         sess = Session.Session(req)
+</I>&gt;<i> &gt;         req.write(&quot;Hello World!&quot;)
+</I>&gt;<i> &gt;         return apache.OK
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;  [RLear: 2003/12/29: deleted text to avoid overly long attachment]
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'm running on SuSE 9.0 Linux.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Python reports version &quot;Python 2.3+ (#1, Sep 23 2003, 23:07:16)&quot;.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt;From the Apache error page:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     Apache/2.0.48 (Linux/SuSE),
+</I>&gt;<i> &gt;     mod_python/3.1.2b
+</I>&gt;<i> &gt;     Python/2.3+.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The only glitch I had in building mod_python was that I needed to specify
+</I>&gt;<i> &gt;     ./configure --with-apxs=/usr/sbin/apxs2
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; rather than just refering to apxs.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; My apache configuration is (from the tutorial):
+</I>&gt;<i> &gt; &lt;Directory /srv/www/htdocs/test&gt;
+</I>&gt;<i> &gt;   AddHandler python-program .py
+</I>&gt;<i> &gt;   PythonHandler mptest
+</I>&gt;<i> &gt;   PythonDebug On
+</I>&gt;<i> &gt; &lt;/Directory&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003612.html">[mod_python] Session unable to acquire mutex lock?
+</A></li>
+	<LI>Next message: <A HREF="003616.html">[mod_python] Session unable to acquire mutex lock?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3614">[ date ]</a>
+              <a href="thread.html#3614">[ thread ]</a>
+              <a href="subject.html#3614">[ subject ]</a>
+              <a href="author.html#3614">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and db connections - architectural advice
+	needed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20db%20connections%20-%20architectural%20advice%0A%09needed&In-Reply-To=a06100500be3a06a610b3%40%5B62.224.40.251%5D">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017454.html">
+   <LINK REL="Next"  HREF="017460.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python and db connections - architectural advice
+	needed</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Gustavo C&#243;rdova Avila</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20db%20connections%20-%20architectural%20advice%0A%09needed&In-Reply-To=a06100500be3a06a610b3%40%5B62.224.40.251%5D"
+       TITLE="[mod_python] mod_python and db connections - architectural advice
+	needed">gustavo.cordova at q-voz.com
+       </A><BR>
+    <I>Thu Feb 17 12:08:43 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017454.html">[mod_python] mod_python and db connections - architectural advice
+	needed
+</A></li>
+        <LI>Next message: <A HREF="017460.html">[mod_python] mod_python and db connections - architectural advice
+	needed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17458">[ date ]</a>
+              <a href="thread.html#17458">[ thread ]</a>
+              <a href="subject.html#17458">[ subject ]</a>
+              <a href="author.html#17458">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Christoph Pingel wrote:
+
+&gt;<i> Hello,
+</I>&gt;<i>
+</I>&gt;<i> I'm looking for good advice for the architecture of a web (service) 
+</I>&gt;<i> application.
+</I>&gt;<i>
+</I>&gt;<i> Using mod_python and psycopg, how do I *keep* a database connection 
+</I>&gt;<i> while using and disposing of cursors? And how can I integrate the 
+</I>&gt;<i> session handler with a (user specific) database connection?
+</I>&gt;<i>
+</I>&gt;<i> I've got my application running, but I create and destroy db 
+</I>&gt;<i> connections far too often. Is it, for example, good practice to pass a 
+</I>&gt;<i> cursor into an object that abstracts the db connection details, rather 
+</I>&gt;<i> than creating the cursor inside that abstraction and distroying it 
+</I>&gt;<i> after every curs.execute?
+</I>&gt;<i>
+</I>&gt;<i> I'm looking for references, hints, and especially programming examples.
+</I>&gt;<i>
+</I>&gt;<i> TIA,
+</I>&gt;<i> Christoph
+</I>
+These are all very interesting questions, and many that I've asked myself.
+
+When using psycopg in full isolation mode (fastest mode), then each 
+cursor is an independent connection, and the driver keeps a pool of open 
+connections in order to re-use previously closed ones (which aren't 
+really closed) when a .cursor() request is made.
+
+As such, each cursor has a commit() and rollback() method, and each 
+cursor has independent transactions; this is only important for those of 
+us who don't use autocommit.
+
+I use the method you explain above, passing a reference to the cursor to 
+use to all my DB accessing functions; but, because of the pool that 
+psycopg keeps around, cursor creating and destroying is really really 
+cheap, so if you design your application that way, it's no reall biggie.
+
+BUT, I'd really like to hear other people's impressions on this.  One of 
+the things I've bumped into is when creating the first connection, 
+sometimes, upon initial import, many connections are made simultaneously 
+and then abandoned, but not destroyed.  This really irks me; I've tried 
+gating access to the base DB connection object with a lock, but it's no 
+good.
+
+The base DB object is a module-global reference to a psycopg connection, 
+and I keep around a lock whenever I need to change it (because I use 
+apache2 configured with worker). I don't know if I'm stepping on my own 
+toes or what, but it works:
+
+[code]
+# module global database connection and it's lock.
+DB = None
+DBLOCK = thread.allocate_lock()
+
+def Cursor():
+    &quot;Return a database cursor.&quot;
+    global DB
+    DBLOCK.acquire()
+    try:
+        # Try to return a cursor immediately.
+        try:
+            return DB.cursor()
+        except:
+            # Maybe the connection isn't open yet, or was dropped.
+            DB = psycopg.connection(....)
+
+            # Try to return a new cursor, again.
+            try:
+                return DB.cursor()
+            except:
+                # Something happened; leave a message.
+                from traceback import format_exception
+                for line in format_exception(*sys.exc_info()):
+                    apache.log_error(line.rstrip(), apache.APLOG_ERR)
+                DB = None
+    finally:
+        DBLOCK.free()
+[/code]
+
+So, the idea here is to immediately lock so that only a single thread
+has access to DB; then try to return a new cursor as quick as possible;
+if not, create a new connection and try to return a new cursor again;
+if not, leave a message at the log and return None.
+
+Somehow, this feels a bit &quot;clunky&quot; for me, and I might be doing something
+horribly wrong.
+
+Any takers?
+
+-gca
+
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: gustavo.cordova.vcf
+Type: text/x-vcard
+Size: 196 bytes
+Desc: not available
+Url : <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20050217/2653f43c/gustavo.cordova.vcf">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20050217/2653f43c/gustavo.cordova.vcf</A>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017454.html">[mod_python] mod_python and db connections - architectural advice
+	needed
+</A></li>
+	<LI>Next message: <A HREF="017460.html">[mod_python] mod_python and db connections - architectural advice
+	needed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17458">[ date ]</a>
+              <a href="thread.html#17458">[ thread ]</a>
+              <a href="subject.html#17458">[ subject ]</a>
+              <a href="author.html#17458">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

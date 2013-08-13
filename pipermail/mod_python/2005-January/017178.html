@@ -1,0 +1,261 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonOption access
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonOption%20access&In-Reply-To=41F0A9BB.1080703%40netgroup.dk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017176.html">
+   <LINK REL="Next"  HREF="017179.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonOption access</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonOption%20access&In-Reply-To=41F0A9BB.1080703%40netgroup.dk"
+       TITLE="[mod_python] PythonOption access">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Jan 21 05:10:54 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017176.html">[mod_python] PythonOption access
+</A></li>
+        <LI>Next message: <A HREF="017179.html">[mod_python] PythonOption access
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17178">[ date ]</a>
+              <a href="thread.html#17178">[ thread ]</a>
+              <a href="subject.html#17178">[ subject ]</a>
+              <a href="author.html#17178">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 21/01/2005, at 6:05 PM, Bo Lorentsen wrote:
+
+&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i>
+</I>&gt;<i> I am not aware of what the &quot;Vampire&quot; module are, one of Your projects ?
+</I>
+Project site is:
+
+   <A HREF="http://www.dscpl.com.au/projects/vampire">http://www.dscpl.com.au/projects/vampire</A>
+
+&gt;&gt;<i> If the import function took an optional &quot;req&quot; object, I could place 
+</I>&gt;&gt;<i> this
+</I>&gt;&gt;<i> into the empty module prior to running execfile() and then remove
+</I>&gt;&gt;<i> it afterwards. Ie.,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>        module = imp.new_module(label)
+</I>&gt;&gt;<i>        module.__file__ = file
+</I>&gt;&gt;<i>        module.__req__ = req
+</I>&gt;&gt;<i>        execfile(file,module.__dict__)
+</I>&gt;&gt;<i>        del module.__dict__[&quot;__req__&quot;]
+</I>&gt;&gt;<i>
+</I>&gt;<i> So this is performed in the &quot;python module loader&quot;, i guess ?
+</I>
+Yes, but as explained, we aren't using &quot;import&quot; here or even the &quot;imp&quot; 
+module.
+Would make more sense if you got down Vampire and had a dig around in it
+as to how it handles module importing.
+
+&gt;<i> I am using the PythonHandler directly myself, and I guess this is more 
+</I>&gt;<i> &quot;low level&quot;, so control at this level are not possible ?
+</I>
+This level of control is possible. This wasn't theoretical and is 
+entirely
+practical thing that can be done in Vampire.
+
+&gt;&gt;<i> That way the &quot;req&quot; object could be available just for the period of 
+</I>&gt;&gt;<i> the
+</I>&gt;&gt;<i> initialisation phase of an import. You probably wouldn't want to
+</I>&gt;&gt;<i> cache the req object as it applies to a specific request as the cached
+</I>&gt;&gt;<i> module would outlive it. You also wouldn't want to be relying on
+</I>&gt;&gt;<i> information specific to a request. You could access the PythonOption
+</I>&gt;&gt;<i> values, although you may want to avoid values set in .htaccess files
+</I>&gt;&gt;<i> and go for ones you know are set in the httpd.conf file.
+</I>&gt;&gt;<i>
+</I>&gt;<i> Hmm, I know what You mean, but on the other hand ... I don't use one 
+</I>&gt;<i> python script for more than one URL, and if I am, the script still 
+</I>&gt;<i> remains in the same physical path in relation to the web server, 
+</I>&gt;<i> anyway. Or are we talking about two different things ?
+</I>
+If one using the module import system for sub imports in a content 
+handler
+then one can theoretically have common modules which are imported based 
+on
+different URL request. When doing a sub import though, one might not 
+necessarily
+pass through the req to sub imports.
+
+Anyway, one Python file per URL is good, or one Python file per 
+resource. This
+is actually exactly what Vampire promotes and makes easy to achieve.
+
+&gt;&gt;<i> Anyway, in the end, this would allow you to do something like the
+</I>&gt;&gt;<i> following in a content handler.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>  from mod_python import apache
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>  if __req__ != None:
+</I>&gt;&gt;<i>    options = __req__.get_options()
+</I>&gt;&gt;<i>    if options.has_key(&quot;debug&quot;) and options[&quot;debug&quot;]:
+</I>&gt;&gt;<i>      apache.log_error(...)
+</I>&gt;&gt;<i>
+</I>&gt;<i> Only ... I dislike the &quot;if&quot; :-)
+</I>&gt;<i>
+</I>&gt;<i> I hoped for something like :
+</I>&gt;<i>
+</I>&gt;<i>   from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i>   pram = apache.get_option( 'custom_param' )
+</I>&gt;<i>
+</I>&gt;<i>   ...
+</I>&gt;<i>
+</I>&gt;<i> This is without the &quot;if&quot; as the only problem left will be that 
+</I>&gt;<i> &quot;custom_param&quot; don't exist. I think the &quot;__req__&quot; object is a bad 
+</I>&gt;<i> idea, as this is not a request situation, but module initialization. 
+</I>&gt;<i> We know where the script is (and the .htaccess file), but no request 
+</I>&gt;<i> have been send (well it has, but we need not to know about this in the 
+</I>&gt;<i> &quot;global&quot; context !).
+</I>&gt;<i>
+</I>&gt;<i> Anyway, this is how I dream about it :-)
+</I>
+The &quot;if&quot; on __req__ can be avoided when it is a content handler being 
+loaded
+by the top level PythonHandler dispatcher as it would guarantee it is 
+set.
+In mod_python 3.1.X, get() can take a default parameter if not set, so 
+could
+just have:
+
+   param = __req__.get_options().get(&quot;custom_param&quot;,&quot;0&quot;)
+
+&gt;&gt;<i> Overall I am not sure that this is a good idea or not. It has both 
+</I>&gt;&gt;<i> good
+</I>&gt;&gt;<i> points and bad points.
+</I>&gt;&gt;<i>
+</I>&gt;<i> I think I know what you mean. It is a &quot;nice to have&quot; thing and I 
+</I>&gt;<i> already have a work around for this. But in my search for perfection 
+</I>&gt;<i> :-)
+</I>
+This whole idea actually fits in quite well with stuff I
+have done with Vampire with configuration files outside of .htaccess 
+mechanism
+and automatic search mechanisms to find inherited config. It has always 
+been
+a shortcoming that one could only do the config search from inside 
+execution
+of request handler as one need the req object. With the scheme talked 
+about
+here, I can extend ability to access the config during module import 
+phase.
+
+Anyway, I can hope you find Vampire closer to perfection. :-)
+
+&gt;&gt;<i> Maybe it shouldn't use an actual req object, but a new object which
+</I>&gt;&gt;<i> incorporates some of what req provides, dropping stuff that may be
+</I>&gt;&gt;<i> more specific to a particular request.
+</I>&gt;&gt;<i>
+</I>&gt;<i> Thats my point :-)
+</I>
+Possibly not complete, but the things from req it would/could have are:
+
+   hlist
+   interpreter
+   server
+   get_options()
+   get_config()
+   document_root()
+
+This means there is nothing which could be used to write data back to 
+the remote
+client.
+
+Figured I could call it __info__ and not __req__ when populated into the
+namespace of the module when loading.
+
+&gt;&gt;<i> Thus you might provide some
+</I>&gt;&gt;<i> information about the server and python options, although not sure
+</I>&gt;&gt;<i> how you deal with the issue of .htaccess level options being different
+</I>&gt;&gt;<i> based on URL used for original request.
+</I>&gt;&gt;<i>
+</I>&gt;<i> Well there is tho kinds of URL's there is physical and abstract (as I 
+</I>&gt;<i> understand it). Physical URL ends up mapped onto a physical path on 
+</I>&gt;<i> the disk (by apache), and therefor know where to load a .htaccess file 
+</I>&gt;<i> (and the document), but an abstract ends up in a PythonHandler, that 
+</I>&gt;<i> takes care of the rest.
+</I>&gt;<i>
+</I>&gt;<i> The abstract URL handler will only be able to load the .htaccess file 
+</I>&gt;<i> in the dir where it lives, but no config change depends on the URL, as 
+</I>&gt;<i> long as it ends up in our handler.
+</I>&gt;<i>
+</I>&gt;<i> Hmm, hope this makes sense. Anyway, I don't see any problems regarding 
+</I>&gt;<i> configuration and different URL's, but I may be missing somthing.
+</I>
+Yeah, makes sense. In Vampire, the PythonHandler is set to a module not 
+even
+in the directory hierarchy. It handles the dispatch against actual 
+content
+handlers in directory hierarchy. Because actual content handlers are 
+spread
+over the directory hierarchy under the root managed by Vampire, the 
+.htaccess
+in sub directories come into play because there is still a physical 
+correspondance
+with URL namespace and Apache just sorts it out the right way.
+
+This probably doesn't make much sense they way I have explained it 
+though. You
+would really need to play with Vampire to understand.
+
+Anyway, having explored this a but, am certainly going to implement 
+such a
+mechanism in Vampire.
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017176.html">[mod_python] PythonOption access
+</A></li>
+	<LI>Next message: <A HREF="017179.html">[mod_python] PythonOption access
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17178">[ date ]</a>
+              <a href="thread.html#17178">[ thread ]</a>
+              <a href="subject.html#17178">[ subject ]</a>
+              <a href="author.html#17178">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

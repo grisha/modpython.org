@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: Secure Sessions patch
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Secure%20Sessions%20patch&In-Reply-To=1166438016.8144%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022806.html">
+   <LINK REL="Next"  HREF="022807.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: Secure Sessions patch</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Steve Holden</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Secure%20Sessions%20patch&In-Reply-To=1166438016.8144%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Re: Secure Sessions patch">steve at holdenweb.com
+       </A><BR>
+    <I>Mon Dec 18 13:11:51 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022806.html">[mod_python] Secure Sessions patch
+</A></li>
+        <LI>Next message: <A HREF="022807.html">[mod_python] mysql python compilation failed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22814">[ date ]</a>
+              <a href="thread.html#22814">[ thread ]</a>
+              <a href="subject.html#22814">[ subject ]</a>
+              <a href="author.html#22814">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> Daniel Adler wrote ..
+</I>&gt;&gt;<i> Hi,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I saw there was a discussion on this topic already:
+</I>&gt;&gt;<i> <A HREF="http://www.modpython.org/pipermail/mod_python/2006-May/021260.html">http://www.modpython.org/pipermail/mod_python/2006-May/021260.html</A>
+</I>&gt;&gt;<i> and came up with the same wish -
+</I>&gt;&gt;<i> I want to force a session cookie to be explicitly created for https.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I have added a &quot;secure&quot; parameter to the session class constructors.
+</I>&gt;&gt;<i> If it is set AND req.is_https(), the cookie will be created wiht &quot;secure&quot;
+</I>&gt;&gt;<i> set.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> A diff of session.py in release 3.2.10 with this feature is available on
+</I>&gt;&gt;<i> <A HREF="http://neoscientists.org/~plex/mod_python_3_2_10_session_with_secure_cookie.diff">http://neoscientists.org/~plex/mod_python_3_2_10_session_with_secure_cookie.diff</A>
+</I>&gt;<i> 
+</I>&gt;<i> I'd suggest that an explicit argument to Session.Session() is probably
+</I>&gt;<i> not the best way of doing this. I am also dubious of it only being set
+</I>&gt;<i> if HTTPS is used as that suggests that if first access is not via HTTPS,
+</I>&gt;<i> that one could then continue to access the site thereafter without it
+</I>&gt;<i> needing it to be HTTPS which defeats the purpose of having it in the
+</I>&gt;<i> first place as you want to probably force it to be HTTPS always and not
+</I>&gt;<i> allow HTTP at all.
+</I>&gt;<i> 
+</I>&gt;<i> In place of an argument to Session.Session(), a PythonOption setting
+</I>&gt;<i> would possibly be more appropriate and would then be similar with how
+</I>&gt;<i> other aspects of cookies are configured for sessions. For example:
+</I>&gt;<i> 
+</I>&gt;<i>   PythonOption mod_python.session.secure: 1
+</I>&gt;<i> 
+</I>&gt;<i> By being an option it is easier to apply it to the complete URL
+</I>&gt;<i> namespace for an application, especially if application is coded poorly
+</I>&gt;<i> and doesn't have all session creation performed in one place only, or
+</I>&gt;<i> you can't modify the code for the application easily.
+</I>&gt;<i> 
+</I>&gt;<i> In being set this way, 'secure' should also perhaps always be set,
+</I>&gt;<i> regardless of whether HTTPS is used. The outcome of this is that the
+</I>&gt;<i> client would never send the cookie back if it wasn't HTTPS, thus result
+</I>&gt;<i> would be always being pushed back to the login form (session creation
+</I>&gt;<i> point) if not HTTPS, thereby clearly indicating that something is wrong
+</I>&gt;<i> and also not inadvertently still letting someone in by accident through
+</I>&gt;<i> HTTP.
+</I>&gt;<i> 
+</I>&gt;<i> Another possible issue is whether through Session instance it should be
+</I>&gt;<i> possible to access the cookie properties and interrogate if the cookie
+</I>&gt;<i> for a session had the 'secure' attribute. If you don't have a means of
+</I>&gt;<i> validating that it was secure cookie, then someone could modify the
+</I>&gt;<i> cookie on the client side, remove the secure attribute and change from
+</I>&gt;<i> using HTTPS to HTTP and possibly start to reveal information in traffic
+</I>&gt;<i> that you didn't want to be revealed.
+</I>&gt;<i> 
+</I>&gt;<i> On the latter point, one could argue that setting the PythonOption
+</I>&gt;<i> should also be a trigger for the Session class to perform a validation
+</I>&gt;<i> and always reject any cookie that doesn't have the 'secure' flag,
+</I>&gt;<i> presuming that the 'secure' flag is actually sent back with the cookie
+</I>&gt;<i> by the client.
+</I>&gt;<i> 
+</I>I understood that browsers would flag cookies as secure if they received 
+them over https, and maintain separation between secure and non-secure 
+cookies. I wouldn't expect to see the secure flag represented inside the 
+cookie, as the two sets (secure and non-secure) should be disjoint. This 
+can cause session maintenance problems when some pages in the session 
+are http and others are https.
+
+&gt;<i> Thus, I can seem merit in what you are trying to achieve, but it perhaps
+</I>&gt;<i> needs some more thought as to how it should be achieved to ensure that
+</I>&gt;<i> there aren't back doors in the way it is done.
+</I>&gt;<i> 
+</I>I agree that the proposed solution was a bit lame, though in the right 
+spirit.
+
+regards
+  Steve
+-- 
+Steve Holden       +44 150 684 7255  +1 800 494 3119
+Holden Web LLC/Ltd          <A HREF="http://www.holdenweb.com">http://www.holdenweb.com</A>
+Skype: holdenweb       <A HREF="http://holdenweb.blogspot.com">http://holdenweb.blogspot.com</A>
+Recent Ramblings     <A HREF="http://del.icio.us/steve.holden">http://del.icio.us/steve.holden</A>
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022806.html">[mod_python] Secure Sessions patch
+</A></li>
+	<LI>Next message: <A HREF="022807.html">[mod_python] mysql python compilation failed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22814">[ date ]</a>
+              <a href="thread.html#22814">[ thread ]</a>
+              <a href="subject.html#22814">[ subject ]</a>
+              <a href="author.html#22814">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

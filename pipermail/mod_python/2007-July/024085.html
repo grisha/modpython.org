@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and mod_wsgi
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20mod_wsgi&In-Reply-To=46AC321B.5030309%40rogerbinns.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024084.html">
+   <LINK REL="Next"  HREF="024079.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python and mod_wsgi</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20mod_wsgi&In-Reply-To=46AC321B.5030309%40rogerbinns.com"
+       TITLE="[mod_python] mod_python and mod_wsgi">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sun Jul 29 03:16:28 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024084.html">[mod_python] mod_python and mod_wsgi
+</A></li>
+        <LI>Next message: <A HREF="024079.html">[mod_python] undefined symbol: forkpty
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24085">[ date ]</a>
+              <a href="thread.html#24085">[ thread ]</a>
+              <a href="subject.html#24085">[ subject ]</a>
+              <a href="author.html#24085">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 29/07/07, Roger Binns &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rogerb at rogerbinns.com</A>&gt; wrote:
+&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i> &gt; These include things related to main interpreter simplified
+</I>&gt;<i> &gt; GIL state API use, .....  Although,
+</I>&gt;<i> &gt; the usefulness of this is limited if your application uses certain
+</I>&gt;<i> &gt; third party C extension modules which have not been written properly
+</I>&gt;<i> &gt; so as to be able to handle interpreters being recycled.
+</I>&gt;<i>
+</I>&gt;<i> Can you document somewhere what extension authors are supposed to do?
+</I>&gt;<i> Currently we all just follow the main CPython documentation.  Even
+</I>&gt;<i> better would be to get the CPython implementation updated (so extension
+</I>&gt;<i> authors don't have to change code) or at least updating the CPython
+</I>&gt;<i> documentation.
+</I>
+There is nothing wrong with the CPython implementation that needs to
+be changed, it is how module writers use it.
+
+The two main issues are (affecting both mod_python and mod_wsgi):
+
+1. Module writers using simplified GIL state API for thread
+management. By doing this the module can only be used in the very
+first interpreter created by Python. In mod_python this is in the
+interpreter selectable by setting PythonInterpreter to
+'main_interpreter'. In mod_wsgi one selects this first interpreter by
+setting WSGIApplicationGroup to '%{GLOBAL}'. That simplified GIL state
+API will only work with first interpreter is I believe documented in
+Python documentation.
+
+2. Module writers who do not realise that a C module is only
+initialised once per process and cache data which is interpreter
+specific from the module initialisation function and then use that
+cached data in ways with secondary sub interpreters. In many cases
+this will work okay, but in others it will not, such as using
+'decimal.Decimal' from main interpreter to create object instances for
+secondary sub interpreters. The 'decimal.Decimal' in the secondary sub
+interpreters is different due to it being a Python object and not a
+CPython object. Thus things like isinstance() fail when comparing
+object types. This sort of thing may not be explicitly documented in
+Python documentation and since module writers don't contemplate that
+their module may be used in situation where there is multiple sub
+interpreters may not think about it.
+
+Only other real issue and one that only affects mod_wsgi interpreter
+reloading is where an extension module caches references to Python
+objects in global C variables but doesn't actually do an Py_INCREF on
+it. If the sub interpreter is recycled, that cache Python object can
+be destroyed. If new interpreter is created the extension module isn't
+reinitialised and that C variable then contains a dangling pointer to
+object that has since been destroyed.
+
+I mention these issues to various degrees as being a cause of problems
+when using mod_wsgi in the mod_wsgi documentation. If need be, when I
+get a chance I'll a specific page on these issues with actual C code
+examples.
+
+Graham
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024084.html">[mod_python] mod_python and mod_wsgi
+</A></li>
+	<LI>Next message: <A HREF="024079.html">[mod_python] undefined symbol: forkpty
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24085">[ date ]</a>
+              <a href="thread.html#24085">[ thread ]</a>
+              <a href="subject.html#24085">[ subject ]</a>
+              <a href="author.html#24085">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,136 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] problem with mod_python authentication via postgresql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20problem%20with%20mod_python%20authentication%20via%20postgresql&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005190.html">
+   <LINK REL="Next"  HREF="005187.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] problem with mod_python authentication via postgresql</H1>
+    <B>Remy C. Cool</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20problem%20with%20mod_python%20authentication%20via%20postgresql&In-Reply-To="
+       TITLE="[mod_python] problem with mod_python authentication via postgresql">modpython at smartology.nl
+       </A><BR>
+    <I>Fri May  3 11:21:09 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005190.html">[mod_python] I need advice, please...
+</A></li>
+        <LI>Next message: <A HREF="005187.html">[mod_python] Powered by mod_python logo?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5186">[ date ]</a>
+              <a href="thread.html#5186">[ thread ]</a>
+              <a href="subject.html#5186">[ subject ]</a>
+              <a href="author.html#5186">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>I'm experimenting with python/mod_python and run into a problem with 
+autentication...  
+
+I use the following code:
+
+# authenticate user
+import psycopg
+import string
+import time
+from mod_python import apache
+
+
+def authenhandler(req):
+
+   pw = req.get_basic_auth_pw()
+   user = req.connection.user
+
+   # create database connection
+   connectstring = &quot;dbname=testbase user=tester password=test 
+port=5432&quot;
+   dbconn = psycopg.connect(connectstring)
+   dbhandle = dbconn.cursor()
+   # define query
+   dbhandle.execute(&quot;SELECT user_id,password FROM users WHERE 		   
+username = %s&quot;, (user,))
+   # retrieve results
+   results = dbhandle.fetchall()
+   total = len(results)
+
+   if total &lt; 1:
+      # user not known on this system
+      return apache.HTTP_UNAUTHORIZED
+   else:
+      if total &gt; 2:
+         # database corrupted
+         return apache.HTTP_UNAUTHORIZED
+      else:
+         # extract user_id from list
+         user_id = results[0][0]
+         # get host info
+         curhost = req.get_remote_host(apache.REMOTE_NAME)
+         # register login try
+         dbhandle.execute(&quot;&quot;&quot;INSERT INTO login (user_id,host) VALUES 
+( %d,%s )&quot;&quot;&quot;, (user_id,curhost))
+         dbconn.commit()
+         # extract password from list
+         passwd = string.strip(results[0][1])
+         # compare password with given
+         if pw == passwd:
+            # user authenticated
+            return apache.OK
+         else:
+            # incorrect password
+            return apache.HTTP_UNAUTHORIZED
+
+Authentication works. The username is looked up in the database and 
+if the password is OK, access is granted. The problem is that for 
+every login attempt (or page refresh) I get 4 entry's in my login 
+table ond not one. What am I doing wrong here ?
+
+Regards,
+Remy Cool
+
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005190.html">[mod_python] I need advice, please...
+</A></li>
+	<LI>Next message: <A HREF="005187.html">[mod_python] Powered by mod_python logo?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5186">[ date ]</a>
+              <a href="thread.html#5186">[ thread ]</a>
+              <a href="subject.html#5186">[ subject ]</a>
+              <a href="author.html#5186">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

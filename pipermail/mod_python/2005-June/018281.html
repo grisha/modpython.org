@@ -1,0 +1,267 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonAuthenHandler Question SOLVED
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthenHandler%20Question%20SOLVED&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018302.html">
+   <LINK REL="Next"  HREF="018283.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonAuthenHandler Question SOLVED</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Al Pacifico</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthenHandler%20Question%20SOLVED&In-Reply-To="
+       TITLE="[mod_python] PythonAuthenHandler Question SOLVED">pacifico at drizzle.com
+       </A><BR>
+    <I>Sun Jun  5 13:32:10 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018302.html">[mod_python] Source code displayed by Mozilla/Firefox
+</A></li>
+        <LI>Next message: <A HREF="018283.html">[mod_python] mod_python and threading.Thread doesn't start
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18281">[ date ]</a>
+              <a href="thread.html#18281">[ thread ]</a>
+              <a href="subject.html#18281">[ subject ]</a>
+              <a href="author.html#18281">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+I answered my question posed yesterday moments after submitting it. The idea
+of subclassing a handler occurred to me, but I realized it was inflexible
+(if there were five groups and there were various required combinations I'd
+need 5! handlers). The PythonOption directive was what I needed (rather than
+the require method) and not thinking of it was a novice move!
+
+I'm posting the handler and the corresponding httpd.conf section in case it
+helps anyone. If you look it over and have any input, please post it. To
+those who responded to my posts, thanks for your input.
+
+-al
+
+&lt;--- authenticate.py ---&gt;
+
+from mod_python import apache
+import ldap,ldap.sasl
+import example_Config
+import re
+
+# this dictionary &quot;client_group_match&quot; contains keys that should match the
+first argument to
+# PythonOption directives in the httpd.conf file. The values are python
+regular expression object
+# that determine if the argument to the method (a single string which
+represents the distinguished
+# methods name of the client) matches the corresponding directive. Calls to
+these methods return a
+# match object if there is a match and None if there is not.
+client_group_match={}
+client_group_match['clientadministrator'] = \
+	
+re.compile('cn=administrators,o=([^,]*),ou=clients,dc=example,dc=com',re.IGN
+ORECASE).match
+client_group_match['clientagent'] = \
+	
+re.compile('cn=agents,o=([^,]*),ou=clients,dc=example,dc=com',re.IGNORECASE)
+.match
+client_group_match['exampleadministrator'] = \
+	
+re.compile('cn=administrators,ou=groups,dc=example,dc=com',re.IGNORECASE).ma
+tch
+
+def authenhandler(req):
+
+	# import our configuration file to find our LDAP server
+	config = Config.Config()
+
+	# show the password dialog, retrieve password and user
+	pw = req.get_basic_auth_pw()
+	email = req.user
+
+	# get a sasl authentication object
+	sasl_auth =
+ldap.sasl.sasl({ldap.sasl.CB_AUTHNAME:email,ldap.sasl.CB_PASS:pw},'DIGEST-MD
+5')
+	
+	# open a connection to our LDAP server
+	# initialize LDAPObject with domain name / ip of our sever
+	l = ldap.open(config[&quot;LDAP:server&quot;])
+
+	# attempt to bind to the LDAP server
+	try:
+		l.sasl_interactive_bind_s(&quot;&quot;,sasl_auth)
+			
+		try:
+			# retrieve client's distinguished name (dn), remove
+the prepended dn: that the
+			# LDAPObject.whomai_s() method returns, and
+normalize it to lower case
+			client_dn = l.whoami_s().lower()[3:]
+			
+			# Access to this page is restricted to whom?
+			restricted_to =
+req.get_options().get('permitted',None)
+
+			if restricted_to:
+				# process arguments to the 'permitted'
+PythonOption : split on commas, remove whitespace
+				# at end and beginning, condense whitespace
+between the words to a single space, and
+				# normalize to all lower case
+				restricted_to=['
+'.join(perm_args.split(None)).lower() for perm_args in
+restricted_to.split(',')]
+				
+				# determine which groups the client belongs
+to by searching all the groups in the LDAP tree
+				client_groups=[]
+				# the following code is dependent on the
+ldap directory structure
+	
+groups=l.search_s(&quot;dc=example,dc=com&quot;,ldap.SCOPE_SUBTREE,&quot;objectclass=groupO
+fNames&quot;,[&quot;member&quot;])
+				for (group_dn,group_attr) in groups:
+					# lower case the distinguished names
+of the members of the group to permit string
+					# equality comparison with the
+distinguished name returned by the LDAPObject.whoami_s()
+					# method
+					group_attr['member'] = [s.lower()
+for s in group_attr['member']]
+	
+					# debugging
+					req.log_error('%s contains %s' %
+(group_dn,group_attr['member']))
+				
+					# if the client's dn is a member of
+the group, add the group to our list
+					if client_dn in
+group_attr['member']: client_groups.append(group_dn.lower())
+
+				# test if the dn of any member of client's
+groups matches the dn's of the groups which are
+				# permitted to access this request At this
+point, client is authenticated and only possible
+				# results are HTTP_FORBIDDEN and OK
+				result = apache.HTTP_FORBIDDEN
+				for client_role in client_groups:
+					if result == apache.HTTP_FORBIDDEN:
+						for role_permitted in
+restricted_to:
+							if
+client_group_match.has_key(role_permitted) and \
+	
+client_group_match[role_permitted](client_role):
+								result =
+apache.OK
+							else:
+								# require
+directive contains bad arguments - log this to the  error log
+	
+req.log_error('Bad arguments to require directive at %s.' % req.filename)
+					else: break
+
+				return result
+			else:
+				# restricted_to was None, so there are no
+restrictions.
+				return apache.OK
+		finally:
+			l.unbind()
+	except ldap.SERVER_DOWN,e:
+		# can't contact the LDAP server
+		return apache.HTTP_INTERNAL_SERVER_ERROR
+	except ldap.LDAPError,e:
+		# client couldn't authenticate. Returning HTTP_UNAUTHORIZED
+gives him an opportunity to try again
+		return apache.HTTP_UNAUTHORIZED
+
+httpd.conf section follows:
+
+PythonPath &quot;sys.path+['/usr/var/www/lib']&quot;
+# Following did not work as expected
+# PythonImport PMHx_Config powell
+&lt;Directory /&gt;
+    Options FollowSymLinks
+    AllowOverride None
+&lt;/Directory&gt;
+&lt;Directory &quot;/usr/var/www/htdocs&quot;&gt;
+    AddHandler mod_python .psp
+    PythonHandler mod_python.psp
+    PythonDebug On
+    Options Indexes FollowSymLinks
+    AllowOverride None
+    Order allow,deny
+    Allow from all
+&lt;/Directory&gt;
+&lt;Directory &quot;/usr/var/www/htdocs/administration&quot;&gt;
+    AddHandler mod_python .psp
+    PythonHandler mod_python.psp
+	PythonAuthenHandler authenticate
+	PythonOption permitted ExampleAdministrator
+	PythonDebug On
+	AuthType Basic
+	AuthName &quot;Example Administration&quot;
+	require valid-user
+&lt;/Directory&gt;
+
+Al Pacifico
+Seattle, WA
+
+
+
+
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018302.html">[mod_python] Source code displayed by Mozilla/Firefox
+</A></li>
+	<LI>Next message: <A HREF="018283.html">[mod_python] mod_python and threading.Thread doesn't start
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18281">[ date ]</a>
+              <a href="thread.html#18281">[ thread ]</a>
+              <a href="subject.html#18281">[ subject ]</a>
+              <a href="author.html#18281">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

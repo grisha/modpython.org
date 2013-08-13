@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] About module autoreload
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20About%20module%20autoreload&In-Reply-To=1108883225.18963.8.camel%40localhost">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017476.html">
+   <LINK REL="Next"  HREF="017478.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] About module autoreload</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20About%20module%20autoreload&In-Reply-To=1108883225.18963.8.camel%40localhost"
+       TITLE="[mod_python] About module autoreload">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Feb 20 03:05:25 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017476.html">[mod_python] About module autoreload
+</A></li>
+        <LI>Next message: <A HREF="017478.html">[mod_python] About module autoreload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17477">[ date ]</a>
+              <a href="thread.html#17477">[ thread ]</a>
+              <a href="subject.html#17477">[ subject ]</a>
+              <a href="author.html#17477">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>A few other comments about what you are trying to do.
+
+
+On 20/02/2005, at 6:07 PM, Gonzalo Sainz-Tr&#225;paga wrote:
+
+&gt;<i> Hi,
+</I>&gt;<i> After reading the FAQ entry 3.1, i finally built my custom way to 
+</I>&gt;<i> import
+</I>&gt;<i> modules, on the lines of:
+</I>&gt;<i>
+</I>&gt;<i> -- config.py --
+</I>&gt;<i> debug = True
+</I>&gt;<i> --
+</I>&gt;<i>
+</I>&gt;<i> -- anyscript.py --
+</I>&gt;<i> from mod_python.apache import import_module
+</I>&gt;<i> config = import_module('config')
+</I>&gt;<i> if config.debug:
+</I>&gt;<i>     # reload other modules
+</I>&gt;<i> --
+</I>&gt;<i>
+</I>&gt;<i> This is a bit lengthy and annoying but then i found this directive in
+</I>&gt;<i> the 3.x docs:
+</I>&gt;<i>
+</I>&gt;<i> -- <A HREF="http://www.modpython.org/live/current/doc-html/dir-other-par.html">http://www.modpython.org/live/current/doc-html/dir-other-par.html</A> --
+</I>&gt;<i> PythonAutoReload {On,Off}
+</I>&gt;<i> (...)
+</I>&gt;<i> By default, mod_python checks the time-stamp of the file and reloads 
+</I>&gt;<i> the
+</I>&gt;<i> module if the module's file modification date is later than the last
+</I>&gt;<i> import or reload. This way changed modules get automatically 
+</I>&gt;<i> reimported,
+</I>&gt;<i> eliminating the need to restart the server for every change.
+</I>&gt;<i> --
+</I>&gt;<i>
+</I>&gt;<i> If I explicitly set this directive to On, i get the expected behaviour
+</I>&gt;<i> without manually reloading modules on every script. But, if i don't set
+</I>&gt;<i> it i get the &quot;Off&quot; behaviour, instead of the &quot;On&quot; one as advertised in
+</I>&gt;<i> the docs.
+</I>
+That can't be true. Code where top level module loading occurs is:
+
+             module = import_module(module_name,
+                                    
+autoreload=int(config.get(&quot;PythonAutoReload&quot;, 1)),
+                                    log=debug)
+
+Thus, default is definitely &quot;On&quot; or enabled.
+
+&gt;<i> Actually I'm glad this directive exists and seems to do what I think it
+</I>&gt;<i> does, but the FAQ must *really* be updated on this, and, if i'm not
+</I>&gt;<i> mistaken, the default behaviour should be corrected either in the docs
+</I>&gt;<i> or in mod_python (i would suggest the former, as automatically 
+</I>&gt;<i> reloading
+</I>&gt;<i> modules is the standard interpreter behaviour).
+</I>&gt;<i>
+</I>&gt;<i> I wanted to check with you guys before I mess with the FAQ, in case i'm
+</I>&gt;<i> getting something wrong.
+</I>
+As well as pointing out that PythonAutoReload doesn't apply to your 
+explicit
+use of import_module(), it is also worthwhile point out that if your 
+&quot;other
+modules&quot; are changed, they will not actually be automatically reloaded 
+in your
+example unless the top level file which imports them is also changed.
+
+To try and make this a bit clearer, imagine your top level module is A 
+and it
+imports a submodule call B. If you change A, if PythonAutoReload is On, 
+then
+A will be reloaded. B will not however be reloaded at that time but 
+will be
+taken from the cache. This is because B hadn't been changed.
+
+Now, if you modify B but not A, nothing will happen at all. Ie., 
+neither A or
+B will be reloaded. This is because the mod_python module import and 
+caching
+system makes no attempt to detect that A needs reloading because of B 
+changing.
+B will only be reloaded, if A is changed, thus forcing the re-execution 
+of the
+import_module() function on B.
+
+This and other problems in import_module() mean it is a pain to use and 
+many
+people resort to schemes such as touching all Python code files every 
+time
+they make a change to one, just to ensure everything that potentially 
+needs
+reloading is reloaded. This does though mean that things that didn't 
+need
+reloading also get reloaded.
+
+In short, import_module() is broken. If you are curious about other 
+import
+schemes, you might look at Vampire, which implements an import 
+mechanism which
+does detect changes in subimports and will automatically reimport 
+parents as
+necessary. Vampire is at &quot;<A HREF="http://www.dscpl.com.au/projects/vampire&quot;.">http://www.dscpl.com.au/projects/vampire&quot;.</A>
+
+Graham
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017476.html">[mod_python] About module autoreload
+</A></li>
+	<LI>Next message: <A HREF="017478.html">[mod_python] About module autoreload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17477">[ date ]</a>
+              <a href="thread.html#17477">[ thread ]</a>
+              <a href="subject.html#17477">[ subject ]</a>
+              <a href="author.html#17477">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,308 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> (Fwd) Re: [mod_python] How to pass values
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%28Fwd%29%20Re%3A%20%5Bmod_python%5D%20How%20to%20pass%20values&In-Reply-To=45BB22DF.6099.4DD0E11%40export.hope.cz">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023126.html">
+   <LINK REL="Next"  HREF="023128.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>(Fwd) Re: [mod_python] How to pass values</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%28Fwd%29%20Re%3A%20%5Bmod_python%5D%20How%20to%20pass%20values&In-Reply-To=45BB22DF.6099.4DD0E11%40export.hope.cz"
+       TITLE="(Fwd) Re: [mod_python] How to pass values">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Jan 27 06:26:09 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023126.html">(Fwd) Re: [mod_python] How to pass values
+</A></li>
+        <LI>Next message: <A HREF="023128.html">(Fwd) Re: [mod_python] How to pass values
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23127">[ date ]</a>
+              <a href="thread.html#23127">[ thread ]</a>
+              <a href="subject.html#23127">[ subject ]</a>
+              <a href="author.html#23127">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>There is 4 seconds between the filter call and the handler call. That  
+seems a bit
+long. Are you sure they come from the same request?
+
+In both filter and handler also log the following attributes:
+
+   req.method
+   req.uri
+   req.connection.id
+
+For the filter, prefix with 'filter.' to get to req object first  
+obviously.
+
+You might also log result of os.getpid() to verify that each is run  
+in the same
+process.
+
+Anyway, I suspect that it isn't from the same request. What is  
+missing here and
+you need to understand is that the input filters for a request are  
+not actually
+called until the handler calls req.read() or one of the other read  
+methods of the
+request object. It is only after req.read() is called that the  
+req.myflag value would
+have been set. So, if you haven't called req.read() before accessing  
+the attribute
+it will fail.
+
+Graham
+
+On 27/01/2007, at 8:01 PM, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">export at hope.cz</A> wrote:
+
+&gt;<i>  Graham,
+</I>&gt;<i> Thank you for your reply.
+</I>&gt;<i> So, I used the debugging  techniques like this:
+</I>&gt;<i>
+</I>&gt;<i> in input filter
+</I>&gt;<i> ###########################
+</I>&gt;<i> from mod_python import apache,Cookie
+</I>&gt;<i> def inputfilter(filter):
+</I>&gt;<i> 	filter.req.log_error('Running inputfilter')
+</I>&gt;<i> 	filter.req.log_error('Setting myflag..')
+</I>&gt;<i> 	filter.req.myflag = True
+</I>&gt;<i> 	filter.req.log_error('myflag was set to:')
+</I>&gt;<i> 	filter.req.log_error(`filter.req.myflag`)
+</I>&gt;<i> 	if filter.req.method != 'POST':
+</I>&gt;<i> 		filter.pass_on()
+</I>&gt;<i> 		return
+</I>&gt;<i> 	s = filter.read()
+</I>&gt;<i> 	while s:
+</I>&gt;<i> 		f.write(s)
+</I>&gt;<i> 		f.flush()
+</I>&gt;<i> 		filter.write(s)
+</I>&gt;<i> 		filter.flush()
+</I>&gt;<i> 		s = filter.read()
+</I>&gt;<i> 		
+</I>&gt;<i> 	if s is None:
+</I>&gt;<i> 		filter.close()
+</I>&gt;<i> 		f.close()
+</I>&gt;<i> ########################
+</I>&gt;<i>
+</I>&gt;<i> in handler
+</I>&gt;<i> ##########################
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>      if req.method == 'GET':
+</I>&gt;<i> 	......
+</I>&gt;<i>
+</I>&gt;<i>     else:
+</I>&gt;<i> 	if  req.method == 'POST':
+</I>&gt;<i> 	 	req.log_error('Myhandler')
+</I>&gt;<i> 		req.log_error('MyHandler, in POST request, has myflag')
+</I>&gt;<i> 		req.log_error(`req.myflag`)
+</I>&gt;<i> 	....
+</I>&gt;<i> 	....
+</I>&gt;<i> #######################
+</I>&gt;<i> and here is a part of error log
+</I>&gt;<i>
+</I>&gt;<i> ..
+</I>&gt;<i> [Sat Jan 27 09:48:54 2007] [notice] Child 2196: Starting thread to  
+</I>&gt;<i> listen on port 80.
+</I>&gt;<i> [Sat Jan 27 09:49:05 2007] [error] [client 127.0.0.1] Running  
+</I>&gt;<i> inputfilter
+</I>&gt;<i> [Sat Jan 27 09:49:05 2007] [error] [client 127.0.0.1] Setting myflag..
+</I>&gt;<i> [Sat Jan 27 09:49:05 2007] [error] [client 127.0.0.1] myflag was  
+</I>&gt;<i> set to:
+</I>&gt;<i> [Sat Jan 27 09:49:05 2007] [error] [client 127.0.0.1] True
+</I>&gt;<i> [Sat Jan 27 09:49:05 2007] [error] [client 127.0.0.1] Running  
+</I>&gt;<i> inputfilter
+</I>&gt;<i> [Sat Jan 27 09:49:05 2007] [error] [client 127.0.0.1] Setting myflag..
+</I>&gt;<i> [Sat Jan 27 09:49:05 2007] [error] [client 127.0.0.1] myflag was  
+</I>&gt;<i> set to:
+</I>&gt;<i> [Sat Jan 27 09:49:05 2007] [error] [client 127.0.0.1] True
+</I>&gt;<i> [Sat Jan 27 09:49:08 2007] [error] [client 127.0.0.1] Running  
+</I>&gt;<i> inputfilter
+</I>&gt;<i> [Sat Jan 27 09:49:08 2007] [error] [client 127.0.0.1] Setting myflag..
+</I>&gt;<i> [Sat Jan 27 09:49:08 2007] [error] [client 127.0.0.1] myflag was  
+</I>&gt;<i> set to:
+</I>&gt;<i> [Sat Jan 27 09:49:08 2007] [error] [client 127.0.0.1] True
+</I>&gt;<i> [Sat Jan 27 09:49:08 2007] [error] [client 127.0.0.1] Running  
+</I>&gt;<i> inputfilter
+</I>&gt;<i> [Sat Jan 27 09:49:08 2007] [error] [client 127.0.0.1] Setting myflag..
+</I>&gt;<i> [Sat Jan 27 09:49:08 2007] [error] [client 127.0.0.1] myflag was  
+</I>&gt;<i> set to:
+</I>&gt;<i> [Sat Jan 27 09:49:08 2007] [error] [client 127.0.0.1] True
+</I>&gt;<i> [Sat Jan 27 09:49:12 2007] [error] [client 127.0.0.1] Myhandler,  
+</I>&gt;<i> referer:
+</I>&gt;<i> <A HREF="http://127.0.0.1/mod/uploadvideo.py?17644">http://127.0.0.1/mod/uploadvideo.py?17644</A>
+</I>&gt;<i> [Sat Jan 27 09:49:12 2007] [error] [client 127.0.0.1] MyHandler, in  
+</I>&gt;<i> POST request, has myflag,
+</I>&gt;<i> referer: <A HREF="http://127.0.0.1/mod/uploadvideo.py?17644">http://127.0.0.1/mod/uploadvideo.py?17644</A>
+</I>&gt;<i> .....
+</I>&gt;<i> ....
+</I>&gt;<i> ....
+</I>&gt;<i> [Sat Jan 27 09:49:12 2007] [error] [client 127.0.0.1]  
+</I>&gt;<i> AttributeError: 'mp_request' object has no
+</I>&gt;<i> attribute 'myflag', referer: <A HREF="http://127.0.0.1/mod/uploadvideo.py?17644">http://127.0.0.1/mod/uploadvideo.py?17644</A>
+</I>&gt;<i> ...
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Where can be a problem? What shall I try?
+</I>&gt;<i> Can you see any mistake I make?
+</I>&gt;<i> Thank you again for help
+</I>&gt;<i> Lad
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> Use some standard debugging techniques yourself to try and work it  
+</I>&gt;&gt;<i> out.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On 26/01/2007, at 10:44 PM, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">export at hope.cz</A> wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Graham,
+</I>&gt;&gt;&gt;<i> Thank you for your reply.
+</I>&gt;&gt;&gt;<i> I have
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> def inputfilter(filter):
+</I>&gt;&gt;&gt;<i> filter.req.myflag = True
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Add:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    filter.req.log_error('inputfilter')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> so, as you can see the first command in input filter
+</I>&gt;&gt;&gt;<i> is filter.req.myflag = True
+</I>&gt;&gt;&gt;<i> but yet, I can not access the req.myflag
+</I>&gt;&gt;&gt;<i> in my request handler.
+</I>&gt;&gt;&gt;<i> When I try
+</I>&gt;&gt;&gt;<i> req.write(`req.myflag`)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Add before this:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    req.log_error('handler')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In other words, use the logging system to dump information into the
+</I>&gt;&gt;<i> Apache
+</I>&gt;&gt;<i> log files to see if the input filter is actually being called. It
+</I>&gt;&gt;<i> would look like it
+</I>&gt;&gt;<i> isn't. What have you done so far to confirm it is?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I will receive the same error:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> AttributeError: 'mp_request' object has no attribute 'myflag'
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> What shall I try to solve the problem. Do you have any idea?
+</I>&gt;&gt;&gt;<i> Thank you
+</I>&gt;&gt;&gt;<i> Lad
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Your input filter can't have been called then, or not the part
+</I>&gt;&gt;&gt;&gt;<i> where you
+</I>&gt;&gt;&gt;&gt;<i> assigned the attribute. If the variable may not be there in all
+</I>&gt;&gt;&gt;&gt;<i> situations,
+</I>&gt;&gt;&gt;&gt;<i> then use:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> if hasattr(req, 'myflag'):
+</I>&gt;&gt;&gt;&gt;<i> if req.myflag:
+</I>&gt;&gt;&gt;&gt;<i> ..
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> On 26/01/2007, at 7:09 PM, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">export at hope.cz</A> wrote:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> Graham ,
+</I>&gt;&gt;&gt;&gt;&gt;<i> Thank you for your reply and help.
+</I>&gt;&gt;&gt;&gt;&gt;<i> I tried the way you suggested but I received the error
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> AttributeError: 'mp_request' object has no attribute 'myflag'
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> Can you please help?
+</I>&gt;&gt;&gt;&gt;&gt;<i> Thank you
+</I>&gt;&gt;&gt;&gt;&gt;<i> Lad.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> On 26/01/2007, at 2:45 AM, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">export at hope.cz</A> wrote:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> Depending on a value being calculated in input filter,
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> I will have to make a decission in request handler.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> What is a way to find out the value of the variable from input
+</I>&gt;&gt;&gt;&gt;&gt;&gt;&gt;<i> filter in request handler?
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> I believe this was mentioned before.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> In filter, set an attribute on the request object:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> def inputfilter(filter):
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> filter.req.myflag = True
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> In the request handler, you can then access that variable.
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> def handler(req):
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> if req.myflag:
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i> Graham
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> ------- End of forwarded message -------
+</I>&gt;<i>
+</I></PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023126.html">(Fwd) Re: [mod_python] How to pass values
+</A></li>
+	<LI>Next message: <A HREF="023128.html">(Fwd) Re: [mod_python] How to pass values
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23127">[ date ]</a>
+              <a href="thread.html#23127">[ thread ]</a>
+              <a href="subject.html#23127">[ subject ]</a>
+              <a href="author.html#23127">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

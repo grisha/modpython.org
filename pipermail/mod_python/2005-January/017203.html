@@ -1,0 +1,336 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] psp_site example doesn't work
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp_site%20example%20doesn%27t%20work&In-Reply-To=c298f2d705012407307d37cb3c%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017200.html">
+   <LINK REL="Next"  HREF="017205.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] psp_site example doesn't work</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Daniel Popowich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp_site%20example%20doesn%27t%20work&In-Reply-To=c298f2d705012407307d37cb3c%40mail.gmail.com"
+       TITLE="[mod_python] psp_site example doesn't work">dpopowich at comcast.net
+       </A><BR>
+    <I>Mon Jan 24 12:19:46 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017200.html">[mod_python] psp_site example doesn't work
+</A></li>
+        <LI>Next message: <A HREF="017205.html">[mod_python] psp_site example doesn't work
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17203">[ date ]</a>
+              <a href="thread.html#17203">[ thread ]</a>
+              <a href="subject.html#17203">[ subject ]</a>
+              <a href="author.html#17203">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+I agree with Nicolas that this is a &quot;bug&quot;.  Perhaps not a bug in the
+classic sense: something not working as advertised, but a design
+issue so gnarly, that it smells like bug.
+
+Thank you Jorey for your detailed email, but I have to disagree with
+you when you wrote:
+
+    This is consistent with normal Python behaviour, where an
+    interpreter loads modules from the current directory or
+    PYTHONPATH. [1]
+
+I came to mod_python after *many* years of intensive python
+programming and as a newbie to mod_python was caught by this issue for
+days.  The way mod_python imports files all at the same root level is
+very UN-pythonic.  After much hair-pulling I finally realized I needed
+to roll my own for mpservlets.
+
+I do think it's possible to patch publisher and keep it backwards
+compatible.  In mpservlets, I do something like this:
+
+    cache = {}
+    ...
+    fname = full path of source file to be loaded, say, req.filename
+    ...
+    # check cache
+    code = cache.get(fname)
+    if not code:
+	code = {}
+	execfile(fname, code)
+	cache[fname] = code
+    # search code dictionary for what I'm after, e.g.:
+    handler = code.get('handler')
+    if not handler:
+       raise apache.SERVER_RETURN, apache.http_not_found
+    handler(req)
+
+You get the idea...
+
+Since publisher should &quot;own&quot; the modules it will import (if well
+designed, IMHO, the files exist for mod_python, not general use) and
+knows exactly what it's looking for in the modules, I see no reason
+why such a caching scheme can't work.
+
+There is an issue of both the python module infrastructure and
+mod_python having their own copies of the same module if your
+publisher source file is imported by another module, e.g., index.py is
+imported by foo.py.  With mpservlets I took the path of enforcing
+servlets to be in a file that cannot be imported by other modules
+(they have to be named .mps); this did two things: 1) prevents the
+double caching problem and 2) promotes the separation of interface
+code from business logic code.
+
+I also agree with Nicolas that there seems to be a message being sent
+when you consider mpservlets, Vampire, his own handler and PSP are all
+doing their own importing mechanism.  Let's face it, importing in
+vanilla python is not the most clear-cut source-inclusion scheme
+around (this is the ONLY area where I think java got it right over
+python); when you imbed it in a process like apache...ouch...
+
+As for Nicholas' suggestion of removing publisher from the
+project...that may be a bit drastic.  That being said, I've never
+thought it an intuitive place to start for newbies.
+
+But if mpservlets was adopted into the main-stream distro...!  :-)
+
+Daniel Popowich
+-----------------------------------------------
+<A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>
+
+
+
+
+Nicolas Lehuen writes:
+&gt;<i> On Mon, 24 Jan 2005 16:28:47 +0100, Nicolas Lehuen
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nicolas.lehuen at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; On Mon, 24 Jan 2005 09:12:24 -0500, Jorey Bump &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">list at joreybump.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; Nicolas Lehuen wrote:
+</I>&gt;<i> &gt; &gt; &gt; On Sun, 23 Jan 2005 18:38:43 -0500, Graham Dumpleton
+</I>&gt;<i> &gt; &gt; &gt; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;&gt;Package such as mpservlets and Vampire implement their own module
+</I>&gt;<i> &gt; &gt; &gt;&gt;importing mechanisms in order to avoid this problem. Ie., with those
+</I>&gt;<i> &gt; &gt; &gt;&gt;packages it is safe to have Python code files which are named the same
+</I>&gt;<i> &gt; &gt; &gt;&gt;appearing in different directories managed by mod_python running
+</I>&gt;<i> &gt; &gt; &gt;&gt;under the same interpreter.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; We had a discussion a few months ago about this issue, and I still
+</I>&gt;<i> &gt; &gt; &gt; think it's a bug. Like Daniel Popovitch with mpservlets and you with
+</I>&gt;<i> &gt; &gt; &gt; Vampire, I had to implement my own import mechanism to work around the
+</I>&gt;<i> &gt; &gt; &gt; bug. I think it's time to fix it... I'll add a bug report and see what
+</I>&gt;<i> &gt; &gt; &gt; we can do about it.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; I guess I'm on record as considering this to be normal Python behaviour,
+</I>&gt;<i> &gt; &gt; and not a bug. Talk of modifying Publisher's current import mechanism
+</I>&gt;<i> &gt; &gt; threatens the significant investment I have in the applications I've
+</I>&gt;<i> &gt; &gt; already developed. I'd rather see Publisher left alone, as other
+</I>&gt;<i> &gt; &gt; frameworks are maturing that address this issue.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; We should be clear about what we are talking about:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Issue:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; An interpreter imports a module's name into the namespace independent of
+</I>&gt;<i> &gt; &gt; its location in the filesystem.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Pros:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - This is consistent with normal Python behaviour, where an interpreter
+</I>&gt;<i> &gt; &gt; loads modules from the current directory or PYTHONPATH. [1]
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - There is no ambiguity about imports, and no need to rewrite code when
+</I>&gt;<i> &gt; &gt; moving the module to another location.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - The Python language documentation serves as a good resource, as native
+</I>&gt;<i> &gt; &gt; behaviours are not contradicted. [2]
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - General purpose code needs *very* little modification to run under
+</I>&gt;<i> &gt; &gt; mod_python.publisher.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - The default Python behaviour of caching imported modules can be used
+</I>&gt;<i> &gt; &gt; to great leverage, and plays a significant role in the performance boost
+</I>&gt;<i> &gt; &gt; offered by mod_python. [3]
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - With careful planning, per-interpreter package repositories can be
+</I>&gt;<i> &gt; &gt; created.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Cons:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - This consistently trips up newbies, who are expecting PHP-like
+</I>&gt;<i> &gt; &gt; behaviour from their web applications.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - Within an interpreter (a VirtualHost, for example), such care must be
+</I>&gt;<i> &gt; &gt; taken to create unique module names that porting an application or
+</I>&gt;<i> &gt; &gt; working in a team environment is significantly more fragile than in
+</I>&gt;<i> &gt; &gt; other web technologies, where it usually suffices to throw the code in
+</I>&gt;<i> &gt; &gt; its own directory.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - Although a lot of issues can be addressed in .htaccess files, so much
+</I>&gt;<i> &gt; &gt; configuration occurs at the apache level that it is difficult to use
+</I>&gt;<i> &gt; &gt; mod_python effectively without apache admin privileges. [4]
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - The Multi-Processing Modules (MPMs) in apache 2 may have a unique
+</I>&gt;<i> &gt; &gt; effect on an application. After throwing in the different platforms,
+</I>&gt;<i> &gt; &gt; Python versions, and developer styles, it can be very hard to reach a
+</I>&gt;<i> &gt; &gt; consensus on whether an issue even exists.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Possible solution:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Automatically package module based on the file path.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Pros:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - Hopefully, this would provide better separation of modules in namespace.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Cons:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - Serious potential to break existing Publisher applications.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - The same module might be loaded into a separate namespace for
+</I>&gt;<i> &gt; &gt; different applications, eliminating the advantage of module caching. [5]
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - This encourages the reuse of module names (such as index.py), which is
+</I>&gt;<i> &gt; &gt; considered a bad programming practice in Python. [1]
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - If the code assumes and uses a package name based on its location, it
+</I>&gt;<i> &gt; &gt; will need to be rewritten if it is moved.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - The possibility that autopackaging will arbitrarily create a namespace
+</I>&gt;<i> &gt; &gt; clash with a standard module is unacceptably high, especially where
+</I>&gt;<i> &gt; &gt; third party packages are installed.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - It severely limits the ability to test portions of the code from the
+</I>&gt;<i> &gt; &gt; command line, because it adds an element of unpredictability to the
+</I>&gt;<i> &gt; &gt; module search path.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; - Seasoned Python programmers might consider mod_python.publisher to be
+</I>&gt;<i> &gt; &gt; &quot;broken&quot; because it doesn't conform to Python standards. [6]
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; [1] For a clear description of Python's module search path, see:
+</I>&gt;<i> &gt; &gt; <A HREF="http://www.python.org/doc/current/tut/node8.html#SECTION008110000000000000000">http://www.python.org/doc/current/tut/node8.html#SECTION008110000000000000000</A>
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; [2] The documentation for mod_python is sparse because it simply embeds
+</I>&gt;<i> &gt; &gt; an interpreter in apache. See the Python documentation for programming
+</I>&gt;<i> &gt; &gt; issues: <A HREF="http://www.python.org/doc/current/index.html">http://www.python.org/doc/current/index.html</A>
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; [3] This seems to be the main complaint levied against mod_python, in
+</I>&gt;<i> &gt; &gt; one form or the other. I consider it one of it's greatest strengths. For
+</I>&gt;<i> &gt; &gt; example, it allows me to import database handling code from a module
+</I>&gt;<i> &gt; &gt; once for that interpreter, allowing multiple applications to share the
+</I>&gt;<i> &gt; &gt; connection -- a poor man's database pool, if you will.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; [4] The same can be said about php.ini, but noone ever needs to restart
+</I>&gt;<i> &gt; &gt; apache to develop PHP applications.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; [5] What is the solution to the problems caused by module caching? It
+</I>&gt;<i> &gt; &gt; doesn't make much sense to force mod_python to act like it's spawning a
+</I>&gt;<i> &gt; &gt; new interpreter for every request. Run the app as a CGI instead of using
+</I>&gt;<i> &gt; &gt; mod_python.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; [6] The strength of Publisher is that it leverages the advantages of
+</I>&gt;<i> &gt; &gt; Python with very little overhead, simply adding a number of conveniences
+</I>&gt;<i> &gt; &gt; specific to web application development. mod_python.psp is a much better
+</I>&gt;<i> &gt; &gt; area to radically depart from this paradigm, as it is expected to
+</I>&gt;<i> &gt; &gt; provide PHP-like behaviour.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Sorry, I don't have much time, so for now I'll give a short answer : I
+</I>&gt;<i> &gt; agree that importing modules should be consistent between the standard
+</I>&gt;<i> &gt; Python way (the import keyword) and the apache.import_module way.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; The problem is that mod_python.publisher does not follow the standard
+</I>&gt;<i> &gt; Python way in that it imports published modules as root-level modules.
+</I>&gt;<i> &gt; It's as if mod_python.publisher changed sys.path for each and every
+</I>&gt;<i> &gt; published module. This is not the standard Python way, and the source
+</I>&gt;<i> &gt; for many errors.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Note that the current package system in Python is way, way smarter
+</I>&gt;<i> &gt; than mod_python.publisher : in a package, you can import fellow
+</I>&gt;<i> &gt; modules by giving their local names. It's not recommended by
+</I>&gt;<i> &gt; pychecker, but it works. The smart part is that if I have this :
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; /
+</I>&gt;<i> &gt;      package1.py
+</I>&gt;<i> &gt; /subdir
+</I>&gt;<i> &gt;      __init__.py
+</I>&gt;<i> &gt;      package1.py
+</I>&gt;<i> &gt;      package2.py
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Then whatever I do, /subdir/package1.py is imported as subdir.package1
+</I>&gt;<i> &gt; and does not collide with /package1.py. mod_python.publisher is not as
+</I>&gt;<i> &gt; smart, this is very confusing and surprising, nearly everybody
+</I>&gt;<i> &gt; complains about this and hence, I think this should be filed as a bug.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; So maybe apache.import_module should not be modified (except for
+</I>&gt;<i> &gt; performance, but that's another issue which is already in the bugs
+</I>&gt;<i> &gt; database), but mod_python.publisher sure has to be changed.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; As far as I'm concerned, this bug was sufficient to have me implement
+</I>&gt;<i> &gt; a publisher which works the way I want ; Daniel Popovitch and Graham
+</I>&gt;<i> &gt; Dumpleton did the same with different designs. If each and every
+</I>&gt;<i> &gt; developer develops his own publisher, it may be time to think about
+</I>&gt;<i> &gt; changing the built-in one.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Regards,
+</I>&gt;<i> &gt; Nicolas
+</I>&gt;<i> &gt; 
+</I>&gt;<i> 
+</I>&gt;<i> Or it could be the sign that mod_python.publisher should be completely
+</I>&gt;<i> erased from the project, since it poses much more problems than it
+</I>&gt;<i> solves. Maybe we should include both mpservlets and Vampire in
+</I>&gt;<i> mod_python, and forget about the default publisher (except maybe for
+</I>&gt;<i> compatibility issues).
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> Nicolas
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017200.html">[mod_python] psp_site example doesn't work
+</A></li>
+	<LI>Next message: <A HREF="017205.html">[mod_python] psp_site example doesn't work
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17203">[ date ]</a>
+              <a href="thread.html#17203">[ thread ]</a>
+              <a href="subject.html#17203">[ subject ]</a>
+              <a href="author.html#17203">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

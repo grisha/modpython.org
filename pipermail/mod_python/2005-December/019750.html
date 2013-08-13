@@ -1,0 +1,116 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] connection pool (newbie question)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20connection%20pool%20%28newbie%20question%29&In-Reply-To=Pine.LNX.4.44.0512131837540.2792-100000%40oldben.llnl.gov">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019745.html">
+   <LINK REL="Next"  HREF="019754.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] connection pool (newbie question)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20connection%20pool%20%28newbie%20question%29&In-Reply-To=Pine.LNX.4.44.0512131837540.2792-100000%40oldben.llnl.gov"
+       TITLE="[mod_python] connection pool (newbie question)">nlv11281 at natlab.research.philips.com
+       </A><BR>
+    <I>Wed Dec 14 08:32:37 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019745.html">[mod_python] connection pool (newbie question)
+</A></li>
+        <LI>Next message: <A HREF="019754.html">[mod_python] connection pool (newbie question)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19750">[ date ]</a>
+              <a href="thread.html#19750">[ thread ]</a>
+              <a href="subject.html#19750">[ subject ]</a>
+              <a href="author.html#19750">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> I've looked at connection pool code for a persistent database
+</I>&gt;<i> connection.   I don't know where to create the connection pool.
+</I>&gt;<i> If in the handler code (I'm using publisher), wouldn't a new
+</I>&gt;<i> pool be created each time the handler is called?
+</I>
+You'll get a new pool for each process (not for each thread)
+
+&gt;<i> In doing a test, I think the web server is prefork MPM.
+</I>
+That means you get as many pools as child processes, which means lots! 
+(hundreds...)
+
+If your database is MySQL, forget about pooling, it won't help, 
+particularly when using prefork. MySQL is so fast in setting up 
+connections, that I could not measure any performance difference in 
+using a pooling system on a threading Apache.
+
+Step 1 is to determine whether you really need pooling - it's not a 
+problem until it's a problem (Oracle for one is notoriously slow in 
+setting up connections, but a few seconds per page might not even really 
+hurt your application)
+
+Step 2 is to see what you value more: Your DB engine or the simplicity 
+and performance of your program. If you value the latter more, I suggest 
+considering switching DBMS in favour of one that sets up connections faster.
+
+Step 3: If you then still &quot;need&quot; pooling, get Apache to use threads 
+(worker is also very good on most unix systems) so that you won't need 
+to cross process boundaries in order to access and manage your pool 
+efficiently.
+
+Step 4: Ouch... you have to do some magic now...
+One way is to set up a process that just fetches/updates data using a 
+private pool, and use some RPC mechanism (may be as simple as a raw 
+socket, or a HTTP based thing) to access it.
+Another is to have a &quot;pool&quot; of size 1 for each process. Close that 
+connection if the client closes the network connection.
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019745.html">[mod_python] connection pool (newbie question)
+</A></li>
+	<LI>Next message: <A HREF="019754.html">[mod_python] connection pool (newbie question)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19750">[ date ]</a>
+              <a href="thread.html#19750">[ thread ]</a>
+              <a href="subject.html#19750">[ subject ]</a>
+              <a href="author.html#19750">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

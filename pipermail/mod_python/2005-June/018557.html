@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] creating httpd.conf on the file with python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20creating%20httpd.conf%20on%20the%20file%20with%20python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018555.html">
+   <LINK REL="Next"  HREF="018558.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] creating httpd.conf on the file with python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Matthew Nuzum</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20creating%20httpd.conf%20on%20the%20file%20with%20python&In-Reply-To="
+       TITLE="[mod_python] creating httpd.conf on the file with python">mattnuzum at gmail.com
+       </A><BR>
+    <I>Wed Jun 29 20:44:05 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018555.html">[mod_python] Configuring Session.Session
+</A></li>
+        <LI>Next message: <A HREF="018558.html">[mod_python] creating httpd.conf on the file with python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18557">[ date ]</a>
+              <a href="thread.html#18557">[ thread ]</a>
+              <a href="subject.html#18557">[ subject ]</a>
+              <a href="author.html#18557">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I'd like to add some brain power to my apache httpd.conf file. You can
+do this with mod_perl (see attached below), but since python is better
+than perl, I'd prefer to do it in python. Is this possible?
+
+I've searched and looked through the archives, but I'm not having
+luck. I likely don't know what terms to search for. An example or link
+to some documentation would be greatly appreciated.
+
+I'm using apache 1.3, libapach-mod-python2.3 version 2.7
+
+I tried the obvious and added &lt;Python&gt;&lt;/Python&gt; and received an
+Invalid Command error message.
+
+Here is a snippet from mod_perl (old cobalt Raq server, I think):
+
+&lt;Perl&gt;
+use Apache::PerlSections();
+use lib qw(/usr/sausalito/perl);
+use CCE;
+use Base::Httpd qw(httpd_get_vhost_conf_file);
+
+my $cce = new CCE;
+$cce-&gt;connectuds();
+
+my @ssl_sites = $cce-&gt;find('Vsite', { 'SSL.enabled' =&gt; 1 }, {
+'SSL.expires' =&gt; '^.+' });
+
+# Only a temp variable until we go the whole hog.
+my (@ssl_conf, $ip, $rewrite_rules, $proto, $ret);
+
+# O.K. What we bassically want to do is build up new section in the conf file
+# for SSL sections.
+for my $oid (@ssl_sites)
+{
+my ($ok, $vsite) = $cce-&gt;get($oid);
+my $conf_file = httpd_get_vhost_conf_file($vsite-&gt;{name});
+
+open HTTPD_CONF, &quot;&lt;$conf_file&quot; or die &quot;Can't open $conf_file: $!\n&quot;;
+
+# reset
+@ssl_conf = ();
+
+while(&lt;HTTPD_CONF&gt;)
+{
+if ( /^&lt;VirtualHost ([\d\.]+)&gt;/o )
+{
+$ip = $1;
+# skip everything before the VirtualHost entry since it doesn't need
+to be duplicated
+last;
+}
+}
+
+# read the rest
+while(&lt;HTTPD_CONF&gt;)
+{
+# These two are for the rewrite options
+s/http/https/go if (/^Rewrite/);
+s/80/443/go if (/^Rewrite/);
+s#<A HREF="https://$vsite-">https://$vsite-</A>&gt;{fqdn}/#<A HREF="https://$vsite-">https://$vsite-</A>&gt;{fqdn}:443/# if (/^RewriteRule/);
+push @ssl_conf, $_;
+
+# Hardcoded, issues with mod_perl and cobalt modules.
+if (/^&lt;\/Virtual/ &amp;&amp; (-f &quot;$vsite-&gt;{basedir}/certs/certificate&quot;) &amp;&amp; (-f
+&quot;$vsite-&gt;{basedir}/certs/key&quot;))
+{
+$PerlConfig .= &quot;Listen $ip:443\n&quot;;
+$PerlConfig .= &quot;&lt;VirtualHost $ip:443&gt;\n&quot;;
+$PerlConfig .= &quot;SSLengine on\n&quot;;
+if (-f &quot;$vsite-&gt;{basedir}/certs/ca-certs&quot;)
+{
+$PerlConfig .= &quot;SSLCACertificateFile $vsite-&gt;{basedir}/certs/ca-certs\n&quot;;
+}
+$PerlConfig .= &quot;SSLCertificateFile $vsite-&gt;{basedir}/certs/certificate\n&quot;;
+$PerlConfig .= &quot;SSLCertificateKeyFile $vsite-&gt;{basedir}/certs/key\n&quot;;
+$PerlConfig .= join('', @ssl_conf);
+}
+}
+close HTTPD_CONF;
+}
+
+$cce-&gt;bye('SUCCESS');
+
+if (-f '/etc/DEBUG')
+{
+print STDERR Apache::PerlSections-&gt;dump();
+}
+&lt;/Perl&gt;
+-- 
+Matthew Nuzum
+www.bearfruit.org
+
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018555.html">[mod_python] Configuring Session.Session
+</A></li>
+	<LI>Next message: <A HREF="018558.html">[mod_python] creating httpd.conf on the file with python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18557">[ date ]</a>
+              <a href="thread.html#18557">[ thread ]</a>
+              <a href="subject.html#18557">[ subject ]</a>
+              <a href="author.html#18557">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

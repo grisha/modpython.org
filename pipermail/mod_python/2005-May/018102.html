@@ -1,0 +1,230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] psp problem
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp%20problem&In-Reply-To=428372F5.6010400%40sympatico.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018067.html">
+   <LINK REL="Next"  HREF="018068.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] psp problem</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp%20problem&In-Reply-To=428372F5.6010400%40sympatico.ca"
+       TITLE="[mod_python] psp problem">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon May 16 07:31:37 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018067.html">[mod_python] psp problem
+</A></li>
+        <LI>Next message: <A HREF="018068.html">[mod_python] ImportError: No module named psp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18102">[ date ]</a>
+              <a href="thread.html#18102">[ thread ]</a>
+              <a href="subject.html#18102">[ subject ]</a>
+              <a href="author.html#18102">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 13/05/2005, at 1:15 AM, Jim Gallacher wrote:
+
+&gt;<i> Wouter van Marle wrote:
+</I>&gt;&gt;<i> On Wed, 2005-05-11 at 23:49 -0400, Gregory (Grisha) Trubetskoy wrote:
+</I>&gt;&gt;&gt;<i> On Wed, 11 May 2005, Jim Gallacher wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> You found one of the warts in psp. Since your for loop contains no 
+</I>&gt;&gt;&gt;&gt;<i> further python statements, the parser gets confused. Try adding a 
+</I>&gt;&gt;&gt;&gt;<i> single comment at the beginning of your for loop:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> &lt;p&gt; some text for the page &lt;/p&gt;
+</I>&gt;&gt;&gt;&gt;<i> &lt;%
+</I>&gt;&gt;&gt;&gt;<i> for r in Results:
+</I>&gt;&gt;&gt;&gt;<i>   # begin indentation - comment fixes the syntax error
+</I>&gt;&gt;&gt;&gt;<i> %&gt;
+</I>&gt;&gt;&gt;&gt;<i> I got the result &lt;%=r%&gt;&lt;br&gt;
+</I>&gt;&gt;&gt;&gt;<i> &lt;%
+</I>&gt;&gt;&gt;&gt;<i> # end indentation
+</I>&gt;&gt;&gt;&gt;<i> %&gt;
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Actually, (IIRC purposely undocumented), PSP is smart enough to 
+</I>&gt;&gt;&gt;<i> guess that a if code ends on a &quot;:&quot; you mean to start a new block.
+</I>&gt;&gt;<i> I have found documentation where this is indeed confirmed; a line 
+</I>&gt;&gt;<i> ending
+</I>&gt;&gt;<i> in a colon (:) starts an indentation.
+</I>&gt;<i>
+</I>&gt;<i> I used indented comment trick after the for statment for a problem 
+</I>&gt;<i> unrelated to Wouter's. I'm now in the habit of always using it.
+</I>&gt;<i>
+</I>&gt;<i> For example, if you have a nested for loop such as the following, an 
+</I>&gt;<i> IndentationError is raised.
+</I>&gt;<i>
+</I>&gt;<i> &lt;%
+</I>&gt;<i> for title,doc_list in unit_list:
+</I>&gt;<i> %&gt;
+</I>&gt;<i>   &lt;h4&gt;Unit &lt;%= title %&gt;&lt;h4&gt;
+</I>&gt;<i> &lt;%
+</I>&gt;<i>     for doc in doc_list:
+</I>&gt;<i> %&gt;
+</I>&gt;<i>     &lt;p&gt;&lt;%= doc['url'] %&gt;: &lt;%= doc['title'] %&gt;&lt;/p&gt;
+</I>&gt;<i> &lt;%
+</I>&gt;<i>     # end of block
+</I>&gt;<i> # end of block
+</I>&gt;<i> %&gt;
+</I>&gt;<i>
+</I>&gt;<i> I noticed that if there was some python statement immediately after 
+</I>&gt;<i> the first for:, the error went away. Now I always stick an indented 
+</I>&gt;<i> comment immediately after the for statement. I also found problems 
+</I>&gt;<i> when generating tables in the inner loop, where I was only getting a 
+</I>&gt;<i> single closing &lt;/table&gt; tag instead of one for each iteration of the 
+</I>&gt;<i> inner loop (or something like that - I can't generate an example off 
+</I>&gt;<i> the top of my head and the offending code is now gone).
+</I>&gt;<i>
+</I>&gt;<i> I haven't commented on this before as it was a problem I had when I 
+</I>&gt;<i> first starting using psp pages a few months ago, and I wasn't sure if 
+</I>&gt;<i> it was a feature or a bug. :)
+</I>
+I just got bitten by this gotcha as well. Although the documentation 
+says:
+
+   The parser is also smart enough to figure out the indent if the last 
+line of Python ends with &quot;:&quot; (colon).
+
+What isn't clear is that when PSP performs auto indentation, it does it 
+with an indent
+level of 8 spaces or 1 tab equivalent. Thus unless using the comment 
+workaround it
+means that if further down within that block you want to put additional 
+code, you
+MUST ensure that it is indented by 8 characters or 1 tab else you get 
+an error.
+
+For example, the following code which uses 4 spaces for indenting will 
+fail.
+
+&lt;ul&gt;
+&lt;%
+for i in range(3):
+%&gt;
+     &lt;li&gt;&lt;%=i%&gt;
+&lt;%
+     for j in range(2):
+%&gt;
+         &lt;p&gt;&lt;%=i%&gt;-&lt;%=j%&gt;&lt;/p&gt;
+&lt;%
+     #end for
+%&gt;
+     &lt;/li&gt;
+&lt;%
+#end for
+%&gt;
+&lt;/ul&gt;
+
+The actual error is:
+
+   IndentationError: unindent does not match any outer indentation level 
+(indent.psp, line 7)
+
+On first glance, it isn't really exactly clear what is going wrong.
+
+The solution is to use either comment at start of block as described 
+above.
+
+&lt;ul&gt;
+&lt;%
+for i in range(3):
+     # indent
+%&gt;
+     &lt;li&gt;&lt;%=i%&gt;
+&lt;%
+     for j in range(2):
+         # indent
+%&gt;
+         &lt;p&gt;&lt;%=i%&gt;-&lt;%=j%&gt;&lt;/p&gt;
+&lt;%
+     #end for
+%&gt;
+     &lt;/li&gt;
+&lt;%
+#end for
+%&gt;
+&lt;/ul&gt;
+
+or use 8 spaces consistently.
+
+&lt;ul&gt;
+&lt;%
+for i in range(3):
+%&gt;
+         &lt;li&gt;&lt;%=i%&gt;
+&lt;%
+         for j in range(2):
+%&gt;
+                 &lt;p&gt;&lt;%=i%&gt;-&lt;%=j%&gt;&lt;/p&gt;
+&lt;%
+%&gt;
+         &lt;/li&gt;
+&lt;%
+#end for
+%&gt;
+&lt;/ul&gt;
+
+Thus, would it be worthwhile to add specific note in documentation 
+about 8 space/1 tab
+indent to make it clear for the auto indent case.
+
+Graham
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018067.html">[mod_python] psp problem
+</A></li>
+	<LI>Next message: <A HREF="018068.html">[mod_python] ImportError: No module named psp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18102">[ date ]</a>
+              <a href="thread.html#18102">[ thread ]</a>
+              <a href="subject.html#18102">[ subject ]</a>
+              <a href="author.html#18102">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

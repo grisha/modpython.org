@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python executing old versions of my code
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20executing%20old%20versions%20of%20my%20code&In-Reply-To=0f7d95fa1fb04c4919699f5bf303da01%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020091.html">
+   <LINK REL="Next"  HREF="020120.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python executing old versions of my code</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20executing%20old%20versions%20of%20my%20code&In-Reply-To=0f7d95fa1fb04c4919699f5bf303da01%40dscpl.com.au"
+       TITLE="[mod_python] mod_python executing old versions of my code">nlv11281 at natlab.research.philips.com
+       </A><BR>
+    <I>Thu Jan 26 02:50:04 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020091.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+        <LI>Next message: <A HREF="020120.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20092">[ date ]</a>
+              <a href="thread.html#20092">[ thread ]</a>
+              <a href="subject.html#20092">[ subject ]</a>
+              <a href="author.html#20092">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> On 26/01/2006, at 5:40 PM, Mike Looijmans wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> When faced with the reload problem a few years ago, I created a 
+</I>&gt;&gt;<i> special &quot;reload&quot; request. The request would list all the .py[oc] files 
+</I>&gt;&gt;<i> in the script folder, and tries to unload or reload() each of them.
+</I>&gt;<i> 
+</I>&gt;<i> Will not work for mod_python.publisher in mod_python 3.2 and possibly
+</I>&gt;<i> not at all in future versions of mod_python, but for mod_python &lt;= 3.1.4,
+</I>&gt;<i> it is better to iterate over modules in sys.modules and if they contain
+</I>&gt;<i> the attribute &quot;__mtime__&quot; set it to 0. By doing this, it will cause the
+</I>&gt;<i> mod_python importer to reload it automatically the next time it is 
+</I>&gt;<i> accessed.
+</I>&gt;<i> By doing it this way, you don't expose yourself to issues that might arise
+</I>&gt;<i> from mixing &quot;apache.import_module()&quot; and &quot;reload()&quot;.
+</I>
+I was not mixing - I was using &quot;import&quot; exclusively. I also wasn't using 
+publisher, but I wrote my own. (this was about 4 years ago)
+
+&quot;My&quot; publisher could detect changes in the handlers, but not in the 
+sub-modules they imported. 90% of code changes only affected the UI 
+parts which were in the headers.
+
+The fix was there to get changes in the library modules to become 
+effective, without having to log in on the apache machine.
+
+
+&gt;&gt;<i> As a result, the &quot;main&quot; modules as well as dependent modules will have 
+</I>&gt;&gt;<i> been reloaded or removed (At least, the ones that came from my project 
+</I>&gt;&gt;<i> - it would not make sense to unload modules like 'os').
+</I>&gt;<i> 
+</I>&gt;<i> Other projects should really be run in the context of a different 
+</I>&gt;<i> interpreter
+</I>&gt;<i> by specifying PythonInterpreter. On that basis, you would have to be 
+</I>&gt;<i> selective
+</I>&gt;<i> if above method used.
+</I>
+There were no other projects on that server...
+
+&gt;&gt;<i> So just sending &quot;<A HREF="http://myhost/pu/reload&quot;">http://myhost/pu/reload&quot;</A> to the server would cause 
+</I>&gt;&gt;<i> the next request to get all new scripts.
+</I>&gt;<i> 
+</I>&gt;<i> This is only guaranteed to work if you are using mod_python on Win32 
+</I>&gt;<i> platform.
+</I>&gt;<i> It most definitely will not work with &quot;prefork&quot; on UNIX and usually not on
+</I>&gt;<i> &quot;worker&quot; on UNIX. The reason the latter will not work reliably is that 
+</I>&gt;<i> there
+</I>&gt;<i> can be multiple Apache child processes and your request will only hit 
+</I>&gt;<i> one of
+</I>&gt;<i> those child processes. You would have to hit reload many times and even 
+</I>&gt;<i> then
+</I>&gt;<i> you wouldn't know for sure it had been done in all of the children.
+</I>
+True.
+I was using Apache 2.0.something and Solaris 2.6 at the time (had to 
+compile everything, no binary distributions), but I already forced 
+apache to use a single-process multi-threading worker. Benchmarks showed 
+no real difference with the prefork mpm. The machine was seriously 
+limited by memory, and the childs would take up &gt;12 MB of memory each, 
+most of which could be shared. Putting it into threading mode solved the 
+memory hogging, and also had advantages in caching stuff in simple 
+dictionaries in memory. I also did DB connection pooling, but after 
+implementing and doing some benchmarks, there was no real performance 
+advantage in doing it on the MySQL database, which is amazingly fast in 
+setting up connections.
+
+Getting this to work on a prefork system is indeed quite a challenge...
+
+But at the time, it was a much better option than restarting an Apache 
+server process when hundreds of machines are using it...
+
+--
+Mike Looijmans
+Philips Natlab / Topic Automation
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020091.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+	<LI>Next message: <A HREF="020120.html">[mod_python] mod_python executing old versions of my code
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20092">[ date ]</a>
+              <a href="thread.html#20092">[ thread ]</a>
+              <a href="subject.html#20092">[ subject ]</a>
+              <a href="author.html#20092">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

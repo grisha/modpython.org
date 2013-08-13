@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] multiple processing of the same python script by the
+	handler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20multiple%20processing%20of%20the%20same%20python%20script%20by%20the%0A%09handler&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026114.html">
+   <LINK REL="Next"  HREF="026116.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] multiple processing of the same python script by the
+	handler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>David Sfiligoi</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20multiple%20processing%20of%20the%20same%20python%20script%20by%20the%0A%09handler&In-Reply-To="
+       TITLE="[mod_python] multiple processing of the same python script by the
+	handler">webmaster at world-vr.com
+       </A><BR>
+    <I>Sun Mar 29 00:01:46 EDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026114.html">[mod_python] Sharing mod_python experiences
+</A></li>
+        <LI>Next message: <A HREF="026116.html">[mod_python] multiple processing of the same python script by the
+	handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26115">[ date ]</a>
+              <a href="thread.html#26115">[ thread ]</a>
+              <a href="subject.html#26115">[ subject ]</a>
+              <a href="author.html#26115">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi List,
+
+I have been working around, trying to resolve you name it this problem for at 
+least a year now.  I don't know what to do anymore...everytime I implement 
+some new functionality to my system I find myself writing bastard code to 
+work around this issue.
+
+The simplest way to 'reproduce' this issue is by using the logging module.
+
+To explain this in its simplest form I can use the logging module. A simple 
+script that takes all the parameters passed to the script via the url and log 
+them to a file via the logger. 
+
+from mod_python import Cookie, apache
+from mod_python import util
+
+import logging, logging.handlers
+
+logger = logging.getLogger('mymodpythong app.py')
+logging_handler = logging.FileHandler('/mylogfile.log')    
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+logging_handler.setFormatter(formatter)
+logger.addHandler(logging_handler)
+logger.setLevel(logging.INFO)
+
+def handler(req):
+	request_data = util.FieldStorage(req)
+	clientip = req.get_remote_host(apache.REMOTE_NOLOOKUP)
+	str_req_data = str(clientip) + &quot;| &quot;
+	for key in request_data:
+	        str_req_data += str(key) + &quot;: &quot; + str(request_data[key]) + &quot;| &quot;
+
+
+	logger.info(str_req_data[:-2])
+	return apache.OK
+
+
+
+Now the behavior on my apache 2.2(on prefork mpm) is the following.  I can get 
+1 line logged or 2 or 5 with the exact same data.  It almost looks like 
+modpython process is processing the same data a few time sand who ever finish 
+first get promoted to return the data to apache.  Now this doesn't only apply 
+to logging, if I open a socket and send data to another server, on that 
+server side they would get the same multiple same data. 
+
+This is a log snapshot from my production system.  This is an log from a 
+visitor who loads the page.  (the html page sends the onUnload event to the 
+python script). As you can see mod python logged 3 times the same data
+
+2009-03-28 21:57:49,854 INFO 76.177.106.67| CC: US| tdid: XXXXXXX| product: 
+removed| version: db2.9| unloadTime: 0.003| unloadLoc: urlremoved| event: 
+unload| Referer: urlremoved| cookietid: None
+2009-03-28 21:57:49,854 INFO 76.177.106.67| CC: US| tdid: XXXXXXX| product: 
+removed| version: db2.9| unloadTime: 0.003| unloadLoc: urlremoved| event: 
+unload| Referer: urlremovedl| cookietid: None
+2009-03-28 21:57:49,854 INFO 76.177.106.67| CC: US| tdid: XXXXXXX| product: 
+removed| version: db2.9| unloadTime: 0.003| unloadLoc: urlremoved| event: 
+unload| Referer: urlremoved| cookietid: None
+2009-03-28 21:57:52,785 INFO 76.177.106.67| CC: US| tdid: XXXXXXX| product: 
+removed| version: db2.9| unloadTime: 3.249| unloadLoc: urlremoved| event: 
+onload| Referer: urlremoved| cookietid: None
+2009-03-28 21:57:52,785 INFO 76.177.106.67| CC: US| tdid: XXXXXXX| product: 
+removed| version: db2.9| unloadTime: 3.249| unloadLoc: urlremoved| event: 
+onload| Referer: urlremoved| cookietid: None
+2009-03-28 21:57:52,785 INFO 76.177.106.67| CC: US| tdid: XXXXXXX| product: 
+removed| version: db2.9| unloadTime: 3.249| unloadLoc: urlremoved| event: 
+onload| Referer: urlremoved| cookietid: None
+
+
+Thanks,
+
+David
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026114.html">[mod_python] Sharing mod_python experiences
+</A></li>
+	<LI>Next message: <A HREF="026116.html">[mod_python] multiple processing of the same python script by the
+	handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26115">[ date ]</a>
+              <a href="thread.html#26115">[ thread ]</a>
+              <a href="subject.html#26115">[ subject ]</a>
+              <a href="author.html#26115">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

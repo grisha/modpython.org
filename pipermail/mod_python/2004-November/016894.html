@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] module caching problem
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20module%20caching%20problem&In-Reply-To=20041130214857.BAD74B705%40fiona.siteprotect.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016892.html">
+   <LINK REL="Next"  HREF="016827.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] module caching problem</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Chris Curvey</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20module%20caching%20problem&In-Reply-To=20041130214857.BAD74B705%40fiona.siteprotect.com"
+       TITLE="[mod_python] module caching problem">ccurvey at earthlink.net
+       </A><BR>
+    <I>Tue Nov 30 18:03:11 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016892.html">[mod_python] module caching problem
+</A></li>
+        <LI>Next message: <A HREF="016827.html">[mod_python] Anyone been working on the WSGI version?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16894">[ date ]</a>
+              <a href="thread.html#16894">[ thread ]</a>
+              <a href="subject.html#16894">[ subject ]</a>
+              <a href="author.html#16894">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>1) build your apache server with mpm_worker (./configure 
+-with-mpm=worker)  (this only works with Apache 2.x)
+
+2) in httpd.conf  (all values of &quot;150&quot; in this example should be set to 
+the max number of concurrent requests)
+
+ThreadLimit 150
+ServerLimit 1
+StartServers 1
+MaxClients 150
+MinSpareThreads 1
+MaxSpareThreads 150
+ThreadsPerChild 150
+MaxRequestsPerChild 0
+
+I have not tested this a whole bunch, but it should work, according to 
+<A HREF="http://httpd.apache.org/docs-2.0/mod/worker.html">http://httpd.apache.org/docs-2.0/mod/worker.html</A>
+
+I'm also not sure of the knock-on effects on performance of doing this.  
+YMMV.  If anyone knows of a good reason *not* to do this, please speak up.
+
+-Chris
+
+P.S.  Even in prefork mode, if an apache process needs a module that has 
+already been loaded into memory *by that process*, it will be re-used 
+and not reloaded.
+
+Huzaifa Tapal wrote:
+
+&gt;<i>Yes I am using linux on a debian OS.  How can I configure apache to not run
+</I>&gt;<i>with mpm_prefork?  Pretty much I want to use Shared Memory with mod_python
+</I>&gt;<i>so that for simultaneous requests it uses any modules that are already
+</I>&gt;<i>loaded in memory rather than instantiating new processes.
+</I>&gt;<i>
+</I>&gt;<i>Any ideas?
+</I>&gt;<i>
+</I>&gt;<i>Hozi  
+</I>&gt;<i>
+</I>&gt;<i>-----Original Message-----
+</I>&gt;<i>From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+</I>&gt;<i>[mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] On Behalf Of Damjan
+</I>&gt;<i>Sent: Tuesday, November 23, 2004 6:49 PM
+</I>&gt;<i>To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i>Subject: Re: [mod_python] module caching problem
+</I>&gt;<i>
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>&gt;&gt;<i>I am running into a problem with mod_python in that, I am importing a
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>
+</I>&gt;<i>module
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>&gt;&gt;<i>in the handler which creates a singleton in memory.  I am using the module
+</I>&gt;&gt;<i>to hold cache information for any other modules that import the same
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>
+</I>&gt;<i>module.
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>&gt;&gt;<i>I started testing the cache mechanism when I noticed that the module was
+</I>&gt;&gt;<i>being imported multiple times and not just once after the first request
+</I>&gt;&gt;<i>after apache had started.  To test this, I put a few lines of code in the
+</I>&gt;&gt;<i>module to write to a file the time it was last imported.  I noticed that
+</I>&gt;&gt;<i>after restarting apache, the first time it writes to the file.  If I hit
+</I>&gt;&gt;<i>refresh on my page immediately, multiple times, it doesn't write.  If I
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>
+</I>&gt;<i>wait
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>&gt;&gt;<i>like 10 seconds or more and then hit refresh again, it reimports that
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>
+</I>&gt;<i>module
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>&gt;&gt;<i>that should have been cached.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Also, If I make a request for a page from two different clients, it
+</I>&gt;&gt;<i>reimports the module from each client.  Am I mistaken in thinking that any
+</I>&gt;&gt;<i>module imported in the handler then is cached in mod_python's module cache
+</I>&gt;&gt;<i>and subsequent imports of that module then are simply served up from the
+</I>&gt;&gt;<i>cache.  Under what conditions then would the same module get reimported if
+</I>&gt;&gt;<i>no modifications were made to that module?
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>I guess your are runnig Apache with mpm_prefork? 
+</I>&gt;<i>In that case there's a completely different python interpreter for each
+</I>&gt;<i>Apache process, so your caching module is loaded in each of them.
+</I>&gt;<i>
+</I>&gt;<i>Your testing showed how apache processes get to serve requests, if it gets
+</I>&gt;<i>two simultaneus requests two apache processes will be active, each
+</I>&gt;<i>serving one of the request. But if you only generate one request after
+</I>&gt;<i>another, its most likely that the same process will serve  both
+</I>&gt;<i>requests... of course this depends on OS implementation... I think you
+</I>&gt;<i>are running on Linux, no?
+</I>&gt;<i>
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016892.html">[mod_python] module caching problem
+</A></li>
+	<LI>Next message: <A HREF="016827.html">[mod_python] Anyone been working on the WSGI version?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16894">[ date ]</a>
+              <a href="thread.html#16894">[ thread ]</a>
+              <a href="subject.html#16894">[ subject ]</a>
+              <a href="author.html#16894">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

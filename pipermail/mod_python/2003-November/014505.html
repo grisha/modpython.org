@@ -1,0 +1,128 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Form-based authentication using mod_puthon / Apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Form-based%20authentication%20using%20mod_puthon%20/%20Apache&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014499.html">
+   <LINK REL="Next"  HREF="014506.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Form-based authentication using mod_puthon / Apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Michael C. Neel</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Form-based%20authentication%20using%20mod_puthon%20/%20Apache&In-Reply-To="
+       TITLE="[mod_python] Form-based authentication using mod_puthon / Apache">neel at mediapulse.com
+       </A><BR>
+    <I>Mon Nov 24 13:55:41 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014499.html">[mod_python] ValueError: Failed to acquire global mutex lock
+</A></li>
+        <LI>Next message: <A HREF="014506.html">[mod_python] Form-based authentication using mod_puthon / Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14505">[ date ]</a>
+              <a href="thread.html#14505">[ thread ]</a>
+              <a href="subject.html#14505">[ subject ]</a>
+              <a href="author.html#14505">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I'm usally surprised by how many web developers do not fully understand
+how authencation works over http.
+
+First you have to understand it is truly impossible to create a secure
+connection when you have no control over the client.  Worse, the
+&quot;connection&quot; is not a connection at all, but a series of connection so
+we have to check the auth for each and every one of them.
+
+The best setup you can have is http-auth over an SSL connection.  The
+login info is never written to disk on the client side.  The downside is
+the browser will remember the login info until it is closed.  Also, if
+the connection is not encryped (ssl), then a packet sniffer can get the
+login info from the heards sent by the client.
+
+Sadly there is no way to take login fields on a form and pass the to the
+client headers as would happen in http-auth.  Because the connection is
+statless, you must then store this login info in cookies, hidden fields,
+or on the server and pass the client a session key in hidden fields or a
+cookie.
+
+Besides watching with a packet sniffer for headers to get the login
+info, you can also get the cookie stored on the client system as well.
+Browsers may write session cookies to disk, even though there is no
+need.  Firebird does this, and even remembers session cookies after it
+is closed and re-opened (which I assume is a bug, but none the less it
+does do it).
+
+So what can you do if you want the sexy login fields, but still be
+secure (as is possible)?  A lot of things, we may not be able to be 100%
+secure, but that doesn't mean we have to make it easy.  Here is
+something things to do (many thanks to the Albatross developers for
+showing me much of this):
+
+1.  Build a string or object with as much detail about the client as
+possible, (IP, user-agent, timestamp).
+2.  take this string/object gzip it (we have a space limit)
+3.  Sign this string with MD5 and a key only the server will ever know.
+4.  base64 encode the signed string to make sure all characters are
+legit.
+
+...now when we decode the cookie...
+
+1.  base64 decode it, and check our md5 sig
+2.  ungzip the string and parse it back to it's object/string form
+3.  make sure the IP, user-agent match the current request
+4.  make sure the timestamp is within our limit for a login
+
+Now even if someone gets a copy of the cookie, if they don't know the
+MD5 key they can't alter it.  Most likely their ip and or user-agent
+won't match either, but if it does the odds are the timeout may have
+been reached already, esp if it's kept low like 5 or 10 minutes.
+
+Mike
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014499.html">[mod_python] ValueError: Failed to acquire global mutex lock
+</A></li>
+	<LI>Next message: <A HREF="014506.html">[mod_python] Form-based authentication using mod_puthon / Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14505">[ date ]</a>
+              <a href="thread.html#14505">[ thread ]</a>
+              <a href="subject.html#14505">[ subject ]</a>
+              <a href="author.html#14505">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

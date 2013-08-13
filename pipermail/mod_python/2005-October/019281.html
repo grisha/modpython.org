@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Request.sendfile() and symlinks
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Request.sendfile%28%29%20and%20symlinks&In-Reply-To=Pine.LNX.4.63.0510151558230.7466%40trappist.elis.UGent.be">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019280.html">
+   <LINK REL="Next"  HREF="019282.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Request.sendfile() and symlinks</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Request.sendfile%28%29%20and%20symlinks&In-Reply-To=Pine.LNX.4.63.0510151558230.7466%40trappist.elis.UGent.be"
+       TITLE="[mod_python] Request.sendfile() and symlinks">jg.lists at sympatico.ca
+       </A><BR>
+    <I>Sat Oct 15 11:31:39 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019280.html">[mod_python] Request.sendfile() and symlinks
+</A></li>
+        <LI>Next message: <A HREF="019282.html">[mod_python] database connection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19281">[ date ]</a>
+              <a href="thread.html#19281">[ thread ]</a>
+              <a href="subject.html#19281">[ subject ]</a>
+              <a href="author.html#19281">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Wim Heirman wrote:
+&gt;<i> Ok, found it: in req_sendfile(), apr_stat is called with the APR_READ 
+</I>&gt;<i> flag. APR_READ is however an invalid flag there, apr_stat interprets it 
+</I>&gt;<i> as APR_FINFO_LINK (they're both #define'd as 1) making it behave as an 
+</I>&gt;<i> lstat(). APR_FINFO_NORM would probably be the right value for the 3rd 
+</I>&gt;<i> argument.
+</I>
+I've created a new issue for this:
+<A HREF="http://issues.apache.org/jira/browse/MODPYTHON-84">http://issues.apache.org/jira/browse/MODPYTHON-84</A>
+
+Wim's suggestion corrects the problem for linux. Perhaps someone could 
+check on Windows? apr_stat() is different on Windows and Unix. I'll 
+commit the changes in the next couple of minutes.
+
+Jim
+
+
+&gt;&gt;<i> Can't look at it until tomorrow, but check code in src/requestobject.c 
+</I>&gt;&gt;<i> of mod_python
+</I>&gt;&gt;<i> source code. The req_sendfile() may well have a bug in it as does a 
+</I>&gt;&gt;<i> stat of the
+</I>&gt;&gt;<i> file to get the length and when it tells Apache to send the file it 
+</I>&gt;&gt;<i> passes that length
+</I>&gt;&gt;<i> to the underlying call as the number of bytes to send. If the stat 
+</I>&gt;&gt;<i> call is being
+</I>&gt;&gt;<i> performed on the symlink as it appears and not what it points at, the 
+</I>&gt;&gt;<i> wrong length
+</I>&gt;&gt;<i> would be used. The contents of the actual file will be sent though as 
+</I>&gt;&gt;<i> the symlink
+</I>&gt;&gt;<i> will be followed correctly at that point, just not enough is sent.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Maybe someone else can look at this while I get some sleep. ;-)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On 15/10/2005, at 10:37 PM, Wim Heirman wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Hello,
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> When I call req.sendfile(filename) where filename is a symbolic link, 
+</I>&gt;&gt;&gt;<i> only part of the file is sent to the client (as many bytes as there 
+</I>&gt;&gt;&gt;<i> are characters in the symlink's file reference, so for a symlink 
+</I>&gt;&gt;&gt;<i> pointing to '../index.html' I get the first 13 bytes of the correct 
+</I>&gt;&gt;&gt;<i> file). Is this normal behaviour?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Also, I would like to set the Content-Type correctly, based on the 
+</I>&gt;&gt;&gt;<i> file I'm sending. Using the standard mimetypes package works fine, 
+</I>&gt;&gt;&gt;<i> but is it possible to use Apache's mime-typing for this? Since the 
+</I>&gt;&gt;&gt;<i> code for that is already loaded it should be a bit more efficient.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Regards,
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Wim
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> -- 
+</I>&gt;&gt;&gt;<i> ir. Wim Heirman,
+</I>&gt;&gt;&gt;<i> ELIS Department, Ghent University, Belgium
+</I>&gt;&gt;&gt;<i> Phone: +32-9-264.95.27
+</I>&gt;&gt;&gt;<i> E-mail: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">wim.heirman at elis.UGent.be</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://www.elis.UGent.be/~wheirman/">http://www.elis.UGent.be/~wheirman/</A>
+</I>&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i> 
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019280.html">[mod_python] Request.sendfile() and symlinks
+</A></li>
+	<LI>Next message: <A HREF="019282.html">[mod_python] database connection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19281">[ date ]</a>
+              <a href="thread.html#19281">[ thread ]</a>
+              <a href="subject.html#19281">[ subject ]</a>
+              <a href="author.html#19281">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

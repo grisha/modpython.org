@@ -1,0 +1,216 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Very odd behavior using mysqldb
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Very%20odd%20behavior%20using%20mysqldb&In-Reply-To=450AF3E0.4080403%40brunson.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022080.html">
+   <LINK REL="Next"  HREF="022088.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Very odd behavior using mysqldb</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Very%20odd%20behavior%20using%20mysqldb&In-Reply-To=450AF3E0.4080403%40brunson.com"
+       TITLE="[mod_python] Very odd behavior using mysqldb">jpg at jgassociates.ca
+       </A><BR>
+    <I>Sat Sep 16 13:44:57 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022080.html">[mod_python] Very odd behavior using mysqldb
+</A></li>
+        <LI>Next message: <A HREF="022088.html">[mod_python] Very odd behavior using mysqldb
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22084">[ date ]</a>
+              <a href="thread.html#22084">[ thread ]</a>
+              <a href="subject.html#22084">[ subject ]</a>
+              <a href="author.html#22084">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Eric Brunson wrote:
+&gt;<i> I've been working on a project using mod_python to access a mysql 
+</I>&gt;<i> database using the MySQLdb API.  I know mod_python is still considered 
+</I>&gt;<i> beta under Apache 2, so I thought I'd bring an issue to the attention of 
+</I>&gt;<i> the list.
+</I>&gt;<i> 
+</I>&gt;<i> I was seeing some very bizarre results when generating dynamic content 
+</I>&gt;<i> from the database, which I first attributed to PSP caching, but then 
+</I>&gt;<i> investigated further when I switched to using the publisher handler.  It 
+</I>&gt;<i> may be the way I've set up my modules and database connections, but I 
+</I>&gt;<i> haven't convinced myself that I really understand the problem and until 
+</I>&gt;<i> I do, I'm not going to be happy about it.  I have found a workaround 
+</I>&gt;<i> that I can live with, but I don't really like it that much because it 
+</I>&gt;<i> requires constantly connecting to and disconnection from the database.
+</I>&gt;<i> 
+</I>&gt;<i> The problem was simply getting old, wrong results interleaved with new, 
+</I>&gt;<i> correct results after updating the database.  Simply put, I'm displaying 
+</I>&gt;<i> data from a table.  My index.py imports a module for generating HTML 
+</I>&gt;<i> which, in turn, includes a module for doing database access.  The odd 
+</I>&gt;<i> thing about how I set up the database access, and I think it's pertinent 
+</I>&gt;<i> to the problem, was that I automatically connect to the database when I 
+</I>&gt;<i> import the database module.  Like this:
+</I>&gt;<i> 
+</I>&gt;<i> ----- database.py -----
+</I>&gt;<i> import MySQLdb
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> 
+</I>&gt;<i> def Connect():
+</I>&gt;<i>    return MySQLdb.connect( '<A HREF="mysql://me:pass@localhost/mydatabase'">mysql://me:pass@localhost/mydatabase'</A> )
+</I>&gt;<i> 
+</I>&gt;<i> dbc = Connect()
+</I>&gt;<i> 
+</I>&gt;<i> def someExampleAccessFunction():
+</I>&gt;<i>    global dbc
+</I>&gt;<i>    curs = dbc.cursor()
+</I>&gt;<i>    curs.execute( &quot;select count(0) from sometable&quot; )
+</I>&gt;<i>    result = curs.fetchall()[0][0]
+</I>&gt;<i>    curs.close()
+</I>&gt;<i>    apache.log_error( &quot;result was %s&quot; % result )
+</I>&gt;<i>    return result
+</I>&gt;<i> 
+</I>&gt;<i> ----- end database.py -----
+</I>&gt;<i> 
+</I>&gt;<i> Let's disregard whether that's good programming practice or not, the 
+</I>&gt;<i> fact is, I could query that value several times by doing a page reload, 
+</I>&gt;<i> then delete a record from the database and commit the change, then 
+</I>&gt;<i> subsequent page loads would interleave old results with new results, 
+</I>&gt;<i> seemingly cyclically.
+</I>&gt;<i> 
+</I>&gt;<i> The key to my confusion is that the error logs for apache would show a 
+</I>&gt;<i> message for every page reload, and the result from the query would agree 
+</I>&gt;<i> with whatever data was displayed on the page, correct or incorrect.  
+</I>&gt;<i> Meanwhile a direct query to the database from the command line would 
+</I>&gt;<i> always return the correct result from the database.
+</I>&gt;<i> 
+</I>&gt;<i> My best guess so far is that multiple threads in apache get multiple 
+</I>&gt;<i> copies of mod_python, each with it's own copy of the imported database 
+</I>&gt;<i> module in memory and each module maintaining a different database 
+</I>&gt;<i> connection that is somehow caching results.  I've never seen this 
+</I>&gt;<i> behavior in any application until I tried this under mod_python.  I was 
+</I>&gt;<i> able to force the correct results to always be returned by getting rid 
+</I>&gt;<i> of the module variable, dbc, and moving the mysqldb.connect() call to 
+</I>&gt;<i> inside each function call, opening the database connection, executing my 
+</I>&gt;<i> sql, then closing the database connection.  This is less than optimal, 
+</I>&gt;<i> since I may make several database queries during each page load, so 
+</I>&gt;<i> later today I'll try making the database connection in the index.py, 
+</I>&gt;<i> then passing the connection handle to each of the calls that need it.  
+</I>&gt;<i> Also a little less than optimal, but tolerable.
+</I>&gt;<i> 
+</I>&gt;<i> Does anyone have any insight into this behavior?  It's more of an 
+</I>&gt;<i> academic question at this point, but I wonder if it may lead to an 
+</I>&gt;<i> improvement if we were able to identify the problem and implement a 
+</I>&gt;<i> transparent fix.  Also, feel free to let me know if I'm completely 
+</I>&gt;<i> offbase with my theory of what's going on under the hood.
+</I>
+Your assessment with respect to having multiple copies of mod_python, 
+each with its own copy of the imported modules and data is correct. It 
+is not a bug but rather the way apache works. Depending on which 
+apache-mpm you are using (either prefork or worker on Fedora) and your 
+configuration, you may have anywhere from a few, to dozens of 
+independent child processes. Indeed if you are using the prefork mpm on 
+a heavily loaded server you could have hundreds of processes. In such 
+cases using a persistent db connection will likely cause problems with 
+exhausting the number of available mysql connections. Persistent 
+connections in such a scenario are discouraged in general - not just in 
+mod_python.
+
+As to your particular problem, I wonder if you are using transactions, 
+but are not committing immediately after an update? The process which 
+apache chooses to to handle a request is random. Say for example you 
+update in process A without a commit. The next request may be handled by 
+  another process, which will see the old data. A subsequent request may 
+then come in but be handled by process A again, which will see the new 
+data since it is using the same connection as that used for the update. 
+Thus you will get the interleaving effect.
+
+This is not unique to db connections. Don't be fooled into thinking that 
+module-level attributes are global across your application as they are 
+not. In anything other than winnt-mpm (which is a single, threaded 
+process), you will have multiple, independent copies of that variable.
+
+Opening and closing your db connection for each request is the usual 
+solution, as you've discovered. It is possible to do connection pooling, 
+but you need to be a little smarter about it ensure you don't run into 
+problems or exhaust the number of mysql connections configured. Don't 
+forget that leaving open a connection consumes memory resources as well.
+
+This is not to say that you need to open and close the connection each 
+time you want to access the database within a request. The usual method 
+is to stuff your db connection into the request object itself. For example:
+
+def handler(req):
+     req.db = MySQLdb.connect( '<A HREF="mysql://me:pass@localhost/mydatabase'">mysql://me:pass@localhost/mydatabase'</A> )
+     req.register_cleanup(close_db, req.db)
+     delete_stuff(req)
+     add_stuff(req)
+     req.write('stuff done')
+     return apache.OK
+
+def add_stuff(req):
+     cur = req.db.cursor()
+     cur.execute(&quot;insert into stuff (foo) values ('bar')&quot;)
+     cur.close()
+
+def add_stuff(req):
+     cur = req.db.cursor()
+     cur.execute(&quot;DELETE from stuff where foo = 'baz'&quot;)
+     cur.close()
+
+def close_db(db):
+     db.close()
+
+Notice the use of register_cleanup() to register a function which will 
+close the connection, rather than explicitly closing it. This ensures 
+that your db connection will always be closed, even if an exception 
+occurs somewhere in your code.
+
+Jim
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022080.html">[mod_python] Very odd behavior using mysqldb
+</A></li>
+	<LI>Next message: <A HREF="022088.html">[mod_python] Very odd behavior using mysqldb
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22084">[ date ]</a>
+              <a href="thread.html#22084">[ thread ]</a>
+              <a href="subject.html#22084">[ subject ]</a>
+              <a href="author.html#22084">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

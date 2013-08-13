@@ -1,0 +1,347 @@
+
+
+On 13 Mar 2005, at 21:06, Graham Dumpleton wrote:
+
+
+Just want to confirm a few things. Please try and answer all the
+
+
+questions even if you think the answer should be obvious. Something
+
+
+in your response might indicate something to someone.
+
+
+
+
+On Sunday, March 13, 2005, at 10:39 PM, Jamie Kirkpatrick wrote:
+
+
+
+
+The bug I have discovered basically boils down to a tiny thing that is
+not an easy thing to discover. If you use `apachectl restart` to
+control the execution of Apache with mod_python installed on OS X
+(server at least, I didnt try the client version but I imagine it will
+be the same), you will find mod_python ceases to function, producing a
+500 error from apache.
+
+
+
+
+A 500 error is something that would be returned for a request from
+
+
+a client. This therefore suggests that the restart appears to work
+
+
+but then upon receiving a request it delivers up a 500 error to the
+
+
+client. Is this what you mean?
+
+
+
+Yep.
+
+
+
+
+Does every request against the server result in 500 being returned,
+
+
+or only requests which fall under the control of mod_python?
+
+
+
+
+
+Only those that fall under mod_python.  Other pages are fine.
+
+
+
+
+Does running "apachectl configtest" yield any sort of error or warning
+
+
+message?
+
+
+
+None.
+
+
+
+
+If there is some sort of configuration error in the main Apache config
+
+
+file, this would usually be displayed on restart/start but can also be
+
+
+seen by running configtest.
+
+
+
+None.  The same configuration works fine using start / stop, there is
+nothing in the error nor access log.
+
+
+
+
+
+If a configuration error appears in a .htaccess file however, you only
+
+
+know because the client will receive a 500 error when making a request
+
+
+against a directory controlled by that .htaccess file. From what I have
+
+
+seen, nothing normally gets logged in this case.
+
+
+
+It's all configured from the main config file.
+
+
+
+
+That said, have you setup use of Apache in the main configuration file
+
+
+or in a .htaccess file? Can you post what configuration you are using
+
+
+so we can see if it is pretty normal or something strange? Post it if
+
+
+you can.
+
+
+
+
+
+I can post but its rather long - I am pretty darn confident that there
+is nothing wrong with the config tho.  I havent changed barely
+anything from the stock install, in-fact, I can reproduce the error by
+leaving everything as is from when the install is performed and only
+adding a python handler to the default htdocs directory.  The only
+thing I have consistently changed is the port the server is listening
+on to port 8080.  I have tested with the minimum of changes: added a
+handler and dropped in a small test script.
+
+
+
+
+Do you get these 500 errors if the only mod_python application
+configured
+
+
+is a really basic "mptest" type test handler, or does it only happen
+
+
+when you go to set it up for this more complicated application?
+
+
+
+I used the hello.py example from the site and consistently got the
+same results.  This was how I finally pinned it down to mod_python. 
+See the last answer for further details.
+
+
+
+
+What parts of mod_python does this more complicated application use?
+
+
+does it use mod_python.psp, or mod_python.publisher? Does it make use
+of
+
+
+cookies or session support in mod_python?
+
+
+
+See answer above.  The other app uses all sorts, but this is
+fairly irrelevant since i can reproduce the error on a test script. 
+PS - Im not a python programmer at all so I am fairly bad at being
+able to track things down within python itself.
+
+
+
+
+Apart from configuration problems, 500 errors can be raised from within
+
+
+your code itself, so knowing whether your code is dependent on certain
+
+
+packages may be important. Also knowing if it uses sessions may also be
+
+
+useful, as it may be some sort of corruption in the session database.
+
+
+
+
+In both cases when you use restart/start, does the Apache log file
+clearly
+
+
+show mod_python being loaded and initialised?
+
+
+
+In all cases it shows as being cleanly loaded.
+
+
+
+
+As I say , this is not an easy bug to discover, since you never expect
+there to be a difference in the way a module behaves due to such an
+obscure thing. I can confirm that this happens on OS X Server 10.3.6-8
+with various different builds of apache2. I used the stock build, a
+custom built version (from the latest sources) and one from dports
+with the same results. I also tried different versions of python (The
+stock 2.3 Framework, 2.4 built as a framework, 2.4 normal, 2.3
+normal....) as I had read on these lists that there are some oddities
+in this area on OS X.   Same results. Just as I was beginning to give
+up completely I worked out what was going on. :p
+
+
+
+
+When you used stock Python 2.3 supplied by Apple, did you have the
+patches
+
+
+applied which were mentioned in previous email? Without this patch, the
+
+
+Apache child process would have crashed the first time it received a
+request
+
+
+for mod_python. I don't recollect whether the client would have seen a
+500
+
+
+error or not, but that the process crashed is evident in the Apache
+log file.
+
+
+
+I patched this existing Apple Makefile
+(/System/Library/Frameworks/Python.framework/Versions/2.3/lib/python2.3/config/Makefile)
+with
+
+
+
+
+:98
+
+
+
+
+LDSHARED= env MACOSX_DEPLOYMENT_TARGET=10.3 $(CC) $(LDFLAGS)
+-bundle -undefined dynamic_lookup
+
+
+BLDSHARED= env MACOSX_DEPLOYMENT_TARGET=10.3 $(CC) $(LDFLAGS)
+-bundle -undefined dynamic_lookup
+
+
+
+
+and I patched any other 3.3.x Makefiles too as per older emails.
+
+
+
+
+
+I really hope however that my findings can be investigated further so
+that the bug can be resolved and a fix can be rolled into the trunk.
+
+
+
+
+I am happy to do any further testing if a patch is added by anyone. I
+would like to try myself, but I just don't have the time to get
+further into this stuff.
+
+
+
+
+Answering the above questions would be a good first step to knowing a
+bit more
+
+
+about your circumstances. A few other things that may prove useful are
+listed
+
+
+below.
+
+
+
+
+Are you using Apache in "prefork" mode?
+
+
+
+Nope.
+
+
+Did you ever compile it up in "worker"
+
+
+mode with threading to see if it made a difference? If using "worker"
+did you
+
+
+restrict it to one process with many threads?
+
+
+Doing this would cause session
+
+
+database to go from being disked based to memory based. Did you try
+removing
+
+
+the session database from /tmp.
+
+
+
+I did not try any of these options - perhaps I'll look them up but I
+do feel it should build without stuff like that.  I could be wrong tho!
+
+
+
+
+Anyway, if you are prepared to go to a bit of effort to answer each
+question we
+
+
+can see if we can sort this out.
+
+
+
+sure...anything I can do to help.  I havent included the config file
+now as its so long.  If you feel its gonna help I'll do so in the next
+mail.  Also, sorry for the shortness of some of my responses - It's
+early here!  I wanted to get something back to you so you wouild know
+something more, I hope what I have written will give you a better
+picture.  I look forward to helping to iron this one out.
+
+
+
+
+Graham
+
+
+
+
+

@@ -1,0 +1,237 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python.Importer.path; set dynamically
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python.Importer.path%3B%20set%20dynamically&In-Reply-To=88e286470802050212s2355593ds96b743a8061cd159%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024812.html">
+   <LINK REL="Next"  HREF="024838.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python.Importer.path; set dynamically</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martijn Moeling</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python.Importer.path%3B%20set%20dynamically&In-Reply-To=88e286470802050212s2355593ds96b743a8061cd159%40mail.gmail.com"
+       TITLE="[mod_python] mod_python.Importer.path; set dynamically">martijn at xs4us.nu
+       </A><BR>
+    <I>Tue Feb 12 04:43:48 EST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024812.html">[mod_python] mod_python.Importer.path; set dynamically
+</A></li>
+        <LI>Next message: <A HREF="024838.html">[mod_python] mod_python.Importer.path; set dynamically
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24836">[ date ]</a>
+              <a href="thread.html#24836">[ thread ]</a>
+              <a href="subject.html#24836">[ subject ]</a>
+              <a href="author.html#24836">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham,
+
+Thank you, I did not mess around with it yet, I am planning a  
+versioning system to be added to my webbased development platform.
+I am still having some trouble with my webdav module, I have to taccle  
+that one first.
+
+Your help is usefull one question though:
+
+say the inporterpath is set to:
+
+&quot;.../python_modules/me:.../python_modules&quot;
+
+in the apacheconfig the importerpath is set to .../python_modules
+
+in both directories stays:
+
+modulex.py ( in the me directory is the lates version)
+
+
+in my handler module:
+
+import modulex
+
+de handler(req):
+	....... (some code)
+	if req.debug and req.session.loggedIn:
+		req.options['mod_python.path'] = &quot;.../me:../&quot;
+		importedModules=[]
+		modules=filesInUserDirectory(req.session.user)
+           for module in modules:
+			module.append( apache.import_module(module)
+		return module.index(req,*args,**kwargs) # return apache.OK?
+   ......... (some code)
+	return apache.OK
+
+what happens to the interpreter for the next requests? which &quot;modulex&quot;  
+is used ? The are supposed to get the &quot;stable&quot; one from .../ 
+python_modules/
+I don't understand what the return line does, what happens if I return  
+apache.OK in this case?
+
+
+Martijn
+
+On Feb 5, 2008, at 11:12 AM, Graham Dumpleton wrote:
+
+&gt;<i> Sorry for the delay.
+</I>&gt;<i>
+</I>&gt;<i> To make things work transparently across a lot of modules, for both
+</I>&gt;<i> import_module() and 'import' where possible, what you can do is modify
+</I>&gt;<i> the value of option 'mod_python.importer.path' dynamically from code.
+</I>&gt;<i> This can be done from memory using:
+</I>&gt;<i>
+</I>&gt;<i> req.options['mod_python.importer.path'] = &quot;....&quot;
+</I>&gt;<i>
+</I>&gt;<i> You obviously can query this first if you need to somehow manipulate
+</I>&gt;<i> it to add stuff.
+</I>&gt;<i>
+</I>&gt;<i> All you then need is a level of indirection. Has to be from inside of
+</I>&gt;<i> handler, can't be at global scope. So,
+</I>&gt;<i> /var/www/python_modules/index.py might do:
+</I>&gt;<i>
+</I>&gt;<i> def index(req, *args, **kwargs):
+</I>&gt;<i> req.options['mod_python.importer.path'] = \
+</I>&gt;<i>  '/var/www/python_modules/%s:/var/www/python_modules' % req.user
+</I>&gt;<i> module = apache.import_module('index-core')
+</I>&gt;<i> return module.index(req, *args, **kwargs)
+</I>&gt;<i>
+</I>&gt;<i> If there is only one level of module imports, you could also do just:
+</I>&gt;<i>
+</I>&gt;<i> def index(req, *args, **kwargs):
+</I>&gt;<i> module = apache.import_module('index-core', \
+</I>&gt;<i>  path=['/var/www/python_modules/%s:/var/www/python_modules' %  
+</I>&gt;<i> req.user]))
+</I>&gt;<i> return module.index(req, *args, **kwargs)
+</I>&gt;<i>
+</I>&gt;<i> but think that if subdirectory uses 'import', then it might not look
+</I>&gt;<i> in all the directories. Can't remember how it works now.
+</I>&gt;<i>
+</I>&gt;<i> Anyway the suggestion is look at changing req.options if you haven't  
+</I>&gt;<i> already.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> On 01/02/2008, Martijn Moeling &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">martijn at xs4us.nu</A>&gt; wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> As you might remember I added a MySQLdb section to session.
+</I>&gt;&gt;<i> (to be able to save sessions across computers)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In my system a lot of additional data is added to the req object,  
+</I>&gt;&gt;<i> which is
+</I>&gt;&gt;<i> passed
+</I>&gt;&gt;<i> around. in my case it is req.Session.user.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> (I do not use http based auth, since this is in conflict with my  
+</I>&gt;&gt;<i> web based
+</I>&gt;&gt;<i> desktop)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> nevertheless, i can change your &quot;example code&quot; to my needs, consider
+</I>&gt;&gt;<i> req.user as the distinguisher for ease of thinking.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Martijn
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -----Original Message-----
+</I>&gt;&gt;<i> From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;&gt;<i> Sent: Thu 31.01.2008 23:03
+</I>&gt;&gt;<i> To: Martijn Moeling
+</I>&gt;&gt;<i> Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;&gt;<i> Subject: Re: [mod_python] mod_python.Importer.path; set dynamically
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On 01/02/2008, Martijn Moeling &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">martijn at xs4us.nu</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> Hi!
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I am an extensive mod_python user and my system needs something  
+</I>&gt;&gt;&gt;<i> special.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Consider the following:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> in httpd.conf I have :
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> PythonOption mod_python.importer.path [&quot;/var/www/python_modules&quot;]
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> /var/www/html/index.py is linked to ../python_modules/index.py
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> the python_modules directory has subdirectories, like; developer1,
+</I>&gt;&gt;&gt;<i> developer2
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> the python_modules contains stable modules and developerX holds
+</I>&gt;&gt;<i> development
+</I>&gt;&gt;&gt;<i> versions.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I have load balancing with multiple frond-ends (apache/MP) and one
+</I>&gt;&gt;<i> backend
+</I>&gt;&gt;&gt;<i> (MySQL).
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I would like to dynamically change the mod_python.importer.path so  
+</I>&gt;&gt;&gt;<i> that
+</I>&gt;&gt;&gt;<i> developer1 runs code in the corresponding subdir if the module  
+</I>&gt;&gt;&gt;<i> exists,
+</I>&gt;&gt;&gt;<i> else fall back to the python_modules directory.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Any tips, suggestions, remarks?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> What is the distinguisher used to know which developer it is? Are you
+</I>&gt;&gt;<i> using something like Basic authentication and so could distinguish
+</I>&gt;&gt;<i> based on req.user?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If you tell me what the distinguisher is, probably have an idea.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024812.html">[mod_python] mod_python.Importer.path; set dynamically
+</A></li>
+	<LI>Next message: <A HREF="024838.html">[mod_python] mod_python.Importer.path; set dynamically
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24836">[ date ]</a>
+              <a href="thread.html#24836">[ thread ]</a>
+              <a href="subject.html#24836">[ subject ]</a>
+              <a href="author.html#24836">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

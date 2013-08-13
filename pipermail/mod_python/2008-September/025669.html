@@ -1,0 +1,232 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: Mod_Python, Mod_Proxy, and Set-Cookie
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Mod_Python%2C%20Mod_Proxy%2C%20and%20Set-Cookie&In-Reply-To=88e286470809291821sb120ae8v4b9bd28fabca9e4d%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025668.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: Mod_Python, Mod_Proxy, and Set-Cookie</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Tom Wells</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Mod_Python%2C%20Mod_Proxy%2C%20and%20Set-Cookie&In-Reply-To=88e286470809291821sb120ae8v4b9bd28fabca9e4d%40mail.gmail.com"
+       TITLE="[mod_python] Re: Mod_Python, Mod_Proxy, and Set-Cookie">drshade at gmail.com
+       </A><BR>
+    <I>Mon Sep 29 21:49:57 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025668.html">[mod_python] Re: Mod_Python, Mod_Proxy, and Set-Cookie
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25669">[ date ]</a>
+              <a href="thread.html#25669">[ thread ]</a>
+              <a href="subject.html#25669">[ subject ]</a>
+              <a href="author.html#25669">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Good point and something that was bothering me before I looked at
+mod_proxy_http.c - which clearly was built with the &quot;intention&quot; of merging
+proxied responses with values already set in headers_out. But in terms of
+defensive programming and designing for the unexpected, especially within a
+flexible framework such as Apache is very good advice. I'll take a look at
+add_output_filter() and see if it's a better option for me.
+
+Thanks for your help as usual Graham.
+
+Best Regards,
+Tom
+
+On Mon, Sep 29, 2008 at 9:21 PM, Graham Dumpleton &lt;
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+
+&gt;<i> It may be that your assumption that setting headers_out in a authnz
+</I>&gt;<i> handler will always ensure that it appears in response, where authnz
+</I>&gt;<i> handler is not providing the final response, is just wrong. The
+</I>&gt;<i> correct way of ensuring this is possibly to use an output filter. That
+</I>&gt;<i> way the setting of additional headers is from after true handler had
+</I>&gt;<i> started returning response and so after when it has set headers
+</I>&gt;<i> itself. That way no chance that content handler will ignore what you
+</I>&gt;<i> may have already set in headers_out as you are overriding what it has
+</I>&gt;<i> set. So, have a look at req.add_output_filter(). Only thing I don't
+</I>&gt;<i> remember is whether mod_python output filters are registered at
+</I>&gt;<i> correct level to allow modifications to response headers.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> 2008/9/30 Tom Wells &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">drshade at gmail.com</A>&gt;:
+</I>&gt;<i> &gt; Hi Mod_Pythonians,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; So I managed to solve it - and it's clearly a bug in Apache 2.2.9
+</I>&gt;<i> mod_proxy
+</I>&gt;<i> &gt; as far as I can tell. I will be posting the bug to the Apache bug list,
+</I>&gt;<i> but
+</I>&gt;<i> &gt; thought I would give you a quick explanation as I've found many a golden
+</I>&gt;<i> &gt; nugget during my travels on this mailing list.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Basically if you're trying to set a cookie within a handler (mod_python
+</I>&gt;<i> or
+</I>&gt;<i> &gt; otherwise I assume) and the response from the proxied resource starts
+</I>&gt;<i> with
+</I>&gt;<i> &gt; the &quot;HTTP/1.1 100 Continue&quot; status line (because the request was a POST
+</I>&gt;<i> and
+</I>&gt;<i> &gt; had an &quot;Expect: 100-Continue&quot;) then you can forget about mod_proxy
+</I>&gt;<i> merging
+</I>&gt;<i> &gt; the Set-Cookie in your out_headers from your handler with the response
+</I>&gt;<i> from
+</I>&gt;<i> &gt; the proxied resource. I've been through most of the mod_proxy code this
+</I>&gt;<i> &gt; evening and I can understand why, there are some hairy things in there
+</I>&gt;<i> &gt; (around backwards compatibility and the ever changing HTTP goal posts of
+</I>&gt;<i> &gt; long ago I suppose). Regular POSTs work great, which explains the mixed
+</I>&gt;<i> &gt; results we were seeing between our various back-end web servers.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Of course everything works just perfectly in Apache 2.2.4 which happened
+</I>&gt;<i> to
+</I>&gt;<i> &gt; be our development Apache version, and so we didn't stumble upon the
+</I>&gt;<i> issue
+</I>&gt;<i> &gt; until during deployment on the production machines (which the ops team
+</I>&gt;<i> keep
+</I>&gt;<i> &gt; patched to the latest Apache version).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Best Regards,
+</I>&gt;<i> &gt; Tom
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On Mon, Sep 29, 2008 at 10:05 AM, Tom Wells &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">drshade at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Hi Group
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; I'm facing an interesting problem at the moment and wondered if anyone
+</I>&gt;<i> &gt;&gt; could give me a pointer. Our setup is the following:
+</I>&gt;<i> &gt;&gt; Apache running mod_python and mod_proxy, with python handlers for Authen
+</I>&gt;<i> &gt;&gt; and Authz, we have an Oracle Application Server and a JRUN Application
+</I>&gt;<i> &gt;&gt; Server in the back, which are where mod_proxy is configured to forward
+</I>&gt;<i> to.
+</I>&gt;<i> &gt;&gt; Our python Authen and Authz handlers are responsible for getting and
+</I>&gt;<i> setting
+</I>&gt;<i> &gt;&gt; session related cookies before proxying, or to redirect the user if the
+</I>&gt;<i> &gt;&gt; session cookie is bad or he is not logged in (no cookie). Even if the
+</I>&gt;<i> user
+</I>&gt;<i> &gt;&gt; has a valid cookie we refresh it every 2 minutes, i.e. generate a new
+</I>&gt;<i> &gt;&gt; cookie, add the Set-Cookie header, then allow the request to continue
+</I>&gt;<i> (i.e.
+</I>&gt;<i> &gt;&gt; mod_proxy kicks in and forwards the request to oracle or jrun). This is
+</I>&gt;<i> nice
+</I>&gt;<i> &gt;&gt; because we have a single authentication model up front for multiple
+</I>&gt;<i> &gt;&gt; disparate web applications in the back.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Now the good news is that this works really well, mostly. Browser
+</I>&gt;<i> requests
+</I>&gt;<i> &gt;&gt; to and from the webserver correctly get and update cookies and
+</I>&gt;<i> &gt;&gt; allow/disallow requests to be proxied. More specifically the
+</I>&gt;<i> &quot;Set-Cookie&quot;
+</I>&gt;<i> &gt;&gt; header is present in responses where the cookie has been updated. This
+</I>&gt;<i> is
+</I>&gt;<i> &gt;&gt; true for both the oracle and jrun application servers being proxied to.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; HOWEVER - we have a rich client (desktop) app written in C# which has
+</I>&gt;<i> been
+</I>&gt;<i> &gt;&gt; designed to POST to some of the oracle url's in order to fetch data,
+</I>&gt;<i> after
+</I>&gt;<i> &gt;&gt; it performs a login. So it logs in, gets a fresh new cookie and
+</I>&gt;<i> regularly
+</I>&gt;<i> &gt;&gt; hits the backend for data. For each request our Authen and Authz
+</I>&gt;<i> handlers
+</I>&gt;<i> &gt;&gt; process the cookie and ensure the session is valid etc, and allow or
+</I>&gt;<i> &gt;&gt; disallow the request (i.e. return apache.OK or do a
+</I>&gt;<i> &gt;&gt; mod_python_util.redirect() to get rid of him). The problem is that
+</I>&gt;<i> requests
+</I>&gt;<i> &gt;&gt; from this app don't ever get back a refreshed cookie (after 2 minutes) -
+</I>&gt;<i> &gt;&gt; there is every indication according to my apache logs that my Authz
+</I>&gt;<i> handler
+</I>&gt;<i> &gt;&gt; is calling the mod_python.Cookie.add_cookie(req, newCookie) function to
+</I>&gt;<i> set
+</I>&gt;<i> &gt;&gt; the new cookie, and even printing out the list of headers_in and
+</I>&gt;<i> headers_out
+</I>&gt;<i> &gt;&gt; in a fixuphandler shows the Set-Cookie header is present. BUT the
+</I>&gt;<i> Set-Cookie
+</I>&gt;<i> &gt;&gt; never makes it back to the app as we have used fiddler2 and httpdebugger
+</I>&gt;<i> to
+</I>&gt;<i> &gt;&gt; monitor the traffic.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; So I blame the Oracle Application Server for eating the cookie somehow,
+</I>&gt;<i> &gt;&gt; but surely as the cookie is added to the headers_out of the request it
+</I>&gt;<i> MUST
+</I>&gt;<i> &gt;&gt; go back to the browser regardless of how it was proxied or whatever the
+</I>&gt;<i> &gt;&gt; proxied application responds with?
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Please help - getting desperate for a solution - any pointers as to
+</I>&gt;<i> track
+</I>&gt;<i> &gt;&gt; down the issue would be greatly appreciated!
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Thanks,
+</I>&gt;<i> &gt;&gt; Tom
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; --
+</I>&gt;<i> &gt;&gt; <A HREF="http://www.tomwells.org">http://www.tomwells.org</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; --
+</I>&gt;<i> &gt; <A HREF="http://www.tomwells.org">http://www.tomwells.org</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>
+
+
+-- 
+<A HREF="http://www.tomwells.org">http://www.tomwells.org</A>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20080929/795c708c/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20080929/795c708c/attachment-0001.html</A>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025668.html">[mod_python] Re: Mod_Python, Mod_Proxy, and Set-Cookie
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25669">[ date ]</a>
+              <a href="thread.html#25669">[ thread ]</a>
+              <a href="subject.html#25669">[ subject ]</a>
+              <a href="author.html#25669">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

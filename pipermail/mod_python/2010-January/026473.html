@@ -1,0 +1,138 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Method POST
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Method%20POST&In-Reply-To=478da2591001291707t5524385euace50f95d6059103%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026470.html">
+   <LINK REL="Next"  HREF="026471.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Method POST</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Method%20POST&In-Reply-To=478da2591001291707t5524385euace50f95d6059103%40mail.gmail.com"
+       TITLE="[mod_python] Method POST">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat Jan 30 20:56:21 EST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026470.html">[mod_python] Method POST
+</A></li>
+        <LI>Next message: <A HREF="026471.html">[mod_python] Method POST
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26473">[ date ]</a>
+              <a href="thread.html#26473">[ thread ]</a>
+              <a href="subject.html#26473">[ subject ]</a>
+              <a href="author.html#26473">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2010/1/30 Rapha&#235;l B. &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nashii at gmail.com</A>&gt;:
+&gt;<i> Hello,
+</I>&gt;<i>
+</I>&gt;<i> Is there any way to know if some data that are in req.form are &quot;POST&quot; or
+</I>&gt;<i> &quot;GET&quot; data ?
+</I>&gt;<i> It's better if we want to protect our form ... And I want to treat ONLY the
+</I>&gt;<i> POSTed data ...
+</I>&gt;<i>
+</I>&gt;<i> Can you help me ?
+</I>
+Use:
+
+  if req.method == &quot;POST&quot; and req.args:
+    ... GET style args were supplied to POST, so generate an error to forbid it
+
+If you want to try and still allow it but treat them differently, it
+gets a bit harder. This is being FieldStorage class merges GET args
+into POST args.
+
+        #### lib/python/mod_python/util.py
+
+        # always process GET-style parameters
+        if req.args:
+            pairs = parse_qsl(req.args, keep_blank_values)
+            for pair in pairs:
+                self.add_field(pair[0], pair[1])
+
+You would have to parse req.args yourself like above. Removing the
+entries with that key may not be sufficient however in as much as the
+same value could have been supplied through both GET and POST args, in
+which case there will be multiple entries. Thus you would need to also
+look at value of arg supplied via GET and be selective about which to
+remove from overall argument set.
+
+You could get even more tricky by using a special handler to null out
+req.args prior to mod_python.publisher getting to it. Thus:
+
+  PythonHandler mymodules.fixupargs .py
+  PythonHandler mod_python.publisher .py
+
+Where in your mymodules/fixupargs.py (installed on module path
+somewhere), you have:
+
+  from mod_python import apache
+
+  def handler(req):
+    if req.method == &quot;POST&quot; and req.args:
+      req.args = &quot;&quot;
+    return apache.DECLINED
+
+Overall your goal of trying to ensure people use your form isn't going
+to really work doing it this way. This is because someone could just
+copy the HTML of your form to local disk on their machine, change the
+form, charge the target of the form to list your site explicitly and
+then still use POST. If you were going to try and be more
+sophisticated you would look at the HTTP Referrer header, but even
+that can be forged when using custom HTTP client.
+
+So, what is the real issue you are trying to solve that would even
+require such checks.
+
+Graham
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026470.html">[mod_python] Method POST
+</A></li>
+	<LI>Next message: <A HREF="026471.html">[mod_python] Method POST
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26473">[ date ]</a>
+              <a href="thread.html#26473">[ thread ]</a>
+              <a href="subject.html#26473">[ subject ]</a>
+              <a href="author.html#26473">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

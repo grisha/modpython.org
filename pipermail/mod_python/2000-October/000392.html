@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Output from C functions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Output%20from%20C%20functions&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000391.html">
+   <LINK REL="Next"  HREF="000393.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Output from C functions</H1>
+    <B>Alexis Iglauer</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Output%20from%20C%20functions&In-Reply-To="
+       TITLE="[mod_python] Output from C functions">aiglauer at iname.com
+       </A><BR>
+    <I>Mon Oct 30 00:43:49 EST 2000</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000391.html">[mod_python] Output from C functions
+</A></li>
+        <LI>Next message: <A HREF="000393.html">[mod_python] Output from C functions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#392">[ date ]</a>
+              <a href="thread.html#392">[ thread ]</a>
+              <a href="subject.html#392">[ subject ]</a>
+              <a href="author.html#392">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I'm doing this from inside a cgi script, would that make the solution any
+easier?  Seems like a mightily complex way to do a printf :)  I would like
+to stay entirely inside C for my loop, for speed purposes.  Can I maybe pass
+the file handle of stdout to my function and then write to that?
+
+aei
+----- Original Message -----
+From: &quot;Gregory Trubetskoy&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grisha at ispol.com</A>&gt;
+To: &quot;Alexis Iglauer&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">aiglauer at iname.com</A>&gt;
+Cc: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>&gt;
+Sent: Sunday, October 29, 2000 11:30 PM
+Subject: Re: [mod_python] Output from C functions
+
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> The cgihandler redirects the sys.stdout to the client. Anything that uses
+</I>&gt;<i> the real (non python) stdout will just print somewhere just like you
+</I>&gt;<i> describe.
+</I>&gt;<i>
+</I>&gt;<i> If you want to do this in C, you should use the req.write function. Here
+</I>&gt;<i> is what a handler written in C might look like (skipping all the regular
+</I>&gt;<i> python module stuff. Kids don't try this at home):
+</I>&gt;<i>
+</I>&gt;<i> #include mod_python.h
+</I>&gt;<i>
+</I>&gt;<i> static PyObject * handler(PyObject *self, PyObject *args)
+</I>&gt;<i> {
+</I>&gt;<i> PyObject *r;
+</I>&gt;<i> requestobject *req = NULL;
+</I>&gt;<i>
+</I>&gt;<i> if (!PyArg_ParseTuple(args, &quot;O&quot;, &amp;r))
+</I>&gt;<i>     return NULL;
+</I>&gt;<i>
+</I>&gt;<i> req = (requestobject *)PyObject_GetAttrString(r, &quot;_req&quot;);
+</I>&gt;<i>
+</I>&gt;<i> ap_send_http_header(req-&gt;request_rec);
+</I>&gt;<i> req-&gt;header_sent = 1;
+</I>&gt;<i>
+</I>&gt;<i> ap_table_set(req-&gt;request_rec-&gt;headers_out, &quot;content-type&quot;,
+</I>&gt;<i>      &quot;text/plain&quot;);
+</I>&gt;<i>
+</I>&gt;<i> PyObject_CallMethod((PyObject *)req, &quot;write&quot;, &quot;s&quot;, &quot;Hello World!\n&quot;);
+</I>&gt;<i>
+</I>&gt;<i> return PyInt_FromLong(OK);
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i>   Gregory (Grisha) Trubetskoy
+</I>&gt;<i>        <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grisha at ispol.com</A>
+</I>&gt;<i>
+</I>&gt;<i> On Sun, 29 Oct 2000, Alexis Iglauer wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; I am running a long calculation using a web interface, and am having the
+</I>&gt;<i> &gt; problem that the web client times out before the results come back.  I
+</I>fixed
+&gt;<i> &gt; this by first printing a valid HTTP header and then having the Python
+</I>script
+&gt;<i> &gt; print a counter, which the web browser picks up and prints - and then
+</I>&gt;<i> &gt; doesn't time out.  Works very well.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; BUT - I have now recoded the central calculation routine in C (all the
+</I>&gt;<i> &gt; control/UI stuff is still Python), and placed a printf routine in there
+</I>to
+&gt;<i> &gt; output the iterations like I did in the Python, but it doesn't get to
+</I>the
+&gt;<i> &gt; webbrowser.  Any ideas why?  It prints to stdout if I just run the
+</I>script
+&gt;<i> &gt; from the console, but not if I call it from apache.  Is there some
+</I>buffering
+&gt;<i> &gt; when calling a C routine?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I am using mod_python 2.6.2 and I wrapped the C function using SWIG.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Grateful for any pointers.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Thanks
+</I>&gt;<i> &gt; Alexis
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000391.html">[mod_python] Output from C functions
+</A></li>
+	<LI>Next message: <A HREF="000393.html">[mod_python] Output from C functions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#392">[ date ]</a>
+              <a href="thread.html#392">[ thread ]</a>
+              <a href="subject.html#392">[ subject ]</a>
+              <a href="author.html#392">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

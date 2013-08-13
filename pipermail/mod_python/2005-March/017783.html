@@ -1,0 +1,283 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Internal redirect does not end processing and session
+	is not saved on internal redirect - mpservlets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Internal%20redirect%20does%20not%20end%20processing%20and%20session%0A%09is%20not%20saved%20on%20internal%20redirect%20-%20mpservlets&In-Reply-To=4248516F.3090903%40mischko.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017780.html">
+   <LINK REL="Next"  HREF="017784.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Internal redirect does not end processing and session
+	is not saved on internal redirect - mpservlets</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Scott Chapman</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Internal%20redirect%20does%20not%20end%20processing%20and%20session%0A%09is%20not%20saved%20on%20internal%20redirect%20-%20mpservlets&In-Reply-To=4248516F.3090903%40mischko.com"
+       TITLE="[mod_python] Internal redirect does not end processing and session
+	is not saved on internal redirect - mpservlets">scottie at mischko.com
+       </A><BR>
+    <I>Mon Mar 28 18:45:22 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017780.html">[mod_python] Internal redirect does not end processing and session
+ is not saved on internal redirect - mpservlets
+</A></li>
+        <LI>Next message: <A HREF="017784.html">[mod_python] Cookie documentation, small correction
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17783">[ date ]</a>
+              <a href="thread.html#17783">[ thread ]</a>
+              <a href="subject.html#17783">[ subject ]</a>
+              <a href="author.html#17783">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I have updated the uberServlet and the logged output below. 
+
+Using the internal_redirect from mpservlet prevents code from being 
+executed that is after the redirect.  One problem is solved.
+
+I'm not sure how to transfer the session to the internal redirect at 
+this point.  It would be nice if that worked because I'm pretty sure 
+I'll need it later.  This is a brand new session and no cookie has been 
+sent to the browser at the time of the internal redirect so things don't 
+work very well there.  How should I transfer the session to the 
+internally redirected URI?
+
+Scott
+
+Scott Chapman wrote:
+
+&gt;<i> Here's my uberServlet which demonstrates this &quot;interesting&quot; behavior.  
+</I>&gt;<i> If I use the external redirect and comment out the internal redirect, 
+</I>&gt;<i> everything works perfectly.
+</I>&gt;<i>
+</I>&gt;<i> Note that I have changed mpservlets to call prep BEFORE auth.  This 
+</I>&gt;<i> makes better sense to me.
+</I>&gt;<i>
+</I>&gt;<i> uberServlet:
+</I>&gt;<i>
+</I>&gt;&gt;<i> from mod_python.servlet import Servlet
+</I>&gt;&gt;<i> from mod_python import apache,util
+</I>&gt;&gt;<i> from pages import Pages
+</I>&gt;&gt;<i> import data_object
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> class uberservlet(Servlet):
+</I>&gt;&gt;<i>     use_session = True
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     def prep(self):
+</I>&gt;&gt;<i>         Servlet.prep(self)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     def auth(self):
+</I>&gt;&gt;<i>         pages=Pages()
+</I>&gt;&gt;<i>         
+</I>&gt;&gt;<i> methodName=self.req.uri[:len(self.req.uri)-len(self.req.path_info)][1:]
+</I>&gt;&gt;<i>         self.req.log_error('AUTH - methodName: ' + methodName)
+</I>&gt;&gt;<i>         if methodName in ['login','doLogin','logout']:
+</I>&gt;&gt;<i>             return
+</I>&gt;&gt;<i>         method=getattr(pages,methodName,None)
+</I>&gt;&gt;<i>         if method:
+</I>&gt;&gt;<i>             self.req.log_error('AUTH - method found')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>             # Check to see if the page requires user to be logged in
+</I>&gt;&gt;<i>             requiresLogin = data_object.requires_login(methodName)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>             if requiresLogin == 'unknown':
+</I>&gt;&gt;<i>                 self.req.log_error('AUTH - page: %s not found in 
+</I>&gt;&gt;<i> pages table' % methodName)
+</I>&gt;&gt;<i>                 raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>             if not requiresLogin:
+</I>&gt;&gt;<i>                 self.req.log_error('AUTH - page: %s does not require 
+</I>&gt;&gt;<i> login' % methodName)
+</I>&gt;&gt;<i>                 return
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>             if requiresLogin:
+</I>&gt;&gt;<i>                 self.req.log_error('AUTH - page: %s requires login' % 
+</I>&gt;&gt;<i> methodName)
+</I>&gt;&gt;<i>                 userName = self.session.get('username', None)
+</I>&gt;&gt;<i>                 # Check to see if the user is logged in
+</I>&gt;&gt;<i>                 if userName:
+</I>&gt;&gt;<i>                     self.req.log_error('AUTH - user already logged 
+</I>&gt;&gt;<i> in: %s' % userName)
+</I>&gt;&gt;<i>                     # Check that the user has access to the page.
+</I>&gt;&gt;<i>                     access_ok = 
+</I>&gt;&gt;<i> data_object.check_access(methodName,userName)
+</I>&gt;&gt;<i>                     if access_ok:
+</I>&gt;&gt;<i>                         return
+</I>&gt;&gt;<i>                     else:
+</I>&gt;&gt;<i>                         raise apache.SERVER_RETURN, apache.HTTP_FORBIDDEN
+</I>&gt;&gt;<i>                 else:
+</I>&gt;&gt;<i>                     self.req.log_error('AUTH - user not logged in')
+</I>&gt;&gt;<i>                     self.session['returnto'] = self.req.unparsed_uri
+</I>&gt;&gt;<i>                     self.req.log_error('AUTH - sid when returnto set: 
+</I>&gt;&gt;<i> ' + str(self.session.id()))
+</I>&gt;&gt;<i>                     self.req.log_error('AUTH - returnto: ' + 
+</I>&gt;&gt;<i> self.session['returnto'])
+</I>&gt;&gt;<i>                     self.req.log_error('AUTH - internal redirect to 
+</I>&gt;&gt;<i> login')
+</I>&gt;&gt;<i>                     #Tried doing an internal redirect here but
+</I>&gt;&gt;<i>                     #things don't go well. Code is executed after the 
+</I>&gt;&gt;<i> internal redirect.
+</I>&gt;&gt;<i>                     #The cookie with the session info is not sent to 
+</I>&gt;&gt;<i> the client here so the returnto is lost.
+</I>&gt;&gt;<i>                     #self.session.save()
+</I>&gt;&gt;<i>                     #self.session.unlock()
+</I>&gt;&gt;<i>                     # Commenting out the above two lines makes no 
+</I>&gt;&gt;<i> difference.
+</I>&gt;&gt;<i>                     # Servlet has better session_cleanup now.
+</I>&gt;&gt;<i>                     self.internal_redirect('/login')
+</I>&gt;&gt;<i>                     
+</I>&gt;&gt;<i>                     #util.redirect(self.req,'/login')
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>         else:
+</I>&gt;&gt;<i>             self.req.log_error('AUTH - method not found')
+</I>&gt;&gt;<i>             raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+</I>&gt;&gt;<i>         return
+</I>&gt;&gt;<i>         
+</I>&gt;&gt;<i>     def respond(self):
+</I>&gt;&gt;<i>         
+</I>&gt;&gt;<i> methodName=self.req.uri[:len(self.req.uri)-len(self.req.path_info)][1:]
+</I>&gt;&gt;<i>         self.req.log_error ('UBERSERVLET RESPOND - method name: %s' % 
+</I>&gt;&gt;<i> methodName)
+</I>&gt;&gt;<i>         pages=Pages()
+</I>&gt;&gt;<i>         method=getattr(pages,methodName,None)
+</I>&gt;&gt;<i>         if method:
+</I>&gt;&gt;<i>             self.req.log_error('UBERSERVLET RESPOND - calling method')
+</I>&gt;&gt;<i>             if self.form.list:
+</I>&gt;&gt;<i>                 self.write(method(self,self.form))
+</I>&gt;&gt;<i>             else:
+</I>&gt;&gt;<i>                 self.write(method(self))
+</I>&gt;&gt;<i>             return True
+</I>&gt;&gt;<i>         else:
+</I>&gt;&gt;<i>             self.req.log_error('UBERSERVLET RESPOND - method not found')
+</I>&gt;&gt;<i>             return False
+</I>&gt;&gt;<i>         
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>      Here's the &quot;pages&quot; contents:
+</I>&gt;<i>
+</I>&gt;&gt;<i> from mod_python import util, apache
+</I>&gt;&gt;<i> import data_object
+</I>&gt;&gt;<i> import templates
+</I>&gt;&gt;<i> import table_builder
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> class Pages:
+</I>&gt;&gt;<i>     def login(self,uberServlet):
+</I>&gt;&gt;<i>         center=templates.login_template
+</I>&gt;&gt;<i>         return templates.site_template(2,center=center,menu=False)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     def doLogin(self,uberServlet, form):
+</I>&gt;&gt;<i>         login = form.getfirst('login')
+</I>&gt;&gt;<i>         password = form.getfirst('password')
+</I>&gt;&gt;<i>         if data_object.checkLoginAndPassword(login, password):
+</I>&gt;&gt;<i>             uberServlet.session['username'] = login
+</I>&gt;&gt;<i>             uberServlet.req.log_error('DOLOGIN - username and 
+</I>&gt;&gt;<i> password confirmed')
+</I>&gt;&gt;<i>             uberServlet.req.log_error('DOLOGIN - sid: ' + 
+</I>&gt;&gt;<i> str(uberServlet.session.id()))
+</I>&gt;&gt;<i>             return_to = uberServlet.session.pop('returnto','/index')
+</I>&gt;&gt;<i>             uberServlet.req.log_error('DOLOGIN - return_to' + return_to)
+</I>&gt;&gt;<i>             util.redirect(uberServlet.req,return_to)
+</I>&gt;&gt;<i>         else:
+</I>&gt;&gt;<i>             return self.login()
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     def table(self,uberServlet):
+</I>&gt;&gt;<i>         return ....
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Here's my log of the session, using internal redirect with code above:
+</I>
+&gt;<i> ==== session cookies cleared here ====
+</I>&gt;<i> HANDLER-calling prep
+</I>&gt;<i> HANDLER-calling auth
+</I>&gt;<i> AUTH - methodName: table
+</I>&gt;<i> AUTH - method found
+</I>&gt;<i> AUTH - page: table requires login
+</I>&gt;<i> AUTH - user not logged in
+</I>&gt;<i> AUTH - sid when returnto set: ee97afd50f2f09af23f815da70815158
+</I>&gt;<i> AUTH - returnto: /table
+</I>&gt;<i> AUTH - internal redirect to login
+</I>&gt;<i> HANDLER-calling prep
+</I>&gt;<i> HANDLER-calling auth
+</I>&gt;<i> AUTH - methodName: login
+</I>&gt;<i> HANDLER-calling respond
+</I>&gt;<i> UBERSERVLET RESPOND - method name: login
+</I>&gt;<i> UBERSERVLET RESPOND - calling method
+</I>&gt;<i> HANDLER-calling wrapup
+</I>&gt;<i> --- login page ---
+</I>&gt;<i> HANDLER-calling prep, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> HANDLER-calling auth, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> AUTH - methodName: doLogin, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> HANDLER-calling respond, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> UBERSERVLET RESPOND - method name: doLogin, referer: 
+</I>&gt;<i> <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> UBERSERVLET RESPOND - calling method, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> DOLOGIN - username and password confirmed, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> DOLOGIN - sid: a8b4af31a3ccd4dce90ef03e86d7dcc6, referer: 
+</I>&gt;<i> <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> DOLOGIN - return_to/index, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> HANDLER-calling prep, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> HANDLER-calling auth, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> AUTH - methodName: index, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> AUTH - method found, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> AUTH - page: index does not require login, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> HANDLER-calling respond, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> UBERSERVLET RESPOND - method name: index, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> UBERSERVLET RESPOND - calling method, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> HANDLER-calling wrapup, referer: <A HREF="http://nsnserver/table">http://nsnserver/table</A>
+</I>&gt;<i> --- index page ---
+</I>&gt;<i>
+</I>
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017780.html">[mod_python] Internal redirect does not end processing and session
+ is not saved on internal redirect - mpservlets
+</A></li>
+	<LI>Next message: <A HREF="017784.html">[mod_python] Cookie documentation, small correction
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17783">[ date ]</a>
+              <a href="thread.html#17783">[ thread ]</a>
+              <a href="subject.html#17783">[ subject ]</a>
+              <a href="author.html#17783">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

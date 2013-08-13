@@ -1,0 +1,226 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Udate python modules without restarting Apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=200410140932.i9E9WMja052337%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016629.html">
+   <LINK REL="Next"  HREF="016628.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Udate python modules without restarting Apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=200410140932.i9E9WMja052337%40dscpl.com.au"
+       TITLE="[mod_python] Udate python modules without restarting Apache">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Oct 14 22:10:05 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016629.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+        <LI>Next message: <A HREF="016628.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16627">[ date ]</a>
+              <a href="thread.html#16627">[ thread ]</a>
+              <a href="subject.html#16627">[ subject ]</a>
+              <a href="author.html#16627">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 14/10/2004, at 7:32 PM, Nicolas Lehuen wrote:
+&gt;&gt;<i> FWIW, if using execfile() I have since found that it is
+</I>&gt;&gt;<i> probably better to use:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   import imp
+</I>&gt;&gt;<i>   module = imp.new_module(&quot;z&quot;)
+</I>&gt;&gt;<i>   module.__file__ = &quot;z.py&quot;
+</I>&gt;&gt;<i>   execfile(&quot;z.py&quot;,module.__dict__)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> That way, executing type() on the module gives &lt;type
+</I>&gt;&gt;<i> 'module'&gt; and thus things one expects to work on modules
+</I>&gt;&gt;<i> will. The imp.new_module() method does not result in the
+</I>&gt;&gt;<i> module being listed in sys.modules.
+</I>&gt;<i>
+</I>&gt;<i> Ok, thanks for the tip, Graham.
+</I>&gt;<i>
+</I>&gt;<i> ...
+</I>&gt;<i>
+</I>&gt;<i> So I guess those two function do exactly the same thing. I'll modify my
+</I>&gt;<i> ModuleCache to use imp.new_module instead of a fake Module object.
+</I>
+Another thing I have done is to implement the cloning mechanism for 
+data that I
+mentioned in my prior emails. Ie.,
+
+         module = imp.new_module(label)
+         module.__file__ = file
+         if hasattr(cache.module,&quot;__clone__&quot;) and \
+             callable(cache.module.__clone__):
+           cache.module.__clone__(module)
+         execfile(file,module.__dict__)
+         cache.module = module
+
+Thus, although the newly loaded module is constructed into a fresh 
+module, there is
+the option of copying over selected data from the existing module. This 
+is done by
+calling a __clone__() method if present in the existing module to 
+populate the fresh
+module before loading the code in. Because it is a function, any 
+necessary code
+could be put in it, including code which acquires any locks while 
+copying the data.
+
+For example, a content handler might contain:
+
+   from threading import Lock
+
+   # This method prior to execfile() being run, but only
+   # when the module had previously been loaded.
+
+   def __clone__(module):
+     _lock.acquire()
+     module._lock = _lock
+     module._data = _data
+     _data[&quot;reloads&quot;] = _data[&quot;reloads&quot;] + 1
+     _lock.release()
+
+   # This global scope code executed when execfile() run.
+   # Check that data doesn't already exist, as don't want
+   # to overwrite it if it does. This will be the case
+   # when it is copied from existing module.
+
+   if not globals().has_key(&quot;_lock&quot;):
+     _lock = Lock()
+     _data = { &quot;reloads&quot; : 0 }
+
+   # Data which should always be reset on fresh import
+   # would still follow here.
+
+   _cache = {}
+
+Using execfile() on a fresh module and using __clone__() in this way 
+solves some of the
+problems I mentioned in my prior emails.
+
+First, because a fresh module is used, you don't get problems with code 
+being modified
+while another thread may be executing in the context of the existing 
+module that would
+have otherwise been overwritten.
+
+You can selectively copy over only the data which should be present in 
+the context of
+the code being reconstructed. Ie., you could throw away certain types 
+of cached data.
+If the modified code had removed functions, they will not show in the 
+newly loaded
+module.
+
+The use of a method rather than an export list of data to copy across, 
+means that locks
+can be acquired while data is being copied to prevent another thread 
+accessing it at
+the same time.
+
+The intent with copying locks and data is that it is shared between old 
+and new modules
+at least for the period that any existing thread may be executing in 
+the context of the
+old module. Because the old module will no longer be referenced from 
+the cache, once
+the thread executing in the context of the old module finishes, the old 
+module will
+disappear and data will be exclusive to the new module.
+
+This does mean though that any data should really be dictionaries or 
+class instances Ie.,
+things that can be shared properly and a change through either 
+reference is reflected in
+the other. Eg.
+
+   &gt;&gt;&gt; a={&quot;a&quot;:1}
+   &gt;&gt;&gt; b=a
+   &gt;&gt;&gt; a
+   {'a': 1}
+   &gt;&gt;&gt; b
+   {'a': 1}
+   &gt;&gt;&gt; b[&quot;c&quot;]=2
+   &gt;&gt;&gt; a
+   {'a': 1, 'c': 2}
+   &gt;&gt;&gt; b
+   {'a': 1, 'c': 2}
+
+This isn't going to work if the data were simple integers or strings, 
+as once a copy is
+made, a change from one module, by way of assignment, isn't going to be 
+reflected in the
+other.
+
+You could also feasibly implement fixup code in a new module which 
+would be executed upon
+the reload to convert data in an old form to a new form, but the danger 
+of that is that you
+don't know whether a reload may occur for one fixup, before you later 
+change the module
+again and where the subsequent fixup expects data in the intermediate 
+format. If the
+format of data is going to change drastically, you should really stop 
+Apache, load in
+your new code and restart. Otherwise, you would have to use a variable 
+which tracks what
+version the data format is in and for fixup code be able to cope with 
+various older
+versions of data when converting to a new format.
+
+Anyway, interesting stuff to play with.
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016629.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+	<LI>Next message: <A HREF="016628.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16627">[ date ]</a>
+              <a href="thread.html#16627">[ thread ]</a>
+              <a href="subject.html#16627">[ subject ]</a>
+              <a href="author.html#16627">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

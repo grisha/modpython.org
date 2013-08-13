@@ -1,0 +1,197 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Output Filters Redeaux
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Output%20Filters%20Redeaux&In-Reply-To=4443E28C.6040009%40dd.revealed.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020875.html">
+   <LINK REL="Next"  HREF="020877.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Output Filters Redeaux</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nick</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Output%20Filters%20Redeaux&In-Reply-To=4443E28C.6040009%40dd.revealed.net"
+       TITLE="[mod_python] Output Filters Redeaux">nick at dd.revealed.net
+       </A><BR>
+    <I>Mon Apr 17 14:57:56 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020875.html">[mod_python] Output Filters Redeaux
+</A></li>
+        <LI>Next message: <A HREF="020877.html">[mod_python] Output Filters Redeaux
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20876">[ date ]</a>
+              <a href="thread.html#20876">[ thread ]</a>
+              <a href="subject.html#20876">[ subject ]</a>
+              <a href="author.html#20876">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>As an example to follow up on this, in your XSLT parser, you would have:
+
+    for streamlet in filter:
+        filter.req.passes += 1
+        streambuffer.write(streamlet.replace('\r\n', '\n'))
+
+    (&quot;if streamlet is None&quot; is not required at this point)
+
+Maybe what I neglected to convey is that the multiple calls to the
+outputfilter handler would abstracted differently, so that to the handler it
+would appear to be called only a single time, with the mod_python code
+handling the feeding of the filter iterator via the apache bucket brigade.
+
+Not having studied this code very carefully, I don't know how complicated
+it's going to be, but it would certainly simplify things a lot on the Python
+side of things.  The trick is going to be writing the __iter__ function of
+the filter object in such a way that it will yield the results of a read(),
+unless the read is '', in which case it will wait for the next filter call,
+finally stopping the iteration once the last read() is done.
+
+Nick
+
+Nick wrote:
+&gt;<i> An iterator would take care of these kinds of questions internally.
+</I>&gt;<i> Yielding '' does not signal the last iteration, nor should it according to
+</I>&gt;<i> your example.  However, None should not be yielded by the iterator, and
+</I>&gt;<i> would instead raise a StopIteration (or simply fall through to the end of
+</I>&gt;<i> the __iter__ function, though being in C probably easier to raise
+</I>&gt;<i> StopInteration).
+</I>&gt;<i> 
+</I>&gt;<i> In other words, you don't need the support code below.  You only need the
+</I>&gt;<i> for, which will end when None has been returned from the read(), now hidden
+</I>&gt;<i> in the iterator.
+</I>&gt;<i> 
+</I>&gt;<i> Nick
+</I>&gt;<i> 
+</I>&gt;<i> Lee Brown wrote:
+</I>&gt;&gt;<i> That's a good question.  I don't know if the filter object is iterable or
+</I>&gt;&gt;<i> not.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> What's warping my noodle is handling the two different exit conditions in a
+</I>&gt;&gt;<i> Pythonic way; if the filter returns '' you just want to hibernate but if the
+</I>&gt;&gt;<i> filter returns None you want to wrap up and get out.  Kinda like this (given
+</I>&gt;&gt;<i> an iterable filter object):
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> for streamlet in filter:
+</I>&gt;&gt;<i>     if streamlet:
+</I>&gt;&gt;<i>         streambuffer.write(streamlet)
+</I>&gt;&gt;<i>     else:
+</I>&gt;&gt;<i>         break
+</I>&gt;&gt;<i> If streamlet is None:
+</I>&gt;&gt;<i>     [proceed with your filter thing]
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> To me, this does not seem to be much more Pythonic that the previous version
+</I>&gt;&gt;<i> - you still have to noodle on it a while to see the flow structure.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Best Regards,
+</I>&gt;&gt;<i> Lee E. Brown
+</I>&gt;&gt;<i> (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">administrator at leebrown.org</A>)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -----Original Message-----
+</I>&gt;&gt;<i> From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+</I>&gt;&gt;<i> [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] On Behalf Of Nick
+</I>&gt;&gt;<i> Sent: Monday, April 17, 2006 12:43 PM
+</I>&gt;&gt;<i> To: Lee Brown
+</I>&gt;&gt;<i> Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;&gt;<i> Subject: Re: [mod_python] Output Filters Redeaux
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Great example!  Thanks.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On a devel note, it looks like the filter object would be very handy if it
+</I>&gt;&gt;<i> could be treated as in iterator, such as (using the sample code's
+</I>&gt;&gt;<i> nomenclature):
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> for streamlet in filter:
+</I>&gt;&gt;<i>   [do something with streamlet here]
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> It would definitely turn filter writing into something more Pythonic.  Does
+</I>&gt;&gt;<i> that seem like something that would be useful?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Thanks,
+</I>&gt;&gt;<i> Nick
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Lee Brown wrote:
+</I>&gt;&gt;&gt;<i> Greetings!
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Just for fun, here is a handy template for constructing Mod Python 
+</I>&gt;&gt;&gt;<i> output filters:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     from mod_python import apache
+</I>&gt;&gt;&gt;<i>     from cStringIO import StringIO
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     def outputfilter (filter):
+</I>&gt;&gt;&gt;<i>            
+</I>&gt;&gt;&gt;<i>         try:
+</I>&gt;&gt;&gt;<i>             streambuffer = filter.req.streambuffer
+</I>&gt;&gt;&gt;<i>         except AttributeError:
+</I>&gt;&gt;&gt;<i>             filter.req.streambuffer = StringIO() # See Note 1
+</I>&gt;&gt;&gt;<i>             streambuffer = filter.req.streambuffer
+</I>&gt;&gt;&gt;<i>                 # See Note 2
+</I>&gt;&gt;&gt;<i>        
+</I>&gt;&gt;&gt;<i>         streamlet = filter.read()
+</I>&gt;&gt;&gt;<i>         while streamlet:
+</I>&gt;&gt;&gt;<i>                 # See Note 3
+</I>&gt;&gt;&gt;<i>             streambuffer.write(streamlet)
+</I>&gt;&gt;&gt;<i>             streamlet = filter.read()
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>         if streamlet is None:
+</I>&gt;&gt;&gt;<i>                 # See Note 4
+</I>&gt;&gt;&gt;<i>             filter.write(streambuffer)
+</I>&gt;&gt;&gt;<i>             filter.close()
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020875.html">[mod_python] Output Filters Redeaux
+</A></li>
+	<LI>Next message: <A HREF="020877.html">[mod_python] Output Filters Redeaux
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20876">[ date ]</a>
+              <a href="thread.html#20876">[ thread ]</a>
+              <a href="subject.html#20876">[ subject ]</a>
+              <a href="author.html#20876">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

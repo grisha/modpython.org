@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Graham's New Importer
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Graham%27s%20New%20Importer&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021094.html">
+   <LINK REL="Next"  HREF="021095.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Graham's New Importer</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Graham%27s%20New%20Importer&In-Reply-To="
+       TITLE="[mod_python] Graham's New Importer">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue May  9 22:57:03 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021094.html">[mod_python] PSP Error &amp; apache.import_module() questions
+</A></li>
+        <LI>Next message: <A HREF="021095.html">[mod_python] Graham's New Importer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21086">[ date ]</a>
+              <a href="thread.html#21086">[ thread ]</a>
+              <a href="subject.html#21086">[ subject ]</a>
+              <a href="author.html#21086">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Dan Eloff wrote ..
+&gt;<i> I think probably just:
+</I>&gt;<i> 
+</I>&gt;<i> PythonOption importer.path &quot;C:\Documents And Settings\...&quot; &quot;another path&quot;
+</I>&gt;<i> 
+</I>&gt;<i> I'm not sure the syntax allows for that, but something along those
+</I>&gt;<i> lines is the idea. None of those paths should be on sys.path.
+</I>&gt;<i> 
+</I>&gt;<i> You shouldn't be able to specify this more than once for each python
+</I>&gt;<i> interpreter. I don't know how to enforce that, but it would prevent
+</I>&gt;<i> any wierdness with the same module being imported under different
+</I>&gt;<i> circumstances in the same interpreter.
+</I>
+The only way you could enforce that it only be set once is to have it
+take two arguments, one being the interpreter name and the other the
+path, and only honour the option when it is set in the global Apache
+configuration. That is, read from:
+
+  apache.main_server.get_options()
+
+This is restrictive though, as makes it impossible to set it in a local
+.htaccess file.
+
+&gt;<i> The paths should be used for all importing done by that interpreter,
+</I>&gt;<i> and should be added to sys.path temporarily if you fallback to
+</I>&gt;<i> python's import so that those modules can still be found.
+</I>
+I don't follow the adding it temporarily to 'sys.path' bit. Conceptually
+&quot;import&quot; can be overridden so that it checks the additional locations
+before it falls back to having builtin __import__ look for it in
+'sys.path', but this would only work for file modules and not packages.
+In this case it would actually use the mod_python importer to load the
+file base module. Actually adding stuff to 'sys.path' even for a moment
+will not working in a multithreaded system.
+
+Perhaps you can explain the sys.path bit in some more detail.
+
+I haven't had a chance to go back and read what I said last time yet,
+after I have I'll probably comment further.
+
+Graham
+
+&gt;<i> There's probably some problems with all this, but I don't think
+</I>&gt;<i> anything insurmountable, and you're no doubt familiar enough with the
+</I>&gt;<i> system to spot the trouble before we start.
+</I>&gt;<i> 
+</I>&gt;<i> -Dan
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On 5/8/06, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+</I>&gt;<i> &gt; Dan Eloff wrote ..
+</I>&gt;<i> &gt; &gt; Hey Graham, I've been using your new module importer and it works like
+</I>&gt;<i> &gt; &gt; a charm. I haven't had a single problem with it. Thanks!
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; I would like to discuss having a general search path, and being able
+</I>&gt;<i> &gt; &gt; to add directories to it. While I understand the reasons you have (and
+</I>&gt;<i> &gt; &gt; they are valid, good reasons) for not wanting to do this, there are
+</I>&gt;<i> &gt; &gt; also good reasons to have the ability. Right now, so I don't have to
+</I>&gt;<i> &gt; &gt; stick the absolute path to pyserver components in every file, I've
+</I>&gt;<i> &gt; &gt; moved pyserver to site-packages, giving up the reload ability. It also
+</I>&gt;<i> &gt; &gt; prevents me from using the debugger without restarting the server.
+</I>&gt;<i> I
+</I>&gt;<i> &gt; &gt; also find that I have some common includes off sys.path and I've sunk
+</I>&gt;<i> &gt; &gt; to placing the absolute path in an extraneous module and importing
+</I>&gt;<i> &gt; &gt; that whenever I need to import these common files so as to avoid
+</I>&gt;<i> &gt; &gt; sticking the path everywhere. It's less than ideal. I think it would
+</I>&gt;<i> &gt; &gt; really be a nice touch to be able to choose which behaviour you want.
+</I>&gt;<i> &gt; &gt; Just add a PythonOption called search_path or import_path or
+</I>&gt;<i> &gt; &gt; something, and if given the directories listed get added to the search
+</I>&gt;<i> &gt; &gt; path for all importing needs.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; If you're not interested I'll add this, but I would want your
+</I>&gt;<i> &gt; &gt; permission first before I go messing with your code.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; That aside, don't let my suggestion for improvement detract in any
+</I>&gt;<i> way
+</I>&gt;<i> &gt; &gt; from your importer, it's really a great piece of work.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; This discussion should perhaps be on the developers mailing list, here
+</I>&gt;<i> &gt; will do for the moment though.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Now, before you contemplate making any code changes, just outline at
+</I>&gt;<i> a
+</I>&gt;<i> &gt; high level what options/directives you have in mind should be added and
+</I>&gt;<i> &gt; what defining them should cause to happen.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; In the mean time, I'll have to go back and read what I rambled on about
+</I>&gt;<i> &gt; last time as I forget. I don't think though that I revealed everything
+</I>&gt;<i> you
+</I>&gt;<i> &gt; could do and although some of the stuff I didn't mention may not be
+</I>&gt;<i> &gt; directly useful, it may well form basis of implementing such stuff.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Will be interested to here how you think such global search paths should
+</I>&gt;<i> &gt; work. After all, you are probably the first to try and seriously use
+</I>&gt;<i> the
+</I>&gt;<i> &gt; new importer in the new ways that it can be used.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Anyway, will see what you have to say and make comments if appropriate.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I></PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021094.html">[mod_python] PSP Error &amp; apache.import_module() questions
+</A></li>
+	<LI>Next message: <A HREF="021095.html">[mod_python] Graham's New Importer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21086">[ date ]</a>
+              <a href="thread.html#21086">[ thread ]</a>
+              <a href="subject.html#21086">[ subject ]</a>
+              <a href="author.html#21086">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

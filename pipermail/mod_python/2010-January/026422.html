@@ -1,0 +1,330 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] server side parameters
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20server%20side%20parameters&In-Reply-To=4B43EF35.4050600%40insightbb.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026421.html">
+   <LINK REL="Next"  HREF="026423.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] server side parameters</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>john burke</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20server%20side%20parameters&In-Reply-To=4B43EF35.4050600%40insightbb.com"
+       TITLE="[mod_python] server side parameters">jb at infodentity.com
+       </A><BR>
+    <I>Tue Jan  5 21:40:39 EST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026421.html">[mod_python] server side parameters
+</A></li>
+        <LI>Next message: <A HREF="026423.html">[mod_python] server side parameters
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26422">[ date ]</a>
+              <a href="thread.html#26422">[ thread ]</a>
+              <a href="subject.html#26422">[ subject ]</a>
+              <a href="author.html#26422">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>this should be all you really need. what you do with the data from
+request_data is your own business.
+
+from mod_python import apache, util
+
+def login(req):
+
+  request_data = util.FieldStorage(req)
+
+  logreqdata(req, request_data)
+  
+  qry = &quot;SELECT u.user_id as id, u.user_name as name FROM users u&quot;
+  qry += &quot; WHERE u.user_name = '&quot;
+  qry += request_data.getfirst(&quot;user_name&quot;)
+  qry += &quot;' AND u.user_pass ='&quot;
+  qry += request_data.getfirst(&quot;user_pass&quot;)
+  qry += &quot;'&quot;
+  return dorequest(req, qry, &quot;users&quot;, &quot;user&quot;).toxml(&quot;utf-8&quot;)
+
+def logreqdata(req, data):
+
+  if (DEBUG &gt; 0):
+   
+apache.log_error(&quot;********************************************************&quot;)
+    apache.log_error(str(req.parsed_uri))
+    apache.log_error(str(data))
+
+in this case you can imagine that the the dorequest method knows how to
+query a database (eg. some database is also imported), and that in this
+instance it returns xml of the form:
+
+&lt;users&gt;
+&lt;user&gt;
+&lt;id&gt;1&lt;/id&gt;
+&lt;name&gt;john smith&lt;/name&gt;
+&lt;/user&gt;
+&lt;/users&gt;
+
+unless it doesn't find the user, in which case it returns an error. the
+logrequestdata function logs the url that was called and the data it was
+passed. it might look like this:
+
+[Sun Sep 20 13:25:37 2009] [error]
+********************************************************
+[Sun Sep 20 13:25:37 2009] [error] (None, None, None, None, None, None,
+'/site/python/site.py/login', 'user_name=user&amp;user_pass=pass', None)
+[Sun Sep 20 13:25:37 2009] [error] {'user_name': [Field('user_name',
+'user')], 'user_pass': [Field('user_pass', 'pass')]}
+
+based on this information you should be able to determine the proper url
+to call and process the passed data.
+
+good luck
+
+john
+
+
+Doug Epling wrote:
+&gt;<i> Sorry, but I really need a boost here.  I might be dense, but I can
+</I>&gt;<i> not get a 'script.py' file with a greet(req, name) function to accept
+</I>&gt;<i> either POST or GET arguments.  I am getting a 403 Forbidden server
+</I>&gt;<i> error.  Where might I read about server side parameters?
+</I>&gt;<i>
+</I>&gt;<i> Thanks.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i> From james at sindacio.us  Fri Nov 13 02:45:00 2009
+</I>&gt;<i> From: james at sindacio.us (James Newton)
+</I>&gt;<i> Date: Fri Nov 13 02:45:10 2009
+</I>&gt;<i> Subject: [mod_python] POST example?
+</I>&gt;<i> In-Reply-To:
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911122342g58179609s1bb0046b24ac6240 at mail.gmail.com</A>&gt;
+</I>&gt;<i> References: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911122342g58179609s1bb0046b24ac6240 at mail.gmail.com</A>&gt;
+</I>&gt;<i> Message-ID: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911122345i3812ac58qc69974240f980a65 at mail.gmail.com</A>&gt;
+</I>&gt;<i>
+</I>&gt;<i> Hi,
+</I>&gt;<i>
+</I>&gt;<i> After looking around I can't seem to find a really straight forward
+</I>&gt;<i> example
+</I>&gt;<i> of how to POST, all I can seem to figure out is GET. Currently I'm
+</I>&gt;<i> trying to
+</I>&gt;<i> figure this out so I can post to a page with curl, rather then post via a
+</I>&gt;<i> form, after asking around and getting turned away with &quot;don't use
+</I>&gt;<i> mod_python&quot; on most occasions, I was hoping someone on this list could
+</I>&gt;<i> give
+</I>&gt;<i> me an example of how to post/store post data.
+</I>&gt;<i>
+</I>&gt;<i> Thanks,
+</I>&gt;<i> James Newton
+</I>&gt;<i> -------------- next part --------------
+</I>&gt;<i> An HTML attachment was scrubbed...
+</I>&gt;<i> URL:
+</I>&gt;<i> <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20091113/8048f618/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20091113/8048f618/attachment.html</A>
+</I>&gt;<i>
+</I>&gt;<i> From graham.dumpleton at gmail.com  Fri Nov 13 04:26:17 2009
+</I>&gt;<i> From: graham.dumpleton at gmail.com (Graham Dumpleton)
+</I>&gt;<i> Date: Fri Nov 13 04:26:26 2009
+</I>&gt;<i> Subject: [mod_python] POST example?
+</I>&gt;<i> In-Reply-To:
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911122345i3812ac58qc69974240f980a65 at mail.gmail.com</A>&gt;
+</I>&gt;<i> References: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911122342g58179609s1bb0046b24ac6240 at mail.gmail.com</A>&gt;
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911122345i3812ac58qc69974240f980a65 at mail.gmail.com</A>&gt;
+</I>&gt;<i> Message-ID: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">88e286470911130126m21222b57v8270616a602069ce at mail.gmail.com</A>&gt;
+</I>&gt;<i>
+</I>&gt;<i> Read:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="http://webpython.codepoint.net/mod_python_tutorial">http://webpython.codepoint.net/mod_python_tutorial</A>
+</I>&gt;<i>
+</I>&gt;<i> First result for Google on 'mod_python tutorial'.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> 2009/11/13 James Newton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">james at sindacio.us</A>&gt;:
+</I>&gt;<i> &gt; Hi,
+</I>&gt;<i> &gt; After looking around I can't seem to find a really straight forward
+</I>&gt;<i> example
+</I>&gt;<i> &gt; of how to POST, all I can seem to figure out is GET. Currently I'm
+</I>&gt;<i> trying to
+</I>&gt;<i> &gt; figure this out so I can post to a page with curl, rather then post
+</I>&gt;<i> via a
+</I>&gt;<i> &gt; form, after asking around and getting turned away with &quot;don't use
+</I>&gt;<i> &gt; mod_python&quot; on most occasions, I was hoping someone on this list
+</I>&gt;<i> could give
+</I>&gt;<i> &gt; me an example of how to post/store post data.
+</I>&gt;<i> &gt; Thanks,
+</I>&gt;<i> &gt; James Newton
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> From clodoaldo.pinto.neto at gmail.com  Fri Nov 13 05:56:08 2009
+</I>&gt;<i> From: clodoaldo.pinto.neto at gmail.com (Clodoaldo Neto)
+</I>&gt;<i> Date: Fri Nov 13 05:56:12 2009
+</I>&gt;<i> Subject: Fwd: [mod_python] POST example?
+</I>&gt;<i> In-Reply-To:
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">a595de7a0911130107y1067a22exd498225e8aa4baf3 at mail.gmail.com</A>&gt;
+</I>&gt;<i> References: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911122342g58179609s1bb0046b24ac6240 at mail.gmail.com</A>&gt;
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911122345i3812ac58qc69974240f980a65 at mail.gmail.com</A>&gt;
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">a595de7a0911130107y1067a22exd498225e8aa4baf3 at mail.gmail.com</A>&gt;
+</I>&gt;<i> Message-ID: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">a595de7a0911130256i78bb0c99yce88dcbdca1c959f at mail.gmail.com</A>&gt;
+</I>&gt;<i>
+</I>&gt;<i> Forgot to post to the list.
+</I>&gt;<i>
+</I>&gt;<i> Clodoaldo
+</I>&gt;<i>
+</I>&gt;<i> ---------- Forwarded message ----------
+</I>&gt;<i> From: Clodoaldo Neto &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">clodoaldo.pinto.neto at gmail.com</A>&gt;
+</I>&gt;<i> Date: 2009/11/13
+</I>&gt;<i> Subject: Re: [mod_python] POST example?
+</I>&gt;<i> To: James Newton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">james at sindacio.us</A>&gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> 2009/11/13 James Newton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">james at sindacio.us</A>&gt;:
+</I>&gt;<i> &gt; Hi,
+</I>&gt;<i> &gt; After looking around I can't seem to find a really straight forward
+</I>&gt;<i> example
+</I>&gt;<i> &gt; of how to POST, all I can seem to figure out is GET. Currently I'm
+</I>&gt;<i> trying to
+</I>&gt;<i> &gt; figure this out so I can post to a page with curl, rather then post
+</I>&gt;<i> via a
+</I>&gt;<i> &gt; form, after asking around and getting turned away with &quot;don't use
+</I>&gt;<i> &gt; mod_python&quot; on most occasions, I was hoping someone on this list
+</I>&gt;<i> could give
+</I>&gt;<i> &gt; me an example of how to post/store post data.
+</I>&gt;<i>
+</I>&gt;<i> You mean you can read data posted by an html form and can't do it when
+</I>&gt;<i> it is posted by curl? If so show what is your curl code.
+</I>&gt;<i>
+</I>&gt;<i> If what you are looking for is how to read data posted by any means read:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://webpython.codepoint.net/mod_python_tutorial">http://webpython.codepoint.net/mod_python_tutorial</A>
+</I>&gt;<i>
+</I>&gt;<i> Regards, Clodoaldo
+</I>&gt;<i>
+</I>&gt;<i> &gt; Thanks,
+</I>&gt;<i> &gt; James Newton
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> From clodoaldo.pinto.neto at gmail.com  Fri Nov 13 05:56:23 2009
+</I>&gt;<i> From: clodoaldo.pinto.neto at gmail.com (Clodoaldo Neto)
+</I>&gt;<i> Date: Fri Nov 13 05:56:25 2009
+</I>&gt;<i> Subject: Fwd: [mod_python] POST example?
+</I>&gt;<i> In-Reply-To:
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911130153y4f16535bg2759654e7cf92c86 at mail.gmail.com</A>&gt;
+</I>&gt;<i> References: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911122342g58179609s1bb0046b24ac6240 at mail.gmail.com</A>&gt;
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911122345i3812ac58qc69974240f980a65 at mail.gmail.com</A>&gt;
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">a595de7a0911130107y1067a22exd498225e8aa4baf3 at mail.gmail.com</A>&gt;
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">c2f9e3c20911130153y4f16535bg2759654e7cf92c86 at mail.gmail.com</A>&gt;
+</I>&gt;<i> Message-ID: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">a595de7a0911130256i6c82a8c4o1dfb199726e12a73 at mail.gmail.com</A>&gt;
+</I>&gt;<i>
+</I>&gt;<i> ---------- Forwarded message ----------
+</I>&gt;<i> From: James Newton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">james at sindacio.us</A>&gt;
+</I>&gt;<i> Date: 2009/11/13
+</I>&gt;<i> Subject: Re: [mod_python] POST example?
+</I>&gt;<i> To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">clodoaldo.pinto.neto at gmail.com</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I may be misunderstanding it, I'm assuming POST and GET are handled
+</I>&gt;<i> the exact same way? The curl command would be like so: curl -F
+</I>&gt;<i> 'postvar=&lt;-' <A HREF="http://url.tld/.">http://url.tld/.</A> I used the example on that website for a
+</I>&gt;<i> get var, but using it for post just created another get? I may not
+</I>&gt;<i> being reading into this right.
+</I>&gt;<i> James
+</I>&gt;<i>
+</I>&gt;<i> On Fri, Nov 13, 2009 at 3:07 AM, Clodoaldo Neto
+</I>&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">clodoaldo.pinto.neto at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 2009/11/13 James Newton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">james at sindacio.us</A>&gt;:
+</I>&gt;<i> &gt; &gt; Hi,
+</I>&gt;<i> &gt; &gt; After looking around I can't seem to find a really straight
+</I>&gt;<i> forward example
+</I>&gt;<i> &gt; &gt; of how to POST, all I can seem to figure out is GET. Currently I'm
+</I>&gt;<i> trying to
+</I>&gt;<i> &gt; &gt; figure this out so I can post to a page with curl, rather then
+</I>&gt;<i> post via a
+</I>&gt;<i> &gt; &gt; form, after asking around and getting turned away with &quot;don't use
+</I>&gt;<i> &gt; &gt; mod_python&quot; on most occasions, I was hoping someone on this list
+</I>&gt;<i> could give
+</I>&gt;<i> &gt; &gt; me an example of how to post/store post data.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; You mean you can read data posted by an html form and can't do it when
+</I>&gt;<i> &gt; it is posted by curl? If so show what is your curl code.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; If what you are looking for is how to read data posted by any means
+</I>&gt;<i> read:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; <A HREF="http://webpython.codepoint.net/mod_python_tutorial">http://webpython.codepoint.net/mod_python_tutorial</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Regards, Clodoaldo
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt; Thanks,
+</I>&gt;<i> &gt; &gt; James Newton
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; _______________________________________________
+</I>&gt;<i> &gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026421.html">[mod_python] server side parameters
+</A></li>
+	<LI>Next message: <A HREF="026423.html">[mod_python] server side parameters
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26422">[ date ]</a>
+              <a href="thread.html#26422">[ thread ]</a>
+              <a href="subject.html#26422">[ subject ]</a>
+              <a href="author.html#26422">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

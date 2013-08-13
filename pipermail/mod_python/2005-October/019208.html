@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] threading module within mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20threading%20module%20within%20mod_python&In-Reply-To=200510071204.14967.fabianosidler%40swissonline.ch">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019207.html">
+   <LINK REL="Next"  HREF="019209.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] threading module within mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20threading%20module%20within%20mod_python&In-Reply-To=200510071204.14967.fabianosidler%40swissonline.ch"
+       TITLE="[mod_python] threading module within mod_python">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Oct  7 06:49:37 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019207.html">[mod_python] threading module within mod_python
+</A></li>
+        <LI>Next message: <A HREF="019209.html">[mod_python] threading module within mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19208">[ date ]</a>
+              <a href="thread.html#19208">[ thread ]</a>
+              <a href="subject.html#19208">[ subject ]</a>
+              <a href="author.html#19208">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 07/10/2005, at 8:04 PM, Fabiano Sidler wrote:
+
+&gt;<i> Hi!
+</I>&gt;<i>
+</I>&gt;<i> I wanted the main thread to be notified about raised exceptions in 
+</I>&gt;<i> other
+</I>&gt;<i> threads. Thus I wrote a threaded handler in a way similar like this:
+</I>&gt;<i>
+</I>&gt;<i> --- snip ---
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> from threading import currentThread, Thread, Lock
+</I>&gt;<i>
+</I>&gt;<i> mainthread = currentThread()
+</I>&gt;<i> raiselock = Lock()
+</I>&gt;<i> raiselist = []
+</I>&gt;<i> def Raise(exc):
+</I>&gt;<i>  raiselock.acquire()
+</I>&gt;<i>  raiseexc.append(exc)
+</I>&gt;<i>  raiselock.release()
+</I>&gt;<i> mainthread.Raise = Raise
+</I>&gt;<i>
+</I>&gt;<i> class ReqThread(Thread):
+</I>&gt;<i>  def __init__(self, req):
+</I>&gt;<i>   Thread.__init__(self)
+</I>&gt;<i>   self.req = req
+</I>&gt;<i>  def run(self):
+</I>&gt;<i>   # Test raise
+</I>&gt;<i>   #raise Exception('run()')
+</I>&gt;<i>   mainthread.Raise(Exception('run()'))
+</I>&gt;<i>   return
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>  exc = None
+</I>&gt;<i>  r = ReqThread(req)
+</I>&gt;<i>  r.start(); r.join()
+</I>&gt;<i>  raiselock.acquire()
+</I>&gt;<i>  if len(raiselist): exc = raiselist.pop
+</I>&gt;<i>  raiselock.release()
+</I>&gt;<i>  if exc: raise exc
+</I>&gt;<i>  return apache.OK
+</I>&gt;<i> --- snap ---
+</I>&gt;<i>
+</I>&gt;<i> However, this doesn't work. If I uncomment the raise in ReqThread.run,
+</I>&gt;<i> these exceptions even don't appear in the logs until I stop the httpd,
+</I>
+I'm not really sure what you are trying to achieve here, but due to the
+way Apache/Python interact anything output to stdout/stderr is as you
+have found generally only flushed and output to the log file when Apache
+is shutdown and that possibly only if the process shuts down cleanly.
+
+What you are better off doing is catching any exceptions in the separate
+thread, formatting your own exception traceback and details and logging
+it directly to the Apache log using the apache.log_error() function
+provided with mod_python. This is possibly the only way to get the
+information to appear immediately.
+
+&gt;<i> which
+</I>&gt;<i> causes following additional errors:
+</I>&gt;<i>
+</I>&gt;<i> [Fri Oct 07 11:12:45 2005] [warn] child process 9229 still did not 
+</I>&gt;<i> exit,
+</I>&gt;<i> sending a SIGTERM
+</I>&gt;<i> [Fri Oct 07 11:12:45 2005] [warn] child process 9230 still did not 
+</I>&gt;<i> exit,
+</I>&gt;<i> sending a SIGTERM
+</I>
+This will occur when the child process can't be shutdown cleanly within 
+a
+specific amount of time. The parent process will give up waiting and
+forcibly kill it. Things that can cause this are very long running
+requests doing actual work, or errant threads that were started and not
+stopped and cleaned up properly.
+
+Don't know if it may be relevant or not, but you might want to look at
+the req.register_cleanup() method for registering a function to call 
+when
+request handling is finishing. You might use this to call a function
+which ensures that threads started for that request are shutdown and
+cleaned up properly.
+
+&gt;<i> Quite strange, isn't it?
+</I>&gt;<i> I'm running Kubuntu and httpd uses mpm_prefork. Is there a chance to 
+</I>&gt;<i> get my
+</I>&gt;<i> Threads working?
+</I>
+To what end are you trying to raise exceptions in other threads? Just
+curious as I can't think of why you would want to do it.
+
+Graham
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019207.html">[mod_python] threading module within mod_python
+</A></li>
+	<LI>Next message: <A HREF="019209.html">[mod_python] threading module within mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19208">[ date ]</a>
+              <a href="thread.html#19208">[ thread ]</a>
+              <a href="subject.html#19208">[ subject ]</a>
+              <a href="author.html#19208">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

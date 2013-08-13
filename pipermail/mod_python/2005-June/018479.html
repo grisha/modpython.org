@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] This is just friggin' weird...
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20This%20is%20just%20friggin%27%20weird...&In-Reply-To=42BB2317.70302%40sympatico.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018475.html">
+   <LINK REL="Next"  HREF="018477.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] This is just friggin' weird...</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Joshua Ginsberg</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20This%20is%20just%20friggin%27%20weird...&In-Reply-To=42BB2317.70302%40sympatico.ca"
+       TITLE="[mod_python] This is just friggin' weird...">listspam at flowtheory.net
+       </A><BR>
+    <I>Thu Jun 23 18:33:39 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018475.html">[mod_python] This is just friggin' weird...
+</A></li>
+        <LI>Next message: <A HREF="018477.html">[mod_python] This is just friggin' weird...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18479">[ date ]</a>
+              <a href="thread.html#18479">[ thread ]</a>
+              <a href="subject.html#18479">[ subject ]</a>
+              <a href="author.html#18479">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Jim -- replies inline...
+On Jun 23, 2005, at 3:01 PM, Jim Gallacher wrote:
+
+&gt;<i> Nothing obvious comes to mind with the information, but I'll comment 
+</I>&gt;<i> anyway. :)
+</I>&gt;<i>
+</I>&gt;<i> Joshua Ginsberg wrote:
+</I>&gt;&gt;<i> I have an application that I developed using PSP pages. It is seven 
+</I>&gt;&gt;<i> steps to sign somebody up with our company. It worked just great 
+</I>&gt;&gt;<i> yesterday, this morning, it hangs going from step 1 to step 2, but 
+</I>&gt;&gt;<i> only with certain input data.
+</I>&gt;<i>
+</I>&gt;<i> Is it always the *same* data? What is different about that data?
+</I>
+Certain input data. What's different about the data is it fails certain 
+error checking tests.
+
+&gt;&gt;<i> I have a development server for it that queries the same MySQL and 
+</I>&gt;&gt;<i> MSSQL databases -- it hangs too at the same point. I inserted some 
+</I>&gt;&gt;<i> debug output in the development server to see where it's hanging up.
+</I>&gt;<i>
+</I>&gt;<i> Not clear in the following where it is hanging. It either hangs at one 
+</I>&gt;<i> point or the other. Can't hang at 2 places at once, so which is it?
+</I>
+It hangs at the same point on both the development server and the 
+production server.
+
+&gt;&gt;<i> When I don't have a Session defined, it hangs up at a section that is:
+</I>&gt;&gt;<i> - a call to an API that inserts some data in a MySQL server
+</I>&gt;&gt;<i> - a call to psp.redirect (which should throw an error because i've 
+</I>&gt;&gt;<i> already returned stuff to the client, but it doesn't throw an error)
+</I>&gt;<i>
+</I>&gt;<i> Does psp.redirect get called or are you saying it hangs before it 
+</I>&gt;<i> reaches the redirect?. The beauty of python is you can jump right it 
+</I>&gt;<i> and change it. Stick a self.req.log_error() into the psp.redirect 
+</I>&gt;<i> method in psp.py and make sure it actually reaches that point if you 
+</I>&gt;<i> are in doubt.
+</I>
+I believe it is getting the the psp.redirect and hanging. As I said in 
+my other post, it hangs at a different point when I enter form data 
+that is bad in another way and a psp.redirect is being called.
+
+&gt;&gt;<i> Trying that API from command line by hand works like a charm, so I'm 
+</I>&gt;&gt;<i> not convinced it's the API.
+</I>&gt;&gt;<i> When I do have a Session defined, it hangs up on trying to import the 
+</I>&gt;&gt;<i> session.
+</I>&gt;<i>
+</I>&gt;<i> Import the session or create the session? ie
+</I>&gt;<i> import Session
+</I>&gt;<i>    vs.
+</I>&gt;<i> sess = Session.DbmSession(req)
+</I>
+class BSISession(Session.DbmSession):
+     def __getitem__(self, key):
+         try:
+             return super(BSISession, self).__getitem__(key)
+         except KeyError:
+             return ''
+
+It hangs on:
+
+sess=SignupLib.BSISession(req)
+
+The session is not new at this point, so it's reading it from the DBM 
+file.
+
+&gt;<i> If you mean creating the session, it sounds like a deadlock issue. 
+</I>&gt;<i> There are known problems when using sessions in conjunction with psp 
+</I>&gt;<i> pages, where you create a session before calling a psp page which 
+</I>&gt;<i> contains a variable named 'session'. You'll need to manually save and 
+</I>&gt;<i> unlock the session before calling the psp run method.
+</I>&gt;<i>
+</I>&gt;<i> If you are on Windows there is a double whammy if you are trying to 
+</I>&gt;<i> use DbmSession in your handler code. The psp code will try to create a 
+</I>&gt;<i> new session instance but using MemorySession instead of DbmSession. 
+</I>&gt;<i> (It's not really Windows specific, it just that the default apache mpm 
+</I>&gt;<i> on Windows is threaded and so MemorySession is selected as the 
+</I>&gt;<i> default. And, it's is not actually a deadlock issue, but it will make 
+</I>&gt;<i> it appear like your session data is getting lost.)
+</I>&gt;<i>
+</I>
+Apache on Linux.
+
+&gt;<i> These issues will be fixed in the soon to be released (we all hope) 
+</I>&gt;<i> version 3.2.
+</I>&gt;<i>
+</I>&gt;&gt;<i> I've got a wrapper around the Session,DbmSession class which 
+</I>&gt;&gt;<i> basically does nothing but return an empty string instead of raising 
+</I>&gt;&gt;<i> an error if a key doesn't exist.
+</I>&gt;<i>
+</I>&gt;<i> So could this be masking some important information if an exception is 
+</I>&gt;<i> being raised?
+</I>&gt;<i>
+</I>
+My code is above... I think it's unlikely, but you tell me...
+
+&gt;&gt;<i> I've already cleared the dbm file, started over from scratch, and 
+</I>&gt;&gt;<i> ensured that the dbm file is readable/writable by apache.
+</I>&gt;&gt;<i> I cleared the semaphore array for Apache, I've restarted Apache, I've 
+</I>&gt;&gt;<i> restarted MySQL, and none of it has helped...
+</I>&gt;&gt;<i> Anybody have any ideas? I'm just stumped at this point. If you need 
+</I>&gt;&gt;<i> code snippets or the site to test it out on, let me know. Thanks!
+</I>&gt;<i>
+</I>&gt;<i> Sorry I couldn't really help, but at least there a few more things for 
+</I>&gt;<i> you to think about.
+</I>&gt;<i>
+</I>
+I appreciate the feedback... but I'm afraid I'm still stuck... :-/
+
+-jag
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018475.html">[mod_python] This is just friggin' weird...
+</A></li>
+	<LI>Next message: <A HREF="018477.html">[mod_python] This is just friggin' weird...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18479">[ date ]</a>
+              <a href="thread.html#18479">[ thread ]</a>
+              <a href="subject.html#18479">[ subject ]</a>
+              <a href="author.html#18479">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

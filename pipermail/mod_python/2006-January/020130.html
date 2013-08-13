@@ -1,0 +1,225 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] String format in &quot;LIKE&quot; clause
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20String%20format%20in%20%22LIKE%22%20clause&In-Reply-To=1138322874.6251%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020133.html">
+   <LINK REL="Next"  HREF="020132.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] String format in &quot;LIKE&quot; clause</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Sean Jamieson</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20String%20format%20in%20%22LIKE%22%20clause&In-Reply-To=1138322874.6251%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] String format in &quot;LIKE&quot; clause">sean at barriescene.com
+       </A><BR>
+    <I>Thu Jan 26 22:55:48 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020133.html">[mod_python] String format in &quot;LIKE&quot; clause ( SOLVED! )
+</A></li>
+        <LI>Next message: <A HREF="020132.html">[mod_python] String format in &quot;LIKE&quot; clause
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20130">[ date ]</a>
+              <a href="thread.html#20130">[ thread ]</a>
+              <a href="subject.html#20130">[ subject ]</a>
+              <a href="author.html#20130">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Two things:
+1) you can escape your user input with: db.escape( company )
+2) you can use MySQL's INSTR() function instead of LIKE, not requiring 
+special formatting
+
+examples:
+cursor.execute( &quot;SELECT * FROM table WHERE column LIKE '%%%s%%'&quot; % 
+db.escape( value ) )
+    In this example your value us escaped, and safe. In this case you 
+can't use the second argument to execute, which automatically escapes 
+and wraps the value in single quotes for you.
+
+or
+
+cursor.execute( &quot;SELECT * FROM table WHERE INSTR(column, %s)&quot;, (value,) )
+    In this example, you dont need to worry about the fact that quotes 
+are wrapped by execute, as you dont need to wrap your value with %, you 
+also dont need to worry about the less than readable '%%%s%%'
+
+Sean
+
+Graham Dumpleton wrote:
+
+&gt;<i>Luis M. Gonzalez wrote ..
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>&gt;&gt;<i>Thanks Graham, but no, this is not what I want to do...
+</I>&gt;&gt;<i>I'll try to explain it better:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Lets say that I want to return a list of companies whose names include
+</I>&gt;&gt;<i>the 
+</I>&gt;&gt;<i>word &quot;Co&quot; (&quot;Co&quot; is pased as a parameter to the query), so I can get:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>Acme Corporation Ltd.
+</I>&gt;&gt;<i>Barnes Corp.  Inc.
+</I>&gt;&gt;<i>Corporative Management S.A.
+</I>&gt;&gt;<i>Fresh Corpse Foods, Ltd.
+</I>&gt;&gt;<i>etc, etc...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>So, how should I include this parameter into the LIKE clause.
+</I>&gt;&gt;<i>I guess it should be enclosed between &quot;%&quot; and &quot;%&quot;, but what should I put
+</I>&gt;&gt;<i>in 
+</I>&gt;&gt;<i>between?
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>Ultimately you use the substring of string you are looking for.
+</I>&gt;<i>
+</I>&gt;<i>Quoting from a Google search, as that way it looks authoritative:
+</I>&gt;<i>
+</I>&gt;<i>  The LIKE pattern matching operator can also be used in the conditional selection
+</I>&gt;<i>  of the where clause. Like is a very powerful operator that allows you to select
+</I>&gt;<i>  only rows that are &quot;like&quot; what you specify. The percent sign &quot;%&quot; can be used as
+</I>&gt;<i>  a wild card to match any possible character that might appear before or after the
+</I>&gt;<i>  characters specified. For example:
+</I>&gt;<i>
+</I>&gt;<i>  select first, last, city
+</I>&gt;<i>     from empinfo
+</I>&gt;<i>     where first LIKE 'Er%';
+</I>&gt;<i> 
+</I>&gt;<i>What you were doing is basically correct, although you were missing single quotes.
+</I>&gt;<i>
+</I>&gt;<i>The real issue as I pointed out was that because you were using '%' operator to
+</I>&gt;<i>compose the string, you need to have &quot;%%&quot; in the string where you want a real '%'.
+</I>&gt;<i>
+</I>&gt;<i>Adding the missing quotes:
+</I>&gt;<i>
+</I>&gt;<i>  &quot;select * from customers where company like '%%%s%%'&quot;  % &quot;Co&quot;
+</I>&gt;<i>
+</I>&gt;<i>Which yields an actual SQL string of:
+</I>&gt;<i>
+</I>&gt;<i>  &quot;select * from customers where company like '%Co%'&quot;
+</I>&gt;<i>
+</I>&gt;<i>BTW, if the substring you want to search for is coming from a web page or other
+</I>&gt;<i>user input this could be dangerous. For example, they could include a single quote
+</I>&gt;<i>in the substring for searching and stuff it all up. Thus, you need to perform
+</I>&gt;<i>appropriate escaping to avoid such problems.
+</I>&gt;<i>
+</I>&gt;<i>Graham
+</I>&gt;<i>
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>&gt;&gt;<i>----- Original Message ----- 
+</I>&gt;&gt;<i>From: &quot;Graham Dumpleton&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;
+</I>&gt;&gt;<i>To: &quot;Luis M. Gonzalez&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">luismg at gmx.net</A>&gt;
+</I>&gt;&gt;<i>Cc: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>&gt;
+</I>&gt;&gt;<i>Sent: Thursday, January 26, 2006 8:46 PM
+</I>&gt;&gt;<i>Subject: Re: [mod_python] String format in &quot;LIKE&quot; clause
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Luis M. Gonzalez wrote ..
+</I>&gt;&gt;&gt;<i>      
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>I tried this:
+</I>&gt;&gt;&gt;&gt;<i>(&quot;select * from customers where company like %s%&quot;  %company ) # doesn't
+</I>&gt;&gt;&gt;&gt;<i>work
+</I>&gt;&gt;&gt;&gt;<i>(&quot;select * from customers where company like '%(%s)%&quot;  %company  # 
+</I>&gt;&gt;&gt;&gt;<i>doesn't
+</I>&gt;&gt;&gt;&gt;<i>work either
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>The question is:
+</I>&gt;&gt;&gt;&gt;<i>How should a include the parameter into de LIKE clause in order to accept
+</I>&gt;&gt;&gt;&gt;<i>only a part of the full company name and return the matching results?
+</I>&gt;&gt;&gt;&gt;<i>        
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Double up the&quot;%&quot; to get an actual percentage passed through.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> (&quot;select * from customers where company like %s%%&quot;  %company )
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>At least that would be the problem if it is simply using &quot;%&quot; operator
+</I>&gt;&gt;&gt;<i>      
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>on
+</I>&gt;&gt;<i>    
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>string:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>      
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>&quot;select * from customers where company like %s%&quot; % &quot;ME&quot;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>            
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Traceback (most recent call last):
+</I>&gt;&gt;&gt;<i> File &quot;&lt;stdin&gt;&quot;, line 1, in ?
+</I>&gt;&gt;&gt;<i>ValueError: incomplete format
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>      
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>&quot;select * from customers where company like %s%%&quot;  % &quot;ME&quot;
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>            
+</I>&gt;&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>'select * from customers where company like ME%'
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>Graham
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>      
+</I>&gt;&gt;&gt;<i>
+</I>&gt;<i>_______________________________________________
+</I>&gt;<i>Mod_python mailing list
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020133.html">[mod_python] String format in &quot;LIKE&quot; clause ( SOLVED! )
+</A></li>
+	<LI>Next message: <A HREF="020132.html">[mod_python] String format in &quot;LIKE&quot; clause
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20130">[ date ]</a>
+              <a href="thread.html#20130">[ thread ]</a>
+              <a href="subject.html#20130">[ subject ]</a>
+              <a href="author.html#20130">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

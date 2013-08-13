@@ -1,0 +1,208 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] forks, daemons and other beasts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20forks%2C%20daemons%20and%20other%20beasts&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020264.html">
+   <LINK REL="Next"  HREF="020226.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] forks, daemons and other beasts</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Daniel Nogradi</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20forks%2C%20daemons%20and%20other%20beasts&In-Reply-To="
+       TITLE="[mod_python] forks, daemons and other beasts">nogradi at gmail.com
+       </A><BR>
+    <I>Sat Feb 11 15:39:55 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020264.html">[mod_python] Problem with PSP and unicode
+</A></li>
+        <LI>Next message: <A HREF="020226.html">[mod_python] forks, daemons and other beasts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20225">[ date ]</a>
+              <a href="thread.html#20225">[ thread ]</a>
+              <a href="subject.html#20225">[ subject ]</a>
+              <a href="author.html#20225">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Sorry everyone, a long post follows :)
+
+
+Many times there is need for a mod_python program to respond (send a
+page) to the client after receiving a request and at the same time
+start a subprocess which typically takes quite long and waiting for it
+to finish is not necessary. So the situation is this: (1) request
+comes from client (2) server processes the request (3) server starts a
+subprocess and don't wait for it to finish (4) send a response to the
+client. Actually, (3) and (4) could be interchanged.
+
+What is the best way to do this?
+
+One could of course use the exec* and spawn* family of functions, but
+in that case one would need to have a separate program to run and all
+variables (lists, classes, etc.) used by the program should be
+translated to command line arguments which can be cumbersome.
+
+I've learned from a recipe in the python cookbook,
+<A HREF="http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/66012,">http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/66012,</A> that
+this sort of thing in a python application would be done by forking
+the process twice (just like in unix) like this:
+
+
+import sys, os
+
+def daemonize ( stdin='/dev/null', stdout='/dev/null', stderr='/dev/null' ):
+
+    # Perform first fork.
+    try:
+        pid = os.fork()
+        if pid &gt; 0:
+            sys.exit(0) # Exit first parent.
+    except OSError, e:
+        sys.stderr.write(&quot;fork #1 failed: (%d) %s\n&quot; % (e.errno, e.strerror))
+        sys.exit(1)
+
+    # Decouple from parent environment.
+    os.chdir(&quot;/&quot;)
+    os.umask(0)
+    os.setsid()
+
+    # Perform second fork.
+    try:
+        pid = os.fork()
+        if pid &gt; 0:
+            sys.exit(0) # Exit second parent.
+    except OSError, e:
+        sys.stderr.write(&quot;fork #2 failed: (%d) %s\n&quot; % (e.errno, e.strerror))
+        sys.exit(1)
+
+    # The process is now daemonized, redirect standard file descriptors.
+    for f in sys.stdout, sys.stderr: f.flush()
+    si = file(stdin, 'r')
+    so = file(stdout, 'a+')
+    se = file(stderr, 'a+', 0)
+    os.dup2(si.fileno(), sys.stdin.fileno())
+    os.dup2(so.fileno(), sys.stdout.fileno())
+    os.dup2(se.fileno(), sys.stderr.fileno())
+
+def this_will_run_as_a_daemon( ):
+    # some stuff here
+
+
+daemonize( '/dev/null', '/tmp/daemon.log', '/tmp/daemon.log' )
+this_will_run_as_a_daemon( )
+
+
+All of this is working fine with python, the result is what one would
+expect, whatever is in this_will_run_as_a_daemon( ) will run as a
+daemon in the background.
+
+Now I have difficulty with doing a similar thing with mod_python and
+the publisher handler. I tried the following (the above daemonize
+function is in daemon.py):
+
+from daemon import *
+
+def foo( req ):
+    daemonize( '/dev/null', '/tmp/daemon.log', '/tmp/daemon.log' )
+
+    # some stuff here that should run in the background
+    # and the program should just start it and carry on
+
+    return &quot;okay&quot;
+
+and then accessing it by a client gives strange behaviour, either does
+it what it supposed to do or gives the following error:
+
+
+Mod_python error: &quot;PythonHandler mod_python.publisher&quot;
+
+Traceback (most recent call last):
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line
+299, in HandlerDispatch
+    result = object(req)
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/publisher.py&quot;,
+line 136, in handler
+    result = util.apply_fs_data(object, req.form, req=req)
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/util.py&quot;, line
+361, in apply_fs_data
+    return object(**args)
+
+  File &quot;/var/www/html/python/test.py&quot;, line 5, in d
+    daemonize('/dev/null', '/tmp/moddaemon.log', '/tmp/moddaemon.log')
+
+  File &quot;/var/www/html/python/daemon.py&quot;, line 27, in daemonize
+    sys.exit(0) # Exit second parent.
+
+SystemExit: 0
+
+I guess part of the problem is that anything after daemonize( ) really
+gets 'daemonized' including the return &quot;okay&quot; statement. But then how
+can it work once in a while?
+
+Anyway, I have the feeling that there must be a more sane and probably
+safe way of achieving what I would like by a much simpler method.
+
+Any ideas?
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020264.html">[mod_python] Problem with PSP and unicode
+</A></li>
+	<LI>Next message: <A HREF="020226.html">[mod_python] forks, daemons and other beasts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20225">[ date ]</a>
+              <a href="thread.html#20225">[ thread ]</a>
+              <a href="subject.html#20225">[ subject ]</a>
+              <a href="author.html#20225">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

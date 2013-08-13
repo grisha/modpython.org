@@ -1,0 +1,212 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] req.user and SSL?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20req.user%20and%20SSL%3F&In-Reply-To=5.2.1.1.0.20060217145833.03d4ca00%40mail.comune.grosseto.it">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020339.html">
+   <LINK REL="Next"  HREF="020365.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] req.user and SSL?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20req.user%20and%20SSL%3F&In-Reply-To=5.2.1.1.0.20060217145833.03d4ca00%40mail.comune.grosseto.it"
+       TITLE="[mod_python] req.user and SSL?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Feb 18 21:54:55 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020339.html">[mod_python] req.user and SSL?
+</A></li>
+        <LI>Next message: <A HREF="020365.html">[mod_python] req.user and SSL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20352">[ date ]</a>
+              <a href="thread.html#20352">[ thread ]</a>
+              <a href="subject.html#20352">[ subject ]</a>
+              <a href="author.html#20352">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 18/02/2006, at 1:05 AM, Bud P. Bruegger wrote:
+
+&gt;<i> Hello everyone,
+</I>&gt;<i>
+</I>&gt;<i> I have a problem reading req.user when using mod-SSL with the  
+</I>&gt;<i> +FakeBasicAuth option and setting SSLUser:  req.user always seems  
+</I>&gt;<i> to be undefined.  Also, neither Authen nor Authz handers run.   Any  
+</I>&gt;<i> help would be highly appreciated
+</I>
+First off, I presume the client certificate does have a user name  
+specified in it?
+
+Second is that mod_ssl only populates req.user from a MIDDLE hook of the
+access handler. This is the same as when mod_python access handlers are
+run. If the ordering of initialisation of mod_python/mod_ssl is such  
+that a
+mod_python access handler is run before the internal access handler for
+mod_ssl, then req.user will not have been set yet and thus will not  
+be available
+in the mod_python access handler.
+
+Finally, the authen handler and authz handler are only run if the  
+Require
+directive has been used, which your configuration doesn't include.  
+Thus you
+need something like:
+
+   Require valid-user
+
+BTW, your attempt to get SSL variables form req.subprocess_env isn't  
+going
+to work as they are only put there by mod_ssl by a REALLY_LAST hook  
+of the
+fixup handler, which is after access handler, authen handler and  
+authz handler.
+Will also be after mod_python fixup handler as it runs as MIDDLE hook.
+
+To get information about mod_ssl in earlier phases, you will need  
+mod_ssl
+patches as described in:
+
+    <A HREF="https://issues.apache.org/jira/browse/MODPYTHON-94">https://issues.apache.org/jira/browse/MODPYTHON-94</A>
+
+These changes have now been pushed into mod_python subversion main
+trunk if you are prepared to give developmental code a go.
+
+Graham
+
+&gt;<i> Here some details of what I try:
+</I>&gt;<i>
+</I>&gt;<i> #-- Apache 2 conf ------------------------------
+</I>&gt;<i> NameVirtualHost *:443
+</I>&gt;<i> &lt;VirtualHost *:443&gt;
+</I>&gt;<i>         LogLevel debug
+</I>&gt;<i>         SSLEngine on
+</I>&gt;<i>         SSLCertificateFile /etc/apache2/ssl/apache.pem
+</I>&gt;<i>         SSLCACertificateFile /etc/apache2/ssl/caCerts.pem
+</I>&gt;<i>         SSLVerifyDepth 3
+</I>&gt;<i>         SSLVerifyClient require
+</I>&gt;<i>         #SSLUserName SSL_CLIENT_S_DN_X509
+</I>&gt;<i>         DocumentRoot /var/www/
+</I>&gt;<i>
+</I>&gt;<i>         &lt;Directory /var/www/sc&gt;
+</I>&gt;<i>             SSLRequireSSL
+</I>&gt;<i>             SSLOptions +StdEnvVars +FakeBasicAuth
+</I>&gt;<i>             AuthType Basic
+</I>&gt;<i>             SetHandler mod_python
+</I>&gt;<i>             PythonHandler test
+</I>&gt;<i>             PythonAccessHandler test
+</I>&gt;<i>             PythonAuthenHandler test
+</I>&gt;<i>             PythonAuthzHandler test
+</I>&gt;<i>             PythonFixupHandler test
+</I>&gt;<i>             PythonDebug On
+</I>&gt;<i>         &lt;/Directory&gt;
+</I>&gt;<i> &lt;/VirtualHost&gt;
+</I>&gt;<i>
+</I>&gt;<i> #--- test.py ----------------------------------------------------
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i> def genHandler(req, handlerName):
+</I>&gt;<i>     req.add_common_vars()
+</I>&gt;<i>     req.get_basic_auth_pw()
+</I>&gt;<i>     user = req.user
+</I>&gt;<i>     dn = req.subprocess_env.get('SSL_CLIENT_S_DN',  
+</I>&gt;<i> req.subprocess_env.keys())
+</I>&gt;<i>     userLabel = 'XXX-%s-user' % handlerName
+</I>&gt;<i>     dnLabel = 'XXX-%s-dn' % handlerName
+</I>&gt;<i>     req.subprocess_env[userLabel]=str(user)
+</I>&gt;<i>     req.subprocess_env[dnLabel]=str(dn)
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> def accesshandler(req):
+</I>&gt;<i>     return genHandler(req, 'access')
+</I>&gt;<i>
+</I>&gt;<i> def authenhandler(req):
+</I>&gt;<i>     return genHandler(req, 'authen')
+</I>&gt;<i>
+</I>&gt;<i> def authzhandler(req):
+</I>&gt;<i>     return genHandler(req, 'authz')
+</I>&gt;<i>
+</I>&gt;<i> def fixuphandler(req):
+</I>&gt;<i>     return genHandler(req, 'fixup')
+</I>&gt;<i> #------------------------------------------------------
+</I>&gt;<i>
+</I>&gt;<i> many thanks in advance
+</I>&gt;<i>
+</I>&gt;<i> -b
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> ---------------------------------------------------------------------- 
+</I>&gt;<i> ---------------------------
+</I>&gt;<i> Ing. Bud P. Bruegger, Ph.D.                 +39-0564-488577  
+</I>&gt;<i> (voice),  -21139 (fax)
+</I>&gt;<i> Servizio Elaborazione Dati                    e-mail:   
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at comune.grosseto.it</A>
+</I>&gt;<i> Comune di Grosseto                            jabber:  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at jabber.no</A>
+</I>&gt;<i> Via Ginori, 43                                      http:// 
+</I>&gt;<i> www.comune.grosseto.it/cie/
+</I>&gt;<i> 58100 Grosseto (Tuscany, Italy)           http:// 
+</I>&gt;<i> www.comune.grosseto.it/interopEID/
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020339.html">[mod_python] req.user and SSL?
+</A></li>
+	<LI>Next message: <A HREF="020365.html">[mod_python] req.user and SSL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20352">[ date ]</a>
+              <a href="thread.html#20352">[ thread ]</a>
+              <a href="subject.html#20352">[ subject ]</a>
+              <a href="author.html#20352">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

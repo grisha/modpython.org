@@ -1,0 +1,226 @@
+############################################################################
+#    Copyright (C) 2005 by Troy Unrau                                      #
+#    troy@tblog.ath.cx                                                     #
+#    All rights reserved.                                                  #
+#                                                                          #
+#    Redistribution and use in source form, with or without modification,  #
+#    is permitted provided that the following conditions are met:          #
+#                                                                          #
+#    1)  Redistributions of source code must retain the above copyright    #
+#        notice, this list of conditions and the following disclaimer      #
+#        where-ever it is found in the source or documentation.            #
+#    2)  Neither the name of the project nor the names of its contributors #
+#        may be used to endorse or promote products derived from this      #
+#        software without specific prior written permission.               #
+#                                                                          #
+#    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS   #
+#    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT     #
+#    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR #
+#    A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT  #
+#    OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, #
+#    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT      #
+#    LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, #
+#    DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY #
+#    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT   #
+#    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE #
+#    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.  #
+############################################################################
+
+from mod_python import Session
+import _apache
+import cPickle
+import time
+
+# make some text string safe for the db, basicly we need to replace single
+# quotes (') with the escaped version (\')
+# using r"" (raw strings) to avoid escape-hell
+# this has only been tested safe with Postgresql using the psycopg module
+def txt2db(s=""):
+  return s.replace("'", r"\'")
+
+##############################################################################
+# mod_python session management, cleanup routine callable, mostly based on
+# the dbm code, modified for python SQL DB API
+def sqlsession_cleanup(data):
+    
+    db, table, key_colname, val_colname, server = data
+    _apache._global_lock(server, None, 0)
+
+    # this little magic converts the whole table
+    # into a dict, which could be large if there's
+    # been a lot of hits since the last cleanup
+    c = db.cursor()
+    c.execute("""SELECT %s, %s
+                 FROM %s
+                 """ % ( key_colname, val_colname,
+                         table ) )
+    mydict = dict(c.fetchall())
+    c.nextset()
+
+    try:
+        old = []
+        s = mydict.first()
+        while 1:
+            key, val = s
+            dict = cPickle.loads(val)
+            try:
+                if (time.time() - dict["_accessed"]) > dict["_timeout"]:
+                    old.append(key)
+            except KeyError:
+                old.append(key)
+            try:
+                s = mydict.next()
+            except KeyError: break
+
+        for key in old:
+            try:
+                c.execute("""DELETE FROM %s
+                             WHERE %s = '%s'
+                             """ % ( table,
+                                     key_colname, txt2db(key) ) )
+                             # txt2db keeps this safe, so that a key
+                             # cannot be constructed to alter the
+                             # query
+            except: pass
+            
+    finally:
+        db.commit()
+        _apache._global_unlock(server, None, 0)
+##############################################################################
+# End sqlsession_cleanup()
+##############################################################################
+
+
+##############################################################################
+# mod_python Session management functionality
+# subclassed to use python DB API instead of dbm or dict
+# much of this is borrowed straight from Session.DbmSession
+class SQLSession(Session.BaseSession):
+
+    def __init__(self, req, db, table, key_colname, val_colname,
+	         sid=0, secret=None,
+                 timeout=0, lock=1):
+        """
+        Arguments:
+
+        req: mod_python request object
+        db: python DB API 2 object, such as a postgresql connection returned
+            from the psycopg module
+        table: name of the SQL table to store objects in
+        key_colname: name of the column in above table corresponding to the
+                     session id key.
+        val_colname: name of the column in above table corresponding to the
+                     actual session data
+
+        All other arguments follow from BaseSession in mod_python.  See docs
+        for mod_python 3.1.x, section 4.8.1
+        """
+
+	# db must be a python db api 2 object
+        self._db = db
+        self._table = table
+	self._key_colname = key_colname
+	self._val_colname = val_colname
+	
+        Session.BaseSession.__init__(self, req, sid=sid, secret=secret,
+                             timeout=timeout, lock=lock)
+
+    def do_cleanup(self):
+        data = [self._db,
+                self._table,
+                self._key_colname,
+                self._val_colname,
+                self._req.server]
+        self._req.register_cleanup(sqlsession_cleanup, data)
+        self._req.log_error("SQLSession: registered database cleanup.",
+                            apache.APLOG_NOTICE)
+
+    def do_load(self):
+        _apache._global_lock(self._req.server, None, 0)
+
+        c = self._db.cursor()
+        c.execute("""SELECT %s
+                     FROM %s
+                     WHERE %s = '%s'
+                     """ % ( self._val_colname,
+                             self._table,
+                             self._key_colname, txt2db(self._sid) ) )
+                     # txt2db keeps this safe, so that a sid
+                     # cannot be constructed to alter the
+                     # query
+
+        r = c.fetchone()
+        try:
+          if r:
+            return cPickle.loads(r[0])
+          else:
+            return None
+        finally:
+          _apache._global_unlock(self._req.server, None, 0)
+
+          
+    def do_save(self, dict):
+        _apache._global_lock(self._req.server, None, 0)
+
+        c = self._db.cursor()
+
+        try:
+	  # we need to do this first to see if we are updating
+	  # a value, or creating a new value
+          c.execute("""SELECT %s
+                       FROM %s
+                       WHERE %s = '%s'
+                       """ % ( self._val_colname,
+                               self._table,
+                               self._key_colname, txt2db(self._sid) ) )
+                       # txt2db keeps this safe, so that a sid
+                       # cannot be constructed to alter the
+                       # query
+  
+          r = c.fetchone()
+
+          if r:
+            c.execute("""UPDATE %s
+                         SET %s = '%s'
+                         WHERE %s = '%s'
+                         """ % ( self._table,
+                                 self._val_colname, txt2db( cPickle.dumps(dict) ),
+                                 self._key_colname, txt2db(self._sid) )   )
+                         # txt2db keeps this safe, so that a sid
+                         # cannot be constructed to alter the
+                         # query.  It also makes the picklestr storablewith the
+			 # single quotes that always exist in a pickle
+
+          else:
+            c.execute("""INSERT INTO %s
+                         (%s, %s)
+                         VALUES
+                         ('%s', '%s')
+                         """ % ( self._table,
+                                 self._key_colname, self._val_colname,
+                                 txt2db(self._sid), txt2db( cPickle.dumps(dict) ) )   )
+                         # txt2db keeps this safe, so that a sid
+                         # cannot be constructed to alter the
+                         # query.  It also makes the picklestr storable with the
+			 # single quotes that always exist in a pickle
+        finally:
+          self._db.commit()
+          _apache._global_unlock(self._req.server, None, 0)
+
+    def do_delete(self):
+        _apache._global_lock(self._req.server, None, 0)
+        c = self._db.cursor()
+        try:
+          c.execute("""DELETE FROM %s
+                       WHERE %s = '%s'
+                       """ % ( self._table,
+                               self._key_colname, txt2db(self._sid) ) )
+                       # txt2db keeps this safe, so that a sid
+                       # cannot be constructed to alter the
+                       # query
+        finally:
+          self._db.commit()
+          _apache._global_unlock(self._req.server, None, 0)
+##############################################################################
+# End SQLSession class
+##############################################################################

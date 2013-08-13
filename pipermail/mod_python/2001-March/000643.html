@@ -1,0 +1,222 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] problem with auto_reload in apache.py
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20problem%20with%20auto_reload%20in%20apache.py&In-Reply-To=A9DFD9380C01D4118E740050DA7A89703860FB%40becomm-mis2.becomm.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000641.html">
+   <LINK REL="Next"  HREF="000642.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] problem with auto_reload in apache.py</H1>
+    <B>Brian Hawthorne</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20problem%20with%20auto_reload%20in%20apache.py&In-Reply-To=A9DFD9380C01D4118E740050DA7A89703860FB%40becomm-mis2.becomm.com"
+       TITLE="[mod_python] problem with auto_reload in apache.py">brianh at exelixis.com
+       </A><BR>
+    <I>Wed Mar 21 15:37:50 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000641.html">[mod_python] problem with auto_reload in apache.py
+</A></li>
+        <LI>Next message: <A HREF="000642.html">[mod_python] problem with auto_reload in apache.py
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#643">[ date ]</a>
+              <a href="thread.html#643">[ thread ]</a>
+              <a href="subject.html#643">[ subject ]</a>
+              <a href="author.html#643">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>marc, i had very similar and equally strange problems with the
+module reloading; if for example 3 different versions of the module had
+been loaded since the last apache restart, it would use them in a random
+repetitive sequence, like  12231321133313211223132112231321... etc.
+_very_ strange.  i fixed the problem with some changes to the
+mod_python.apache.import_module function.  i've included my improved
+version below.
+
+hope it helps!
+brian
+
+#---------------------------------------------------------------------
+def import_module(module_name, req=None, path=None):
+    &quot;&quot;&quot; 
+    Get the module to handle the request. If
+    autoreload is on, then the module will be reloaded
+    if it has changed since the last import.
+    &quot;&quot;&quot;
+
+    # get the options
+    autoreload, debug = 1, None
+    if req:
+        config = req.get_config()
+        autoreload = not config.has_key(&quot;PythonNoReload&quot;)
+        debug = not config.has_key(&quot;PythonDebug&quot;)
+
+    # try to import the module
+
+    oldmtime = None
+    mtime = None
+
+    if  not autoreload:
+
+        parts = string.split(module_name, '.')
+        for i in range(len(parts)):
+            f, p, d = imp.find_module(parts[i], path)
+            try:
+                mname = string.join(parts[:i+1], &quot;.&quot;)
+                module = imp.load_module(mname, f, p, d)
+            finally:
+                if f: f.close()
+            if hasattr(module, &quot;__path__&quot;):
+                path = module.__path__
+
+        # import module
+        #module = __import__(module_name)
+        #components = string.split(module_name, '.')
+        #for cmp in components[1:]:
+        #    module = getattr(module, cmp)
+
+    else:
+
+        # keep track of file modification time and
+        # try to reload it if it is newer
+        if sys.modules.has_key(module_name):
+
+            # the we won't even bother importing
+            module = sys.modules[module_name]
+
+            # does it have __mtime__ ?
+            if sys.modules[module_name].__dict__.has_key(&quot;__mtime__&quot;):
+                # remember it
+                oldmtime = sys.modules[ module_name ].__mtime__
+
+        # import the module for the first time
+        else:
+
+            parts = string.split(module_name, '.')
+            for i in range(len(parts)):
+                f, p, d = imp.find_module(parts[i], path)
+                try:
+                    mname = string.join(parts[:i+1], &quot;.&quot;)
+                    module = imp.load_module(mname, f, p, d)
+                finally:
+                    if f: f.close()
+                if hasattr(module, &quot;__path__&quot;):
+                    path = module.__path__
+
+##            module = __import__(module_name)
+##            components = string.split(module_name, '.')
+##            for cmp in components[1:]:
+##                module = getattr(module, cmp)
+
+        # find out the last modification time
+        # but only if there is a __file__ attr
+        if module.__dict__.has_key(&quot;__file__&quot;):
+
+            filepath = module.__file__
+
+            if os.path.exists(filepath):
+
+                mod = os.stat(filepath)
+                mtime = mod[stat.ST_MTIME]
+
+            # check also .py and take the newest
+            if os.path.exists(filepath[:-1]) :
+
+                # get the time of the .py file
+                mod = os.stat(filepath[:-1])
+                mtime = max(mtime, mod[stat.ST_MTIME])
+
+    # if module is newer - reload
+    if (autoreload and (oldmtime &lt; mtime)):
+        del sys.modules[module_name]
+        # import the module as if for the first time
+        parts = string.split(module_name, '.')
+        for i in range(len(parts)):
+            f, p, d = imp.find_module(parts[i], path)
+            try:
+                mname = string.join(parts[:i+1], &quot;.&quot;)
+                module = imp.load_module(mname, f, p, d)
+            finally:
+                if f: f.close()
+            if hasattr(module, &quot;__path__&quot;):
+                path = module.__path__
+
+        #try: module = reload(module)
+        #except: pass
+
+    # save mtime
+    module.__mtime__ = mtime
+
+    return module
+#---------------------------------------------------------------------
+
+On Wed, 21 Mar 2001, Marc Fiuczynski wrote:
+
+&gt;<i> Hi, 
+</I>&gt;<i> 
+</I>&gt;<i> apache.py seems to be having trouble reloading my python modules when I
+</I>&gt;<i> update them.  This happens when apache is running with mod_python, and I
+</I>&gt;<i> then change my python module.  It fails in several odd ways:
+</I>&gt;<i> 
+</I>&gt;<i> 1) after I change my python module, mod_python will work every other time
+</I>&gt;<i> that I use it via my browser.
+</I>&gt;<i> 2) after I change my python module, mod_python completely fails to reload
+</I>&gt;<i> it.
+</I>&gt;<i> 
+</I>&gt;<i> In either case, if I send a HUP signal to the apache server, then everything
+</I>&gt;<i> works just fine afterwards.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> My configuration is as follows:
+</I>&gt;<i> *	python module is being invoked via mod_python's publisher interface.
+</I>&gt;<i> *	mod_python 2.7.2
+</I>&gt;<i> *	python 2.0
+</I>&gt;<i> *	apache 1.3.14
+</I>&gt;<i> *	Red Hat Linux 7.0
+</I>&gt;<i> 
+</I>&gt;<i> I have apache configured with the following:
+</I>&gt;<i>   AddHandler python-program .py
+</I>&gt;<i>   PythonHandler mod_python.publisher
+</I>&gt;<i>   PythonDebug On
+</I>&gt;<i>   PythonNoReload Off
+</I>&gt;<i> 
+</I>&gt;<i> Can anyone provide some insight?!
+</I>&gt;<i> 
+</I>&gt;<i> Thanks,
+</I>&gt;<i> Marc
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000641.html">[mod_python] problem with auto_reload in apache.py
+</A></li>
+	<LI>Next message: <A HREF="000642.html">[mod_python] problem with auto_reload in apache.py
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#643">[ date ]</a>
+              <a href="thread.html#643">[ thread ]</a>
+              <a href="subject.html#643">[ subject ]</a>
+              <a href="author.html#643">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

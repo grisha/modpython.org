@@ -1,0 +1,318 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Getting the script name with publisher
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Getting%20the%20script%20name%20with%20publisher&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020504.html">
+   <LINK REL="Next"  HREF="020525.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Getting the script name with publisher</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Getting%20the%20script%20name%20with%20publisher&In-Reply-To="
+       TITLE="[mod_python] Getting the script name with publisher">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Mar  2 22:23:23 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020504.html">[mod_python] changing req.proxyreq on the fly
+</A></li>
+        <LI>Next message: <A HREF="020525.html">[mod_python] Faulty Impressions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20501">[ date ]</a>
+              <a href="thread.html#20501">[ thread ]</a>
+              <a href="subject.html#20501">[ subject ]</a>
+              <a href="author.html#20501">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Bart Whiteley wrote ..
+&gt;<i> In order to generate hyperlinks, I need a reliable way to determine the
+</I>&gt;<i> script name while using the publisher handler.  I hunted around for a
+</I>&gt;<i> bit, and only found this from years ago that wasn't answered: 
+</I>&gt;<i> <A HREF="http://www.modpython.org/pipermail/mod_python/2003-September/014133.html">http://www.modpython.org/pipermail/mod_python/2003-September/014133.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> I was doing this for a while: 
+</I>&gt;<i>   req.uri[:-len(req.path_info)]
+</I>&gt;<i> 
+</I>&gt;<i> This worked until I renamed my script to index.py, then it fell apart.
+</I>&gt;<i> So, I guess what I really need is not the script name, but the portion
+</I>&gt;<i> of the URI prior to the method name.  In some cases this might be the
+</I>&gt;<i> script name (possibly without the '.py').  In the case of index.py, it
+</I>&gt;<i> might be the folder containing index.py.  
+</I>&gt;<i> 
+</I>&gt;<i> As an example, I've set up a script loosely based on hello.py: 
+</I>&gt;<i> <A HREF="http://modpython.org/live/current/doc-html/hand-pub-intro.html">http://modpython.org/live/current/doc-html/hand-pub-intro.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> I place it in /srv/www/htdocs/mptest/index.py (docroot
+</I>&gt;<i> is /srv/www/htdocs).
+</I>&gt;<i> When I access it like this: <A HREF="http://www/mptest/say/hello,">http://www/mptest/say/hello,</A> 
+</I>&gt;<i> I see the following vars: 
+</I>&gt;<i> SCRIPT_FILENAME		/srv/www/htdocs/mptest/say
+</I>&gt;<i> PATH_INFO		/hello
+</I>&gt;<i> SCRIPT_NAME		/mptest/say
+</I>&gt;<i> 
+</I>&gt;<i> In this example, I'd like to isolate &quot;/mptest&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> Does anyone have a way to reliable isolate the script name, or the
+</I>&gt;<i> folder containing index.py? 
+</I>
+Been a busy week for me, so not much time to post, but I'll have a
+go at this now.
+
+The basic problem with publisher is that you can have multiple URLs
+map to the same thing. For example, with the Apache configuration:
+
+  SetHandler mod_python
+  PythonHandler mod_python.publisher
+
+  Options +MultiViews
+  MultiViewsMatch Handlers
+  AddType text/html;qs=1.0 .py
+  AddType text/html;qs=0.9 .html
+  AddType text/plain;qs=0.8 .txt
+
+If you have a file called &quot;index.py&quot; containing an index() function, that
+function can be addressed using any of the following:
+
+  /
+  /index
+  /index.py
+  /index/
+  /index.py/
+  /index/index
+  /index.py/index
+  /index/index/
+  /index.py/index/
+
+If that function needs to generate a HTML page with a link in it to one
+of the other resources in that directory it can be hard to work out what
+the link should be if wanting to use relative URLs.
+
+This is because depending on which of the URLs was used, you might have
+to use either &quot;./&quot;, &quot;../&quot; or &quot;../../&quot;.
+
+I'm guessing that most people choose one they think works, not realising
+that if one uses one of the other URLs that can match, that it will
+break. I have seen others suggest various ways of working it out
+programatically, but from what I have seen they generally don't work in
+one situation or another.
+
+Gathering together bits and pieces of code from various stuff I have, I
+think the code I will provide in this email should work in all cases,
+including where code is in a subdirectory of where PythonHandler
+was defined. Please disagree as you see fit as better that problems be
+found so we can work out a good solution.
+
+Rather than try and explain each bit of in the email, I have added some
+comments to the actual code. The code does a lot of things and is put
+together as a bit of a test, so you might want to extract out bits you
+want. If you don't understand why something is done, quote the code
+and you question and I will answer as best I can.
+
+What the code does is work out base URL values for the directory the
+code file lives in and also for where the Python*Handler directive is
+defined when possible. The base URLs are available as absolute or
+relative. The idea is that you add your relative URL onto the end of
+either of these depending on the context from which you want to refer to
+other resources.
+
+  link = posixpath.join(req.script_baseurl_rel, &quot;login.html&quot;)
+
+Anyway, have a play. I have included the main bit of code as text in
+the email, but also along with my .htaccess file and other files to test
+it as an attachment. If you intend using bits of it, make sure you look
+at the attached stuff as some parts of what the code does rely on it
+being run before the publisher has even been run, meaning it has to
+be run as a stacked handler.
+
+Enjoy.
+
+Graham
+
+# code starts here.
+
+import posixpath, os
+
+from mod_python import apache
+
+class Handler:
+    def __init__(self, name):
+        self.__name = name
+    def __call__(self, req):
+        req.content_type = 'text/plain'
+        req.write(&quot;object = %s\n&quot; % self.__name)
+        req.write(&quot;req.filename = %s\n&quot; % req.filename)
+        req.write(&quot;req.uri = %s\n&quot; % req.uri)
+        req.write(&quot;req.path_info = %s\n&quot; % req.path_info)
+        req.write(&quot;req.hlist.directory = %s\n&quot; % req.hlist.directory)
+        req.write(&quot;\n&quot;)
+        req.write(&quot;original_filename = %s\n&quot; % req.original_filename)
+        req.write(&quot;normalised_uri = %s\n&quot; % req.normalised_uri)
+        req.write(&quot;script_name = %s\n&quot; % req.script_name)
+        req.write(&quot;script_baseurl_abs = %s\n&quot; % req.script_baseurl_abs)
+        req.write(&quot;script_baseurl_rel = %s\n&quot; % req.script_baseurl_rel)
+        req.write(&quot;handler_baseurl_abs = %s\n&quot; % req.handler_baseurl_abs)
+        req.write(&quot;handler_baseurl_rel = %s\n&quot; % req.handler_baseurl_rel)
+        req.write(&quot;\n&quot;)
+        req.write(&quot;script_login_page_abs = %s\n&quot; %
+            posixpath.join(req.script_baseurl_abs, &quot;login.html&quot;))
+        req.write(&quot;script_login_page_rel = %s\n&quot; %
+            posixpath.join(req.script_baseurl_rel, &quot;login.html&quot;))
+        req.write(&quot;handler_login_page_abs = %s\n&quot; %
+            posixpath.join(req.handler_baseurl_abs, &quot;login.html&quot;))
+        req.write(&quot;handler_login_page_rel = %s\n&quot; %
+            posixpath.join(req.handler_baseurl_rel, &quot;login.html&quot;))
+
+def handler(req):
+
+    # Keep a copy of original req.filename as it will
+    # be modified by the publisher.
+
+    req.original_filename = req.filename
+
+    # First normalise req.uri when using it as it will
+    # preserve repeated slashes in it, whereas such
+    # slashes are removed from req.path_info. We must
+    # use normalisation function from posixpath and not
+    # os.path as Apache always gaurantees to use POSIX
+    # format and using os.path version will change
+    # slashes to Win32 backslash.
+
+    req.normalised_uri = posixpath.normpath(req.uri)
+
+    # When normalising the path, it will throw away the
+    # trailing slash, thus we need to put it back if it
+    # appeared in the original.
+
+    if req.normalised_uri:
+        if req.normalised_uri != '/' and req.uri[-1] == '/':
+            req.normalised_uri += '/'
+
+    # The req.path_info attribute was already normalised
+    # above so can simply determine script name by
+    # subtracting its length from normalised uri. Note
+    # that the script name in this situation can be a
+    # directory. In that situation it will have a
+    # trailing slash to distinguish it from case whereby
+    # script name identifies an actual file.
+
+    if req.path_info:
+        req.script_name = req.normalised_uri[:-len(req.path_info)]
+    else:
+        req.script_name = req.normalised_uri
+
+    # A base url can now be calculated for the directory
+    # the script is contained in.
+
+    req.script_baseurl_abs = posixpath.dirname(req.script_name)
+
+    path = req.normalised_uri[len(req.script_baseurl_abs):]
+    step = path.count('/') - 1
+
+    if step:
+        req.script_baseurl_rel = step * '../'
+    else:
+        req.script_baseurl_rel = './'
+
+    # A base url can also be calculated corresponding to
+    # where the Python*Handler directive was defined.
+    # Such a base url can be used in conjunction with a
+    # partial path instead of using relative URLs. It
+    # can though also be used to help automate the
+    # determination of relative URLs. This code will
+    # only work if Python*Handler directive appeared in
+    # a Directory directive. That is, it will not work
+    # if Python*Handler directive appeared inside of a
+    # VirtualHost, Location or Files directive. This
+    # is because req.hlist.directory will not be set
+    # to a useable value in the latter cases. It is
+    # also not possible to use this code from inside
+    # of mod_python.publisher as it can modify the
+    # req.filename attribute, which will stuff this up
+    # and the original value will not be available.
+    # Finally, also will not work on Win32 for mod_python
+    # prior to 3.2.7 as req.hlist.directory has an extra
+    # backslash on the path when it shouldn't.
+
+    if req.hlist.directory and os.path.isabs(req.hlist.directory):
+        length = len(req.original_filename)
+        length -= len(req.hlist.directory) - 1
+        length += len(req.path_info or '')
+
+        req.handler_baseurl_abs = req.normalised_uri[:-length]
+
+    else:
+        req.handler_baseurl_abs = '/'
+
+    path = req.normalised_uri[len(req.handler_baseurl_abs):]
+    step = path.count('/') - 1
+
+    if step:
+        req.handler_baseurl_rel = step * '../'
+    else:
+        req.handler_baseurl_rel = './'
+
+    return apache.OK
+
+
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: urlstuff.tar
+Type: application/x-tar
+Size: 20480 bytes
+Desc: not available
+Url : <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060302/da6ee225/urlstuff-0001.tar">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060302/da6ee225/urlstuff-0001.tar</A>
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020504.html">[mod_python] changing req.proxyreq on the fly
+</A></li>
+	<LI>Next message: <A HREF="020525.html">[mod_python] Faulty Impressions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20501">[ date ]</a>
+              <a href="thread.html#20501">[ thread ]</a>
+              <a href="subject.html#20501">[ subject ]</a>
+              <a href="author.html#20501">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

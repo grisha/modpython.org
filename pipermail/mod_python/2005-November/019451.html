@@ -1,0 +1,560 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: mod_python 3.2.3b available for testing (util.py
+	and file uploads)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20mod_python%203.2.3b%20available%20for%20testing%20%28util.py%0A%09and%20file%20uploads%29&In-Reply-To=435F8A59.5090101%40dd.revealed.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="019452.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: mod_python 3.2.3b available for testing (util.py
+	and file uploads)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20mod_python%203.2.3b%20available%20for%20testing%20%28util.py%0A%09and%20file%20uploads%29&In-Reply-To=435F8A59.5090101%40dd.revealed.net"
+       TITLE="[mod_python] Re: mod_python 3.2.3b available for testing (util.py
+	and file uploads)">nlv11281 at natlab.research.philips.com
+       </A><BR>
+    <I>Tue Nov  1 02:33:38 EST 2005</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="019452.html">[mod_python] Session management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19451">[ date ]</a>
+              <a href="thread.html#19451">[ thread ]</a>
+              <a href="subject.html#19451">[ subject ]</a>
+              <a href="author.html#19451">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Nick wrote:
+&gt;<i> Mike Looijmans wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> Nick wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Mike Looijmans wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Nick wrote:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> So that's my problem, or at least that's where the conversation has 
+</I>&gt;&gt;&gt;&gt;&gt;<i> led me.  Is there an easy way to figure out what you've got other 
+</I>&gt;&gt;&gt;&gt;&gt;<i> than process of elimination?
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Why not use:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> if hasattr(file, 'filename'):
+</I>&gt;&gt;&gt;&gt;<i>     ...
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> The FieldStorage only adds the filename attribute to the file object 
+</I>&gt;&gt;&gt;&gt;<i> if the 'filename' header was present in the corresponding POST 
+</I>&gt;&gt;&gt;&gt;<i> chunk. This is also the trigger used internally to determine whether 
+</I>&gt;&gt;&gt;&gt;<i> it's a file.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> That will always evaluate to True.  filename is set to the file name 
+</I>&gt;&gt;&gt;<i> provided in the content-disposition IF the browser set one, which is 
+</I>&gt;&gt;&gt;<i> not required by the protocol.  Otherwise it gets set to None.  A 
+</I>&gt;&gt;&gt;<i> filename of None does not necessarily mean that it's not a file, just 
+</I>&gt;&gt;&gt;<i> that none was given in the content-disposition.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> You're totally right - I forgot how enthusiastically I hacked the 
+</I>&gt;&gt;<i> util.py file, and removed the filename attr.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> A check on &quot;filename is not None&quot; should be OK. If the browser did not 
+</I>&gt;&gt;<i> send a filename, the tempfile routine will also not be triggered, so 
+</I>&gt;&gt;<i> that the test we currently use (&quot;typeof(Filetype)&quot; and derivatives) 
+</I>&gt;&gt;<i> also fails to recognize it as a file.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> What strikes me as weird is that the module parses the request, draws 
+</I>&gt;&gt;<i> the right conclusions, but somewhere along the way forgets about it 
+</I>&gt;&gt;<i> and then has to go back to figure things out.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I think it would be more logical (from an OO perspective), to make the 
+</I>&gt;&gt;<i> StringField resemble Field in ALL aspects (add the 'name', 'file' and 
+</I>&gt;&gt;<i> other attributes to it), and add it to the internal item list of 
+</I>&gt;&gt;<i> FieldStorage. The __getitem__ method(s) can then simply return the 
+</I>&gt;&gt;<i> item, and don't need to create the StringField object.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I'll hack some more, see how it turns out.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> I agree with you on that, although it is possible to get a file upload 
+</I>&gt;<i> without a filename -- that's not against spec.  So if the code does 
+</I>&gt;<i> indeed ignore the content if no filename is set, that would be wrong.
+</I>
+I've been ill for a few days, so it took a while to get back.
+
+I've attached a util.py for mod_python  that allows me to upload files 
+many times larger than the system memory, but apache only consumes a few 
+MB RAM when posting a few GB as file uploads.
+
+As far as I can see, this does not break compatibility with existing 
+scripts.
+
+The code is simpler, and probably faster too (especially if a 
+StringField is referred multiple times in a script).
+
+Calling req.readline() without a limit seems to cause Apache (2.0.55 on 
+Windows) to read the whole POST request into system RAM. This even 
+happens during header parsing, so i supplied a 10kB limit there as wel 
+(a Content-Type header of 10kB in size sounds more like an attack than a 
+sane request to me).
+
+I'm looking for some volunteers to see if this util.py breaks their scripts.
+
+-- 
+Mike Looijmans
+Philips Natlab / Topic Automation
+-------------- next part --------------
+ #
+ # Copyright 2004 Apache Software Foundation 
+ # 
+ # Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you
+ # may not use this file except in compliance with the License.  You
+ # may obtain a copy of the License at
+ #
+ #      <A HREF="http://www.apache.org/licenses/LICENSE-2.0">http://www.apache.org/licenses/LICENSE-2.0</A>
+ #
+ # Unless required by applicable law or agreed to in writing, software
+ # distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+ # implied.  See the License for the specific language governing
+ # permissions and limitations under the License.
+ #
+ # Originally developed by Gregory Trubetskoy.
+ #
+ # $Id: util.py 102649 2004-02-16 19:47:28Z grisha $
+
+import _apache
+from mod_python import apache
+import cStringIO
+import tempfile
+
+from types import *
+from exceptions import *
+
+parse_qs = _apache.parse_qs
+parse_qsl = _apache.parse_qsl
+
+&quot;&quot;&quot; The classes below are a (almost) a drop-in replacement for the
+    standard cgi.py FieldStorage class. They should have pretty much the
+    same functionality.
+
+    These classes differ in that unlike cgi.FieldStorage, they are not
+    recursive. The class FieldStorage contains a list of instances of
+    Field class. Field class is incapable of storing anything in it.
+
+    These objects should be considerably faster than the ones in cgi.py
+    because they do not expect CGI environment, and are
+    optimized specifically for Apache and mod_python.
+&quot;&quot;&quot;
+
+class Field:
+
+    filename = None
+    headers = {}
+
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        &quot;&quot;&quot;Return printable representation.&quot;&quot;&quot;
+        return &quot;Field(%s, %s)&quot; % (`self.name`, `self.value`)
+
+    def __getattr__(self, name):
+        if name != 'value':
+            raise AttributeError, name
+        if self.file:
+            self.file.seek(0)
+            self.value = self.file.read()
+            self.file.seek(0)
+        else:
+            self.value = None
+        return self.value
+
+    def __del__(self):
+        self.file.close()
+
+class StringField(str):
+    &quot;&quot;&quot; This class is basically a string with
+    added attributes for compatibility with std lib cgi.py. Basically, this
+    works the opposite of Field, as it stores its data in a string, but creates
+    a file on demand. Field creates a value on demand and stores data in a file.
+    &quot;&quot;&quot;
+    filename = None
+    headers = {}
+    ctype = &quot;text/plain&quot;
+    type_options = {}
+    disposition = None
+    disp_options = None
+    
+    # I wanted __init__(name, value) but that does not work (apparently, you
+    # cannot subclass str with a constructor that takes &gt;1 argument)
+    def __init__(self, value):
+        '''Create StringField instance. You'll have to set name yourself.'''
+        str.__init__(self, value)
+        self.value = value
+
+    def __getattr__(self, name):
+        if name != 'file':
+            raise AttributeError, name
+        self.file = cStringIO.StringIO(self.value)
+        return self.file
+
+class FieldStorage:
+    def __init__(self, req, keep_blank_values=0, strict_parsing=0):
+
+        self.list = []
+
+        # always process GET-style parameters
+        if req.args:
+            pairs = parse_qsl(req.args, keep_blank_values)
+            for pair in pairs:
+                self.add_field(pair[0], pair[1])
+
+        if req.method == &quot;POST&quot;:
+
+            try:
+                clen = int(req.headers_in[&quot;content-length&quot;])
+            except (KeyError, ValueError):
+                # absent content-length is not acceptable
+                raise apache.SERVER_RETURN, apache.HTTP_LENGTH_REQUIRED
+
+            if not req.headers_in.has_key(&quot;content-type&quot;):
+                ctype = &quot;application/x-www-form-urlencoded&quot;
+            else:
+                ctype = req.headers_in[&quot;content-type&quot;]
+
+            if ctype == &quot;application/x-www-form-urlencoded&quot;:
+                
+                pairs = parse_qsl(req.read(clen), keep_blank_values)
+                for pair in pairs:
+                    self.add_field(pair[0], pair[1])
+
+            elif ctype[:10] == &quot;multipart/&quot;:
+
+                # figure out boundary
+                try:
+                    i = ctype.lower().rindex(&quot;boundary=&quot;)
+                    boundary = ctype[i+9:]
+                    if len(boundary) &gt;= 2 and boundary[0] == boundary[-1] == '&quot;':
+                        boundary = boundary[1:-1]
+                    boundary = &quot;--&quot; + boundary
+                except ValueError:
+                    raise apache.SERVER_RETURN, apache.HTTP_BAD_REQUEST
+
+                #read until boundary
+                # ML: req.readline without any limit seems to let my
+                # apache 2.0.55 comsume the whole request at once, and
+                # may fail with a memory error
+                line = req.readline(10240)
+                while line and not line.startswith(boundary):
+                    line = req.readline(10240)
+
+                while 1:
+
+                    ## parse headers
+                    ctype, type_options = &quot;text/plain&quot;, {}
+                    disp, disp_options = None, {}
+                    headers = apache.make_table()
+
+                    line = req.readline(10240)
+                    if len(line) == 10240:
+                        raise &quot;Too big&quot;, &quot;bad header in multipart post?&quot;
+                    sline = line.strip()
+                    if not line or sline == (boundary + &quot;--&quot;):
+                        break
+                    
+                    while line and line not in [&quot;\n&quot;, &quot;\r\n&quot;]:
+                        h, v = line.split(&quot;:&quot;, 1)
+                        headers.add(h, v)
+                        h = h.lower()
+                        if h == &quot;content-disposition&quot;:
+                            disp, disp_options = parse_header(v)
+                        elif h == &quot;content-type&quot;:
+                            ctype, type_options = parse_header(v)
+                        line = req.readline(10240)
+                        if len(line) == 10240:
+                            raise &quot;Too big&quot;, &quot;bad header in multipart post?&quot;
+                        sline = line.strip()
+
+                    if disp_options.has_key(&quot;name&quot;):
+                        name = disp_options[&quot;name&quot;]
+                    else:
+                        name = None
+
+                    # create a file object
+                    file = self.make_file(disp_options)
+
+                    # read it in
+                    self.read_to_boundary(req, boundary, file)
+                    file.seek(0)
+
+                    # make a Field
+                    if disp_options.has_key(&quot;filename&quot;):
+                        field = Field(name)
+                        field.filename = disp_options[&quot;filename&quot;]
+                    else:
+                        field = StringField(file.read())
+                        field.name = name
+                    field.file = file
+                    field.type = ctype
+                    field.type_options = type_options
+                    field.disposition = disp
+                    field.disposition_options = disp_options
+                    field.headers = headers
+
+                    self.list.append(field)
+
+            else:
+                # we don't understand this content-type
+                raise apache.SERVER_RETURN, apache.HTTP_NOT_IMPLEMENTED
+
+    def add_field(self, key, value):
+        &quot;&quot;&quot;Insert a field as key/value pair&quot;&quot;&quot;
+        item = StringField(value)
+        item.name = key
+        self.list.append(item)
+
+    def make_file(self, disp_options):
+        &quot;&quot;&quot;Create a file obejct for the given disp_options. You can override
+        this method to avoid temp file creation and stream directly. The
+        returned file must at least support write(data) and seek(0).&quot;&quot;&quot;
+        if disp_options.has_key(&quot;filename&quot;):
+            return tempfile.TemporaryFile(&quot;w+b&quot;)
+        else:
+            return cStringIO.StringIO()
+
+    def skip_to_boundary(self, req, boundary):
+        line = req.readline(10240)
+        while line and not line.startswith(boundary):
+            line = req.readline(10240)
+
+    def read_to_boundary(self, req, boundary, file):
+        delim = &quot;&quot;
+        line = req.readline(10240)
+        while line and not line.startswith(boundary):
+            odelim = delim
+            if line[-2:] == &quot;\r\n&quot;:
+                delim = &quot;\r\n&quot;
+                line = line[:-2]
+            elif line[-1:] == &quot;\n&quot;:
+                delim = &quot;\n&quot;
+                line = line[:-1]
+            else:
+                delim = &quot;&quot;
+            file.write(odelim + line)
+            line = req.readline(10240)
+
+    def __getitem__(self, key):
+        &quot;&quot;&quot;Dictionary style indexing.&quot;&quot;&quot;
+        if self.list is None:
+            raise TypeError, &quot;not indexable&quot;
+        found = []
+        for item in self.list:
+            if item.name == key:
+                found.append(item)
+        if not found:
+            raise KeyError, key
+        if len(found) == 1:
+            return found[0]
+        else:
+            return found
+
+    def get(self, key, default):
+        try:
+            return self.__getitem__(key)
+        except KeyError:
+            return default
+
+    def keys(self):
+        &quot;&quot;&quot;Dictionary style keys() method.&quot;&quot;&quot;
+        if self.list is None:
+            raise TypeError, &quot;not indexable&quot;
+        keys = []
+        for item in self.list:
+            if item.name not in keys: keys.append(item.name)
+        return keys
+
+    def has_key(self, key):
+        &quot;&quot;&quot;Dictionary style has_key() method.&quot;&quot;&quot;
+        if self.list is None:
+            raise TypeError, &quot;not indexable&quot;
+        for item in self.list:
+            if item.name == key: return 1
+        return 0
+
+    __contains__ = has_key
+
+    def __len__(self):
+        &quot;&quot;&quot;Dictionary style len(x) support.&quot;&quot;&quot;
+        return len(self.keys())
+
+    def getfirst(self, key, default=None):
+        &quot;&quot;&quot; return the first value received &quot;&quot;&quot;
+        for item in self.list:
+            if item.name == key:
+                return item
+        return default
+                                                                    
+    def getlist(self, key):
+        &quot;&quot;&quot; return a list of received values &quot;&quot;&quot;
+        if self.list is None:
+            raise TypeError, &quot;not indexable&quot;
+        found = []
+        for item in self.list:
+            if item.name == key:
+                found.append(item)
+        return found
+
+def parse_header(line):
+    &quot;&quot;&quot;Parse a Content-type like header.
+
+    Return the main content-type and a dictionary of options.
+
+    &quot;&quot;&quot;
+    
+    plist = map(lambda a: a.strip(), line.split(';'))
+    key = plist[0].lower()
+    del plist[0]
+    pdict = {}
+    for p in plist:
+        i = p.find('=')
+        if i &gt;= 0:
+            name = p[:i].strip().lower()
+            value = p[i+1:].strip()
+            if len(value) &gt;= 2 and value[0] == value[-1] == '&quot;':
+                value = value[1:-1]
+            pdict[name] = value
+    return key, pdict
+
+def apply_fs_data(object, fs, **args):
+    &quot;&quot;&quot;
+    Apply FieldStorage data to an object - the object must be
+    callable. Examine the args, and match then with fs data,
+    then call the object, return the result.
+    &quot;&quot;&quot;
+
+    # add form data to args
+    for field in fs.list:
+        if field.filename:
+            val = field
+        else:
+            val = field.value
+        args.setdefault(field.name, []).append(val)
+
+    # replace lists with single values
+    for arg in args:
+        if ((type(args[arg]) is ListType) and
+            (len(args[arg]) == 1)):
+            args[arg] = args[arg][0]
+
+    # we need to weed out unexpected keyword arguments
+    # and for that we need to get a list of them. There
+    # are a few options for callable objects here:
+
+    if type(object) is InstanceType:
+        # instances are callable when they have __call__()
+        object = object.__call__
+
+    expected = []
+    if hasattr(object, &quot;func_code&quot;):
+        # function
+        fc = object.func_code
+        expected = fc.co_varnames[0:fc.co_argcount]
+    elif hasattr(object, 'im_func'):
+        # method
+        fc = object.im_func.func_code
+        expected = fc.co_varnames[1:fc.co_argcount]
+    elif type(object) is ClassType:
+        # class
+        fc = object.__init__.im_func.func_code
+        expected = fc.co_varnames[1:fc.co_argcount]
+
+    # remove unexpected args unless co_flags &amp; 0x08,
+    # meaning function accepts **kw syntax
+    if not (fc.co_flags &amp; 0x08):
+        for name in args.keys():
+            if name not in expected:
+                del args[name]
+
+    return object(**args)
+
+def redirect(req, location, permanent=0, text=None):
+    &quot;&quot;&quot;
+    A convenience function to provide redirection
+    &quot;&quot;&quot;
+
+    if req.sent_bodyct:
+        raise IOError, &quot;Cannot redirect after headers have already been sent.&quot;
+
+    req.err_headers_out[&quot;Location&quot;] = location
+    if permanent:
+        req.status = apache.HTTP_MOVED_PERMANENTLY
+    else:
+        req.status = apache.HTTP_MOVED_TEMPORARILY
+
+    if text is None:
+        req.write('&lt;p&gt;The document has moved' 
+                  ' &lt;a href=&quot;%s&quot;&gt;here&lt;/a&gt;&lt;/p&gt;\n'
+                  % location)
+    else:
+        req.write(text)
+
+    raise apache.SERVER_RETURN, apache.OK
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="019452.html">[mod_python] Session management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19451">[ date ]</a>
+              <a href="thread.html#19451">[ thread ]</a>
+              <a href="subject.html#19451">[ subject ]</a>
+              <a href="author.html#19451">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

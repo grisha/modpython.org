@@ -1,0 +1,135 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] finding length of user file before uploading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20finding%20length%20of%20user%20file%20before%20uploading&In-Reply-To=453FC468-3C51-4686-AB35-21BA10560D68%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020868.html">
+   <LINK REL="Next"  HREF="020882.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] finding length of user file before uploading</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>greg</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20finding%20length%20of%20user%20file%20before%20uploading&In-Reply-To=453FC468-3C51-4686-AB35-21BA10560D68%40dscpl.com.au"
+       TITLE="[mod_python] finding length of user file before uploading">girty at cogeco.ca
+       </A><BR>
+    <I>Mon Apr 17 13:05:08 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020868.html">[mod_python] finding length of user file before uploading
+</A></li>
+        <LI>Next message: <A HREF="020882.html">[mod_python] finding length of user file before uploading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20872">[ date ]</a>
+              <a href="thread.html#20872">[ thread ]</a>
+              <a href="subject.html#20872">[ subject ]</a>
+              <a href="author.html#20872">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Thanks Graham, for sharing your insight.
+
+A question about the example:
+What does the normal content handler do with the request after the fixup 
+  handler returns apache.DONE?
+
+I expect I will keep the file check and upload monitoring inside a 
+single handler for now. I am working on commercial deployment, so I have 
+to take a 'wait-and-see' approach with features, despite my personal 
+curiousity about how the dev team is shaping the libs.
+
+What would mod_python.conf look like? If one handler is doing 
+everything, is this correct?
+
+&lt;Directory myserver/www/uploads&gt;
+      AddHandler mod_python *
+      PythonPath &quot;['/foo/mypy/'] + sys.path&quot;
+      PythonHandler fixup
+      #PythonDebug On
+&lt;/Directory&gt;
+
+Greg
+
+&gt;<i> Because some handlers such as mod_python.publisher have already
+</I>&gt;<i> consumed request content by the time your code has been called,
+</I>&gt;<i> the simplest thing to do is to do the check in a fixup handler which is
+</I>&gt;<i> run in addition too, but before the normal content handler.
+</I>&gt;<i> 
+</I>&gt;<i> For example:
+</I>&gt;<i> 
+</I>&gt;<i>   PythonFixupHandler check_for_large_uploads
+</I>&gt;<i> 
+</I>&gt;<i>   # check_for_large_uploads.py
+</I>&gt;<i> 
+</I>&gt;<i>   from mod_python import apache
+</I>&gt;<i> 
+</I>&gt;<i>   UPLOAD_LIMIT = 1000000
+</I>&gt;<i> 
+</I>&gt;<i>   def fixuphandler(req):
+</I>&gt;<i>     length = int(req.headers_in.get(&quot;Content-Length&quot;, &quot;0&quot;))
+</I>&gt;<i>     if length &gt;= UPLOAD_LIMIT:
+</I>&gt;<i>       req.content_type = 'text/plain'
+</I>&gt;<i>       req.status = apache.HTTP_BAD_REQUEST
+</I>&gt;<i>       req.write('upload too big\n')
+</I>&gt;<i>       return apache.DONE
+</I>&gt;<i> 
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> The important bit is that the fixup handler must cause call to following
+</I>&gt;<i> content handler to be aborted. This is why it explicitly sets req.status
+</I>&gt;<i> and then returns apache.DONE instead of apache.OK. The handler
+</I>&gt;<i> needs to also construct any custom response.
+</I>&gt;<i> 
+</I>&gt;<i> Not sure there is a simple way of handling an upload that takes too
+</I>&gt;<i> long. I haven't looked at the file_callback feature to see whether that
+</I>&gt;<i> might make it easier.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020868.html">[mod_python] finding length of user file before uploading
+</A></li>
+	<LI>Next message: <A HREF="020882.html">[mod_python] finding length of user file before uploading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20872">[ date ]</a>
+              <a href="thread.html#20872">[ thread ]</a>
+              <a href="subject.html#20872">[ subject ]</a>
+              <a href="author.html#20872">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

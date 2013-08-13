@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] transhandler setup?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20transhandler%20setup%3F&In-Reply-To=7d2dd37bf7033362941883d94d0d9fff%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018950.html">
+   <LINK REL="Next"  HREF="018951.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] transhandler setup?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>IR labs</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20transhandler%20setup%3F&In-Reply-To=7d2dd37bf7033362941883d94d0d9fff%40dscpl.com.au"
+       TITLE="[mod_python] transhandler setup?">labs at ixopusada.com
+       </A><BR>
+    <I>Thu Sep  1 20:54:43 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018950.html">[mod_python] I use a custom login form. Can I make the userid
+	showup in the access log?
+</A></li>
+        <LI>Next message: <A HREF="018951.html">[mod_python] transhandler setup?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18949">[ date ]</a>
+              <a href="thread.html#18949">[ thread ]</a>
+              <a href="subject.html#18949">[ subject ]</a>
+              <a href="author.html#18949">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I am not sure whether I should start a new thread, but my issues are 
+not yet solved and the subject line is still partly accurate, so I'll 
+just continue.
+
+To get my ideas working, I tried both the options that I saw in my last 
+post, but I am getting stuck in both.
+
+Let me start with the one, with which I progressed the most:
+1. Don't use transhandler. Have a main.py as the PythonHandler for the 
+www/root directory.
+
+&lt;Directory /var/www/root&gt;
+     SetHandler mod_python
+     PythonHandler main
+&lt;/Directory&gt;
+
+---- with main.py: ----
+def handler(req):
+	extension = os.path.splitext(req.filename)[1]
+	if extension == &quot;.html&quot; or extension == &quot;&quot;:
+		if not os.path.exists(req.filename):
+			... (handle further)
+			return apache.OK
+		else:
+			if extension == '':
+				req.filename = req.filename + &quot;/index.html&quot; # THIS LINE SEEMS NOT 
+TO HAVE AN EFFECT
+			return apache.DECLINED
+	else:
+		return apache.DECLINED
+
+When a url is requested for an existent .html file, it works fine: 
+apache serves the .html file itself. However if the url is only the 
+name of a directory, I can't seem to give apache its normal &#8211;complete&#8211; 
+behavior. (E.g. the url www.foobar.com/foo/ (assuming the directory 
+foo/ exists) does not return a directory listing of the contents of 
+that directory nor does it display www.foobar.com/foo/index.html if 
+there is such a file.) And it seems I also can't change the filename 
+anymore in that handler phase. The only solution I found was to put an 
+.htaccess file in /foo/ saying &quot;SetHandler none&quot;. But I was actually 
+looking for a way in which I would not need these .htaccess files when 
+there is just an index.html present. Is there any way I still can set 
+the filename in this phase?
+
+
+Then I thought that maybe transhandler could help me in the end, but I 
+got stuck with that one rather soon.
+2. Using transhandler to set the filename and have it decide what 
+apache should be doing.
+
+&lt;IfModule mod_python.c&gt;
+     PythonPath &quot;sys.path + ['/var/www/python/']&quot;
+     PythonTransHandler translate
+&lt;/IfModule&gt;
+
+---- and from translate.py: ----
+
+def transhandler(req):
+	...
+	req.filename = '/var/www/python/main.py'
+	return apache.OK
+
+The issue I run against is that now apache shows the code from main.py. 
+It doesn't execute it, it just shows the code. Despite all the other 
+directives I use (in httpd.conf or .htaccess). Even when I add the line 
+'req.add_handler(&quot;PythonHandler&quot;, &quot;main&quot;)' to the mix, it won't execute 
+main.py, just displays its code. Any ideas how to I solve this?
+
+Many thanks,
+dirk
+
+
+On 31-aug-05, at 00:49, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 31/08/2005, at 5:44 AM, IR labs wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> But thanks for this solution to have everything (also the stuff we 
+</I>&gt;&gt;<i> don't want to handle) handled by the handler in main.py.
+</I>&gt;&gt;<i> My only remaining question now, would be what you recommend?
+</I>&gt;&gt;<i> 1. Don't use the transhandle phase, and have *all* requests handled 
+</I>&gt;&gt;<i> by the main PythonHandler, including the ones it shouldn't handle ( 
+</I>&gt;&gt;<i> apache.DECLINE)
+</I>&gt;&gt;<i> or.
+</I>&gt;&gt;<i> 2. Use the TransHandler phase to discern between real physical 
+</I>&gt;&gt;<i> present files (requests for .html, .css, .js etc. files) and virtual 
+</I>&gt;&gt;<i> pages that should be handled by main.py
+</I>&gt;<i>
+</I>&gt;<i> It all depends on exactly what you want to do, as these probably aren't
+</I>&gt;<i> the only alternatives. If you want a request against a directory to be
+</I>&gt;<i> rerouted, look at the DirectoryIndex directive. If you want to reroute 
+</I>&gt;<i> a
+</I>&gt;<i> request against a non existent file based on a specific extension type,
+</I>&gt;<i> you may also be able to use mod_rewrite. Finally, there is also the
+</I>&gt;<i> ErrorDocument directive for non existent files as well. All of these
+</I>&gt;<i> might feasibly be harnessed to provide part of the solution and using
+</I>&gt;<i> Python to make the decision may be a more complicated choice than some
+</I>&gt;<i> of Apache's core features designed for this sort of thing.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+-----------------------------
+Dirk van Oosterbosch
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">dirk at ixopusada.com</A>
+-----------------------------
+
+
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018950.html">[mod_python] I use a custom login form. Can I make the userid
+	showup in the access log?
+</A></li>
+	<LI>Next message: <A HREF="018951.html">[mod_python] transhandler setup?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18949">[ date ]</a>
+              <a href="thread.html#18949">[ thread ]</a>
+              <a href="subject.html#18949">[ subject ]</a>
+              <a href="author.html#18949">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

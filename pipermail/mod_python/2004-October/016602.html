@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Udate python modules without restarting Apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=9CCD3198-199A-11D9-AAF9-000393DCF16E%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016600.html">
+   <LINK REL="Next"  HREF="016603.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Udate python modules without restarting Apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=9CCD3198-199A-11D9-AAF9-000393DCF16E%40dscpl.com.au"
+       TITLE="[mod_python] Udate python modules without restarting Apache">nicolas at lehuen.com
+       </A><BR>
+    <I>Sat Oct  9 11:10:32 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016600.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+        <LI>Next message: <A HREF="016603.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16602">[ date ]</a>
+              <a href="thread.html#16602">[ thread ]</a>
+              <a href="subject.html#16602">[ subject ]</a>
+              <a href="author.html#16602">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Graham, what are the pros and cons of using the imp module versus an
+execfile call or an exec call ?
+
+Using Apache 2.0.52 on win32, with a multithreaded MPM, I have noticed a few
+problem with mod_python.publisher which reloads the same module many times
+when many threads try to load it concurrently. It seems that either
+mod_python.publisher or the imp module does not properly handle this
+situation. The result is that I have many instances of the same module in
+memory, so I got many connection pools instead of only one and so on. That's
+why I decided to fix this and other problems (the famous 'only one index.py
+in your application') by reimplementing my own variant of the publisher.
+
+My variant uses its own module cache to load pages, based on my recipe here
+:<i>
+</I>
+<A HREF="http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/302997">http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/302997</A>
+
+The recipe shows a ModuleCache which inherits from FileCache, which in turns
+uses fstat to check whether a file is changed and reload it if necessary.
+The cache my publisher uses is similar but uses req.finfo to save an fstat
+call. This is not rocket science, but the Cache class carefully locks
+whatever needs to be locked to ensure a proper behaviour in a multithreaded
+context. 
+
+Anyway, here is what I do when I want to &quot;load&quot; a module :
+
+(here, opened is an opened file object, and Module is a placeholder object,
+see code)
+
+        try:
+            module = Module(name)
+            exec opened in module.__dict__
+            return module
+        finally:
+            opened.close()
+
+Do you think this is acceptable ? Are there any drawbacks to this method ?
+
+Regards,
+
+Nicolas
+
+&gt;<i> -----Message d'origine-----
+</I>&gt;<i> De : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A> 
+</I>&gt;<i> [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] De la part de 
+</I>&gt;<i> Graham Dumpleton
+</I>&gt;<i> Envoy&#233; : samedi 9 octobre 2004 04:26
+</I>&gt;<i> &#192; : Daniel Popowich
+</I>&gt;<i> Cc : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Objet : Re: [mod_python] Udate python modules without 
+</I>&gt;<i> restarting Apache
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On 09/10/2004, at 12:23 AM, Daniel Popowich wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt; BTW, mpservlet doesn't use &quot;imp&quot; module to do module importing of 
+</I>&gt;<i> &gt;&gt; .mps files but instead uses execfile(). By using execfile() it 
+</I>&gt;<i> &gt;&gt; effectively throws away the prior module before reimporting it.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The main reason I used execfile is because I wanted to 
+</I>&gt;<i> build a cache 
+</I>&gt;<i> &gt; of servlet classes keyed on the full filename.  This means I avoid 
+</I>&gt;<i> &gt; problems of /somedir/index.mps and /somedir/subdir/index.mps 
+</I>&gt;<i> &gt; colliding.  Also, there are so many gnarly issues with using the 
+</I>&gt;<i> &gt; import system, I believe I've avoided many a head-ache 
+</I>&gt;<i> (e.g., dealing 
+</I>&gt;<i> &gt; with pythonpath; wanting to import files that end in .mps).
+</I>&gt;<i> 
+</I>&gt;<i> The ability to distinguish between index.py in two different 
+</I>&gt;<i> directories is possible with &quot;imp&quot; module functions. The 
+</I>&gt;<i> trick is that when you finally call imp.load_module, rather 
+</I>&gt;<i> than passing the name of the module as the first argument, 
+</I>&gt;<i> you pass it some encoded name which incorporates the full 
+</I>&gt;<i> pathname to the module code file. In doing this you have to 
+</I>&gt;<i> ensure though to get rid of any magic characters that might 
+</I>&gt;<i> cause problems. I have also a long long time ago had issues 
+</I>&gt;<i> with the length of the name used, thus a scheme to shorten it 
+</I>&gt;<i> is possibly a good idea as well.
+</I>&gt;<i> 
+</I>&gt;<i> But then, I think you perhaps know this, as I recollect 
+</I>&gt;<i> mpservlets not using execfile() in an older version, or was 
+</I>&gt;<i> that some other package for mod_python I am thinking of.
+</I>&gt;<i> 
+</I>&gt;<i> FWIW, to see how Vampire mangles the names so as to still be 
+</I>&gt;<i> able to use the &quot;imp&quot; module, check out:
+</I>&gt;<i> 
+</I>&gt;<i>     
+</I>&gt;<i> <A HREF="http://www.dscpl.com.au/projects/vampire/examples-01/python-">http://www.dscpl.com.au/projects/vampire/examples-01/python-</A>
+</I>&gt;<i> modules.html
+</I>&gt;<i> 
+</I>&gt;<i> The &quot;label&quot; field is the name which the module appears as in 
+</I>&gt;<i> sys.modules.
+</I>&gt;<i> Those starting with &quot;_vampire_&quot; are the mangled names which 
+</I>&gt;<i> Vampire uses in its module importing and caching system and 
+</I>&gt;<i> which are getting passed as first argument to 
+</I>&gt;<i> imp.load_module. It is a strange combination of md5 hashing 
+</I>&gt;<i> and base64 encoding of the full pathname.
+</I>&gt;<i> 
+</I>&gt;<i> BTW, with the latest version of Vampire, I show how you can 
+</I>&gt;<i> integrate use of mpservlets package. Unfortunately my public 
+</I>&gt;<i> web site isn't Apache 2.0 so can't host a working example. 
+</I>&gt;<i> You can see the source code though at for the mpservlets demo at:
+</I>&gt;<i> 
+</I>&gt;<i>     
+</I>&gt;<i> <A HREF="http://www.dscpl.com.au/projects/vampire/source/examples-06/servlet-">http://www.dscpl.com.au/projects/vampire/source/examples-06/servlet-</A>
+</I>&gt;<i> demo.py
+</I>&gt;<i> 
+</I>&gt;<i> When using Vampire, your code is in &quot;.py&quot; file and not &quot;.mps&quot; 
+</I>&gt;<i> and you don't have to access it as &quot;.mps&quot; either. If you want 
+</I>&gt;<i> extensions, you can set it up to use &quot;.html&quot; or &quot;.mps&quot;. If 
+</I>&gt;<i> you want no extension to be used, you can do that also. Thus 
+</I>&gt;<i> a bit more flexible.
+</I>&gt;<i> 
+</I>&gt;<i> Anyway, I will be making a announcement about latest version 
+</I>&gt;<i> of Vampire shortly.
+</I>&gt;<i> 
+</I>&gt;<i> --
+</I>&gt;<i> Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016600.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+	<LI>Next message: <A HREF="016603.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16602">[ date ]</a>
+              <a href="thread.html#16602">[ thread ]</a>
+              <a href="subject.html#16602">[ subject ]</a>
+              <a href="author.html#16602">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

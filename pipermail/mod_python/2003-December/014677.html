@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] redirects and url rewriting
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20redirects%20and%20url%20rewriting&In-Reply-To=1006403.1072113054814.JavaMail.jciccale%40mac.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014676.html">
+   <LINK REL="Next"  HREF="014678.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] redirects and url rewriting</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Daniel J. Popowich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20redirects%20and%20url%20rewriting&In-Reply-To=1006403.1072113054814.JavaMail.jciccale%40mac.com"
+       TITLE="[mod_python] redirects and url rewriting">dpopowich at mtrsd.k12.ma.us
+       </A><BR>
+    <I>Mon Dec 22 12:34:09 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014676.html">[mod_python] redirects and url rewriting
+</A></li>
+        <LI>Next message: <A HREF="014678.html">[mod_python] redirects and url rewriting
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14677">[ date ]</a>
+              <a href="thread.html#14677">[ thread ]</a>
+              <a href="subject.html#14677">[ subject ]</a>
+              <a href="author.html#14677">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+
+&gt;<i> I think the best option for your problem is:
+</I>&gt;<i> 
+</I>&gt;<i> req.headers_out[ &quot;Location&quot; ] = uri
+</I>&gt;<i> return apache.HTTP_MOVED_PERMANENTLY #301 
+</I>&gt;<i> 
+</I>
+This won't work for some of what I'm doing, i.e., user goes to a page
+that needs authentication so they are redirected to a login page
+(without having to save state to a session).  There are other similar
+situations where, programmatically, you discover that the user should
+be somewhere else within your mod_python app and you'd like to
+redirect them to other URIs which can check req.prev for existing
+state (thus saving network traffic, server hits, etc.  Heck, you got
+everything you need to know, why tell the client, &quot;go here&quot; when you
+can just deliver it in the first place?).
+
+Also, being the kind of geek that needs to know how and why things
+work, I'd like to know why some redirects rewrite my browser url and
+some don't; ultimately, I'd like to be able to control the behaviour
+with mod_python.
+
+Dan
+
+&gt;<i> &gt;
+</I>&gt;<i> &gt;When I use req.internal_redirect(some_uri) sometimes the url in my
+</I>&gt;<i> &gt;browser gets rewritten to reflect some_uri and some times it doesn't,
+</I>&gt;<i> &gt;remaining as the uri of the originally selected page.  This can cause
+</I>&gt;<i> &gt;numerous problems with relative links inside a page if the url is not
+</I>&gt;<i> &gt;rewritten in the browser.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;I'm trying to understand what causes this and how I can control it.
+</I>&gt;<i> &gt;Can someone point me to some doc?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;Below is a short handler I wrote as an example (the links I use assume
+</I>&gt;<i> &gt;you have the apache manual installed; modify if necessary).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;[modpython 3.1.2b, python 2.3.2, apache 2.0.40]
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;Thanks,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;------------------
+</I>&gt;<i> &gt;Daniel Popowich
+</I>&gt;<i> &gt;Network Specialist
+</I>&gt;<i> &gt;-------------------------------------
+</I>&gt;<i> &gt;Mohawk Trail Regional School District
+</I>&gt;<i> &gt;24 Ashfield Rd.
+</I>&gt;<i> &gt;Shelburne Falls, MA 01370
+</I>&gt;<i> &gt;413.625.0192 x22
+</I>&gt;<i> &gt;-------------------------------------
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;# -*- python -*-
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;from mod_python import apache, util
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;def handler(req):
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    req.content_type = 'text/html'
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    form = util.FieldStorage(req)
+</I>&gt;<i> &gt;    choice = form.getfirst('redirect')
+</I>&gt;<i> &gt;    # this doesn't rewrite the url in the browser
+</I>&gt;<i> &gt;    if choice == '1':
+</I>&gt;<i> &gt;        req.internal_redirect('%s/abcdefg' % req.uri)
+</I>&gt;<i> &gt;        
+</I>&gt;<i> &gt;    # neither does this one [and the resulting page is quite
+</I>&gt;<i> &gt;    # messed up because the relative urls inside the doc don't
+</I>&gt;<i> &gt;    # make sense without the rewrite]
+</I>&gt;<i> &gt;    elif choice == '2':
+</I>&gt;<i> &gt;        req.internal_redirect('/manual/index.html')
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    # but this one does
+</I>&gt;<i> &gt;    elif choice == '3':
+</I>&gt;<i> &gt;        req.internal_redirect('/manual')
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    else:
+</I>&gt;<i> &gt;        req.write('''
+</I>&gt;<i> &gt;        &lt;html&gt;
+</I>&gt;<i> &gt;        &lt;body&gt;
+</I>&gt;<i> &gt;        &lt;a href=%s?redirect=1&gt;redirect to %s/abcdefg&lt;/a&gt;&lt;br&gt;
+</I>&gt;<i> &gt;        &lt;a href=%s?redirect=2&gt;redirect to /manual/index.html&lt;/a&gt;&lt;br&gt;
+</I>&gt;<i> &gt;        &lt;a href=%s?redirect=3&gt;redirect to /manual&lt;/a&gt;&lt;br&gt;
+</I>&gt;<i> &gt;        &lt;/body&gt;
+</I>&gt;<i> &gt;        &lt;/html&gt;
+</I>&gt;<i> &gt;        ''' % ((req.uri,)*4))
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    return apache.OK
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;_______________________________________________
+</I>&gt;<i> &gt;Mod_python mailing list
+</I>&gt;<i> &gt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014676.html">[mod_python] redirects and url rewriting
+</A></li>
+	<LI>Next message: <A HREF="014678.html">[mod_python] redirects and url rewriting
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14677">[ date ]</a>
+              <a href="thread.html#14677">[ thread ]</a>
+              <a href="subject.html#14677">[ subject ]</a>
+              <a href="author.html#14677">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,312 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Udate python modules without restarting Apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=20041010121252.23C35C347%40postfix3-2.free.fr">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016609.html">
+   <LINK REL="Next"  HREF="016606.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Udate python modules without restarting Apache</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Udate%20python%20modules%20without%20restarting%20Apache&In-Reply-To=20041010121252.23C35C347%40postfix3-2.free.fr"
+       TITLE="[mod_python] Udate python modules without restarting Apache">nicolas at lehuen.com
+       </A><BR>
+    <I>Sun Oct 10 15:34:52 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016609.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+        <LI>Next message: <A HREF="016606.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16610">[ date ]</a>
+              <a href="thread.html#16610">[ thread ]</a>
+              <a href="subject.html#16610">[ subject ]</a>
+              <a href="author.html#16610">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Note that there is a huge caveat to all this, however : currently,
+mod_python does not properly handle the loading of handlers modules in a
+thread-safe way. This means that if your web site is under a steady load,
+requiring many thread to process requests all the time, then when you're
+restarting your Apache server, you'll see many messages from mod_python in
+the error log stating that the handler is (re)loaded (this can happen even
+with all handlers, even with mod_python.publisher).
+
+I don't know precisely yet what is the impact of this bug, but it does at
+least means than at initialization time, you may have many module caches in
+memory whereas you'd wanted to have only one. Thus, at least during
+initialisation, you don't benefit from data sharing. The least I can say is
+that I find this disheartening.
+
+When writing application server code (and I did write quite a bunch in a
+former life), threading should be your first issue, not an after thought.
+But I guess this is a cultural problem coming for the Linux forking MPM
+heritage ; maybe people aren't used to use threads on Linux. Well, I guess
+I'm not the only Win32 or MacOS/X guy out there that would like a better
+support for threads in mod_python... I could have a look and try to fix this
+bug, but I still have no news from the previous patch I've submitted...
+
+Regards,
+
+Nicolas
+
+&gt;<i> -----Message d'origine-----
+</I>&gt;<i> De : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A> 
+</I>&gt;<i> [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] De la part de Nicolas Lehuen
+</I>&gt;<i> Envoy&#233; : dimanche 10 octobre 2004 14:13
+</I>&gt;<i> &#192; : 'Graham Dumpleton'; 'mod_python user mailing list'
+</I>&gt;<i> Objet : RE: [mod_python] Udate python modules without 
+</I>&gt;<i> restarting Apache
+</I>&gt;<i> 
+</I>&gt;<i> Hi Graham,
+</I>&gt;<i> 
+</I>&gt;<i> First thank you for your thorough anaylisis of the imp module 
+</I>&gt;<i> behaviour in a multi-threaded environment. This reinforce my 
+</I>&gt;<i> feeling that NOT using this module is way better for my 
+</I>&gt;<i> publisher since I can precisely understand what it does 
+</I>&gt;<i> without depending on any arcane locking mechanisms. With my 
+</I>&gt;<i> publisher, I know precisely what the locking policy is. Have 
+</I>&gt;<i> a look at the Cache recipe :
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/302997">http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/302997</A>
+</I>&gt;<i> 
+</I>&gt;<i> The trick I used to reduce cache contention is to have a two 
+</I>&gt;<i> levels locking scheme. The first level is a lock for the 
+</I>&gt;<i> whole cache, used to make sure that not two entries are 
+</I>&gt;<i> created for the same key (here the key is the file name of 
+</I>&gt;<i> the module). The second level is an entry-specific lock which 
+</I>&gt;<i> is used to make sure that a module cannot be initialized by 
+</I>&gt;<i> more than one thread. This two level locking enable multiple 
+</I>&gt;<i> threads to handle different modules concurrently : the 
+</I>&gt;<i> possibly lengthy module initialisation process is done within 
+</I>&gt;<i> a module-specific lock, so other thread can initialize other 
+</I>&gt;<i> modules concurrently.
+</I>&gt;<i> 
+</I>&gt;<i> So what happens when a page is accessed by my publisher ?
+</I>&gt;<i> 
+</I>&gt;<i> 1) the publisher determines what file is targeted by the http 
+</I>&gt;<i> request, just by using req.filename
+</I>&gt;<i> 2) the publisher get the module keyed by the filename from 
+</I>&gt;<i> the module cache
+</I>&gt;<i> 3) the publisher calls a special callable object in the module
+</I>&gt;<i> (http_handler) or find one by applying acquisition semantics.
+</I>&gt;<i> 
+</I>&gt;<i> At this high level, no locking is required. If the module 
+</I>&gt;<i> needs to be reloaded, the threads which have already reached 
+</I>&gt;<i> the step 3 will keep on using the stale module. Once they are 
+</I>&gt;<i> over, the stale module will be dereferenced and eventually 
+</I>&gt;<i> garbage collected (with all objects it contains). Meanwhile, 
+</I>&gt;<i> new threads arriving at step 2 will get the new module. All 
+</I>&gt;<i> is well that ends well.
+</I>&gt;<i> 
+</I>&gt;<i> Now if we study what's happening at step 2 when a module is 
+</I>&gt;<i> already up to date, then we see that we first acquire a lock 
+</I>&gt;<i> on the module cache during a very brief amount of time (just 
+</I>&gt;<i> to get the entry for the filename), then a lock on the module 
+</I>&gt;<i> itself for another brief amount of time (just to check that 
+</I>&gt;<i> the module is indeed up to date). Thereafter, all thread are 
+</I>&gt;<i> on their own to do whatever they need in parallel.
+</I>&gt;<i> 
+</I>&gt;<i> So we have indeed a very small contention point where all 
+</I>&gt;<i> requests are serialized, then another small contention point 
+</I>&gt;<i> where all requests targeted at the same module are 
+</I>&gt;<i> serialized, then no more contention until the request is 
+</I>&gt;<i> over. That is to say, all the hard work (database requests, 
+</I>&gt;<i> file processing, template rendering etc.) is indeed done in 
+</I>&gt;<i> multiple concurrent threads.
+</I>&gt;<i> 
+</I>&gt;<i> I don't see how this can be done in a better way. In any 
+</I>&gt;<i> case, you certainly should NOT acquire a lock and do all the 
+</I>&gt;<i> request processing within this lock, like you wrote below... 
+</I>&gt;<i> This effectively kills any multi-threaded attempt.
+</I>&gt;<i> 
+</I>&gt;<i> The best part with having properly managed modules is that 
+</I>&gt;<i> you can instantiate long-living objects that are shared 
+</I>&gt;<i> between multiple threads in the modules. The best example is 
+</I>&gt;<i> a thread-safe DB connection pool. In fact, my publisher 
+</I>&gt;<i> automatically looks if the module targeted by a request has 
+</I>&gt;<i> special callable objects named 'prepare', 'commit', 
+</I>&gt;<i> 'rollback' and 'release'. In those methods, a developper can 
+</I>&gt;<i> write some code to manage DB connections. The net result is 
+</I>&gt;<i> that in most of my application, I only have to write 
+</I>&gt;<i> req.cursor to have a safe pooled cursor to the database I 
+</I>&gt;<i> use. I don't have to worry anymore about opening / closing DB 
+</I>&gt;<i> connections !
+</I>&gt;<i> 
+</I>&gt;<i> In fact, I extended this behaviour : when a page module is 
+</I>&gt;<i> loaded, the publisher looks for a 'global.pyapp' file which 
+</I>&gt;<i> contains a Python module shared by all modules found in the 
+</I>&gt;<i> same directory. This 'global.pyapp' file is an 
+</I>&gt;<i> application-wide module which usually defines global objects 
+</I>&gt;<i> such as the aformentioned DB connection pool, plus the same 
+</I>&gt;<i> special methods 'prepare', 'commit', 'rollback', 'release' 
+</I>&gt;<i> that are called before the ones from the targeted module. 
+</I>&gt;<i> This is equivalent to the 'global.asa' files found in Microsoft's ASP.
+</I>&gt;<i> 
+</I>&gt;<i> I plan on releasing my code on the web, but I'm missing the 
+</I>&gt;<i> time to build a proper web site for now...
+</I>&gt;<i> 
+</I>&gt;<i> Anyway, thanks for this interesting discussion :)
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> 
+</I>&gt;<i> Nicolas
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> &gt; -----Message d'origine-----
+</I>&gt;<i> &gt; De : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A> 
+</I>&gt;<i> &gt; [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] De la part de Graham 
+</I>&gt;<i> &gt; Dumpleton Envoy&#233; : dimanche 10 octobre 2004 12:14 &#192; : 
+</I>&gt;<i> mod_python user 
+</I>&gt;<i> &gt; mailing list Objet : Re: [mod_python] Udate python modules without 
+</I>&gt;<i> &gt; restarting Apache
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; On 10/10/2004, at 1:55 PM, Graham Dumpleton wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; &gt; The point I am trying to make is that perhaps locking shouldn't 
+</I>&gt;<i> &gt; &gt; pertain just to the global data and that executable code 
+</I>&gt;<i> should in 
+</I>&gt;<i> &gt; &gt; some way be protected as well.
+</I>&gt;<i> &gt; &gt; It needs more exploration, but perhaps the module should read 
+</I>&gt;<i> &gt; &gt; something like the following (untested).
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;   if not globals().has_key(&quot;datalock&quot;):
+</I>&gt;<i> &gt; &gt;     # This is a brand new import and we are inside the 
+</I>&gt;<i> scope of the
+</I>&gt;<i> &gt; &gt;     # import lock, so this should all be safe to execute.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;     datalock = Lock()
+</I>&gt;<i> &gt; &gt;     codelock = Lock()
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;     myglobal1 = None
+</I>&gt;<i> &gt; &gt;     myglobal2 = None
+</I>&gt;<i> &gt; &gt;     myglobal3 = None
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;     ... arbitrary code to initialise globals
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;   codelock.acquire()
+</I>&gt;<i> &gt; &gt;   datalock.acquire()
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;   ... extra code to fiddle the globals
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;   def modify1(req):
+</I>&gt;<i> &gt; &gt;     datalock.acquire()
+</I>&gt;<i> &gt; &gt;     ...
+</I>&gt;<i> &gt; &gt;     datalock.unlock()
+</I>&gt;<i> &gt; &gt;     return value
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;   def modify2(req,value):
+</I>&gt;<i> &gt; &gt;     datalock.acquire()
+</I>&gt;<i> &gt; &gt;     ...
+</I>&gt;<i> &gt; &gt;     datalock.unlock()
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;   def _handler(req):
+</I>&gt;<i> &gt; &gt;     value = modify1(req)
+</I>&gt;<i> &gt; &gt;     modify2(req,value)
+</I>&gt;<i> &gt; &gt;     ...
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;   def handler(req):
+</I>&gt;<i> &gt; &gt;     # code for this method should never be changed
+</I>&gt;<i> &gt; &gt;     try:
+</I>&gt;<i> &gt; &gt;       codelock.acquire()
+</I>&gt;<i> &gt; &gt;       result = _handler(req)
+</I>&gt;<i> &gt; &gt;     finally:
+</I>&gt;<i> &gt; &gt;       codelock.unlock()
+</I>&gt;<i> &gt; &gt;     return result
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;   datalock.unlock()
+</I>&gt;<i> &gt; &gt;   codelock.unlock()
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; What is trying to be done here is using a lock to ensure 
+</I>&gt;<i> &gt; that any code 
+</I>&gt;<i> &gt; &gt; itself is not replaced while the handler is being executed. 
+</I>&gt;<i> &gt; The reason 
+</I>&gt;<i> &gt; &gt; for two level handler arrangement, is that the lock 
+</I>&gt;<i> &gt; actually needs to 
+</I>&gt;<i> &gt; &gt; be acquired outside of the real handler method being 
+</I>&gt;<i> &gt; called. If it is 
+</I>&gt;<i> &gt; &gt; done inside, it is too late, as Python has already grabbed the 
+</I>&gt;<i> &gt; &gt; existing code for handler and if it gets replaced prior 
+</I>&gt;<i> to the lock 
+</I>&gt;<i> &gt; &gt; being acquired, everything may have changed.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Am I being too paranoid? I don't understand enough about 
+</I>&gt;<i> &gt; how code gets 
+</I>&gt;<i> &gt; &gt; replaced when a module reload is occurring.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Hmmm, maybe gone slightly too far here. The code lock 
+</I>&gt;<i> &gt; effectively serialises access to the handler, which screws up 
+</I>&gt;<i> &gt; the whole idea of having threads in the first place.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I really like this idea of using execfile() as described in 
+</I>&gt;<i> &gt; other email and copying across state variables of interest 
+</I>&gt;<i> &gt; into a new module, as avoids the need for the code lock 
+</I>&gt;<i> &gt; anyway as new code constructed in new module.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; --
+</I>&gt;<i> &gt; Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt; 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016609.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+	<LI>Next message: <A HREF="016606.html">[mod_python] Udate python modules without restarting Apache
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16610">[ date ]</a>
+              <a href="thread.html#16610">[ thread ]</a>
+              <a href="subject.html#16610">[ subject ]</a>
+              <a href="author.html#16610">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

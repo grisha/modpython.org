@@ -1,0 +1,216 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] how to define publisher when page not found
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20to%20define%20publisher%20when%20page%20not%20found&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023034.html">
+   <LINK REL="Next"  HREF="023030.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] how to define publisher when page not found</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20to%20define%20publisher%20when%20page%20not%20found&In-Reply-To="
+       TITLE="[mod_python] how to define publisher when page not found">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Jan 16 17:35:41 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023034.html">[mod_python] how to handle xforms with publisher handler
+</A></li>
+        <LI>Next message: <A HREF="023030.html">[mod_python] mod_python example code
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23029">[ date ]</a>
+              <a href="thread.html#23029">[ thread ]</a>
+              <a href="subject.html#23029">[ subject ]</a>
+              <a href="author.html#23029">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Maksim Kasimov wrote ..
+&gt;<i> Hi Graham, i'm very pleased to get your answer, thank you!
+</I>&gt;<i> 
+</I>&gt;<i> &gt;I also question why you would want to do that anyway, ie., have a separate
+</I>&gt;<i> &gt;not found page for every file resource. Care to explain what you thing
+</I>&gt;<i> you
+</I>&gt;<i> &gt;get from it?
+</I>&gt;<i> 
+</I>&gt;<i> take it as &quot;default attribute&quot;, not as &quot;not found page&quot;, but defining
+</I>&gt;<i> default attribute is a native thing (at least for pythonic applications).
+</I>&gt;<i> And having ability to define or not define default attribute, in case of
+</I>&gt;<i> mod_python.publisher, is also not a bad thing, just make it more flexible.
+</I>&gt;<i> Isn't it?
+</I>&gt;<i> But any way, i do not  insist.
+</I>&gt;<i> 
+</I>&gt;<i> As we all know, there not only web related projects that uses Apache
+</I>&gt;<i> web-server and can use mod_python.publisher - there are a lot of things
+</I>&gt;<i> based on http-protocol.
+</I>&gt;<i> For example i'm planning to port my Wireles Village project based on
+</I>&gt;<i> pythonic web-server to Apache, and there many of such things that exists
+</I>&gt;<i> at
+</I>&gt;<i> the moment and can appears in future.
+</I>&gt;<i> 
+</I>&gt;<i> For web case: all users of my site are mobile operators subscribers, they
+</I>&gt;<i> download various content from my site (melodies, pictures and so on). For
+</I>&gt;<i> a
+</I>&gt;<i> different mobile operators, there are different requirements: page design,
+</I>&gt;<i> error messages format, error message text and many other parameters, it
+</I>&gt;<i> can
+</I>&gt;<i> be wml, xhtml or html format ... and some times some operator can change
+</I>&gt;<i> its
+</I>&gt;<i> own requirements (as i can see it happens many times) and so on.
+</I>&gt;<i> in my turn, i can have a lot of related projects, they must have different
+</I>&gt;<i> logic, or just a design or use different technology to download (such as
+</I>&gt;<i> drm-technology)
+</I>&gt;<i> 
+</I>&gt;<i> For various project it is convinient to have different directories, and
+</I>&gt;<i> i
+</I>&gt;<i> can make some modules with names related to some operator.
+</I>&gt;<i> 
+</I>&gt;<i> One project can have different parts: web/wap-based part, and some
+</I>&gt;<i> http-based part (Wireless Village + gate to another messengers, SyncML
+</I>&gt;<i> or
+</I>&gt;<i> smth else)
+</I>&gt;<i> 
+</I>&gt;<i> My case is not unique.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> &gt;Maybe you shouldn't be using mod_python.publisher but should
+</I>&gt;<i> &gt;be writing a custom dispatcher of your own.
+</I>&gt;<i> 
+</I>&gt;<i> it is looks like a discovering a bicycle again and again. But exactly that
+</I>&gt;<i> change i've suggest before, do not make some unexpected things for those
+</I>&gt;<i> developers that uses mod_python.publisher but did not define _default
+</I>&gt;<i> function.
+</I>
+Your change does have the potential to break existing code as publisher at the
+moment would ignore anything called _default. With this change publisher would
+then treat it as special in some way. If existing code had used this name for
+an internal function, data or class name, then that code would then start
+failing.
+
+Overall I would suggest that using mod_python.publisher would be a poor choice
+for what you are wanting. I sort of get the impression that you chose it
+because it was the only option you could find which provided a means of
+dispatching different URLs to different functions within different code files.
+
+The problem you are going to have with using mod_python.publisher is that
+although it does provide an ability to map URLs to arbitrary functions and
+data, the functions aren't normal mod_python handlers and are instead
+restricted as to what they can do.
+
+For example, you can only use GET/POST requests against them. Thus, if you want
+to use other request methods to implement a more REST like interface it will
+not work. Next is that when you do use POST, it will only accept certain types
+of content type which correspond to what is used in HTML forms. Thus, you
+wouldn't be able to implement using publisher endpoints for JSON-RPC, XML-RPC
+servers, REST handlers which want to accept other content types etc etc.
+
+Other problems are that publisher as written expects the full URL to be able to
+be mapped, meaning in effect you have a static URL system. There are ways to
+overcome this without hacking the publisher internals as you want to do, but
+since you didn't precisely explain why you wanted the _default fallback I can't
+say that it is because of this issue that you want it.
+
+Thus, although you think you are getting a lot of flexibility, you aren't
+really and your users would be quite restricted in what they can do. There
+are thus perhaps better ways of doing what you want, but at the moment your
+description of what you want to do is very broad and isn't specific about
+the desirable features you want.
+
+To give you a better idea of what you could do, you might perhaps indicate
+what of the following basic features you are after, plus add any others you
+think you want.
+
+1. Have URLs be able to map to handlers in different code files corresponding
+to different resources.
+
+2. For a code file for a specific resource, map to different handlers within that
+code file based on what format the user wants to view that resource. Ie.,
+different handlers based on whether they want to view that resource as HTML,
+TXT, CSV, etc.
+
+3. Automatic decoding and mapping to handler parameters of any fields in
+a HTML form POST.
+
+4. Ability for a handler to accept other POST content types besides HTML form
+POST.
+
+5. Within a code file for a resource, the ability to have the additional path
+information be mapped onto handlers contained within instances of classes
+contained in that code file.
+
+6. The ability that not all the additional path information be mapped and that
+instead any extra path information beyond what was mapped to still be available
+to a handler to process.
+
+7. The ability to have parts of the additional path information be passed to
+a handler as parameters, overriding what may have been provided in a HTML
+form post.
+
+8. The ability to have instances of classes created on the fly specific to each
+request rather than all requests being handled by a single instance of a class.
+
+I will have missed some, but to me these are basic desirable features that
+one might want. It would actually be interesting if as a group we can come
+up with a more complete list of such basic features one might want and that
+may even be used as a checklist against available dispatchers/frameworks
+to see if it meets ones requirements or at least how they achieve them.
+
+As is, publisher can't do all these. Some it can do but it isn't going to be
+obvious to the average user how to achieve it using publisher.
+
+Anyway, try to be more specific of the features you want instead of talking
+about the problem domains you users might want to work in and we can
+probably give better feedback.
+
+Graham
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023034.html">[mod_python] how to handle xforms with publisher handler
+</A></li>
+	<LI>Next message: <A HREF="023030.html">[mod_python] mod_python example code
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23029">[ date ]</a>
+              <a href="thread.html#23029">[ thread ]</a>
+              <a href="subject.html#23029">[ subject ]</a>
+              <a href="author.html#23029">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Default function for Publisher in 3.0
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Default%20function%20for%20Publisher%20in%203.0&In-Reply-To=C0FC22C08B82074A88B50061764157772C647F%40johnson.mediapulse.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002083.html">
+   <LINK REL="Next"  HREF="002087.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Default function for Publisher in 3.0</H1>
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Default%20function%20for%20Publisher%20in%203.0&In-Reply-To=C0FC22C08B82074A88B50061764157772C647F%40johnson.mediapulse.net"
+       TITLE="[mod_python] Default function for Publisher in 3.0">grisha at apache.org
+       </A><BR>
+    <I>Mon Nov 11 15:04:58 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002083.html">[mod_python] Default function for Publisher in 3.0
+</A></li>
+        <LI>Next message: <A HREF="002087.html">[mod_python] building mod_python 3.0 on OS X
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2084">[ date ]</a>
+              <a href="thread.html#2084">[ thread ]</a>
+              <a href="subject.html#2084">[ subject ]</a>
+              <a href="author.html#2084">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I looked at the mod_dir.c code, it looks like if you use SetHandler,
+DirectoryIndex has no effect, but if you use AddHandler, DirectoryIndex
+does apply, but the problem is that req.path_info in this case ends up
+bing None (or NULL) as opposed to a blank string, thus the
+&quot;Unsubscriptable Object&quot; error.
+
+To get around this, try this patch:
+
+--- publishre.py.old    Mon Nov 11 14:51:44 2002
++++ publisher.py        Mon Nov 11 14:50:13 2002
+@@ -83,10 +83,12 @@
+     if req.method not in [&quot;GET&quot;, &quot;POST&quot;]:
+         raise apache.SERVER_RETURN, apache.HTTP_METHOD_NOT_ALLOWED
+
+-    func_path = req.path_info[1:] # skip first /
+-    func_path = func_path.replace(&quot;/&quot;, &quot;.&quot;)
+-    if func_path[-1:] == &quot;.&quot;:
+-        func_path = func_path[:-1]
++    func_path = &quot;&quot;
++    if req.path_info:
++        func_path = req.path_info[1:] # skip first /
++        func_path = func_path.replace(&quot;/&quot;, &quot;.&quot;)
++        if func_path[-1:] == &quot;.&quot;:
++            func_path = func_path[:-1]
+
+     # default to 'index' if no path_info was given
+     if not func_path:
+
+
+An imperfection with using AddHandler is that you end up with the &quot;.py&quot; in
+your URL's.
+
+To be able to use the best of both worlds, i.e. SetHandler and a default
+module, the Publisher needs to provide its own default (since
+DirectoryIndex has no effect). Here is another patch for this. Most likely
+these will be in the release version (perhaps slightly modified). This
+will tell the publisher to default to &quot;index.py&quot; is no file is specified.
+
+--- publishre.py.old    Mon Nov 11 14:51:44 2002
++++ publisher.py        Mon Nov 11 14:50:13 2002
+@@ -126,6 +128,9 @@
+
+     ## import the script
+     path, module_name =  os.path.split(req.filename)
++    if not module_name:
++        module_name = &quot;index&quot;
+
+     # get rid of the suffix
+     #   explanation: Suffixes that will get stripped off
+
+
+Grisha
+
+On Mon, 11 Nov 2002, Michael C. Neel wrote:
+
+&gt;<i> This is an untested guess, but I think apache needs to see &quot;index.py&quot; in
+</I>&gt;<i> the document root before it will send the client a redirect to
+</I>&gt;<i> spam.com/index.py - try doing a touch index.py in the doc root and see
+</I>&gt;<i> what happens...
+</I>&gt;<i>
+</I>&gt;<i> Mike
+</I>&gt;<i>
+</I>&gt;<i> &gt; -----Original Message-----
+</I>&gt;<i> &gt; From: Arcady Genkin [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">agenkin-lst-mod_python at thpoon.com</A>]
+</I>&gt;<i> &gt; Sent: Sunday, November 10, 2002 5:11 PM
+</I>&gt;<i> &gt; To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> &gt; Subject: Re: [mod_python] Default function for Publisher in 3.0
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Arcady Genkin &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">agenkin-lst-mod_python at thpoon.com</A>&gt; writes:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt; this does not seem to work with &quot;DirectoryIndex index.py&quot;.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; An update: I had a problem with configuration (using AddHandler
+</I>&gt;<i> &gt; directive instead of the SetHandler, as recommended in the docs).
+</I>&gt;<i> &gt; However, still can't use index.py implicitely.  Now the backtrace
+</I>&gt;<i> &gt; looks this way:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ,----
+</I>&gt;<i> &gt; | Mod_python error: &quot;PythonHandler mod_python.publisher&quot;
+</I>&gt;<i> &gt; |
+</I>&gt;<i> &gt; | Traceback (most recent call last):
+</I>&gt;<i> &gt; |
+</I>&gt;<i> &gt; |   File
+</I>&gt;<i> &gt; &quot;/usr/local/lib/python2.2/site-packages/mod_python/apache.py&quot;,
+</I>&gt;<i> &gt; |   line 335, in HandlerDispatch
+</I>&gt;<i> &gt; |     result = object(req)
+</I>&gt;<i> &gt; |
+</I>&gt;<i> &gt; |   File
+</I>&gt;<i> &gt; &quot;/usr/local/lib/python2.2/site-packages/mod_python/publisher.py&quot;,
+</I>&gt;<i> &gt; |   line 145, in handler
+</I>&gt;<i> &gt; |     module = apache.import_module(module_name,
+</I>&gt;<i> &gt; req.get_config(), [path])
+</I>&gt;<i> &gt; |
+</I>&gt;<i> &gt; |   File
+</I>&gt;<i> &gt; &quot;/usr/local/lib/python2.2/site-packages/mod_python/apache.py&quot;,
+</I>&gt;<i> &gt; |   line 499, in import_module
+</I>&gt;<i> &gt; |     f, p, d = imp.find_module(parts[i], path)
+</I>&gt;<i> &gt; |
+</I>&gt;<i> &gt; | ImportError: No module named
+</I>&gt;<i> &gt; `----
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The httpd.conf contains the following configuration:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ,----
+</I>&gt;<i> &gt; | &lt;Directory &quot;/var/www/data&quot;&gt;
+</I>&gt;<i> &gt; |    PythonDebug On
+</I>&gt;<i> &gt; |    SetHandler python-program
+</I>&gt;<i> &gt; |    PythonHandler mod_python.publisher
+</I>&gt;<i> &gt; |    DirectoryIndex index.py
+</I>&gt;<i> &gt; | &lt;/Directory&gt;
+</I>&gt;<i> &gt; `----
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Something tells me that I am still doing something wrong.  I tried
+</I>&gt;<i> &gt; setting DIrectoryIndex to &quot;index&quot; instead of &quot;index.py&quot;, but this
+</I>&gt;<i> &gt; still did not work.  Any ideas?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Many thanks,
+</I>&gt;<i> &gt; --
+</I>&gt;<i> &gt; Arcady Genkin : CDF Systems Administrator
+</I>&gt;<i> &gt; <A HREF="http://www.cdf.toronto.edu/~agenkin/contact.html">http://www.cdf.toronto.edu/~agenkin/contact.html</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; guilt is the cause of more disauders
+</I>&gt;<i> &gt; than history's most obscene marorders (E.E. Cummings)
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002083.html">[mod_python] Default function for Publisher in 3.0
+</A></li>
+	<LI>Next message: <A HREF="002087.html">[mod_python] building mod_python 3.0 on OS X
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2084">[ date ]</a>
+              <a href="thread.html#2084">[ thread ]</a>
+              <a href="subject.html#2084">[ subject ]</a>
+              <a href="author.html#2084">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

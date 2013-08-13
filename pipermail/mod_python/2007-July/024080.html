@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and mod_wsgi
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20mod_wsgi&In-Reply-To=cfb58d850707271107rc25041dobeb3866d76348c91%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024078.html">
+   <LINK REL="Next"  HREF="024081.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python and mod_wsgi</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20mod_wsgi&In-Reply-To=cfb58d850707271107rc25041dobeb3866d76348c91%40mail.gmail.com"
+       TITLE="[mod_python] mod_python and mod_wsgi">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat Jul 28 00:25:15 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024078.html">[mod_python] mod_python and mod_wsgi
+</A></li>
+        <LI>Next message: <A HREF="024081.html">[mod_python] mod_python and mod_wsgi
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24080">[ date ]</a>
+              <a href="thread.html#24080">[ thread ]</a>
+              <a href="subject.html#24080">[ subject ]</a>
+              <a href="author.html#24080">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 28/07/07, Evan Klitzke &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">evan at yelp.com</A>&gt; wrote:
+&gt;<i> Hi everyone,
+</I>&gt;<i>
+</I>&gt;<i> I saw the announcement for the latest mod_wsgi release on
+</I>&gt;<i> python-announce today, and I'm curious to learn more about it,
+</I>&gt;<i> especially as it compares to mod_python. From what I can tell, the
+</I>&gt;<i> primary difference between the two is that while both can run in
+</I>&gt;<i> &quot;embedded mode&quot;, only mod_wsgi can run in so called &quot;daemon&quot; mode. Are
+</I>&gt;<i> there any compelling reasons to use one over the other when using this
+</I>&gt;<i> embedded mode? Are there any other significant differences?
+</I>
+Reasons to use mod_wsgi in embedded mode in preference to mod_python.
+
+* In mod_wsgi the SCRIPT_NAME variable required by WSGI applications
+is able to be determined automatically, where as with the WSGI
+adapters for mod_python you have to help them out and tell them what
+SCRIPT_NAME is and they will adjust PATH_INFO correspondingly.
+
+* There are various issues with mod_python documented at:
+
+  <A HREF="https://issues.apache.org/jira/browse/MODPYTHON">https://issues.apache.org/jira/browse/MODPYTHON</A>
+
+which have still not been fixed, but which are down correctly in
+mod_wsgi. These include things related to main interpreter simplified
+GIL state API use, atexit processing, reading of request content,
+request content size restrictions etc etc. I can't remember them all
+off the top of my head.
+
+* Because mod_wsgi is all in C code and doesn't use any Python code
+for dispatching or implementing the WSGI interface, it has lower
+runtime overhead. It also doesn't need to drag in lots of Python
+modules like mod_python so any memory use from Python modules is only
+from your own application.
+
+* There is an interpreter reload feature in mod_wsgi which can allow
+you to reload a whole application without restarting Apache. Although,
+the usefulness of this is limited if your application uses certain
+third party C extension modules which have not been written properly
+so as to be able to handle interpreters being recycled.
+
+* It is much simpler to configure mod_wsgi for WSGI applications and
+no third party adapter is required.
+
+* It works on Apache 1.3 exactly the same.
+
+* Various other things I can't remember at the moment.
+
+Reasons to still use mod_python instead of embedded mode of mod_python.
+
+* It is possible to hook into other phases of Apache such as
+authentication/authorisation. This might be needed for example where
+you want to use Django user/passwd database to control access to non
+Python aspects of the web server such as Subversion repository access.
+
+Although mod_wsgi can't provided this functionality now, a future
+companion module to mod_wsgi will however provide some means of
+allowing Python code to be used to implement an authentication
+provider and/or authorisation control.
+
+* Only WSGI applications can be hosted by mod_wsgi whereas mod_python
+is a platform for developing web applications in its own right, giving
+access to various internals of Apache as well as providing support for
+forms handling, sessions, page templating, URL dispatching etc. If
+used correctly mod_python also provides a module reloading
+functionality which can also help to avoid having to restart Apache.
+
+Although any interaction between mod_wsgi and Apache is currently
+limited to what you can do with Apache directives, for example, using
+Apache directives to insert input or output filters, a companion
+module to mod_wsgi will in the future optionally provide access to a
+full SWIG binding for the Apache API, thus allowing a lot of what
+mod_python can currently do to be done, plus a lot of new stuff.
+
+* Various other things I can't remember at the moment.
+
+All up, it really depends on what you are wanting to do. If you are
+only wanting to host an existing WSGI application or framework, or the
+application you are writing is WSGI compliant and you want to be able
+to target it at different hosting platforms, then mod_wsgi will most
+likely be a better choice because it is purpose built for that. If you
+want to explore using mod_python to control Apache at a lower level,
+then mod_python is currently the only way of doing it using the Python
+language.
+
+In time mod_wsgi will branch into other areas by way of providing
+companion modules which will provide facilities which only mod_python
+currently provides, but not sure how long before that occurs. One
+thing that has to happen first is that the internal APIs of mod_wsgi
+have to be exposed and formalised. Once that is done then these
+companion modules can also be written and made available.
+
+Because there will be an API for harnessing the mod_wsgi internals for
+Python interpreter creation and management, and for injecting special
+Python objects into the WSGI application environment, it may even end
+up serving as a platform used by independent parties to develop their
+own Apache modules which extend on mod_wsgi and Apache/Python support.
+This will make it much easier to develop new Python related stuff for
+Apache than currently exists with mod_python as in most cases with
+mod_python there isn't a choice but for the new functionality to be
+added to mod_python core itself. A person wanting extensions is
+therefore dependent on the mod_python developers. The intention is
+that this will not be the case with mod_wsgi but that it will have
+this open internal interface which can be hooked into without needed
+to modify mod_wsgi itself.
+
+Note, I may be a bit biased. ;-)
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024078.html">[mod_python] mod_python and mod_wsgi
+</A></li>
+	<LI>Next message: <A HREF="024081.html">[mod_python] mod_python and mod_wsgi
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24080">[ date ]</a>
+              <a href="thread.html#24080">[ thread ]</a>
+              <a href="subject.html#24080">[ subject ]</a>
+              <a href="author.html#24080">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,124 @@
+[From nobody Thu Oct  6 06:41:34 2005
+Message-ID: &lt;4344FAE8.6000601@thennion.demon.co.uk&gt;
+Date: Thu, 06 Oct 2005 11:22:32 +0100
+From: Trevor Hennion &lt;trevor@thennion.demon.co.uk&gt;
+User-Agent: Mozilla Thunderbird 1.0.6 (X11/20050716)
+X-Accept-Language: en-us, en
+MIME-Version: 1.0
+To: reghigh &lt;reghigh@thefactz.org&gt;
+Subject: Re: [mod_python] multiple requests to authenhandler for a single url
+References: &lt;4343F995.8080604@thefactz.org&gt;
+	&lt;43445B1A.8000008@sympatico.ca&gt;	&lt;20051005231340.D29249@grisha.dyndns.org&gt;
+	&lt;4344EAAB.9090904@thefactz.org&gt;
+In-Reply-To: &lt;4344EAAB.9090904@thefactz.org&gt;
+Content-Type: text/plain; charset=ISO-8859-1; format=flowed
+Content-Transfer-Encoding: 7bit
+X-UID: 496
+X-Keywords: 
+
+reghigh wrote:
+&gt; Gregory (Grisha) Trubetskoy wrote:
+&gt; 
+&gt;&gt;
+&gt;&gt;
+&gt;&gt; On Wed, 5 Oct 2005, Jim Gallacher wrote:
+&gt;&gt;
+&gt;&gt;&gt; It's not too much of a stretch to imagine that it may call the auth 
+&gt;&gt;&gt; handler once for each subdirectory in a url as well.
+&gt;&gt;
+&gt;&gt;
+&gt;&gt;
+&gt;&gt; This is exactly how it works - the handler is called once for every 
+&gt;&gt; directory. One way to think of it is to ask a question - How else 
+&gt;&gt; would you get an opportunity to check whether a directory is allowed 
+&gt;&gt; to be seen from outside?
+&gt; 
+&gt; 
+&gt; Thanks for the replies especially to Jim for the points about searching 
+&gt; for htaccess. The idea about apache producing an authen request for each 
+&gt; subdirectory is what I thought originally but the following results 
+&gt; (from original mail) undermine that:
+&gt; 
+&gt; When I replace &lt;Location /&gt; with &lt;Location /x&gt;
+&gt; 
+&gt; Then
+&gt; 
+&gt;   /x -&gt; (/x) = 1 request
+&gt;   /xx -&gt; not processed by handler
+&gt;   /x/y -&gt; (/x/y) = 1 request
+&gt;   /x/x/y -&gt; (/x/y, /x/x/y) = 2 requests
+&gt; 
+&gt; If apache really were checking every part of the hierarchy why don't we 
+&gt; have:
+&gt; 
+&gt; /x/y -&gt; (/y, /x/y)?
+&gt; 
+&gt; One answer might be that apache does go through every subdirectory and 
+&gt; then matches against Location command so we would have:
+&gt; 
+&gt; /y -&gt; Location /x -&gt; no match
+&gt; /x/y -&gt; Location /x -&gt; match
+&gt; 
+&gt; Under this hypothesis one should have /x/y/x -&gt; (/x, /x/y/x).
+&gt; 
+&gt; However a quick check with /x/y/x shows this is not the case (this is 
+&gt; also seen in the second example i give) since /x/y/x produces only one 
+&gt; request (i.e. /x/y/x -&gt; (/x/y/x)).
+&gt; 
+&gt; The second, more complex, LocationMatch testing in my original mail was 
+&gt; an attempt to explore this further. What it means is that the best 
+&gt; hypothesis I can come up with is:
+&gt; 
+&gt; 1. Apache breaks a url up from top down so /x/y/z -&gt; /z, /y/z, /x/y/z
+&gt; 2. Apache then matches each of these against the location directive. 
+&gt; HOWEVER it must have some kind of rule where it first matches from the 
+&gt; right end of that list and once it enconters a failure to match it halts.
+&gt; 3. Apache then generates authen requests etc
+&gt; 
+&gt; Item 2 is rather confusing since it definitely seems the authenhandler 
+&gt; gets urls in the order given yet apache must process from complete url 
+&gt; down to smallest fragment (how else do we explain that /x/y/x only 
+&gt; generates one request?)
+&gt; 
+&gt;&gt; What happens if you set &quot;AllowOverride None&quot;?
+&gt;&gt; Note that AllowOverride is only available in a &lt;Directory&gt; section. 
+&gt; 
+&gt; 
+&gt; I have augmented my apache config to be:
+&gt; 
+&gt;   &lt;Directory /&gt;
+&gt;     AllowOverride None
+&gt;   &lt;/Directory&gt;
+&gt;   &lt;Location /x&gt;
+&gt;       AuthType Basic
+&gt;       AuthName &quot;Restricted Area&quot;
+&gt;       Require valid-user
+&gt;   &lt;/Location&gt;
+&gt; 
+&gt; And have also replaced / in Directory with document root but it makes no 
+&gt; difference that I can see.
+&gt; 
+&gt; Regards,
+&gt; 
+&gt; Tristan
+
+Hi,
+
+There are limitations in using &lt;Location&gt; directives.
+ From the Apache manual:
+
+&lt;Location&gt; sections operate completely outside the filesystem. This has 
+several consequences. Most importantly, &lt;Location&gt; directives should not 
+be used to control access to filesystem locations.
+When to use &lt;Location&gt;
+Use &lt;Location&gt; to apply directives to content that lives outside the 
+filesystem. For content that lives in the filesystem, use &lt;Directory&gt; 
+and &lt;Files&gt;. An exception is &lt;Location /&gt;, which is an easy way to apply 
+a configuration to the entire server.
+
+HTH
+
+Trevor Hennion
+http://www.infocentrality.co.uk
+
+]

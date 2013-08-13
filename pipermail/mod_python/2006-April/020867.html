@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] finding length of user file before uploading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20finding%20length%20of%20user%20file%20before%20uploading&In-Reply-To=44405C27.7050403%40cogeco.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020866.html">
+   <LINK REL="Next"  HREF="020868.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] finding length of user file before uploading</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20finding%20length%20of%20user%20file%20before%20uploading&In-Reply-To=44405C27.7050403%40cogeco.ca"
+       TITLE="[mod_python] finding length of user file before uploading">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Apr 14 22:54:50 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020866.html">[mod_python] finding length of user file before uploading
+</A></li>
+        <LI>Next message: <A HREF="020868.html">[mod_python] finding length of user file before uploading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20867">[ date ]</a>
+              <a href="thread.html#20867">[ thread ]</a>
+              <a href="subject.html#20867">[ subject ]</a>
+              <a href="author.html#20867">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 15/04/2006, at 12:36 PM, greg wrote:
+
+&gt;<i> I want a script (PSP preferred, custom handler if need be) that can
+</I>&gt;<i> cancel an upload if the file is too large, or is taking too long.
+</I>&gt;<i> The list archives have a few hacks for custom uploads using:
+</I>&gt;<i>
+</I>&gt;<i> 	util.FieldStorage(req, file_callback=FileFactory)
+</I>&gt;<i>
+</I>&gt;<i> However, this parameter is not in the official docs, and several
+</I>&gt;<i> previous posters noticed the behaviour breaking between versions.
+</I>&gt;<i> My system is Debian, Apache2, mod_python 3.1.3-3.
+</I>&gt;<i> When I try the file_callback trick, I get:
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/var/www/upload.psp&quot;, line 40, in ?
+</I>&gt;<i>     frm = util.FieldStorage(req, file_callback=make_file)
+</I>&gt;<i>
+</I>&gt;<i> TypeError: __init__() got an unexpected keyword argument  
+</I>&gt;<i> 'file_callback'
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I presume that undocumented feature has become extinct in recent  
+</I>&gt;<i> versions.
+</I>&gt;<i>
+</I>&gt;<i> And, even if it had worked, it still doesn't relay the size of the
+</I>&gt;<i> file until the transfer is eating time and memory.
+</I>&gt;<i> I would like to avoid making a custom handler that gets the data  
+</I>&gt;<i> directly from the client--it seems like I would re-invent the  
+</I>&gt;<i> wheel. A slower wheel.
+</I>&gt;<i>
+</I>&gt;<i> What is the best way to aquire the filesize before the upload starts?
+</I>
+The file_callback and field_callback parameters are new features in
+unreleased 3.2.9 and 3.3.X. That is why you can find them. See
+documentation at:
+
+   <A HREF="http://svn.apache.org/viewcvs.cgi/httpd/mod_python/branches/3.2.x/">http://svn.apache.org/viewcvs.cgi/httpd/mod_python/branches/3.2.x/</A> 
+Doc/modpython4.tex?rev=393781&amp;view=markup
+
+The simplest way to avoid uploading something that is too big is to
+check the content length of the incoming request. You would need
+to use a custom handler for that though.
+
+Because some handlers such as mod_python.publisher have already
+consumed request content by the time your code has been called,
+the simplest thing to do is to do the check in a fixup handler which is
+run in addition too, but before the normal content handler.
+
+For example:
+
+   PythonFixupHandler check_for_large_uploads
+
+   # check_for_large_uploads.py
+
+   from mod_python import apache
+
+   UPLOAD_LIMIT = 1000000
+
+   def fixuphandler(req):
+     length = int(req.headers_in.get(&quot;Content-Length&quot;, &quot;0&quot;))
+     if length &gt;= UPLOAD_LIMIT:
+       req.content_type = 'text/plain'
+       req.status = apache.HTTP_BAD_REQUEST
+       req.write('upload too big\n')
+       return apache.DONE
+
+     return apache.OK
+
+The important bit is that the fixup handler must cause call to following
+content handler to be aborted. This is why it explicitly sets req.status
+and then returns apache.DONE instead of apache.OK. The handler
+needs to also construct any custom response.
+
+Not sure there is a simple way of handling an upload that takes too
+long. I haven't looked at the file_callback feature to see whether that
+might make it easier.
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020866.html">[mod_python] finding length of user file before uploading
+</A></li>
+	<LI>Next message: <A HREF="020868.html">[mod_python] finding length of user file before uploading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20867">[ date ]</a>
+              <a href="thread.html#20867">[ thread ]</a>
+              <a href="subject.html#20867">[ subject ]</a>
+              <a href="author.html#20867">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,255 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Python Debugger doesn't start in Mod_Python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Python%20Debugger%20doesn%27t%20start%20in%20Mod_Python&In-Reply-To=4648DDB7.10108%40hispeed.ch">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023624.html">
+   <LINK REL="Next"  HREF="023600.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Python Debugger doesn't start in Mod_Python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Python%20Debugger%20doesn%27t%20start%20in%20Mod_Python&In-Reply-To=4648DDB7.10108%40hispeed.ch"
+       TITLE="[mod_python] Python Debugger doesn't start in Mod_Python">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Mon May 14 20:33:15 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023624.html">[mod_python] Python Debugger doesn't start in Mod_Python
+</A></li>
+        <LI>Next message: <A HREF="023600.html">[mod_python] Multiple loading of same module with winnt MPM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23629">[ date ]</a>
+              <a href="thread.html#23629">[ thread ]</a>
+              <a href="subject.html#23629">[ subject ]</a>
+              <a href="author.html#23629">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Did half suspect that setting AP_PARENT_ID may screw up other things. :-(
+
+And yes your feedback does suggest that the AP_PARENT_ID change in the
+code needs to be undone. I hope that Jeff Robins who originally
+suggested the change is noting this conversation. :-)
+
+What really needs to be done is for the mod_python parent process
+initialisation to be completely rewritten so that it properly destroys
+the Python interpreter and the global mutex locks it creates when
+appropriate Apache memory pool is destroyed so that when an Apache
+restart is done that everything is undone and memory reclaimed. On the
+reinitialisation mod_python would then do everything over again
+instead of skipping it because of Python already being initialised.
+Does also means that one can't skip initialising the interpreter in
+the main process on Windows even if redundant on that platform for
+normal case. Luckily I have been through working out what needs to be
+done in doing all this stuff properly for mod_wsgi.
+
+Graham
+
+On 15/05/07, Ren&#233; Grob &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rpgrob at hispeed.ch</A>&gt; wrote:
+&gt;<i> Graham Dumpleton schrieb:
+</I>&gt;<i> &gt; BTW, a couple of things to try.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 1. See if running httpd with options '-X -DONE_PROCESS' makes a
+</I>&gt;<i> &gt; difference.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 2. See if you can arrange for environment variable called
+</I>&gt;<i> &gt; 'AP_PARENT_PID' to be set to '0' in the environment that the httpd
+</I>&gt;<i> &gt; process is running so as to stop mod_python avoiding its
+</I>&gt;<i> &gt; initialisation step. Am not sure what magic is required on Windows to
+</I>&gt;<i> &gt; set environment variables.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On 11/05/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt; I suspect it is because of this change being made:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-195">http://issues.apache.org/jira/browse/MODPYTHON-195</A>
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; I had been recently wondering whether the change would upset single
+</I>&gt;<i> &gt;&gt; process debugging.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; As it is, the issue has had to be reopened because it causes another
+</I>&gt;<i> &gt;&gt; minor nuisance issue with version information for Python/mod_python
+</I>&gt;<i> &gt;&gt; not being displayed.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Do you have the ability to compile mod_python from source code
+</I>&gt;<i> &gt;&gt; yourself and thereby remove the change described in that issue and see
+</I>&gt;<i> &gt;&gt; if it then works?
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; It still may be the case however that single process debugging has
+</I>&gt;<i> &gt;&gt; never worked on Windows for one reason or another since people so
+</I>&gt;<i> &gt;&gt; rarely use it.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Graham
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; On 11/05/07, Ren&#233; Grob &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rpgrob at hispeed.ch</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt; &gt; Since my small intranet application keeps getting more complex I tried
+</I>&gt;<i> &gt;&gt; &gt; to fix some bugs using the Python Debugger. According to the
+</I>&gt;<i> &gt;&gt; Mod_python
+</I>&gt;<i> &gt;&gt; &gt; manual I added the &quot;PythonEnablePdb On&quot; directive into the directory
+</I>&gt;<i> &gt;&gt; &gt; context of my Python application and started httpd from the command
+</I>&gt;<i> &gt;&gt; line
+</I>&gt;<i> &gt;&gt; &gt; with the option -DONE_PROCESS (after stopping httpd first, of course).
+</I>&gt;<i> &gt;&gt; &gt; But Apache didn't start and an error window occurred instead
+</I>&gt;<i> &gt;&gt; showing the
+</I>&gt;<i> &gt;&gt; &gt; following message:
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; &quot;Runtime Error! Program: &lt;Apache path&gt;\httpd.exe. This application has
+</I>&gt;<i> &gt;&gt; &gt; requested the Runtime to terminate it in an unusual way. Please
+</I>&gt;<i> &gt;&gt; contact
+</I>&gt;<i> &gt;&gt; &gt; the applications's support team for more information&quot;.
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; I'm using the following prebuilt binaries on Win2k SP4:
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; mod_python-3.3.1.win32-py2.5-Apache2.2.exe
+</I>&gt;<i> &gt;&gt; &gt; python-2.5.msi
+</I>&gt;<i> &gt;&gt; &gt; apache_2.2.4-win32-x86-no_ssl.msi
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; When Apache is started with the option -DONE_PROCESS but without
+</I>&gt;<i> &gt;&gt; &gt; Mod_python there is no error and no Mod_python either (of course).
+</I>&gt;<i> &gt;&gt; On a
+</I>&gt;<i> &gt;&gt; &gt; different machine with WinXP SP2, Apache 2.2.3, Python 2.4.3 and
+</I>&gt;<i> &gt;&gt; &gt; Mod_python 2.7.10 the debugger works as expected.
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; Does anyone have an idea how to fix this?
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; Thanks
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; Ren&#233;
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; _______________________________________________
+</I>&gt;<i> &gt;&gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt;&gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt;&gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> Dear Graham
+</I>&gt;<i>
+</I>&gt;<i> Thanks for your immediate answer. Your first suggestion, to recompile
+</I>&gt;<i> Modpython with the indicated corrections will probably
+</I>&gt;<i>
+</I>&gt;<i> be the best. But unfortunately I do not have a Microsoft compiler in my
+</I>&gt;<i> box. Does anybody know wether I can use the freely
+</I>&gt;<i>
+</I>&gt;<i> downloadable C++ 'express' version for this?
+</I>&gt;<i>
+</I>&gt;<i> So I tried out your second suggestions: Starting httpd with the '-X
+</I>&gt;<i> -DONE_PROCESS' option results in the same runtime error.
+</I>&gt;<i>
+</I>&gt;<i> The same happens when I add the '-X' option alone. After setting the
+</I>&gt;<i> environment variable AP_PARENT_PID to 0 (which is really
+</I>&gt;<i>
+</I>&gt;<i> no magic: simply type 'set AP_PARENT_PID=0' &lt;enter&gt; at the command line
+</I>&gt;<i> [without the quotes]) strange things happen. Apache
+</I>&gt;<i>
+</I>&gt;<i> aborts with the following error:
+</I>&gt;<i>
+</I>&gt;<i> 'httpd: Could not open configuration file /apache/conf/httpd.conf: The
+</I>&gt;<i> system cannot find the indicated path'
+</I>&gt;<i>
+</I>&gt;<i> This is independent of wether I add the '-DONE_PROCESS' and/or the '-X'
+</I>&gt;<i> option or none at all.
+</I>&gt;<i>
+</I>&gt;<i> After adding the option '-f &lt;path to httpd.conf&gt;/httpd.conf' Apache
+</I>&gt;<i> seems to start but the shell returns to the prompt after a
+</I>&gt;<i>
+</I>&gt;<i> second without any error message. Looking up the process list doesn't
+</I>&gt;<i> show any httpd running. So I had a look at the error.log
+</I>&gt;<i>
+</I>&gt;<i> where I found the following messages:
+</I>&gt;<i>
+</I>&gt;<i> [Mon May 14 23:20:31 2007] [notice] mod_python: Creating 8 session
+</I>&gt;<i> mutexes based on 0 max processes and 250 max threads.
+</I>&gt;<i> [Mon May 14 23:20:31 2007] [notice] Child 2176: Child process is running
+</I>&gt;<i> [Mon May 14 23:20:31 2007] [crit] (OS 6)Invalid Handle.  : Child 2176:
+</I>&gt;<i> Unable to retrieve the ready event from the parent
+</I>&gt;<i>
+</I>&gt;<i> With the '-DONE_PROCESS'and/or '-X' option it looks a bit different but
+</I>&gt;<i> essentially with the same result:
+</I>&gt;<i>
+</I>&gt;<i> [Mon May 14 23:28:05 2007] [notice] mod_python: Creating 8 session
+</I>&gt;<i> mutexes based on 0 max processes and 250 max threads.
+</I>&gt;<i> [Mon May 14 23:28:06 2007] [notice] Child 1084: Child process is running
+</I>&gt;<i> [Mon May 14 23:28:06 2007] [notice] Child 1084: Acquired the start mutex.
+</I>&gt;<i> [Mon May 14 23:28:06 2007] [notice] Child 1084: Starting 250 worker threads.
+</I>&gt;<i> [Mon May 14 23:28:06 2007] [crit] (OS 6)Invalid Handle.  : Child 1084:
+</I>&gt;<i> WAIT_FAILED -- shutting down server
+</I>&gt;<i> [Mon May 14 23:28:06 2007] [notice] Child 1084: Starting thread to
+</I>&gt;<i> listen on port 80.
+</I>&gt;<i> [Mon May 14 23:28:07 2007] [notice] Child 1084: Released the start mutex
+</I>&gt;<i> [Mon May 14 23:28:08 2007] [notice] Child 1084: Waiting for 250 worker
+</I>&gt;<i> threads to exit.
+</I>&gt;<i> [Mon May 14 23:28:08 2007] [notice] Child 1084: All worker threads have
+</I>&gt;<i> exited.
+</I>&gt;<i> [Mon May 14 23:28:08 2007] [notice] Child 1084: Child process is exiting
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> By the way I tried to start the debugger on a different installation
+</I>&gt;<i> with Apache 2.2.3, Modpython 3.2.10 and Python 2.43 on
+</I>&gt;<i>
+</I>&gt;<i> WinXPSP2. It worked just as expected. The same was true for an older
+</I>&gt;<i> installation using Apache 2.0.52, Modpython 3.1.3 and
+</I>&gt;<i>
+</I>&gt;<i> Python 2.3.4 on WinXPSP1. So the 'problem' must have been introduced
+</I>&gt;<i> very recently...(I'm sorry I mixed up the version number
+</I>&gt;<i>
+</I>&gt;<i> of Modpython in the first post: I didn't test Modpython 2.7.10).
+</I>&gt;<i>
+</I>&gt;<i> This additional information probably supports your hypothesis that the
+</I>&gt;<i> problem is related to
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-195">http://issues.apache.org/jira/browse/MODPYTHON-195</A> doesn't it?
+</I>&gt;<i>
+</I>&gt;<i> Ren&#233;
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023624.html">[mod_python] Python Debugger doesn't start in Mod_Python
+</A></li>
+	<LI>Next message: <A HREF="023600.html">[mod_python] Multiple loading of same module with winnt MPM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23629">[ date ]</a>
+              <a href="thread.html#23629">[ thread ]</a>
+              <a href="subject.html#23629">[ subject ]</a>
+              <a href="author.html#23629">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

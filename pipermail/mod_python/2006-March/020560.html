@@ -1,0 +1,141 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Lock problem with FileSession
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Lock%20problem%20with%20FileSession&In-Reply-To=BC53C974C3B9E542BC0A9BD4C5B1168AE1C849%40NEWMAIL.manord.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020559.html">
+   <LINK REL="Next"  HREF="020563.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Lock problem with FileSession</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Lock%20problem%20with%20FileSession&In-Reply-To=BC53C974C3B9E542BC0A9BD4C5B1168AE1C849%40NEWMAIL.manord.com"
+       TITLE="[mod_python] Lock problem with FileSession">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Mar  7 04:18:39 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020559.html">[mod_python] Lock problem with FileSession
+</A></li>
+        <LI>Next message: <A HREF="020563.html">[mod_python] Mod_python 3.2.8 build on AIX 5.1 using IBMm VAC v6
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20560">[ date ]</a>
+              <a href="thread.html#20560">[ thread ]</a>
+              <a href="subject.html#20560">[ subject ]</a>
+              <a href="author.html#20560">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 07/03/2006, at 8:00 PM, Manera, Villiam wrote:
+
+&gt;<i> On windows work fine
+</I>&gt;<i>
+</I>&gt;<i> On linux: RH3 EL apache 2.0.55 mod_python:  3.2.8
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import Session
+</I>&gt;<i>
+</I>&gt;<i> def fileses(req):
+</I>&gt;<i> 	#sess =  Session.FileSession(req)
+</I>&gt;<i> 	sess =  Session.DbmSession(req)
+</I>&gt;<i> #	sess.unlock()
+</I>&gt;<i> 	return fileses1(req)
+</I>&gt;<i> 		
+</I>&gt;<i> def fileses1(req):
+</I>&gt;<i> 	#sess =  Session.FileSession(req)
+</I>&gt;<i> 	sess =  Session.DbmSession(req)
+</I>&gt;<i> 	return 'due'
+</I>&gt;<i>
+</I>&gt;<i> With DbmSession again work fine
+</I>&gt;<i> With FileSession and without sess.unlock() fileses1 hang
+</I>
+Without the unlock(), they both should probably hang.
+
+The basic rule with sessions is that you should only create one per  
+request.
+This is because the first will grab a lock on the session, creating a  
+second
+will cause the thread to deadlock on itself as it waits for the first  
+session to
+be unlocked.
+
+You should use code like the following:
+
+_get_session(req):
+         if not hasattr(req,&quot;session&quot;):
+             req.session = Session.DbmSession(req)
+         return req.session
+
+def fileses(req):
+        sess = _get_session(req)
+	return fileses1(req)
+		
+def fileses1(req):
+	sess =  _get_session(req)
+	return 'due'
+
+Ie., cache the session object in the request and use cached one if it  
+already
+exists.
+
+Anyway, this will work in most cases, it actually needs to be more  
+complicated
+than this to work with internal requests and other strange cases.
+
+Graham
+
+
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020559.html">[mod_python] Lock problem with FileSession
+</A></li>
+	<LI>Next message: <A HREF="020563.html">[mod_python] Mod_python 3.2.8 build on AIX 5.1 using IBMm VAC v6
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20560">[ date ]</a>
+              <a href="thread.html#20560">[ thread ]</a>
+              <a href="subject.html#20560">[ subject ]</a>
+              <a href="author.html#20560">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

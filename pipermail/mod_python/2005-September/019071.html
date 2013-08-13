@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Global, but threadsafe request object?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Global%2C%20but%20threadsafe%20request%20object%3F&In-Reply-To=c298f2d705091422527831e073%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019068.html">
+   <LINK REL="Next"  HREF="019044.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Global, but threadsafe request object?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Global%2C%20but%20threadsafe%20request%20object%3F&In-Reply-To=c298f2d705091422527831e073%40mail.gmail.com"
+       TITLE="[mod_python] Global, but threadsafe request object?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Sep 15 07:59:17 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019068.html">[mod_python] Global, but threadsafe request object?
+</A></li>
+        <LI>Next message: <A HREF="019044.html">[mod_python] Apache 2.1?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19071">[ date ]</a>
+              <a href="thread.html#19071">[ thread ]</a>
+              <a href="subject.html#19071">[ subject ]</a>
+              <a href="author.html#19071">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 15/09/2005, at 3:52 PM, Nicolas Lehuen wrote:
+
+&gt;<i> The only way to do this safely and in a portable way would be to store 
+</I>&gt;<i> the request object in a thread-local variable (see 
+</I>&gt;<i> <A HREF="http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/302088">http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/302088</A> ). 
+</I>&gt;<i> Thread locals are only present in Python 2.4, though (but a pure 
+</I>&gt;<i> Python implementation is provided and nothing prevents it from running 
+</I>&gt;<i> on previous versions of Python).
+</I>&gt;<i>
+</I>&gt;<i>  Regards,
+</I>&gt;<i>  Nicolas
+</I>&gt;<i>
+</I>&gt;<i> 2005/9/14, Fabiano Sidler &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">fabianosidler at swissonline.ch</A>&gt;:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In a web application I planning I need to access the request object 
+</I>&gt;&gt;<i> from a big
+</I>&gt;&gt;<i> number of functions and classes. Therefore I could pass it each time 
+</I>&gt;&gt;<i> to each
+</I>&gt;&gt;<i> of the objects working on it, which has very ugly disadvantages like 
+</I>&gt;&gt;<i> inherent
+</I>&gt;&gt;<i> portability loss and weird parameter lists. So my question to you: Is 
+</I>&gt;&gt;<i> there a
+</I>&gt;&gt;<i> way to make it global-like, if necessary over a singleton-like 
+</I>&gt;&gt;<i> wrapper class
+</I>&gt;&gt;<i> returning it? I know, this looks more likely a python problem than a 
+</I>&gt;&gt;<i> modpython
+</I>&gt;&gt;<i> one, but perhaps someone here knows a simple solution with using mod-
+</I>&gt;&gt;<i> python specific code?
+</I>
+In the absence of Python 2.4, I use the code given at end of email. The
+_cache_request() method should be called at the start of the top level
+handler. Rather than do this in every handler, you could probably also
+create a special handler which does only that and then returns
+apache.OK. You can then use fact that you can list multiple handlers to
+PythonHandler directive. For example:
+
+   PythonHandler my_request_object_cache
+   PythonHandler mod_python.publisher
+
+# my_request_object_cache.py
+
+try:
+     import threading
+     _current_thread = threading.currentThread
+except:
+     def _current_thread():
+         return None
+
+_cache = {}
+
+def _discard_request(thread):
+     try:
+         _cache[thread].pop()
+         if len(_cache[thread]) == 0:
+             del _cache[thread]
+     except:
+         pass
+
+def _cache_request(req):
+     thread = _current_thread()
+     if _cache.has_key(thread):
+         if _cache[thread][-1] == req:
+             return
+         _cache[thread].append(req)
+     else:
+         _cache[thread] = [req]
+
+     req.register_cleanup(_discard_request,(thread,))
+
+def current_request():
+     try:
+         thread = _current_thread()
+         return _cache[thread][-1]
+     except:
+         pass
+
+# Untested handler which will cache request when chain
+# of handlers is defined. Make this the first handler
+# defined to PythonHandler directive.
+
+def handler(req):
+     _cache_request(req)
+     return apache.OK
+
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019068.html">[mod_python] Global, but threadsafe request object?
+</A></li>
+	<LI>Next message: <A HREF="019044.html">[mod_python] Apache 2.1?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19071">[ date ]</a>
+              <a href="thread.html#19071">[ thread ]</a>
+              <a href="subject.html#19071">[ subject ]</a>
+              <a href="author.html#19071">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,219 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Multiple returns to client
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20returns%20to%20client&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022022.html">
+   <LINK REL="Next"  HREF="022026.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Multiple returns to client</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martijn Moeling</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20returns%20to%20client&In-Reply-To="
+       TITLE="[mod_python] Multiple returns to client">martijn at xs4us.nu
+       </A><BR>
+    <I>Wed Sep  6 11:16:03 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022022.html">[mod_python] Multiple returns to client
+</A></li>
+        <LI>Next message: <A HREF="022026.html">[mod_python] installing on JBoss
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22024">[ date ]</a>
+              <a href="thread.html#22024">[ thread ]</a>
+              <a href="subject.html#22024">[ subject ]</a>
+              <a href="author.html#22024">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I had similair behaviour when I started working with mod_python,
+After some digging in the mod_python docs I found that it had to do with
+global vars in the python module where the handler is defined.
+
+Something like:
+
+Host = &quot;&quot;
+Def handler(req)
+	Global host
+	Host=req.host.split(&quot;.&quot;)[0]
+
+I solved this by creating a class which is created and destroyed in the
+handler, within the init of the class I set the database connection and
+I can use global vars
+
+
+Class visitor:
+	Def __init__(self):
+		Self.Db.init
+		Self.var=&quot;&quot;
+	
+	Def myhandler(Self,req):
+		#Do all the stuff you want
+		Return apache.OK
+8&lt;-------------------------------
+
+Import visitors
+
+Def handler(req):
+    Vis_con=visitor()
+    Result = Vis_con.myhandler(req)
+    Return result
+
+(this is rough unchecked code but just explains my point)
+
+-----Original Message-----
+From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+[mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] On Behalf Of Jim Gallacher
+Sent: Wednesday, September 06, 2006 1:45 PM
+To: Ethan Toan Ton
+Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Subject: Re: [mod_python] Multiple returns to client
+
+Ethan Toan Ton wrote:
+&gt;<i> Mike,
+</I>&gt;<i> 
+</I>&gt;<i> Thanks for the help.  req.flush() works for sending out the data. 
+</I>&gt;<i> Unfortunately, at the same time, my python program is making requests
+</I>and
+&gt;<i> receiving data from other http sources at the same time.  When I run
+</I>the
+&gt;<i> req.flush(), it outputs some of the incoming data as well.  Not sure
+</I>why
+&gt;<i> that is happening.
+</I>
+That doesn't make any sense at all. Perhaps you can give a concrete 
+example? Method req.flush() is a simple wrapper around the Apache 
+ap_rflush() call.
+
+Note that you can also use req.write(some_string, flush=1) to 
+immediately flush the output. For flush=1 causes ap_rflush() to be 
+called as well.
+
+Jim
+
+&gt;<i> Ethan
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i> Your output is buffered in multiple stages. In most cases, you can
+</I>call
+&gt;&gt;<i> &quot;req.flush()&quot; to send data to the client. This will usually work,
+</I>unless
+&gt;&gt;<i> you have a module or a filter installed that collects output until
+</I>the
+&gt;&gt;<i> final stage.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> For example, this pattern shows how to send output from a slow query
+</I>&gt;&gt;<i> back to the user, so that he can see the results as they come back.
+</I>By
+&gt;&gt;<i> calling req.flush() at smart points, we make sure there's some
+</I>feedback
+&gt;&gt;<i> quite efficiently.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> ...
+</I>&gt;&gt;<i>
+</I>req.write(&quot;&lt;P&gt;Results:&lt;/P&gt;&lt;table&gt;&lt;tr&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Date&lt;/th&gt;&lt;/tr&gt;&quot;)
+&gt;&gt;<i> req.flush()
+</I>&gt;&gt;<i> c=database.cursor()
+</I>&gt;&gt;<i> c.execute(&quot;SELECT name,date FROM persons&quot;)
+</I>&gt;&gt;<i> while 1:
+</I>&gt;&gt;<i>     data = c.fetchmany()
+</I>&gt;&gt;<i>     if not data:
+</I>&gt;&gt;<i>         break
+</I>&gt;&gt;<i>     for row in data:
+</I>&gt;&gt;<i>         req.write(&quot;&lt;tr&gt;&lt;td&gt;%s&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;/tr&gt;&quot; % row)
+</I>&gt;&gt;<i>     req.flush()
+</I>&gt;&gt;<i> req.write(&quot;&lt;/table&gt;&quot;)
+</I>&gt;&gt;<i> ...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Mike Looijmans
+</I>&gt;&gt;<i> Philips Natlab / Topic Automation
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Ethan Toan Ton wrote:
+</I>&gt;&gt;&gt;<i> I was wondering if anyone knew of a way to return multiple times to
+</I>a
+&gt;&gt;&gt;<i> client using a Mod-Python event handler.  Using the req.write()
+</I>method
+&gt;&gt;&gt;<i> does nothing until the actual return statement sends all the data in
+</I>one
+&gt;&gt;&gt;<i> message back to the client.  So before you get to the actual return
+</I>&gt;&gt;&gt;<i> statement, can you output back to them more than once?
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022022.html">[mod_python] Multiple returns to client
+</A></li>
+	<LI>Next message: <A HREF="022026.html">[mod_python] installing on JBoss
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22024">[ date ]</a>
+              <a href="thread.html#22024">[ thread ]</a>
+              <a href="subject.html#22024">[ subject ]</a>
+              <a href="author.html#22024">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

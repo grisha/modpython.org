@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonOption and req.get_options()
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonOption%20and%20req.get_options%28%29&In-Reply-To=aff1717d382d9718468402a4060121a3%40flowtheory.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018358.html">
+   <LINK REL="Next"  HREF="018361.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonOption and req.get_options()</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonOption%20and%20req.get_options%28%29&In-Reply-To=aff1717d382d9718468402a4060121a3%40flowtheory.net"
+       TITLE="[mod_python] PythonOption and req.get_options()">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Jun 13 18:26:40 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018358.html">[mod_python] PythonOption and req.get_options()
+</A></li>
+        <LI>Next message: <A HREF="018361.html">[mod_python] SOAP / Web Services handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18359">[ date ]</a>
+              <a href="thread.html#18359">[ thread ]</a>
+              <a href="subject.html#18359">[ subject ]</a>
+              <a href="author.html#18359">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 14/06/2005, at 3:12 AM, Joshua Ginsberg wrote:
+
+&gt;<i> I must be missing something totally obvious here...
+</I>&gt;<i>
+</I>&gt;<i> I've got the base path and base URL for my application defined in  
+</I>&gt;<i> httpd.conf as a PythonOption directive:
+</I>&gt;<i>
+</I>&gt;<i>     PythonOption baseURL <A HREF="http://foo.bar.tld/path/to/app/">http://foo.bar.tld/path/to/app/</A>
+</I>&gt;<i>     PythonOption basePath &quot;/var/www/html/path/to/app/&quot;
+</I>&gt;<i>
+</I>&gt;<i> And then in my PSP code, I'm opening a pickle file based on that  
+</I>&gt;<i> basePath directive:
+</I>&gt;<i>
+</I>&gt;<i> pyOptions = req.get_options()
+</I>&gt;<i> pckPath = pyOptions['basePath']+'signup_data.pck'
+</I>&gt;<i> ifs = open(pckPath)
+</I>&gt;<i>
+</I>&gt;<i> However, I get the following error:
+</I>&gt;<i>
+</I>&gt;<i>   File &quot;/var/www/network/jag/signup/dnq.psp&quot;, line 9, in ?
+</I>&gt;<i>     ifs = open('signup_data.pck')
+</I>&gt;<i>
+</I>&gt;<i> IOError: [Errno 2] No such file or directory: 'signup_data.pck'
+</I>
+Don't put quotes around the value you set basePath to to as they will
+not be removed, it will literally be set to what you put. Ie., use:
+
+     PythonOption baseURL <A HREF="http://foo.bar.tld/path/to/app/">http://foo.bar.tld/path/to/app/</A>
+     PythonOption basePath /var/www/html/path/to/app/
+
+Also recommend using:
+
+   import os
+   pyOptions = req.get_options()
+   pckPath = os.path.join(pyOptions['basePath'],'signup_data.pck')
+
+As you had your code originally, if you forget the trailing '/' on
+the path it will fail. Using os.path.join() will ensure that a slash
+is always added even if basePath doesn't include it.
+
+BTW, there is nothing wrong with using hard coded paths in Apache
+configuration files, but personally I don't like them as when you
+move around directories of an application you potentially have to
+change them.
+
+As such, you might consider making the determination of the root
+of your application more dynamic. You can do this if you always
+have PythonHandler defined at the point of the top directory of
+your web application. Ie., access &quot;req.hlist&quot; (mod_python 3.X)
+and it will give you the name of the directory PythonHandler is
+defined for.
+
+   import os
+   pckPath = os.path.join(req.hlist,'signup_data.pck')
+
+Determining the base URL from req.hlist is possible but requires
+more work. Look at the _ConfigCache._search() method of code in
+the file:
+
+   <A HREF="http://svn.dscpl.com.au/vampire/trunk/software/vampire/config.py">http://svn.dscpl.com.au/vampire/trunk/software/vampire/config.py</A>
+
+for an example. In that case it is using the existence of a config
+file as the root of where you are working with, stopping where the
+PythonHandler directive is defined if no config file found. The result
+of the search are variables defining handler root, config root, base
+URL absolute and base URL relative etc. For example:
+
+    
+<A HREF="http://www.dscpl.com.au/projects/vampire/examples/psp/">http://www.dscpl.com.au/projects/vampire/examples/psp/</A> 
+vampire_config.html
+
+Note that base URL absolute doesn't include HTTP scheme or hostname
+though as these can change dependent on many things. If these are
+needed they should be determined from req, req.server and req.connection
+as necessary.
+
+Graham
+
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018358.html">[mod_python] PythonOption and req.get_options()
+</A></li>
+	<LI>Next message: <A HREF="018361.html">[mod_python] SOAP / Web Services handler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18359">[ date ]</a>
+              <a href="thread.html#18359">[ thread ]</a>
+              <a href="subject.html#18359">[ subject ]</a>
+              <a href="author.html#18359">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] finding length of user file before uploading-revisit
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20finding%20length%20of%20user%20file%20before%20uploading-revisit&In-Reply-To=40d7e4970607180945j761b7a7fr3303967db86239c3%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021610.html">
+   <LINK REL="Next"  HREF="021612.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] finding length of user file before uploading-revisit</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Deron Meranda</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20finding%20length%20of%20user%20file%20before%20uploading-revisit&In-Reply-To=40d7e4970607180945j761b7a7fr3303967db86239c3%40mail.gmail.com"
+       TITLE="[mod_python] finding length of user file before uploading-revisit">deron.meranda at gmail.com
+       </A><BR>
+    <I>Tue Jul 18 13:34:14 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021610.html">[mod_python] finding length of user file before uploading-revisit
+</A></li>
+        <LI>Next message: <A HREF="021612.html">[mod_python] Subclassing Session
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21611">[ date ]</a>
+              <a href="thread.html#21611">[ thread ]</a>
+              <a href="subject.html#21611">[ subject ]</a>
+              <a href="author.html#21611">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 7/18/06, Kevin Albright &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">albrightk at gmail.com</A>&gt; wrote:
+&gt;<i> I am attempting Graham Dumpleton's solution (April 2006) to prevent uploads
+</I>&gt;<i> of files that are deemed to large with the suggested handler he posted
+</I>&gt;<i> (shown below).  I have the PythonFixupHandler listed before
+</I>&gt;<i> mod_python.publisher as instructed in httpd.conf.  Trying this method, I
+</I>&gt;<i> receive the message &quot;upload too big&quot; returned but only after finishing the
+</I>&gt;<i> upload of the offending file (I am assuming that the Fixup handler is not
+</I>&gt;<i> preventing publisher from uploading).  I appreciate any help or insight
+</I>&gt;<i> others can offer.  Many thanks, Kevin
+</I>
+Unfortunately neither HTTP or HTML have any way for the server
+to inform the client about any length limitations it may impose.  It can
+only react after the &quot;upload&quot; has begin.   There's nothing that
+mod_python can do specifically to work around these HTTP
+shortcomings.  But there are still some more things for you to do...
+
+&gt;<i> &gt;&gt; ...
+</I>&gt;<i> &gt;&gt; length = int(req.headers_in.get(&quot;Content-Length&quot;, &quot;0&quot;))
+</I>
+Normally, it is optional for the client to send a Content-Length
+header.  That's why the get() method here uses a default of 0.
+However, the server is allowed to refuse requests that don't
+specify a content length, by returning a 411 &quot;Length Required&quot;
+error.  So you could do instead something like,
+
+   length = req.headers_in.get(&quot;Content-Length&quot;)
+   if length is None:
+       req.status = apache.HTTP_LENGTH_REQUIRED
+       return apache.DONE
+   length = int(length)
+
+Note that you should also probably only do any of this
+checking for POST, PUT, or perhaps HEAD requests.
+
+&gt;<i> &gt;&gt; if length &gt;= UPLOAD_LIMIT:
+</I>&gt;<i> &gt;&gt;   req.content_type  = 'text/plain'
+</I>&gt;<i> &gt;&gt;   req.status = apache.HTTP_BAD_REQUEST
+</I>
+You should be returning a 413 &quot;Request Entity Too Large&quot;
+error rather than a 400---which is the python constant:
+    apache.HTTP_REQUEST_ENTITY_TOO_LARGE
+
+&gt;<i> &gt;&gt;   req.write('upload too big\n')
+</I>&gt;<i> &gt;&gt;   return apache.DONE
+</I>
+Note that per the HTTP 1.1 RFC 2616 section 10.4.14 the
+server is allowed to forcibly close the connection in this
+condition, thereby immediately interrupting the continued
+upload of data.  I'm not sure exactly how mod_python can
+do that.
+-- 
+Deron Meranda
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021610.html">[mod_python] finding length of user file before uploading-revisit
+</A></li>
+	<LI>Next message: <A HREF="021612.html">[mod_python] Subclassing Session
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21611">[ date ]</a>
+              <a href="thread.html#21611">[ thread ]</a>
+              <a href="subject.html#21611">[ subject ]</a>
+              <a href="author.html#21611">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

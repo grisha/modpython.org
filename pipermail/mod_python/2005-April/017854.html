@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Sessions performance and some numbers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20performance%20and%20some%20numbers&In-Reply-To=4255EBFC.9010501%40sympatico.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017852.html">
+   <LINK REL="Next"  HREF="017840.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Sessions performance and some numbers</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20performance%20and%20some%20numbers&In-Reply-To=4255EBFC.9010501%40sympatico.ca"
+       TITLE="[mod_python] Sessions performance and some numbers">nicolas.lehuen at gmail.com
+       </A><BR>
+    <I>Fri Apr  8 02:16:05 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017852.html">[mod_python] Sessions performance and some numbers
+</A></li>
+        <LI>Next message: <A HREF="017840.html">[mod_python] Sessions performance and some numbers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17854">[ date ]</a>
+              <a href="thread.html#17854">[ thread ]</a>
+              <a href="subject.html#17854">[ subject ]</a>
+              <a href="author.html#17854">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Apr 8, 2005 4:27 AM, Jim Gallacher &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jg.lists at sympatico.ca</A>&gt; wrote:
+&gt;<i> Nicolas Lehuen wrote:
+</I>&gt;<i> &gt; On Apr 7, 2005 10:59 PM, Nicolas Lehuen &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nicolas.lehuen at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;&gt;On Apr 7, 2005 9:39 PM, Jim Gallacher &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jg.lists at sympatico.ca</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;Nicolas Lehuen wrote:
+</I>&gt;<i> &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;Hi,
+</I>&gt;<i> &gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;Your code seems perfect to me. We could indeed add an extra hash to
+</I>&gt;<i> &gt;&gt;&gt;&gt;the directory name so that all sessions do not end in the same
+</I>&gt;<i> &gt;&gt;&gt;&gt;directory ; but I guess this is not needed on modern FS like ReiserFS
+</I>&gt;<i> &gt;&gt;&gt;&gt;or WinFS.
+</I>&gt;<i> &gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;Also, the unlink call in do_delete needs an &quot;os.&quot; to be correct...
+</I>&gt;<i> &gt;&gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;&gt;If everybody is OK I could integrate your class into the Session.py
+</I>&gt;<i> &gt;&gt;&gt;&gt;module, so that it becomes a standard session implementation in the
+</I>&gt;<i> &gt;&gt;&gt;&gt;next release.
+</I>&gt;<i> &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt;&gt;Shouldn't a lock be aquired and released before reading and writing the
+</I>&gt;<i> &gt;&gt;&gt;session to a file?
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;Yeah, of course, though we could rely on the native filesystem locking
+</I>&gt;<i> &gt;&gt;capabilities.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;Regards,
+</I>&gt;<i> &gt;&gt;Nicolas
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; [switching to python-dev]
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Woops, sorry, I did not see that the locking problem is handled in
+</I>&gt;<i> &gt; BaseSession. From what I read in the source code, the locking is
+</I>&gt;<i> &gt; handled with the granularity of one lock per session, am I right ? So,
+</I>&gt;<i> &gt; as we have one file per session, we can reuse the same locking
+</I>&gt;<i> &gt; mechanisms in do_load, do_save and do_delete. Does this sound OK to
+</I>&gt;<i> &gt; you ?
+</I>&gt;<i> 
+</I>&gt;<i> I read it the same way. Why not borrow the locking mechanism used by
+</I>&gt;<i> DbmSession? For example:
+</I>&gt;<i> 
+</I>&gt;<i> def do_save(self, dict):
+</I>&gt;<i>      _apache._global_lock(self._req.server, None, 0)
+</I>&gt;<i>      fp = file('%s/mp_sess_%s' % (tempdir, self._sid), 'w+')
+</I>&gt;<i>      try:
+</I>&gt;<i>          cPickle.dump(dict, fp)
+</I>&gt;<i>      finally:
+</I>&gt;<i>          fp.close()
+</I>&gt;<i>          _apache._global_unlock(self._req.server, None, 0)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> &gt; I've seen a few problems in your implementation, so I've took the
+</I>&gt;<i> &gt; liberty of modifying it I've checked it in so that anybody with commit
+</I>&gt;<i> &gt; rights can modify the code. Here it is :
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; <A HREF="http://svn.apache.org/repos/asf/httpd/mod_python/trunk/lib/python/mod_python/FileSession.py">http://svn.apache.org/repos/asf/httpd/mod_python/trunk/lib/python/mod_python/FileSession.py</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Basically, I've added a few try...finally to make sure that opened
+</I>&gt;<i> &gt; files are closed, but I've not done anything yet about the tempdir
+</I>&gt;<i> &gt; issue, the locking issue or changing the pickling protocol. It's
+</I>&gt;<i> &gt; coming soon.
+</I>&gt;<i> 
+</I>&gt;<i> I've also hacked together a (non-working) version that handles the
+</I>&gt;<i> locking and the tempdir issue. Brain a little fuzzy right now, but I'll
+</I>&gt;<i> fix it tomorrow and post it - unless you get to it first, Nicolas - :)
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> Jim
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+Well, I had a go last night, but my brain was a little fuzzy too, so I
+don't mind a double-check. I didn't use the global lock n&#176; 0, which
+would serialize all access to all sessions, but a lock named after the
+session, just like it was done in BaseSession.lock() and
+BaseSession.unlock().
+
+BTW, I'm not sure I understand the current locking system in
+BaseSession : it looks to me as if the lock on the session was held
+for the duration of the whole request (the lock being released during
+the request cleanup). Grisha, is this true ? If this is so, then there
+is no need to lock anything in FileSession, as the BaseSession already
+ensure a proper level of locking.
+
+Regards,
+Nicolas
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017852.html">[mod_python] Sessions performance and some numbers
+</A></li>
+	<LI>Next message: <A HREF="017840.html">[mod_python] Sessions performance and some numbers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17854">[ date ]</a>
+              <a href="thread.html#17854">[ thread ]</a>
+              <a href="subject.html#17854">[ subject ]</a>
+              <a href="author.html#17854">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

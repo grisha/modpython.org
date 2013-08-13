@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Howto force reload of all modules
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Howto%20force%20reload%20of%20all%20modules&In-Reply-To=20070831112118.ra0rf8e3d68ssw8s%40webmail.pdx.edu">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024184.html">
+   <LINK REL="Next"  HREF="024187.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Howto force reload of all modules</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Howto%20force%20reload%20of%20all%20modules&In-Reply-To=20070831112118.ra0rf8e3d68ssw8s%40webmail.pdx.edu"
+       TITLE="[mod_python] Howto force reload of all modules">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Fri Aug 31 18:20:19 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024184.html">[mod_python] Howto force reload of all modules
+</A></li>
+        <LI>Next message: <A HREF="024187.html">[mod_python] Howto force reload of all modules
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24185">[ date ]</a>
+              <a href="thread.html#24185">[ thread ]</a>
+              <a href="subject.html#24185">[ subject ]</a>
+              <a href="author.html#24185">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 01/09/2007, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">hhanke at pdx.edu</A> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">hhanke at pdx.edu</A>&gt; wrote:
+&gt;<i> Quoting Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt;:
+</I>&gt;<i> &gt; On 31/08/2007, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">hhanke at pdx.edu</A> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">hhanke at pdx.edu</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt; please, I'm using apache.import_module() to import my modules
+</I>&gt;<i> &gt;&gt; in mod_python 3.2.8 (I'm stuck with this version on our
+</I>&gt;<i> &gt;&gt; production server). Since it has its problems, please, what
+</I>&gt;<i> &gt;&gt; is the easiest way to reload all modules?
+</I>&gt;<i> &gt; The only reliable way is to restart the whole of Apache.
+</I>&gt;<i>
+</I>&gt;<i> This just cannot be done on a production sever where multiple
+</I>&gt;<i> websites run and a server I as a developer have no controll about.
+</I>&gt;<i>
+</I>&gt;<i> &gt; If it were a development server, you could also use the brute force
+</I>&gt;<i> &gt; method of having the Apache child process restart after every request.
+</I>&gt;<i> &gt; This is done using the Apache directive:
+</I>&gt;<i> &gt;   MaxRequestsPerChild 1
+</I>&gt;<i> &gt; This should however never be used on a production server, as it would
+</I>&gt;<i> &gt; give CGI like performance.
+</I>&gt;<i>
+</I>&gt;<i> It would be acceptable to use it for a short period, e.g. after updating
+</I>&gt;<i> the website to the new release version, but since I can't do that on
+</I>&gt;<i> a per-directory basis through .htaccess, it is of no use on a production
+</I>&gt;<i> server where multiple websites run and I can't edit the global conf.
+</I>&gt;<i>
+</I>&gt;<i> &gt; In short, there is no good way of doing it.
+</I>&gt;<i>
+</I>&gt;<i> So how do I use Python for writing more complicated webpages,
+</I>&gt;<i> that need to use modules (both my own and completely external
+</I>&gt;<i> that I have no controll about and they use the classical import)?
+</I>&gt;<i> Do I have to use CGI then?
+</I>&gt;<i>
+</I>&gt;<i> &gt; Even the module importer in 3.3.1 is only of use to web application
+</I>&gt;<i> &gt; code which is managed by mod_python and not normal Python modules
+</I>&gt;<i> &gt; on sys.path.
+</I>&gt;<i>
+</I>&gt;<i> Hm... Can I somehow force the reload of a given module that I imported
+</I>&gt;<i> through apache.import_module manually? I mean an equivalent of reload().
+</I>
+Have you read the documentation for 'import_module()' in mod_python 3.3.1?
+
+  <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html">http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html</A>
+
+The whole point of 'import_module()' is that provided the modules are
+ones which mod_python can manage (not on sys.path), then when you make
+changes to a module, or a module which is depended upon by another
+module, the top level module and any modules on the path down to the
+changed module will be automatically reloaded.
+
+But then, if you cant upgrade to 3.3.1 you will be stuck with the
+older implementation of 'import_module()' which has lots of problems
+and doesn't handle reloading when child modules are changed. See:
+
+  <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/ModuleImportingIsBroken">http://www.dscpl.com.au/wiki/ModPython/Articles/ModuleImportingIsBroken</A>
+
+If CGI is an option, because you aren't really using mod_python
+specific features anyway, then yes you could use CGI, but in that case
+you would better off converting your application to be a WSGI
+application and using mod_wsgi (www.modwsgi.org) with its daemon mode.
+In daemon mode of mod_wsgi your application is delegated to its own
+separate process and you can control restarts of just that process
+using signals. This allows one to implement an automatic reloader.
+See:
+
+  <A HREF="http://code.google.com/p/modwsgi/wiki/ReloadingSourceCode">http://code.google.com/p/modwsgi/wiki/ReloadingSourceCode</A>
+
+In summary, with mod_python your production box is best used only for
+deployment and not for development. You can only get so far using
+'import_module()' properly on a production box, sometimes you just
+cant avoid doing a restart. Thus you really need to use a separate
+Apache instance when you are doing development with mod_python if you
+have no ability to restart your production server.
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024184.html">[mod_python] Howto force reload of all modules
+</A></li>
+	<LI>Next message: <A HREF="024187.html">[mod_python] Howto force reload of all modules
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24185">[ date ]</a>
+              <a href="thread.html#24185">[ thread ]</a>
+              <a href="subject.html#24185">[ subject ]</a>
+              <a href="author.html#24185">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

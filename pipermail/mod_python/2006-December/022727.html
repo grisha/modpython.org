@@ -1,0 +1,297 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] python path and 3.3
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20python%20path%20and%203.3&In-Reply-To=1164946245.5080%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="022728.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] python path and 3.3</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Clodoaldo</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20python%20path%20and%203.3&In-Reply-To=1164946245.5080%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] python path and 3.3">clodoaldo.pinto.neto at gmail.com
+       </A><BR>
+    <I>Fri Dec  1 08:03:27 EST 2006</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="022728.html">[mod_python] python path and 3.3
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22727">[ date ]</a>
+              <a href="thread.html#22727">[ thread ]</a>
+              <a href="subject.html#22727">[ subject ]</a>
+              <a href="author.html#22727">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2006/12/1, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+&gt;<i>
+</I>&gt;<i> The third option is to not use a package. If you created the package merely
+</I>&gt;<i> out of convenience to provide a namespace for the modules, this should
+</I>&gt;<i> be okay. Thus, remove the empty __init__.py file so that it isn't actually a
+</I>&gt;<i> package anymore. Then, change:
+</I>&gt;<i>
+</I>&gt;<i>   from lib import HTMLBuilder
+</I>&gt;<i>
+</I>&gt;<i> to:
+</I>&gt;<i>
+</I>&gt;<i>   from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i>   HTMLBuilder = apache.import_module('~/lib/HTMLBuilder.py')
+</I>&gt;<i>
+</I>&gt;<i> This is using the mod_python module importer directly to import the module
+</I>&gt;<i> by path. The '~/' prefix to the path is special and is understood by the
+</I>&gt;<i> module importer to be the directory that the active Python*Handler directive
+</I>&gt;<i> was specified for.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> A fourth option is to again remove the package __init__.py file so it isn't
+</I>&gt;<i> really a package anymore, but also move the directory to somewhere outside
+</I>&gt;<i> of the document tree. In order to find the modules though, the PythonPath
+</I>&gt;<i> directive is NOT used and instead the new module importers own search
+</I>&gt;<i> path is set. For example:
+</I>&gt;<i>
+</I>&gt;<i>   PythonOption mod_python.importer.path &quot;['/some/path/lib']&quot;
+</I>&gt;<i>
+</I>&gt;<i> The module importer path SHOULD NOT mention sys.path, it should instead
+</I>&gt;<i> be a distinct list of directories where only the new module importer will look.
+</I>&gt;<i> Because the 'lib' directory is include and the contents of the directory will be
+</I>&gt;<i> searched, can just say:
+</I>&gt;<i>
+</I>&gt;<i>   import HTMLBuilder
+</I>&gt;<i>
+</I>&gt;<i> If for some reason you wanted to do it this way, but not move the directory
+</I>&gt;<i> outside of the document tree, you could also say:
+</I>&gt;<i>
+</I>&gt;<i>   PythonOption mod_python.importer.path &quot;['~/lib']&quot;
+</I>&gt;<i>
+</I>&gt;<i> Here the '~/' prefix is again used so you don't have to have an absolute path.
+</I>&gt;<i> When used it will be expanded to the directory the handler was specified for.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Anyway, hope I haven't confused you too much.
+</I>&gt;<i>
+</I>
+Your message is not confusing. It came in a good time and it clears
+some confusion i had. But something is not working for me. Using
+mod_python 3.3 in FC6.
+
+I'm trying to import a module with both the third and fourth
+techniques you described but I'm having errors.
+
+This is the Virtual host config:
+
+    ServerName carconsumption.s0
+    DocumentRoot /var/www/html/carconsumption.com
+    SetHandler mod_python
+    PythonHandler mod_python.publisher
+    PythonDebug On
+    PythonOption mod_python.importer.path &quot;['~/mod']&quot;
+    PythonImport db_connection carconsumption.s0
+
+The module &quot;constants&quot; is in the mod directory under the document root:
+
+[<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">cpn at s0</A> mod]$ pwd
+/var/www/html/carconsumption.com/mod
+[<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">cpn at s0</A> mod]$ ll constants.py
+-rwxr----- 1 cpn apache 28675 Nov 29 17:42 constants.py
+[<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">cpn at s0</A> mod]$ ll -d ../mod
+drwxrws--- 2 cpn apache 4096 Dec  1 12:26 ../mod
+
+Third technique. index.py contains:
+
+from mod_python import apache
+C = apache.import_module('~/mod/constants.py')
+
+The error output:
+
+MOD_PYTHON ERROR
+
+ProcessId:      24982
+Interpreter:    'carconsumption.s0'
+
+URI:            '/'
+Location:       None
+Directory:      None
+Filename:       '/var/www/html/carconsumption.com/index.py'
+PathInfo:       ''
+
+Phase:          'PythonHandler'
+Handler:        'mod_python.publisher'
+
+Traceback (most recent call last):
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+1522, in HandlerDispatch
+    default=default_handler, arg=req, silent=hlist.silent)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+1227, in _process_target
+    result = _execute_target(config, req, object, arg)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+1126, in _execute_target
+    result = object(arg)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/publisher.py&quot;,
+line 204, in handler
+    module = page_cache[req]
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+1057, in __getitem__
+    return import_module(req.filename)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+294, in import_module
+    log, import_path)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+678, in import_module
+    execfile(file, module.__dict__)
+
+  File &quot;/var/www/html/carconsumption.com/index.py&quot;, line 4, in ?
+    C = apache.import_module('~/mod/constants.py')
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+302, in import_module
+    return __import__(module_name, {}, {}, ['*'])
+
+ImportError: No module named ~/mod/constants.py
+
+
+MODULE CACHE DETAILS
+
+Accessed:       Fri Dec  1 12:33:24 2006
+Generation:     0
+
+_mp_96eec165c095033cec4187d8d6982912 {
+  FileName:     '/var/www/html/carconsumption.com/index.py'
+  Instance:     1 [IMPORT]
+  Generation:   0 [ERROR]
+  Modified:     Fri Dec  1 12:31:11 2006
+}
+
+When i give the absolute path it works:
+from mod_python import apache
+C = apache.import_module('/var/www/html/carconsumption.com/mod/constants.py')
+
+Fourth technique. index.py contains:
+
+import constants as C
+
+The error:
+
+MOD_PYTHON ERROR
+
+ProcessId:      24983
+Interpreter:    'carconsumption.s0'
+
+URI:            '/'
+Location:       None
+Directory:      None
+Filename:       '/var/www/html/carconsumption.com/index.py'
+PathInfo:       ''
+
+Phase:          'PythonHandler'
+Handler:        'mod_python.publisher'
+
+Traceback (most recent call last):
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+1522, in HandlerDispatch
+    default=default_handler, arg=req, silent=hlist.silent)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+1227, in _process_target
+    result = _execute_target(config, req, object, arg)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+1126, in _execute_target
+    result = object(arg)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/publisher.py&quot;,
+line 204, in handler
+    module = page_cache[req]
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+1057, in __getitem__
+    return import_module(req.filename)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+294, in import_module
+    log, import_path)
+
+  File &quot;/usr/lib/python2.4/site-packages/mod_python/importer.py&quot;, line
+678, in import_module
+    execfile(file, module.__dict__)
+
+  File &quot;/var/www/html/carconsumption.com/index.py&quot;, line 3, in ?
+    import constants as C
+
+ImportError: No module named constants
+
+
+MODULE CACHE DETAILS
+
+Accessed:       Fri Dec  1 12:34:55 2006
+Generation:     0
+
+_mp_96eec165c095033cec4187d8d6982912 {
+  FileName:     '/var/www/html/carconsumption.com/index.py'
+  Instance:     1 [IMPORT]
+  Generation:   0 [ERROR]
+  Modified:     Fri Dec  1 12:34:19 2006
+}
+
+
+Regards,
+-- 
+Clodoaldo Pinto Neto
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="022728.html">[mod_python] python path and 3.3
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22727">[ date ]</a>
+              <a href="thread.html#22727">[ thread ]</a>
+              <a href="subject.html#22727">[ subject ]</a>
+              <a href="author.html#22727">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,190 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Setting PythonOption to an empty string.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Setting%20PythonOption%20to%20an%20empty%20string.&In-Reply-To=41627736.5000802%40rawkin.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016576.html">
+   <LINK REL="Next"  HREF="016577.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Setting PythonOption to an empty string.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Setting%20PythonOption%20to%20an%20empty%20string.&In-Reply-To=41627736.5000802%40rawkin.net"
+       TITLE="[mod_python] Setting PythonOption to an empty string.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Oct  5 17:34:00 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016576.html">[mod_python] ImportError: No module named mptest
+</A></li>
+        <LI>Next message: <A HREF="016577.html">[mod_python] Setting PythonOption to an empty string.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16575">[ date ]</a>
+              <a href="thread.html#16575">[ thread ]</a>
+              <a href="subject.html#16575">[ subject ]</a>
+              <a href="author.html#16575">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Oct 05 06:28, Rich McDonough &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">rich.mcdonough at rawkin.net</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Subject: Re: [mod_python] Setting PythonOption to an empty string.
+</I>&gt;<i>
+</I>&gt;<i> For the sub-directory you will need a directive that states:
+</I>&gt;<i> 
+</I>&gt;<i> SetHandler None
+</I>&gt;<i> 
+</I>&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i> &gt; I might be missing something, but I want to be able to set a 
+</I>&gt;<i> &gt; PythonOption variable
+</I>&gt;<i> &gt; to be an empty string. Alternatively, is there a way in the .htaccess 
+</I>&gt;<i> &gt; file to unset
+</I>&gt;<i> &gt; a PythonOption variable which has been inherited from a parent directory?
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; When I try and set the variable to an empty string. Ie.,
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   PythonOption Name &quot;&quot;
+</I>
+In my haste last night, I managed to reply only to the responder and not the
+whole list, so here we go again, but with more detail this time. In short,
+the above response isn't what I am asking about. I am not wanting to disable
+mod_python in the subdirectory, only wipe out the value of the PythonOption
+option setting. Hmmm, now I see why it didn't go to the list, the sender
+didn't send it there, but only to me. Anyway, hope this email explains it
+better.
+
+Consider the following .htaccess file and content handler.
+
+# .htaccess
+
+  AddHandler python-program .py
+  PythonHandler vartest
+  PythonDebug On
+  PythonOption NAME VALUE1
+
+# vartest.py
+
+  from mod_python import apache
+
+  def handler(req):
+    req.content_type = &quot;text/plain&quot;
+    req.send_http_header()
+    req.write(&quot;FILENAME = &quot;+req.filename+&quot;\n&quot;)
+    req.write(&quot;PATH_INFO = &quot;+req.path_info+&quot;\n&quot;)
+    req.write(&quot;NAME = &quot;+req.get_options().get(&quot;NAME&quot;,&quot;UNDEFINED&quot;)+&quot;\n&quot;)
+    return apache.OK
+
+When I request a .py file in that specific directory, I get:
+
+  FILENAME = /Users/grahamd/Sites/modpython/dummy.py
+  PATH_INFO = 
+  NAME = VALUE1
+
+Now create a subdirectory with another .htaccess file.
+
+# subdir/.htaccess
+
+  PythonOption NAME VALUE2
+
+When I request a .py file out of the subdirectory, I get:
+
+  FILENAME = /Users/grahamd/Sites/modpython/subdir/dummy.py
+  PATH_INFO = 
+  NAME = VALUE2
+
+In other words, the AddHandler/PythonHandler from the parent directory
+still dictate that mod_python be used, but the PythonOption setting from
+the subdirectory overrides that from the parent when the path being accessed
+falls within the subdirectory.
+
+Now, if the setting of NAME in the subdirectory .htaccess is commented out
+and the subdirectory request done again, I get:
+
+  FILENAME = /Users/grahamd/Sites/modpython/subdir/dummy.py
+  PATH_INFO = 
+  NAME = VALUE1
+
+Thus you can see that the setting of NAME in the parent directory is inherited
+by a subdirectory if it isn't overridden.
+
+The problem now is that once a parent sets a value using PythonOption, the
+only thing one can do in a subdirectory is to override it with some other non
+empty value. This is because the following results in a internal server error.
+
+  PythonOption NAME &quot;&quot;
+
+I have tried other variations on this, but can't find any that allow me to set the
+value to an empty string. I can't see any evidence that one can totally unset a
+value either. If there is no valid non empty value that you can use for a value
+to effectively say its value should be ignored, you are stuffed. Luckily in my
+case it was reasonable to say that if the value was set to &quot;.&quot; that the code relying
+on it default back to standard behaviour.
+
+Note that even if &quot;vartest.py&quot; was outside of the document tree and the subdir
+used AddHandler/PythonHandler again, it doesn't start a new context for options
+and NAME is still inherited from the parent.
+
+Even if this did work, it isn't want I wanted as it has other implications such as
+the path of both the parent and subdirectory being put in &quot;sys.path&quot;. In some
+cases it is problematic enough that the document directory is put in &quot;sys.path&quot; at
+all, but you can't get around this though when the content handler is in the actual
+document tree. Luckily, if the module is somewhere else outside the document
+tree and on your normal Python path, you can at least say:
+
+  PythonPath 'sys.path'
+
+This has the affect of leaving sys.path how it was before that directory was
+encountered, which is much safer to my mind, but then you need a module loader
+where you can say exactly which directory you want a module pulled from as
+&quot;import&quot; ain't going to and possibly not &quot;import_module()&quot; either.
+
+Enough rambling.
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016576.html">[mod_python] ImportError: No module named mptest
+</A></li>
+	<LI>Next message: <A HREF="016577.html">[mod_python] Setting PythonOption to an empty string.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16575">[ date ]</a>
+              <a href="thread.html#16575">[ thread ]</a>
+              <a href="subject.html#16575">[ subject ]</a>
+              <a href="author.html#16575">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

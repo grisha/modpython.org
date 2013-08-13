@@ -1,0 +1,415 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Tutorials, FieldStorage and sys.py. A depressing
+	 saga.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Tutorials%2C%20FieldStorage%20and%20sys.py.%20A%20depressing%0A%09%20saga.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="013666.html">
+   <LINK REL="Next"  HREF="013662.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Tutorials, FieldStorage and sys.py. A depressing
+	 saga.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Yandle, Hans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Tutorials%2C%20FieldStorage%20and%20sys.py.%20A%20depressing%0A%09%20saga.&In-Reply-To="
+       TITLE="[mod_python] Tutorials, FieldStorage and sys.py. A depressing
+	 saga.">Hans.Yandle at cingular.com
+       </A><BR>
+    <I>Thu May 22 17:55:14 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="013666.html">[mod_python] Interpreters
+</A></li>
+        <LI>Next message: <A HREF="013662.html">[mod_python] Tutorials, FieldStorage and sys.py. A depressing
+	saga.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13667">[ date ]</a>
+              <a href="thread.html#13667">[ thread ]</a>
+              <a href="subject.html#13667">[ subject ]</a>
+              <a href="author.html#13667">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Well, I decided to make a working sample out of your code so here is my
+working version. Use at will. By no means is this perfect but it does work
+for me. Example URL:
+<A HREF="http://localhost/test/sample/ProcessForm/?name=Hans&amp;color=swallow">http://localhost/test/sample/ProcessForm/?name=Hans&amp;color=swallow</A>
+
+=== sample.py ===
+from mod_python import apache
+import string
+
+### File Parameter Options ###
+Template = &quot;/usr/local/python/template.html&quot; # filename of template file
+
+def EvalTemplate(Content):
+    (Result, ErrorMsg) = (None, None)
+    try:
+        TemplateFile = file(Template, &quot;r&quot;) # open in read only mode
+        TemplateData = TemplateFile.read() # read in the contents of the
+file
+        TemplateFile.close() # close the file
+    except IOError, e:
+        ErrorMsg = &quot;Error! Unable to read contents of template file %s.
+&lt;br&gt;%s&quot; % (Template, e)
+    except:
+        ErrorMsg = &quot;Error! Unknown error has occured.&quot;
+    if not ErrorMsg:
+        if string.find(TemplateData, &quot;&lt;!--*** INSERT CONTENT HERE ***--&gt;&quot;)
+is not -1:
+            Result = string.replace(TemplateData, &quot;&lt;!--*** INSERT CONTENT
+HERE ***--&gt;&quot;, Content)
+        else:
+            ErrorMsg = &quot;Invalid template file format. Missing insert comment
+tag. Please fix %s.&quot; % Template
+    return (Result, ErrorMsg)
+
+def SendHTML(Output=None, ErrorMsg=None):
+    if not ErrorMsg:
+        s, ErrorMsg = EvalTemplate(Output)
+    if ErrorMsg:
+        s = &quot;&quot;&quot;&lt;html&gt;&lt;head&gt;&lt;title&gt;Mod_Python Sample Using a Template: Error
+Message&lt;/title&gt;&lt;/head&gt;
+               &lt;body&gt;&lt;p&gt;An error has occured. Please correct the
+problem.&lt;/p&gt;
+               &lt;pre&gt;%s&lt;/pre&gt;&lt;/body&gt;&lt;/html&gt;&quot;&quot;&quot; % ErrorMsg
+    return s
+
+def ProcessForm(req, name=None, email=None, color=None, comment=None):
+    ErrorMsg = None
+    Output = &quot;Hello, &quot;
+            
+    if name:
+        if email:
+            Output = Output + &quot;&lt;a href=mailto:%s&gt;%s&lt;/a&gt;.&lt;p&gt;&quot; % (email, name)
+        else:
+            Output = Output + &quot;%s.&lt;p&gt;&quot; % name
+    else:
+        ErrorMsg=&quot;You need to at least supply a name. Please go back.&quot;
+        
+    if color==&quot;swallow&quot;:
+        Output = Output + &quot;You must be a Monte Python fan.&lt;p&gt;&quot;
+    elif color != None:
+        Output = Output + &quot;Your favorite color was %s&lt;p&gt;&quot; % color
+    else:
+        Output = Output + &quot;You cheated! You didn't specify a color!&lt;p&gt;&quot;
+        
+    if comment:
+        Output = Output + &quot;In addition, you said: &lt;br&gt;%s&lt;p&gt;&quot; % comment
+        
+    req.content_type = &quot;text/html&quot;
+    req.send_http_header()
+    
+    return SendHTML(Output, ErrorMsg)
+=== end ===
+=== template.html ===
+&lt;!DOCTYPE HTML PUBLIC &quot;-//IETF//DTD HTML//EN&quot;&gt;
+&lt;html&gt;
+  &lt;head&gt;
+    &lt;META NAME=&quot;keywords&quot; CONTENT=&quot;blah blah -- your ad here&quot;&gt;
+    &lt;title&gt;Python is Fun!&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+                &lt;!--*** INSERT CONTENT HERE ***--&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+=== end ===
+
+Have fun,
+
+Hans
+
+-----Original Message-----
+From: Gregory (Grisha) Trubetskoy [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grisha at modpython.org</A>]
+Sent: Thursday, May 22, 2003 3:11 PM
+To: Terry MacDonald
+Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Subject: Re: [mod_python] Tutorials, FieldStorage and sys.py. A
+depressing saga.
+
+
+
+Terry -
+
+Thanks for your compliments.
+
+You didn't specify what's in your apache config, so it's hard to tell
+what's going on there. My recommendation would be to reserve an hour or so
+and read the tutorial carefully.
+
+One of the things that caught my eye was the &quot;.value&quot; attribute you're
+using - the mod_python version of FieldStorage does not require it. But
+more likely than not you just need to use the publisher handler, in which
+case you wouldn't need to concern yourself with FieldStorage at all, and
+your ProcessForm function would look something like:
+
+def ProcessForm(req, name=&quot;&quot;, email=&quot;&quot;, color=&quot;&quot;, comment=&quot;&quot;):
+
+	if not name:
+
+		return &quot;Name is required&quot;
+
+
+	... etc ...
+
+
+	return SubResult[0]
+
+
+Note that print statements are useless in mod_python, also your URL is
+lower case, but function names are mixed-case - since Python is
+case-sensitive, that would cause a problem.
+
+HTH.
+
+Grisha
+
+
+On 22 May 2003, Terry MacDonald wrote:
+
+&gt;<i> Hi again,
+</I>&gt;<i>
+</I>&gt;<i> Thankyou very much for your replies, You seem a nice bunch in here.
+</I>&gt;<i> I look forward to conversing with you over time (hopefully not all bug
+</I>related!)
+&gt;<i>
+</I>&gt;<i> Anyways your advice solved one issue but unfortunately moved me on to the
+</I>next.
+&gt;<i> I am reaching the end of my patience as I have tried various work arounds
+</I>to my
+&gt;<i> ills and I just go up more garden paths to more problems (this should not
+</I>be that
+&gt;<i> difficult I know!).
+</I>&gt;<i>
+</I>&gt;<i> Forgive me but I have decided to post the code to see if you can tell what
+</I>is wrong
+&gt;<i> cos I just can't get it to work as it is supposed to. The code is
+</I>primarily example
+&gt;<i> code but has been rejigged a little while trying to get it to work.
+</I>&gt;<i>
+</I>&gt;<i> Problems occuring now is that the subn function is giving a mulitple
+</I>repeat error.
+&gt;<i> When I comment out the offending code I just get Object not found in the
+</I>browser.
+&gt;<i> Also I have to put full pathnames in for the html files otherwise they
+</I>cannot be
+&gt;<i> found (I know this can't be right - but i'm trying anything to get this to
+</I>work)
+&gt;<i>
+</I>&gt;<i> Ultimately the example should print a form, fetch the contents and display
+</I>them
+&gt;<i> back to you in another page (I think!) not exactly rocket science.
+</I>&gt;<i>
+</I>&gt;<i> Below is the .py file and the two basic html files. Enjoy !
+</I>&gt;<i>
+</I>&gt;<i> Cheers
+</I>&gt;<i>
+</I>&gt;<i> Terry
+</I>&gt;<i>
+</I>&gt;<i>
+</I>============================================================================
+====
+&gt;<i> #!/usr/bin/python
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> from mod_python import util
+</I>&gt;<i> import re
+</I>&gt;<i>
+</I>&gt;<i> # specify the filename of the template file
+</I>&gt;<i> TemplateFile = &quot;/var/www/html/python/template.html&quot;
+</I>&gt;<i>
+</I>&gt;<i> # Display  takes one parameter - a string to Display
+</I>&gt;<i> def Display(Content):
+</I>&gt;<i>     TemplateHandle = open(TemplateFile, &quot;r&quot;)  # open in read only mode
+</I>&gt;<i>     # read the entire file as a string
+</I>&gt;<i>     TemplateInput = TemplateHandle.read()
+</I>&gt;<i>     TemplateHandle.close()                    # close the file
+</I>&gt;<i>
+</I>&gt;<i>     # this defines an exception string in case our
+</I>&gt;<i>     # template file is messed up
+</I>&gt;<i>     BadTemplateException = &quot;There was a problem with the HTML template.&quot;
+</I>&gt;<i>
+</I>&gt;<i>     SubResult = re.subn( &quot;&lt;!-- *** INSERT CONTENT HERE *** --&gt;&quot;, Content,
+</I>TemplateInput )
+&gt;<i>     if SubResult[1] == 0:
+</I>&gt;<i>         raise BadTemplateException
+</I>&gt;<i>
+</I>&gt;<i>     print &quot;Content-Type: text/html\n\n&quot;
+</I>&gt;<i>     print SubResult[0]
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> def ProcessForm(req):
+</I>&gt;<i>
+</I>&gt;<i>     form = util.FieldStorage(req)
+</I>&gt;<i>
+</I>&gt;<i>     # extract the information from the form in easily digestible format
+</I>&gt;<i>     try:
+</I>&gt;<i>         name = form[&quot;name&quot;].value
+</I>&gt;<i>     except:
+</I>&gt;<i>         # name is required, so output an error if
+</I>&gt;<i>         # not given and exit script
+</I>&gt;<i>         Display(&quot;You need to at least supply a name. Please go back.&quot;)
+</I>&gt;<i>         raise SystemExit
+</I>&gt;<i>     try:
+</I>&gt;<i>         email = form[&quot;email&quot;].value
+</I>&gt;<i>     except:
+</I>&gt;<i>         email = None
+</I>&gt;<i>     try:
+</I>&gt;<i>         color = form[&quot;color&quot;].value
+</I>&gt;<i>     except:
+</I>&gt;<i>         color = None
+</I>&gt;<i>     try:
+</I>&gt;<i>         comment = form[&quot;comment&quot;].value
+</I>&gt;<i>     except:
+</I>&gt;<i>         comment = None
+</I>&gt;<i>
+</I>&gt;<i>     Output = &quot;&quot;  # our output buffer, empty at first
+</I>&gt;<i>
+</I>&gt;<i>     Output = Output + &quot;Hello, &quot;
+</I>&gt;<i>
+</I>&gt;<i>     if email != None:
+</I>&gt;<i>         Output = Output + &quot;&lt;A HREF=mailto:&quot; + email + &quot;&gt;&quot; + name +
+</I>&quot;&lt;/A&gt;.&lt;P&gt;&quot;
+&gt;<i>     else:
+</I>&gt;<i>         Output = Output + name + &quot;.&lt;P&gt;&quot;
+</I>&gt;<i>
+</I>&gt;<i>     if color == &quot;swallow&quot;:
+</I>&gt;<i>         Output = Output + &quot;You must be a Monty Python fan.&lt;P&gt;&quot;
+</I>&gt;<i>     elif color != None:
+</I>&gt;<i>         Output = Output + &quot;Your favorite color was &quot; + color + &quot;&lt;P&gt;&quot;
+</I>&gt;<i>     else:
+</I>&gt;<i>         Output = Output + &quot;You cheated!  You didn't specify a color!&lt;P&gt;&quot;
+</I>&gt;<i>
+</I>&gt;<i>     if comment != None:
+</I>&gt;<i>         Output = Output + &quot;In addition, you said:&lt;BR&gt;&quot; + comment + &quot;&lt;P&gt;&quot;
+</I>&gt;<i>
+</I>&gt;<i>     Display(Output)
+</I>&gt;<i>
+</I>&gt;<i> ###
+</I>&gt;<i> ### Begin actual script
+</I>&gt;<i> ###
+</I>&gt;<i>
+</I>&gt;<i> #### &quot;key&quot; is a hidden form element with an
+</I>&gt;<i> ### action command such as &quot;process&quot;
+</I>&gt;<i> #try:
+</I>&gt;<i> #    key = form[&quot;key&quot;].value
+</I>&gt;<i> #    key = form[&quot;key&quot;].value
+</I>&gt;<i> ##except:
+</I>&gt;<i> #    key = None
+</I>&gt;<i>
+</I>&gt;<i> #if key == &quot;process&quot;:
+</I>&gt;<i> #    ProcessForm(form)
+</I>&gt;<i> #else:
+</I>&gt;<i> #    DisplayForm()
+</I>&gt;<i>
+</I>&gt;<i> # Open and display the form
+</I>&gt;<i> FormFile = &quot;/var/www/html/python/form2.html&quot;
+</I>&gt;<i> FormHandle = open(FormFile, &quot;r&quot;)
+</I>&gt;<i> FormInput = FormHandle.read()
+</I>&gt;<i> FormHandle.close()
+</I>&gt;<i> Display(FormInput)
+</I>&gt;<i>
+</I>&gt;<i>
+</I>============================================================================
+===========
+&gt;<i>
+</I>&gt;<i> Form2.html.........
+</I>&gt;<i>
+</I>&gt;<i> &lt;FORM METHOD=&quot;POST&quot; ACTION=&quot;sample.py/processform&quot;&gt;
+</I>&gt;<i>       &lt;INPUT TYPE=HIDDEN NAME=&quot;key&quot; VALUE=&quot;process&quot;&gt;
+</I>&gt;<i>       Your name:&lt;BR&gt;
+</I>&gt;<i>       &lt;INPUT TYPE=TEXT NAME=&quot;name&quot; size=60&gt;
+</I>&gt;<i>       &lt;BR&gt;
+</I>&gt;<i>       Email: (optional)&lt;BR&gt;
+</I>&gt;<i>       &lt;INPUT TYPE=TEXT NAME=&quot;email&quot; size=60&gt;
+</I>&gt;<i>       &lt;BR&gt;
+</I>&gt;<i>       Favorite Color:&lt;BR&gt;
+</I>&gt;<i>       &lt;INPUT TYPE=RADIO NAME=&quot;color&quot; VALUE=&quot;blue&quot; CHECKED&gt;Blue
+</I>&gt;<i>       &lt;INPUT TYPE=RADIO NAME=&quot;color&quot; VALUE=&quot;yellow&quot;&gt;No, Yellow...
+</I>&gt;<i>       &lt;INPUT TYPE=RADIO NAME=&quot;color&quot; VALUE=&quot;swallow&quot;&gt;What do you mean, an
+</I>African or European swallow?
+&gt;<i>       &lt;P&gt;
+</I>&gt;<i>       Comments:&lt;BR&gt;
+</I>&gt;<i>       &lt;TEXTAREA NAME=&quot;comment&quot; ROWS=8 COLS=60&gt;
+</I>&gt;<i>       &lt;/TEXTAREA&gt;
+</I>&gt;<i>       &lt;P&gt;
+</I>&gt;<i>         &lt;INPUT TYPE=&quot;SUBMIT&quot; VALUE=&quot;Okay&quot;&gt;
+</I>&gt;<i> &lt;/FORM&gt;
+</I>&gt;<i>
+</I>============================================================================
+===========
+&gt;<i> Template.html........
+</I>&gt;<i>
+</I>&gt;<i> &lt;!DOCTYPE HTML PUBLIC &quot;-//IETF//DTD HTML//EN&quot;&gt;
+</I>&gt;<i> &lt;html&gt;
+</I>&gt;<i>   &lt;head&gt;
+</I>&gt;<i>     &lt;META NAME=&quot;keywords&quot; CONTENT=&quot;blah blah -- your ad here&quot;&gt;
+</I>&gt;<i>     &lt;title&gt;Python is Fun!&lt;/title&gt;
+</I>&gt;<i>   &lt;/head&gt;
+</I>&gt;<i>   &lt;body&gt;
+</I>&gt;<i>                 &lt;!-- *** INSERT CONTENT HERE *** --&gt;
+</I>&gt;<i>   &lt;/body&gt;
+</I>&gt;<i> &lt;/html&gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20030522/50bf5078/attachment-0003.htm">http://mailman.modpython.org/pipermail/mod_python/attachments/20030522/50bf5078/attachment-0003.htm</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="013666.html">[mod_python] Interpreters
+</A></li>
+	<LI>Next message: <A HREF="013662.html">[mod_python] Tutorials, FieldStorage and sys.py. A depressing
+	saga.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13667">[ date ]</a>
+              <a href="thread.html#13667">[ thread ]</a>
+              <a href="subject.html#13667">[ subject ]</a>
+              <a href="author.html#13667">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

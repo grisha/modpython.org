@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Getting request object
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Getting%20request%20object&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019717.html">
+   <LINK REL="Next"  HREF="019694.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Getting request object</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Getting%20request%20object&In-Reply-To="
+       TITLE="[mod_python] Getting request object">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Dec  8 17:43:53 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019717.html">Developer guidelines (was Re:[mod_python] inspect.getmembers(req)
+	segfaults)
+</A></li>
+        <LI>Next message: <A HREF="019694.html">[mod_python] Why can't  psycopg2 beta adapt this:
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19693">[ date ]</a>
+              <a href="thread.html#19693">[ thread ]</a>
+              <a href="subject.html#19693">[ subject ]</a>
+              <a href="author.html#19693">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Radek =?utf-8?q?Barto=C5=88?= wrote ..
+&gt;<i> &gt; If using mod_python.publisher, as:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    index = MyClass
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; you should I believe get NotFound as it will not automatically create
+</I>&gt;<i> &gt; instances
+</I>&gt;<i> &gt; of classes for you if a class type is referenced. I know Nicolas hand
+</I>&gt;<i> &gt; it in mind
+</I>&gt;<i> &gt; to perhaps support this, but personally I don't think it is a good
+</I>&gt;<i> &gt; idea as it could
+</I>&gt;<i> &gt; introduce other problems where people think methods are not
+</I>&gt;<i> &gt; accessible but
+</I>&gt;<i> &gt; may actually. The authorisation schemes as written also would not
+</I>&gt;<i> &gt; work for the
+</I>&gt;<i> &gt; instance created. Ie., authorisation could only be done at file scope.
+</I>&gt;<i> 
+</I>&gt;<i> With file test.py:
+</I>&gt;<i> 
+</I>&gt;<i> class MyClass:
+</I>&gt;<i>   def __init__(self):
+</I>&gt;<i>     pass # some initialization
+</I>&gt;<i>   def __call__(self, req):
+</I>&gt;<i>     return &quot;whole class&quot;
+</I>&gt;<i>   def method1(self, req):
+</I>&gt;<i>     return &quot;method1&quot;
+</I>&gt;<i>   def method2(self, req):
+</I>&gt;<i>     return &quot;method2&quot;
+</I>&gt;<i> 
+</I>&gt;<i> index = MyClass()
+</I>&gt;<i> 
+</I>&gt;<i> and URLs <A HREF="http://locahost/test/">http://locahost/test/</A> <A HREF="http://localhost/test/index/method1">http://localhost/test/index/method1</A> and
+</I>&gt;<i> <A HREF="http://localhost/test/index/method2">http://localhost/test/index/method2</A> I didn't get any Not Found error.
+</I>
+That is different to what you originally had and not what I was talking about.
+It may have been a typo, but I believe you had at one point:
+
+  index = MyClass
+
+not:
+
+  index = MyClass()
+
+There is a big difference. In one case you are publishing the class itself and
+in the other and instance of the class. My description above was talking about
+publication of a class verses publication of an instance of the class.
+
+&gt;<i> And by the way it does all I want. Here is some example of using this 
+</I>&gt;<i> approach:
+</I>&gt;<i> 
+</I>&gt;<i> from mod_python import Session,util
+</I>&gt;<i> 
+</I>&gt;<i> class MyClass:
+</I>&gt;<i>   def __init__(self):
+</I>&gt;<i>     pass # some initialization
+</I>&gt;<i>   def __call__(self, req):
+</I>&gt;<i>     session = Session.Session(req)
+</I>&gt;<i>     # lazy evaluation
+</I>&gt;<i>     if session.has_key('logged') and session['logged']:
+</I>&gt;<i>       return &quot;&quot;&quot;
+</I>&gt;<i>         &lt;HTML&gt;
+</I>&gt;<i> 	&lt;HEAD&gt;
+</I>&gt;<i> 	&lt;/HEAD&gt;
+</I>&gt;<i> 	&lt;BODY&gt; 
+</I>&gt;<i>           Logged
+</I>&gt;<i> 	&lt;/BODY&gt;
+</I>&gt;<i> 	&lt;/HTML&gt;&quot;&quot;&quot;
+</I>&gt;<i>     else: 	  
+</I>&gt;<i>       return &quot;&quot;&quot;
+</I>&gt;<i>         &lt;HTML&gt;
+</I>&gt;<i> 	&lt;HEAD&gt;
+</I>&gt;<i> 	&lt;/HEAD&gt;
+</I>&gt;<i> 	&lt;BODY&gt;
+</I>&gt;<i>         &lt;FORM method=&quot;POST&quot; action=&quot;/test/index/submit&quot;&gt;
+</I>&gt;<i>           &lt;INPUT test=&quot;text&quot; name=&quot;user&quot; size=&quot;10&quot;&gt;&lt;BR&gt;
+</I>&gt;<i>           &lt;INPUT TYPE=&quot;password&quot; name=&quot;password&quot; size=&quot;10&quot;&gt;&lt;BR&gt;
+</I>&gt;<i>           &lt;INPUT TYPE=&quot;submit&quot; name=&quot;submint&quot; value=&quot;Login&quot;&gt;
+</I>&gt;<i>         &lt;/FORM&gt;
+</I>&gt;<i> 	&lt;/BODY&gt;
+</I>&gt;<i> 	&lt;/HTML&gt;&quot;&quot;&quot;
+</I>&gt;<i>   def submit(self, req):
+</I>&gt;<i>     form_user = req.form['user'].value
+</I>&gt;<i>     form_password = req.form['password'].value
+</I>&gt;<i>     session = Session.Session(req)
+</I>&gt;<i>     if form_user == 'test' and form_password == 'test':
+</I>&gt;<i>       session['logged'] = True
+</I>&gt;<i>       session.save()
+</I>&gt;<i>     util.redirect(req, '/test') 
+</I>&gt;<i> 
+</I>&gt;<i> index = MyClass()
+</I>
+So in other words you didn't actually need access to the request object
+in the constructor after all. What you were missing was that __call__()
+could be used in place of __str__() with __call__() allowing you to still
+access the request object and form parameters if need be.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019717.html">Developer guidelines (was Re:[mod_python] inspect.getmembers(req)
+	segfaults)
+</A></li>
+	<LI>Next message: <A HREF="019694.html">[mod_python] Why can't  psycopg2 beta adapt this:
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19693">[ date ]</a>
+              <a href="thread.html#19693">[ thread ]</a>
+              <a href="subject.html#19693">[ subject ]</a>
+              <a href="author.html#19693">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

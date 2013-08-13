@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] upload file?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20upload%20file%3F&In-Reply-To=8877100.1083864089545.JavaMail.root%40wamui02.slb.atl.earthlink.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015517.html">
+   <LINK REL="Next"  HREF="015519.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] upload file?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Maxime Yve</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20upload%20file%3F&In-Reply-To=8877100.1083864089545.JavaMail.root%40wamui02.slb.atl.earthlink.net"
+       TITLE="[mod_python] upload file?">maxime.yve at unilog.fr
+       </A><BR>
+    <I>Thu May  6 19:49:29 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015517.html">[mod_python] upload file?
+</A></li>
+        <LI>Next message: <A HREF="015519.html">[mod_python] upload file?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15518">[ date ]</a>
+              <a href="thread.html#15518">[ thread ]</a>
+              <a href="subject.html#15518">[ subject ]</a>
+              <a href="author.html#15518">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+ 
+
+I have the same problem with mod_python 3.1.3 on windows:
+
+This comes from the __getitem__ method of FieldStorage
+
+ 
+
+Indeed =&gt; :
+
+On windows
+
+ 
+
+&gt;&gt;&gt;<i> import tempfile
+</I>
+&gt;&gt;&gt;<i> glop = tempfile.TemporaryFile('w+b')
+</I>
+&gt;&gt;&gt;<i> type(glop)
+</I>
+      &lt;type 'instance'&gt;
+
+ 
+
+On Unix :
+
+&gt;&gt;&gt;<i> import tempfile
+</I>
+&gt;&gt;&gt;<i> glop = tempfile.TemporaryFile('w+b')
+</I>
+&gt;&gt;&gt;<i> type(glop)
+</I>
+      &lt;type 'file'&gt;
+
+ 
+
+And isinstance(item.file, FileType) return false on Windows, this cause the
+bug on __getitem__
+
+ 
+
+To correct temporary this problem (I'm not active on the community and I
+can't correct the mistake)
+
+You can do this monkey hook on your own file before using FieldStorage:
+
+ 
+
+from types import *
+
+from mod_python.util import StringField
+
+ 
+
+ 
+
+# patch bug on windows for mod_python 3.1.3
+
+def patch_getitem(self, key):
+
+      &quot;&quot;&quot;Dictionary style indexing.&quot;&quot;&quot;
+
+      if self.list is None:
+
+            raise TypeError, &quot;not indexable&quot;
+
+      found = []
+
+      for item in self.list:
+
+            if item.name == key:
+
+                  if isinstance(item.file, FileType) or
+isinstance(item.file, InstanceType):
+
+                        found.append(item)
+
+                  else:
+
+                        found.append(StringField(item.value))
+
+      if not found:
+
+            raise KeyError, key
+
+      if len(found) == 1:
+
+            return found[0]
+
+      else:
+
+            return found
+
+util.FieldStorage.__getitem__ = patch_getitem
+
+ 
+
+Max
+
+ 
+
+-----Original Message-----
+From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+[mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] On Behalf Of John Mudd
+Sent: jeudi 6 mai 2004 19:21
+To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Subject: [mod_python] upload file?
+
+ 
+
+(Sorry if you see this msg twice.  I submitted this earlier today by under a
+non-member email address.)
+
+ 
+
+I'm trying to upload a file.  I specified a &quot;file&quot; type input field in my
+HTML, it displays as expected with the &quot;Browse...&quot; button, I'm able to
+select a file but...
+
+ 
+
+When I look in the FieldStorage dictionary for the field I only get a String
+type field that is the file name.  I was expecting a &quot;Field&quot; type object
+that would provide access to the file name and contents.
+
+ 
+
+What am I missing? 
+
+ 
+
+John
+
+_______________________________________________
+
+Mod_python mailing list
+
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20040506/2ac41b82/attachment.html">http://mailman.modpython.org/pipermail/mod_python/attachments/20040506/2ac41b82/attachment.html</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015517.html">[mod_python] upload file?
+</A></li>
+	<LI>Next message: <A HREF="015519.html">[mod_python] upload file?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15518">[ date ]</a>
+              <a href="thread.html#15518">[ thread ]</a>
+              <a href="subject.html#15518">[ subject ]</a>
+              <a href="author.html#15518">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

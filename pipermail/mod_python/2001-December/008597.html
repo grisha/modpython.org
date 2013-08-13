@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] sporadic import errors...
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20sporadic%20import%20errors...&In-Reply-To=20011217204231.37269.qmail%40web11604.mail.yahoo.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008596.html">
+   <LINK REL="Next"  HREF="008598.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] sporadic import errors...</H1>
+    <B>Guido van Rossum</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20sporadic%20import%20errors...&In-Reply-To=20011217204231.37269.qmail%40web11604.mail.yahoo.com"
+       TITLE="[mod_python] sporadic import errors...">guido at python.org
+       </A><BR>
+    <I>Mon Dec 17 16:01:35 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008596.html">[mod_python] sporadic import errors...
+</A></li>
+        <LI>Next message: <A HREF="008598.html">[mod_python] sporadic import errors...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8597">[ date ]</a>
+              <a href="thread.html#8597">[ thread ]</a>
+              <a href="subject.html#8597">[ subject ]</a>
+              <a href="author.html#8597">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> okay, i'm running Python 2.1.1, mod_python 2.7.6, and apache 1.3.19
+</I>&gt;<i> under Linux 2.2.14. the mod_python module is build statically.
+</I>&gt;<i> 
+</I>&gt;<i> after hitting our app a couple of times, i sporadically receive the
+</I>&gt;<i> following error:
+</I>&gt;<i> 
+</I>&gt;<i> 'import site' failed; traceback:
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i>   File &quot;/usr/local/lib/python2.1/site.py&quot;, line 60, in ?
+</I>&gt;<i>     import sys, os
+</I>&gt;<i>   File &quot;/usr/local/lib/python2.1/os.py&quot;, line 54, in ?
+</I>&gt;<i>     __all__.extend(_get_exports_list(posix))
+</I>&gt;<i>   File &quot;/usr/local/lib/python2.1/os.py&quot;, line 35, in _get_exports_list
+</I>&gt;<i>     return list(module.__all__)
+</I>&gt;<i> AttributeError: 'posix' module has no attribute '__all__'
+</I>&gt;<i> make_obcallback(): could not import mod_python.apache.
+</I>&gt;<i> make_obcallback(): could not call init.
+</I>&gt;<i> 
+</I>&gt;<i> and i'm having a terrible time isolating what could be causing this to
+</I>&gt;<i> occur.
+</I>&gt;<i> 
+</I>&gt;<i> interesting things which could be related:
+</I>&gt;<i> 
+</I>&gt;<i> o multiple instances of the app are running under the same apache with
+</I>&gt;<i> different &lt;Directory&gt; tags handling the different apache/mod_python
+</I>&gt;<i> settings
+</I>&gt;<i> 
+</I>&gt;<i> o i have PythonInterpPerDir turned on
+</I>&gt;<i> 
+</I>&gt;<i> o the problem seems most easily exaccerbated by running multiple
+</I>&gt;<i> scripts simultaneously
+</I>
+Here's my analysis of the case.  Looking at the source code of os.py:
+
+def _get_exports_list(module):
+    try:
+        return list(module.__all__)
+    except AttributeError:
+        return [n for n in dir(module) if n[0] != '_']
+
+the AttributeError should be caught -- but it isn't!  I think this is
+because each Python interpreter instance initializes its own copy of
+the exceptions -- but store them in a global shared by all instances
+running in the same process!
+
+&gt;<i> the biggest problem i'm having (besides the error itself) is that i
+</I>&gt;<i> can't figure out any way to tell which subinterpreter i am in when
+</I>&gt;<i> these errors happen. i've poked through the documentation and
+</I>&gt;<i> pythonrun.c to no avail.
+</I>
+Can you try this with Python 2.2c1?  I think we've fixed it there.  If
+you can't try 2.2c1, try the patch to pythonrun.c from rev 2.143 to
+2.144:
+<A HREF="http://cvs.sourceforge.net/cgi-bin/viewcvs.cgi/python/python/dist/src/Python/pythonrun.c.diff?r1=2.143&amp;r2=2.144.">http://cvs.sourceforge.net/cgi-bin/viewcvs.cgi/python/python/dist/src/Python/pythonrun.c.diff?r1=2.143&amp;r2=2.144.</A>
+
+--Guido van Rossum (home page: <A HREF="http://www.python.org/~guido/">http://www.python.org/~guido/</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008596.html">[mod_python] sporadic import errors...
+</A></li>
+	<LI>Next message: <A HREF="008598.html">[mod_python] sporadic import errors...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8597">[ date ]</a>
+              <a href="thread.html#8597">[ thread ]</a>
+              <a href="subject.html#8597">[ subject ]</a>
+              <a href="author.html#8597">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

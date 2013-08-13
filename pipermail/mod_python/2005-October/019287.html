@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] database connection
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20database%20connection&In-Reply-To=43514A3A.60902%40ulb.ac.be">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019282.html">
+   <LINK REL="Next"  HREF="019290.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] database connection</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20database%20connection&In-Reply-To=43514A3A.60902%40ulb.ac.be"
+       TITLE="[mod_python] database connection">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Oct 15 20:40:53 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019282.html">[mod_python] database connection
+</A></li>
+        <LI>Next message: <A HREF="019290.html">[mod_python] database connection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19287">[ date ]</a>
+              <a href="thread.html#19287">[ thread ]</a>
+              <a href="subject.html#19287">[ subject ]</a>
+              <a href="author.html#19287">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>A comment on something else in your example first.
+
+&gt;<i> pageAction1 = apache.import_module('pages/action1')
+</I>
+I wouldn't rely rely on being able to specific '/' in the module name as
+argument. The documentation only mentions that '.' can be used if
+needing to reference a subcomponent of a package. What you are doing is
+relying on a strange quirk of the implementation and in mod_python 3.3
+if the module loading system is overhauled there may be no guarantee
+that it would work the same. You could always campaign though that it
+is a useful future that should be maintained but documented. :-)
+
+BTW, does the &quot;pages&quot; directory actually have an &quot;__init__.py&quot; file. I
+think what you are doing doesn't require it to, but wanted to check if
+you do have it or not.
+
+On 16/10/2005, at 4:28 AM, Julien Cigar wrote:
+
+&gt;<i> Hello,
+</I>&gt;<i>
+</I>&gt;<i> I use mod_python for some time now, and I wondered where's the best  
+</I>&gt;<i> place to manage database connections / cursors ?
+</I>&gt;<i> I run a home made 'publisher' handler and what I'm actually doing is  
+</I>&gt;<i> to open a global database connection in the index.py, and pass this  
+</I>&gt;<i> variable in classes ... is this the best way ?
+</I>&gt;<i>
+</I>&gt;<i> a little example:
+</I>&gt;<i>
+</I>&gt;<i> -&gt; index.py:
+</I>&gt;<i>
+</I>&gt;<i> import psycopg
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i> config = apache.import_module('config')
+</I>&gt;<i> connection = psycopg.connect(config.getDbConnectionString())
+</I>
+Some will say that such resource initialisation should be done from a
+module imported using PythonImport. The argument is that such  
+potentially
+time consuming operations should be done at child process startup time.
+This is really only is valid for Win32 &quot;winnt&quot; MPM. There are also other
+problems with that approach, see:
+
+    
+<A HREF="http://www.modpython.org/pipermail/mod_python/2005-September/">http://www.modpython.org/pipermail/mod_python/2005-September/</A> 
+019092.html
+
+Some of the problems described in that link are pertinent to your case
+as well. Ie., because you have done initialisation at module import  
+time,
+you only get one chance to do it. Thus you should consider only doing it
+the first time that a request comes in that requires the resource. That
+way you can deal with errors properly. You do though have to contend  
+with
+multithreading issues.
+
+Further problems with doing resource initialisation in a request handler
+module are that when the module is reloaded where PythonAutoReload is  
+on,
+the global data will be overwritten meaning your existing connection  
+will
+be lost. If it doesn't automatically disconnect properly when disposed
+of, it will stay open and each reload will result in another connection
+and thus waste of resources and database connections.
+
+In mod_python.publisher in mod_python 3.2 module loading works a bit
+differently and data will not be reloaded on top of the existing module
+but into a new one. You still result though in the old connection being
+lost and if it doesn't disconnect properly, similar problems.
+
+Thus, it is preferable that resource allocation and the storage of the
+handle be done in a Python module that is not imported using the module
+loading system of mod_python but that &quot;import&quot; be used instead. Such a
+module should preferably not be in the document tree but elsewhere on
+the Python path. As described in the link above, use an access function
+in that module which returns, and creates as necessary, the resource
+handle.
+
+There is one other idea I have been toying with as to how to store such
+resource data to avoid some of these problems, but I'll leave that to
+another day. Probably prefer to write that up as a mini article on my
+web site. :-)
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019282.html">[mod_python] database connection
+</A></li>
+	<LI>Next message: <A HREF="019290.html">[mod_python] database connection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19287">[ date ]</a>
+              <a href="thread.html#19287">[ thread ]</a>
+              <a href="subject.html#19287">[ subject ]</a>
+              <a href="author.html#19287">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

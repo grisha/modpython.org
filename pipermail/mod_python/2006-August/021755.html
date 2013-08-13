@@ -1,0 +1,209 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] libxml2 and libxslt in mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20libxml2%20and%20libxslt%20in%20mod_python&In-Reply-To=1154562795.5163.56.camel%40localhost">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021714.html">
+   <LINK REL="Next"  HREF="021715.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] libxml2 and libxslt in mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Lee Brown</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20libxml2%20and%20libxslt%20in%20mod_python&In-Reply-To=1154562795.5163.56.camel%40localhost"
+       TITLE="[mod_python] libxml2 and libxslt in mod_python">administrator at leebrown.org
+       </A><BR>
+    <I>Sat Aug  5 14:45:25 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021714.html">[mod_python] libxml2 and libxslt in mod_python
+</A></li>
+        <LI>Next message: <A HREF="021715.html">[mod_python] libxml2 and libxslt in mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21755">[ date ]</a>
+              <a href="thread.html#21755">[ thread ]</a>
+              <a href="subject.html#21755">[ subject ]</a>
+              <a href="author.html#21755">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Greetings!
+
+In addition to lxml, here are a few other xslt solutions for python (along
+with my personal opinions of them):
+
+Pyana:
+
+A wrapper on Apache's Xalan processor.  Simple API, reasonably fast, but no
+support for xlst 2.0 or xinclude.
+
+FourSuite:
+
+An incredibly comprehensive suite of xml/xslt tools in 100% python - no
+external dependencies.  Full support for xinclude, xpath, xquery, yada,
+yada, yada.  Also has incredibly complicated (but thorough) documentation
+and is rather slow.  Probably way to slow for per-request xslt
+transformations, but O.K. for a Content Management System operating
+independently of the web server.
+
+MSXML (Microsoft XML COM object library)
+
+Can be called up from Python as a COM object using pywin32.  Very fast, but
+also very frustrating due to well-hidden (or non-existent) documentation.
+Not available for non-windows platforms.
+
+Misc. External Processes:
+
+Of course, you can always call another process using Python's os.popen,
+os.spawn, or sys.command functions.  In that case, you can use almost any
+xslt engine that has a command-line interface.  Candidates include Apache's
+Xerces/Xalan, libxml2/libxslt, Altova's XMLSpy run-time engine.  Way too
+slow for per-request processing, but that's more to do with OS overhead than
+the libraries themselves.
+
+I used to use Pyana with Mod Python and I liked it a lot until I ran up
+against the need to do xinclude processing.  Now I use lxml and I also like
+it a lot, though I'm not really fond of the Element Tree API.  (But then I'm
+unusual in that regard.)
+
+Just for grins and giggles, here is a code sample for performing xslt
+transformations as an Apache output filter using Mod Python and lxml:
+
+### xsltfilter.py ###
+
+from mod_python import apache
+from cStringIO import StringIO
+import lxml.etree
+
+xsltfile = open('c:/webdev/sites/crashtest/templates/template.xslt', 'rU')
+styledoc = lxml.etree.parse(StringIO(xsltfile.read()))
+transformer = lxml.etree.XSLT(styledoc)
+xsltfile.close()
+
+def outputfilter (filter):
+
+    streamlet = filter.read()
+
+    try:
+        streambuffer = filter.req.streambuffer
+    except AttributeError:
+        filter.req.streambuffer = StringIO()
+        streambuffer = filter.req.streambuffer
+        
+    while streamlet:
+        streambuffer.write(streamlet)
+        streamlet = filter.read()
+
+    if streamlet is None:
+        doc = lxml.etree.parse(streambuffer)
+        doc.xinclude()
+        result = str(transformer(doc))
+        filter.req.headers_out[&quot;Content-Length&quot;] = str(len(output))
+        filter.write(result)
+        filter.close()
+
+###
+
+Note that this filter loads the xslt template once on startup and then just
+keeps re-using it over and over to maximize efficiency.
+
+Best Regards,
+Lee E. Brown
+(<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">administrator at leebrown.org</A>)
+
+-----Original Message-----
+From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+[mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] On Behalf Of Diego Guillen
+Sent: Wednesday, August 02, 2006 7:53 PM
+To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Subject: [mod_python] libxml2 and libxslt in mod_python
+
+Hi all,
+
+BACKGROUND
+I just started using mod_python 3.1.4 with Apache2 on Ubuntu 6.06 Linux.
+[it embeds Python 2.4] I'm translating a small application from PHP5, as an
+exercise. It uses classes, simple inheritance, and xslt processing.
+
+I'm looking into /var/log/apache2/error.log, as well as on the Firefox
+1.5 browser, for error messages.
+
+COMMENTS
+My first impression is that mod_python's error reporting system is not as
+pleasant to use. I don't seem to get enough feedback when something goes
+wrong, and the error messages don't seem to point to the right version of
+the files, nor to the right line numbers.
+
+[It seems that the line numbers are shifted when you use logging, or when a
+statement spans over several lines]
+
+When I move the application into another folder, and remove the references
+to the mod_python module [simulating the requests], it seems to be easier to
+debug directly with the Python 2.4 interpreter.
+
+QUESTIONS
+My questions are: 
+* is it possible to access the libxml2, libxslt libraries in mod_python?
+* is there an alternative better way for doing xslt in Python?
+* is there any good Python-based documentation on the use of these libraries
+without recurring to the C description (<A HREF="http://xmlsoft.org/">http://xmlsoft.org/</A>)?
+* and this may sound heretical on this mailing list: is there a way better
+than mod_python to write web applications with Python?
+
+Thanks,
+   Diego
+
+
+
+
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021714.html">[mod_python] libxml2 and libxslt in mod_python
+</A></li>
+	<LI>Next message: <A HREF="021715.html">[mod_python] libxml2 and libxslt in mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21755">[ date ]</a>
+              <a href="thread.html#21755">[ thread ]</a>
+              <a href="subject.html#21755">[ subject ]</a>
+              <a href="author.html#21755">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache + mod_python + SSLVerifyClient == broken url
+	parsing?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%20%2B%20mod_python%20%2B%20SSLVerifyClient%20%3D%3D%20broken%20url%0A%09parsing%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020793.html">
+   <LINK REL="Next"  HREF="020795.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache + mod_python + SSLVerifyClient == broken url
+	parsing?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>ben</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%20%2B%20mod_python%20%2B%20SSLVerifyClient%20%3D%3D%20broken%20url%0A%09parsing%3F&In-Reply-To="
+       TITLE="[mod_python] Apache + mod_python + SSLVerifyClient == broken url
+	parsing?">benomatic42 at gmail.com
+       </A><BR>
+    <I>Thu Apr  6 09:46:45 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020793.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)
+</A></li>
+        <LI>Next message: <A HREF="020795.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20796">[ date ]</a>
+              <a href="thread.html#20796">[ thread ]</a>
+              <a href="subject.html#20796">[ subject ]</a>
+              <a href="author.html#20796">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I have unearthed a strange problem.  I have a simple httpd.conf that should
+map urls like this:
+
+/download -&gt; static content, matching client SSL cert required
+* -&gt; mod_python handler, SSL based, but no client cert required
+
+What I get instead is
+
+<A HREF="https://foobar.com/download/stuff.txt">https://foobar.com/download/stuff.txt</A> -- static content, client cert
+required
+<A HREF="https://foobar.com/setup/things">https://foobar.com/setup/things</A> -- python handler, no client cert
+<A HREF="https://foobar.com/setup/download/stuff">https://foobar.com/setup/download/stuff</A> -- python handler, client cert
+required
+
+The last thing should never happen by the configuration:
+
+---- httpd.conf ----
+ServerName 127.0.0.1
+ServerRoot &quot;/usr/local&quot;
+DocumentRoot &quot;/usr/local/htdocs&quot;
+Listen 443
+User www
+Group www
+LoadModule python_module modules/mod_python.so
+
+&lt;Location &quot;/&quot;&gt;
+        SetHandler mod_python
+        PythonHandler dummy::handler
+        PythonDebug On
+&lt;/Location&gt;
+
+&lt;Location &quot;/download&quot;&gt;
+        SSLVerifyClient require
+        SSLVerifyDepth 1
+        SetHandler None
+&lt;/Location&gt;
+
+SSLEngine on
+SSLCertificateFile    certs/dummy.crt
+SSLCertificateKeyFile certs/dummy.crt
+SSLCACertificateFile  certs/dummy-ca.crt
+--------
+
+This is running against apache 2.2.0, python 2.4.1 and mod_python 3.2.8 (+
+the four patches found here -- needed for proper 2.2.0 operation --
+<A HREF="http://svn.apache.org/viewcvs.cgi?rev=376544&amp;view=rev">http://svn.apache.org/viewcvs.cgi?rev=376544&amp;view=rev</A> )
+
+Basically, any url that contains, but does not begin with '/download/',
+falsely requires an SSL client cert, and produces an IOError in the python
+during the write() call.
+
+Simple test python code is here:
+
+---- dummy.py ----
+from mod_python import apache
+
+def handler(req):
+    req.content_type = 'text/plain'
+    try:
+        req.write(str(req.the_request))
+    except IOError, e:
+        apache.log_error('IOError: ' + str(e))
+        apache.log_error('IOError: ' + req.the_request)
+    return apache.OK
+--------
+
+Below are the errors produced in apache's error log for each url, using a
+client that does not have the client cert configured.
+
+<A HREF="https://foobar.com/download/stuff.txt">https://foobar.com/download/stuff.txt</A>
+[www_error] Re-negotiation handshake failed: Not accepted by client!?
+[curl error] SSL read: error:14094410:SSL routines:SSL3_READ_BYTES:sslv3
+alert handshake failure, errno 0
+
+<A HREF="https://foobar.com/setup/things">https://foobar.com/setup/things</A>
+[no errors]
+
+<A HREF="https://foobar.com/setup/download/stuff">https://foobar.com/setup/download/stuff</A>
+[www_error] IOError: Write failed, client closed connection.
+[www_error] IOError: GET /foo/download HTTP/1.1
+[curl error] SSL read: error:14094410:SSL routines:SSL3_READ_BYTES:sslv3
+alert handshake failure, errno 0
+
+Has anybody seen any problem like this?  I tried setting this up to fail w/
+static content, but so far it only fails w/ mod_python + ssl.
+The apache lists show a few other problems w/ the SSLVerifyClient directive,
+so it may not be only mod_python that triggers this...
+
+
+<A HREF="http://marc.theaimsgroup.com/?l=apache-modssl&amp;w=2&amp;r=1&amp;s=SSLVerifyClient&amp;q=b">http://marc.theaimsgroup.com/?l=apache-modssl&amp;w=2&amp;r=1&amp;s=SSLVerifyClient&amp;q=b</A>
+
+Any suggestions on how to fix this, or what I ought to do to bring this to
+apache/modssl developer attention?  Thanks.
+
+ben
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060406/c6df01e0/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060406/c6df01e0/attachment-0001.html</A>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020793.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)
+</A></li>
+	<LI>Next message: <A HREF="020795.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20796">[ date ]</a>
+              <a href="thread.html#20796">[ thread ]</a>
+              <a href="subject.html#20796">[ subject ]</a>
+              <a href="author.html#20796">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

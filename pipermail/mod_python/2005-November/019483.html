@@ -1,0 +1,208 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] handlers and globals
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20handlers%20and%20globals&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019489.html">
+   <LINK REL="Next"  HREF="019485.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] handlers and globals</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Neil Gower</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20handlers%20and%20globals&In-Reply-To="
+       TITLE="[mod_python] handlers and globals">ngower at dkp.com
+       </A><BR>
+    <I>Tue Nov  8 16:47:59 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019489.html">[mod_python] Bugreport: mod_python replaces &quot;\n&quot; on \n
+</A></li>
+        <LI>Next message: <A HREF="019485.html">[mod_python] Bugreport: mod_python replaces &quot;\n&quot; on \n
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19483">[ date ]</a>
+              <a href="thread.html#19483">[ thread ]</a>
+              <a href="subject.html#19483">[ subject ]</a>
+              <a href="author.html#19483">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello,
+
+I'm having some trouble trying to run my PSP pages through the standard 
+Python profiler.  The problem appears to be that the python globals don't 
+behave as the profiler expects when it is run through mod_python.
+
+The test handler (below) works okay with the profiler when invoked from a 
+regular command line Python interpreter, but it raises a &quot;NameError: name 
+'processPsp' is not defined&quot; exception when run through mod_python.  I'm 
+taking that to mean that the profiler can't find the processPsp() method to 
+invoke.
+
+Can anyone offer any suggestions?  I'm stumped at this point.
+
+Thanks!
+
+
+Neil.
+
+
+Details of my setup:
+=============================================================================
+Mod_python error: &quot;PythonHandler profiler-handler&quot;
+
+Traceback (most recent call last):
+
+   File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 299, in 
+HandlerDispatch
+     result = object(req)
+
+   File &quot;/var/profiler-test/profiler-handler.py&quot;, line 36, in handler
+     rc = profile.run( 'processPsp()', 'ProfilerTest.psp.prof' )
+
+   File &quot;/usr/lib/python2.3/profile.py&quot;, line 71, in run
+     prof = prof.run(statement)
+
+   File &quot;/usr/lib/python2.3/profile.py&quot;, line 403, in run
+     return self.runctx(cmd, dict, dict)
+
+   File &quot;/usr/lib/python2.3/profile.py&quot;, line 409, in runctx
+     exec cmd in globals, locals
+
+   File &quot;&quot;, line 1, in ?
+
+NameError: name 'processPsp' is not defined
+=============================================================================
+Apache:
+
+&lt;Directory &quot;/var/profiler-test&quot;&gt;
+     Options Indexes MultiViews
+     AllowOverride None
+     Order allow,deny
+     Allow from all
+
+     AddHandler mod_python .psp
+     PythonHandler profiler-handler
+     PythonDebug On
+&lt;/Directory&gt;
+
+=============================================================================
+/var/profiler-test/ProfilerTest.psp:
+
+&lt;p&gt;This is a test!
+
+&lt;%
+req.write( &quot;&lt;p&gt;So is this!&quot; )
+%&gt;
+
+=============================================================================
+/var/profiler-test/profiler-handler.py:
+
+# we have to wrap these imports in a try block to be able to run the
+# code outside of mod_python, where they will fail.
+try:
+     from mod_python import apache, psp
+except:
+     pass
+
+import profile
+
+
+def processPsp():
+     &quot;&quot;&quot;
+     A plain old method that uses global variables for the PSP
+     parameters, which makes it easy to use with the profiler.
+     &quot;&quot;&quot;
+     theRequest.content_type = &quot;text/html&quot;
+     template = psp.PSP( theRequest, theTemplateFile )
+     template.run()
+     return apache.OK
+# end processPsp()
+
+
+def handler( req ):
+     &quot;&quot;&quot;
+     The mod_python hook for handling a page request.
+     &quot;&quot;&quot;
+     global theRequest
+     global theTemplateFile
+     theRequest = req
+     theTemplateFile = 'ProfilerTest.psp'
+
+     # This works...
+     #rc = processPsp()
+
+     # but this doesn't...
+     rc = profile.run( 'processPsp()', 'ProfilerTest.psp.prof' )
+
+     return rc
+# end handler()
+
+
+if __name__ == '__main__':
+     try:
+         handler( None )
+     except AttributeError, e:
+         # if we actually make it into processPsp(), the null request
+         # object will cause an AttributeError.
+         print &quot;A not unexpected error: %s&quot; % str(e)
+# end main.
+=============================================================================
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019489.html">[mod_python] Bugreport: mod_python replaces &quot;\n&quot; on \n
+</A></li>
+	<LI>Next message: <A HREF="019485.html">[mod_python] Bugreport: mod_python replaces &quot;\n&quot; on \n
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19483">[ date ]</a>
+              <a href="thread.html#19483">[ thread ]</a>
+              <a href="subject.html#19483">[ subject ]</a>
+              <a href="author.html#19483">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

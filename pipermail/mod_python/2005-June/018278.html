@@ -1,0 +1,190 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Accessing objects loaded with PythonImport
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Accessing%20objects%20loaded%20with%20PythonImport&In-Reply-To=5c6b9bd58118605d0871d4f37a09fea1%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018277.html">
+   <LINK REL="Next"  HREF="018279.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Accessing objects loaded with PythonImport</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Lee Brown</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Accessing%20objects%20loaded%20with%20PythonImport&In-Reply-To=5c6b9bd58118605d0871d4f37a09fea1%40dscpl.com.au"
+       TITLE="[mod_python] Accessing objects loaded with PythonImport">administrator at leebrown.org
+       </A><BR>
+    <I>Sat Jun  4 17:40:18 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018277.html">[mod_python] Accessing objects loaded with PythonImport
+</A></li>
+        <LI>Next message: <A HREF="018279.html">[mod_python] PythonAuthenHandler Question
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18278">[ date ]</a>
+              <a href="thread.html#18278">[ thread ]</a>
+              <a href="subject.html#18278">[ subject ]</a>
+              <a href="author.html#18278">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Greetings!
+
+After reading both Nicolas' and Graham's comments, it seems that there's an
+unspoken question:
+
+&quot;Why on Earth are you writing YAPWF (Yet Another Python Web Framework) when
+you can't hardly avoid tripping over a dozen good ones, already written?&quot;
+
+'Tis a good question.
+
+First, a little background:  I don't program for a living.  In fact, in real
+life(tm) I'm a mechanical engineer whose daily professional life is all
+about nuts and bolts and gears and what-not.  I write code because, well, I
+like writing code.  It's fun for me because I can never resist a puzzle and
+programming is all about solving puzzles in one form or another.  If I were
+doing this for a living on a live production site, I would indeed seek out
+and implement one of the many good, exisiting Python based frameworks.  But
+where's the fun in that?
+
+Let me explain what I'm trying to accomplish with my current mod_python
+project, and maybe some folks might care to comment on it:
+
+I host about a half-dozen web sites for my friends and colleagues.  None of
+these sites are anything more than 'hobby' sites, really.  One of them is
+bulletin board for a friend who likes to compose music and share
+compositions with other composers.  On another site, my brother has
+emendations of Shakespeare's works which he shares with other Shakespeare
+scholars.  None of these sites go more than a dozen pages deep, and none of
+them scores more than a couple-dozen hits per day.  I do it just because I
+like doing it.
+
+However, keeping everything up-to-date started to consume a lot of my time.
+The first thing I tried was to enable webDAV so the site owners could update
+their own content.  Jeeze, what a disaster!  WebDAV is fine for
+authentication and authorization, but it does nothing to stop owners from
+uploading broken code and the inevitable crash n' burn that results.  (My
+site owners are all bright people but they are NOT programmers!)
+
+So then I tried writing a python program that would automatically validate
+new code against the W3C validation servers.  That worked fine for stopping
+bad code but it did nothing about FIXING it.  So it was still taking up more
+of my time than I'd rather.
+
+So then I tried to find a way to keep bad code from happening, period.  I
+decided to go with XML; I made up an XML Schema for the site owners and set
+them up with an XML authoring tool suitable for their hardware platform.
+Now they can change content to their heart's content and that content will
+be validated before it even gets to me.  And by using XSLT as a templating
+engine, I could ensure that the pages were transformed into properly
+formatted, valid xhtml.
+
+However, I was still stuck with linking up the pages and making sure the
+site navigation was fixed up properly.  I also had to keep a watch for new
+content and run it through an XSLT process to transform it into xhtml.
+
+So this is my current Holy Grail project: A self-administrating,
+self-configuring, self-healing web server based on XML and XSLT.  OF all the
+frameworks I looked at, Apache's Forrest was the closest thing to what I
+wanted.  It is entirely XML driven and is self-building, but unfortunately
+it A) runs on Java, a language I've successfully avoided so far, and B) it's
+rather complicated for my needs.
+
+Besides, writing it yourself is half the fun, right?
+
+The skeleton of my code runs something like this:
+
+For each vhost on server startup:
+	
+	Execute /serverroot/config/site_config.py to get the site's default
+CSS, JavaScript, Schema, and XSLT template information.
+	Walk the file system path starting with the document root.  (All
+vhost docroots start at '/severroot/home'.)
+	For each subdirectory (recursive) containing a file called
+'page.xml':
+		Validate the page against the schema
+		Build a site navigation structure using the file system path
+as the navigation tree path.
+		Transform 'page.xml' into 'page.html' using XSLT, merging in
+the navigation structure.
+		(If any of these steps fail, the page is skipped over and
+replaced with an error page.)
+
+(In this way, the entire site is rebuilt on a server restart with only
+known, valid code.)
+
+For each request of the form 'www.site.name/path/to/page':
+
+	Look for 'page.html' in docroot/path/to/page
+	Compare the file system timestamps for 'page.xml' and 'page.html'
+	If 'page.xml' is newer than 'page.html':
+		retransform 'page.xml' into 'page.html' through the XSLT
+engine
+		(If transform fails, set 'page.html' to an error page)
+	Serve page.html
+
+Now each site owner can upload new content for existing pages and have those
+changes incorporate immediately.  The Webmaster and ONLY the Webmaster
+(read: me) can upload changes to CSS, JavaScripts, XSLT Templates, and other
+sensitive bits.  As the Apache HTTP Server can be issued a restart command
+from a remote computer, I can implement changes without being in front of
+the hosting computer.  And if it all falls apart, I can remotely reconfigure
+the server to disable the python handler and just serve the existing html
+until I have time to sit down and properly sort things out.
+
+All of which no doubt raises yet another unspoken question: &quot;Boy, you sure
+do have a weird definition of 'fun', don't you?&quot;
+
+Best Regards,
+Lee E. Brown
+(<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">administrator at leebrown.org</A>)
+
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018277.html">[mod_python] Accessing objects loaded with PythonImport
+</A></li>
+	<LI>Next message: <A HREF="018279.html">[mod_python] PythonAuthenHandler Question
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18278">[ date ]</a>
+              <a href="thread.html#18278">[ thread ]</a>
+              <a href="subject.html#18278">[ subject ]</a>
+              <a href="author.html#18278">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

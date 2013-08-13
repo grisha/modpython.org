@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] implications of multiple interpreters
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20implications%20of%20multiple%20interpreters&In-Reply-To=544657AE-0E61-41A6-B716-AF62BEA04831%40comcast.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023561.html">
+   <LINK REL="Next"  HREF="023563.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] implications of multiple interpreters</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20implications%20of%20multiple%20interpreters&In-Reply-To=544657AE-0E61-41A6-B716-AF62BEA04831%40comcast.net"
+       TITLE="[mod_python] implications of multiple interpreters">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat May  5 07:39:51 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023561.html">[mod_python] implications of multiple interpreters
+</A></li>
+        <LI>Next message: <A HREF="023563.html">[mod_python] Help with session.save and register_cleanup
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23562">[ date ]</a>
+              <a href="thread.html#23562">[ thread ]</a>
+              <a href="subject.html#23562">[ subject ]</a>
+              <a href="author.html#23562">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 05/05/07, John Raines &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jrraines at comcast.net</A>&gt; wrote:
+&gt;<i> My point was that there is presumably one global flag that tells the
+</I>&gt;<i> calendar module whether the first weekday is Sunday or Monday. I'm
+</I>&gt;<i> presuming that if one subinterpreter changes the default Monday to
+</I>&gt;<i> Sunday that all the subinterpreters also see this happen. The flag
+</I>&gt;<i> iprobably isn't set on a per interpreter basis
+</I>
+&gt;<i>From reading 'calendar' code, it would be on per interpreter basis. It
+</I>is not global across all sub interpreters within that process. Such
+global state across all interpreters would generally only occur in C
+extension modules where flag is maintained in C code and not Python
+code.
+
+&gt;<i> and even if it were, a
+</I>&gt;<i> browser client isn't guarranteed the same subinterpreter on the next
+</I>&gt;<i> request.
+</I>
+You might be getting confused with fact that subsequent request may
+actually be against a different process. Read:
+
+  <A HREF="http://www.dscpl.com.au/wiki/ModPython/Articles/TheProcessInterpreterModel">http://www.dscpl.com.au/wiki/ModPython/Articles/TheProcessInterpreterModel</A>
+
+The request for a particular URL will always be against the same named
+interpreter, but there is a unique instance of that named interpreter
+in each Apache child process that might handle a request. Within one
+process that one instance of a specific named interpreter persists for
+the life of that process.
+
+&gt;<i> The first weekday needs to be restored to the default and the end of
+</I>&gt;<i> each page request  and if the client wants something else, it will
+</I>&gt;<i> need to be set up each  request by some mechanism usng cookies or
+</I>&gt;<i> sessions or something similar.  The first weekday thing can be set
+</I>&gt;<i> but not directly read; you can figure out what it is by looking at
+</I>&gt;<i> the returned calendar for a specific month.
+</I>
+Setting flag at beginning of request and restoring it at the end of
+the request will not work in a multithread Apache MPM as the use of
+the flag in a particular state will not be serialised. Thus one
+request when cleaning up could set flag back to different value for
+other request got to use it with state it had just set it to.
+
+In other words, changing that state in 'calender' is not thread safe
+and should only be changed once from module imported using
+PythonImport and left that way for life of process.
+
+&gt;<i>   If  I understood the python 3.0 issue it was similar to this, but
+</I>&gt;<i> more difficult: they were considering adding the ability to override
+</I>&gt;<i> arithmetic operators for some classes and this would be global
+</I>&gt;<i> behavior. There would typically be no way to reset THAT to default
+</I>&gt;<i> and restore it  to what was wanted on each request.
+</I>
+It was only an issue with Python 3.0 and what they were talking about
+because they were talking about making changes at C code level and not
+at that point taking into consideration that behaviour may want to be
+different where there are multiple sub interpreters.
+
+Graham
+
+&gt;<i> On May 4, 2007, at 10:19 PM, Graham Dumpleton wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; As 'calendar' is a pure Python module any problem wouldn't be anything
+</I>&gt;<i> &gt; to do with multiple sub interpreters as each sub interpreter has its
+</I>&gt;<i> &gt; own copy of pure Python code modules. Any problem you saw is more
+</I>&gt;<i> &gt; likely the result of using the Apache worker MPM on UNIX, or using a
+</I>&gt;<i> &gt; Windows box, and the fact that distinct requests can be running
+</I>&gt;<i> &gt; concurrently within the one sub interpreter of a process in different
+</I>&gt;<i> &gt; threads.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On 04/05/07, John Raines &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jrraines at comcast.net</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt; Last night I found a bug in my code that involved using
+</I>&gt;<i> &gt;&gt; calendar.setfirstweekday in one place and later assuming that it was
+</I>&gt;<i> &gt;&gt; the default at another place (actually an earlier place that I came
+</I>&gt;<i> &gt;&gt; back to).
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; As I think about this there may be an interaction with multiple
+</I>&gt;<i> &gt;&gt; interpreters so that this MIGHTt ave been hard to reproduce and find.
+</I>&gt;<i> &gt;&gt; I fixed my problem but I am interested in understanding the
+</I>&gt;<i> &gt;&gt; implications of multiple interpreters for issues of this sort.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; I suspect this is not dissimilar to the brief thread earlier in the
+</I>&gt;<i> &gt;&gt; week about python 3.0.
+</I>&gt;<i> &gt;&gt; _______________________________________________
+</I>&gt;<i> &gt;&gt; Mod_python mailing list
+</I>&gt;<i> &gt;&gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt;&gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023561.html">[mod_python] implications of multiple interpreters
+</A></li>
+	<LI>Next message: <A HREF="023563.html">[mod_python] Help with session.save and register_cleanup
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23562">[ date ]</a>
+              <a href="thread.html#23562">[ thread ]</a>
+              <a href="subject.html#23562">[ subject ]</a>
+              <a href="author.html#23562">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

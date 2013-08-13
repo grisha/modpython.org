@@ -1,0 +1,210 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problem keeping persistent object in memory (global)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20keeping%20persistent%20object%20in%20memory%20%28global%29&In-Reply-To=98EEE750-B672-45E3-B244-B089DD1FFCBA%40mac.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018291.html">
+   <LINK REL="Next"  HREF="018301.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Problem keeping persistent object in memory (global)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Huzaifa Tapal</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20keeping%20persistent%20object%20in%20memory%20%28global%29&In-Reply-To=98EEE750-B672-45E3-B244-B089DD1FFCBA%40mac.com"
+       TITLE="[mod_python] Problem keeping persistent object in memory (global)">huzaifa at hostway.com
+       </A><BR>
+    <I>Mon Jun  6 13:02:48 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018291.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+        <LI>Next message: <A HREF="018301.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18294">[ date ]</a>
+              <a href="thread.html#18294">[ thread ]</a>
+              <a href="subject.html#18294">[ subject ]</a>
+              <a href="author.html#18294">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>One option that I use is to create a singleton in the module that I want 
+to be global at the first import of that module.  So lets take your 
+mySitePool module for example:
+
+class mySitePool:
+    def __init__(self):
+          ' suite
+
+....
+
+global mysitepool
+mysitepool = mySitePool()
+
+
+Now, in your mod_python request handler, when you add the import of 
+mySitePool, the global singleton object of mySitePool will be created. 
+Since, the module is imported, in mod_python, that module will be cached 
+so it would not get imported again so to recreate the singleton.
+
+So your handler would look like this:
+
+import mySitePool
+
+def handler(req):
+    mySite = mySitePool.mysitepool.get()
+    return mySite(req)
+    mySitePool.mysitepool.put(mySite)
+
+Let me know if this helps.
+
+Hozi
+
+S&#233;bastien Arnaud wrote:
+
+&gt;<i> Hi,
+</I>&gt;<i>
+</I>&gt;<i> I have attempted to write my own little framework (&quot;heracles&quot; I named  
+</I>&gt;<i> it;) to develop applications faster using mod_python and it is coming  
+</I>&gt;<i> along great. Mainly I am using the framework to keep handy a bunch of  
+</I>&gt;<i> little utils functions/objects I have written along the years while  
+</I>&gt;<i> working with mod_python, such as a pool of connections for DB  
+</I>&gt;<i> connections, XML/XSLT rendering, Cheetah template rendering, etc...
+</I>&gt;<i>
+</I>&gt;<i> I am hitting the wall on a very stupid problem that I thought I had  
+</I>&gt;<i> working. I can't get an object declared as global to remain in memory...
+</I>&gt;<i> Under Apache Pre-fork MPM model, this I understand, but under the MPM  
+</I>&gt;<i> Worker model, where I specify to start 10 threads in one process, I  
+</I>&gt;<i> kind of don't get it... Maybe some of you will be able to spot what I  
+</I>&gt;<i> am doing wrong.
+</I>&gt;<i>
+</I>&gt;<i> Basically, what I am trying to do is to keep the object mySitePool in  
+</I>&gt;<i> memory since each Site object (heracles.site) has everything needed  
+</I>&gt;<i> by a thread to process a request. At the first request the mySitePool  
+</I>&gt;<i> object should get initialized, but for any other requests it should  
+</I>&gt;<i> be simply the matter of retrieving one Site object via the Queueing  
+</I>&gt;<i> mechanism to process one request. Right now the problem is that I am  
+</I>&gt;<i> able to see for each request one entry in the apache log file that  
+</I>&gt;<i> the mySitePool is being initialized...
+</I>&gt;<i>
+</I>&gt;<i> Thank you in advance for any pointers or solutions you may have!
+</I>&gt;<i>
+</I>&gt;<i> Apache2 config (MPM worker):
+</I>&gt;<i> ---------------------------
+</I>&gt;<i> &lt;IfModule worker.c&gt;
+</I>&gt;<i> StartServers         1
+</I>&gt;<i> MaxClients          10
+</I>&gt;<i> MinSpareThreads     10
+</I>&gt;<i> MaxSpareThreads      0
+</I>&gt;<i> ThreadsPerChild     10
+</I>&gt;<i> MaxRequestsPerChild  0
+</I>&gt;<i> &lt;/IfModule&gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Apache2 mod_python (.htaccess):
+</I>&gt;<i> -------------------------------
+</I>&gt;<i> PythonInterpPerDirective On
+</I>&gt;<i>
+</I>&gt;<i> PythonOption &quot;SiteName&quot; &quot;Heracles Test site&quot;
+</I>&gt;<i> PythonOption &quot;SiteDescription&quot; &quot;Testing the framework!&quot;
+</I>&gt;<i> PythonOption &quot;SiteVirtualPath&quot; &quot;/heracles/&quot;
+</I>&gt;<i> PythonOption &quot;SiteViewPath&quot; &quot;/xxx/webapp/views/&quot;
+</I>&gt;<i> PythonOption &quot;MySQLhost&quot; &quot;xxx&quot;
+</I>&gt;<i> PythonOption &quot;MySQLuid&quot; &quot;arnaudsj&quot;
+</I>&gt;<i> PythonOption &quot;MySQLpwd&quot; &quot;xxx&quot;
+</I>&gt;<i> PythonOption &quot;MySQLdb&quot; &quot;test&quot;
+</I>&gt;<i>
+</I>&gt;<i> SetHandler python-program
+</I>&gt;<i> PythonHandler heracles.site::handler
+</I>&gt;<i>
+</I>&gt;<i> PythonDebug On
+</I>&gt;<i> PythonAutoReload On
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> heracles.site.py:
+</I>&gt;<i> -----------------
+</I>&gt;<i> [...]
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>     &quot;&quot;&quot;
+</I>&gt;<i>     Standard mod_python handler code for Heracles Web Application  
+</I>&gt;<i> Framework
+</I>&gt;<i>     The SitePool is initialized based on Apache MPM setting
+</I>&gt;<i>     &quot;&quot;&quot;
+</I>&gt;<i>     global mySitePool
+</I>&gt;<i>     try:
+</I>&gt;<i>         mySite = mySitePool.get()
+</I>&gt;<i>     except NameError:
+</I>&gt;<i>         req.log_error(&quot;Initializing Heracles WAF at %s with %s thread 
+</I>&gt;<i> (s)&quot; % (req.document_root(), apache.mpm_query(6)))
+</I>&gt;<i>         mySitePool = Pool(Constructor(Site, req), apache.mpm_query(6))
+</I>&gt;<i>         mySite = mySitePool.get()
+</I>&gt;<i>     return mySite(req)
+</I>&gt;<i>     mySitePool.put(mySite)
+</I>&gt;<i> [...]
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Cheers,
+</I>&gt;<i>
+</I>&gt;<i> S&#233;bastien
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018291.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+	<LI>Next message: <A HREF="018301.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18294">[ date ]</a>
+              <a href="thread.html#18294">[ thread ]</a>
+              <a href="subject.html#18294">[ subject ]</a>
+              <a href="author.html#18294">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

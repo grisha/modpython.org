@@ -1,0 +1,193 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Cookie patch
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookie%20patch&In-Reply-To=41E6CFA4.4090604%40encorp.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017098.html">
+   <LINK REL="Next"  HREF="017100.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Cookie patch</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookie%20patch&In-Reply-To=41E6CFA4.4090604%40encorp.com"
+       TITLE="[mod_python] Cookie patch">nicolas.lehuen at gmail.com
+       </A><BR>
+    <I>Thu Jan 13 15:27:54 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017098.html">[mod_python] Cookie patch
+</A></li>
+        <LI>Next message: <A HREF="017100.html">[mod_python] Cookie patch
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17099">[ date ]</a>
+              <a href="thread.html#17099">[ thread ]</a>
+              <a href="subject.html#17099">[ subject ]</a>
+              <a href="author.html#17099">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Thu, 13 Jan 2005 12:44:36 -0700, Craig Warren
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">craig.warren at encorp.com</A>&gt; wrote:
+&gt;<i> Not quite sure this is correct above, I have a hard time
+</I>&gt;<i> with the spec though..
+</I>&gt;<i>  
+</I>&gt;<i>  But the problem I see is depending on the order of the value name pairs you
+</I>&gt;<i> can get different results.
+</I>&gt;<i>  
+</I>&gt;<i>  The first time though the loop will always put the l_key in the
+</I>&gt;<i> all_cookies_attribute, then depending on the order, it will put the
+</I>&gt;<i> attributes of the all_cookies_attribute on the next cookies
+</I>&gt;<i>  
+</I>&gt;<i>  [<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">cwarren at lapbob</A> mod_python]$ python cookie_test.py
+</I>&gt;<i>  TEST
+</I>&gt;<i>   --------------------------------------------------
+</I>&gt;<i>  New Funtion
+</I>&gt;<i>  Cookie:test=1;bob=1;$Version=0;$Path=/
+</I>&gt;<i>  Cookies
+</I>&gt;<i>  test=1
+</I>&gt;<i>  bob=1; version=0; path=/
+</I>&gt;<i>   
+</I>&gt;<i>  My function Old with my fix
+</I>&gt;<i>  Cookie:test=1;bob=1;$Version=0;$Path=/
+</I>&gt;<i>  Cookies
+</I>&gt;<i>  test=1
+</I>&gt;<i>  bob=1; version=0; path=/
+</I>&gt;<i>   
+</I>&gt;<i>   --------------------------------------------------
+</I>&gt;<i>   
+</I>&gt;<i>  TEST
+</I>&gt;<i>   --------------------------------------------------
+</I>&gt;<i>  New Funtion
+</I>&gt;<i>  Cookie:$Version=0;$Path=/;test=1
+</I>&gt;<i>  Cookies
+</I>&gt;<i>  test=1; version=0; path=/
+</I>&gt;<i>   
+</I>&gt;<i>  My function Old with my fix
+</I>&gt;<i>  Cookie:$Version=0;$Path=/;test=1
+</I>&gt;<i>  Cookies
+</I>&gt;<i>  $Version=0; version=0; path=/
+</I>&gt;<i>  test=1
+</I>&gt;<i>   
+</I>&gt;<i>   --------------------------------------------------
+</I>&gt;<i>   
+</I>&gt;<i>  TEST
+</I>&gt;<i>   --------------------------------------------------
+</I>&gt;<i>  New Funtion
+</I>&gt;<i>  Cookie:test=1;$Version=0;bob=1;$Path=/
+</I>&gt;<i>  Cookies
+</I>&gt;<i>  test=1; version=0
+</I>&gt;<i>  bob=1; path=/
+</I>&gt;<i>   
+</I>&gt;<i>  My function Old with my fix
+</I>&gt;<i>  Cookie:test=1;$Version=0;bob=1;$Path=/
+</I>&gt;<i>  Cookies
+</I>&gt;<i>  test=1; version=0
+</I>&gt;<i>  bob=1; path=/
+</I>&gt;<i>   
+</I>&gt;<i>   --------------------------------------------------
+</I>&gt;<i>   
+</I>&gt;<i>  [<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">cwarren at lapbob</A> mod_python]$
+</I>&gt;<i>  
+</I>&gt;<i>  
+</I>&gt;<i>  Maybe only set the &quot;global&quot; attributes to all cookies if it has a &quot;$&quot; in
+</I>&gt;<i> front of it, so you would have to collect those the first time through the
+</I>&gt;<i> loop then add them afterwards to each Cookie.  But like I said I don't quite
+</I>&gt;<i> understand the spec very well.
+</I>[...]
+
+Well, the spec is pretty thin on the subject indeed, but what I
+understand is that the result MUST depend on the order in which the
+attributes are written. For example :
+
+Cookie: $Version=1;test=2;$Path=/
+==&gt; a single Cookie with key=='test', value=='2' and attributes
+version=='1' and path=='/'
+
+Cookie: $Version=1;test1=2;$Path=/;test2=3;$Path=/foo
+==&gt; two Cookies :
+ - one with key=='test1', value=='2', version=='1' and path=='/'
+ - one with key=='test2', value=='3', version=='1' and path=='/foo'
+
+Cookie: test1=2;$Path=/;$Version=1;test2=3;$Path=/foo;$Version=2
+==&gt; two Cookies :
+ - one with key=='test1', value=='2', version=='1' and path=='/'
+ - one with key=='test2', value=='3', version=='2' and path=='/foo'
+
+Cookie: $Version=2;$Path='/fubar';test1=2;test2=3;$Path=/foo;$Version=1;test3=4;$Path=/bar;$Version=4
+==&gt; three Cookies :
+ - one with key=='test1', value=='2', version=='2' and path=='/fubar'
+ - one with key=='test2', value=='3', version=='1' and path=='/foo'
+ - one with key=='test3', value=='4', version=='4' and path=='/bar'
+
+To sum up, from what I understand, attributes are written like cookies
+whose name start by a dollar sign, and they apply to the rightmost
+preceding cookie.
+
+Attributes that are at the beginning of the Cookie header are 'global'
+attributes, used to describe the cookie 'baking' mechanism, like the
+Version attributes does. Here I chose to put those attributes in each
+Cookie, since I don't see any better way to return the information to
+the API user (maybe in a Cookies collection ?).
+
+I wrote a few tests and I checked that the new function does follow
+this interpretation of the RFC. The problem is that I'm not 100% sure
+that it's meant to be interpreted this way... I'll check in other
+Cookies implementations (in Python or Java) to make sure.
+
+Regards,
+Nicolas
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017098.html">[mod_python] Cookie patch
+</A></li>
+	<LI>Next message: <A HREF="017100.html">[mod_python] Cookie patch
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17099">[ date ]</a>
+              <a href="thread.html#17099">[ thread ]</a>
+              <a href="subject.html#17099">[ subject ]</a>
+              <a href="author.html#17099">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problem with PSP and unicode
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20with%20PSP%20and%20unicode&In-Reply-To=4817b6fc0602141046j16c61bbflad1a007a8db9fcf3%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020263.html">
+   <LINK REL="Next"  HREF="020302.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Problem with PSP and unicode</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Gustavo C&#243;rdova Avila</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20with%20PSP%20and%20unicode&In-Reply-To=4817b6fc0602141046j16c61bbflad1a007a8db9fcf3%40mail.gmail.com"
+       TITLE="[mod_python] Problem with PSP and unicode">gustavo.cordova at q-voz.com
+       </A><BR>
+    <I>Tue Feb 14 14:51:20 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020263.html">[mod_python] Problem with PSP and unicode
+</A></li>
+        <LI>Next message: <A HREF="020302.html">[mod_python] Problem with PSP and unicode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20265">[ date ]</a>
+              <a href="thread.html#20265">[ thread ]</a>
+              <a href="subject.html#20265">[ subject ]</a>
+              <a href="author.html#20265">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Dan Eloff wrote:
+
+&gt;<i> That's the sticky part, currently this doesn't work in python. Quoting 
+</I>&gt;<i> one of the PEPs:
+</I>&gt;<i>
+</I>&gt;<i>    One notable difficulty arises when code requires a string representation of an
+</I>&gt;<i>    object; an operation traditionally accomplished by using the str()
+</I>&gt;<i>
+</I>&gt;<i>    built-in function.
+</I>&gt;<i>    
+</I>&gt;<i>    Using the current str() function makes the code not Unicode-safe.
+</I>&gt;<i>    Replacing a str() call with a unicode() call makes the code not
+</I>&gt;<i>    str-stable.  Changing str() so that it could return unicode
+</I>&gt;<i>
+</I>&gt;<i>    instances would solve this problem.
+</I>&gt;<i>
+</I>&gt;<i> That's all well and good, but until/if that is ever adopted, we'll 
+</I>&gt;<i> have to find a way around it. Probably your best bet for backwards 
+</I>&gt;<i> compatibility and unicode support is to have two kinds of psp pages, 
+</I>&gt;<i> one for plain ascii, one for unicode. The unicode one uses unicode() 
+</I>&gt;<i> and the ascii one stays as is. You would then have to decide when you 
+</I>&gt;<i> parse the psp page what the encoding is and produce the appropriate 
+</I>&gt;<i> psp object.
+</I>&gt;<i>
+</I>&gt;<i> -Dan
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On 2/14/06, *Gregory (Grisha) Trubetskoy* &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grisha at modpython.org</A> 
+</I>&gt;<i> &lt;mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grisha at modpython.org</A>&gt;&gt; wrote:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>     I'm a bit unicode-ignorant - what should PSP do? The idea was that a
+</I>&gt;<i>     variable referred to in a PSP page would be an object that could
+</I>&gt;<i>     stringify
+</I>&gt;<i>     itself by implementing a __str__(), but obviously this doesn't
+</I>&gt;<i>     work with
+</I>&gt;<i>     unicode at all. But I'm not sure how self-representation works in the
+</I>&gt;<i>     unicode world...
+</I>&gt;<i>
+</I>&gt;<i>     Grisha
+</I>&gt;<i>
+</I>&gt;<i>     On Mon, 13 Feb 2006, Dan Eloff wrote:
+</I>&gt;<i>
+</I>&gt;<i>     &gt; Actually I was just about to post a question about this. The psp
+</I>&gt;<i>     generated
+</I>&gt;<i>     code surrounds everything with str() before writing it, so it
+</I>&gt;<i>     doesn't work
+</I>&gt;<i>     with unicode at all.
+</I>&gt;<i>
+</I>&gt;<i>     -Dan
+</I>&gt;<i>
+</I>&gt;<i>
+</I>Actually, it *can* work perfectly with unicode, if you know what's going on.
+The error message that started all this discussion specified that &quot;ASCII&quot;
+encoding can't represent the unicoded object in question.  Python is using
+ASCII encoding because it's the default encoding, you can check what your
+default encoding is with:
+
+    &gt;&gt;&gt; import sys
+    &gt;&gt;&gt; sys.getdefaultencoding()
+    'iso-8859-1'
+
+You see here I'm using LATIN1, because it gives me accents and &quot;&#241;&quot;, and 
+other
+nice chars for spanish.  But, there's no _sys.getdefaultencoding()_ function
+available because it's explicitly deleted in /usr/lib/pythonXX/site.py:
+
+    (around line 394)
+    ...
+    if hasattr(sys, &quot;setdefaultencoding&quot;):
+       del sys.setdefaultencoding
+
+I really don't know the rationale for doing that, maybe to stop different
+modules from stomping on the default encoding, whatever.
+
+So, if you can configure your default encoding to whatever you need (&quot;UTF-8&quot;
+is pretty nice), unicode objects can be correctly serialized to strings 
+without
+any problems:
+
+    &gt;&gt;&gt; import sys
+    &gt;&gt;&gt; sys.getdefaultencoding()
+    'iso-8859-1'
+    &gt;&gt;&gt; name = u&quot;Gustavo C&#243;rdova Avila&quot;
+    &gt;&gt;&gt; str(name)
+    'Gustavo C\xf3rdova Avila'
+
+See, no errors.
+
+So, time for a bit of homework now. :-)
+
+-gus
+
+
+
+
+
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020263.html">[mod_python] Problem with PSP and unicode
+</A></li>
+	<LI>Next message: <A HREF="020302.html">[mod_python] Problem with PSP and unicode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20265">[ date ]</a>
+              <a href="thread.html#20265">[ thread ]</a>
+              <a href="subject.html#20265">[ subject ]</a>
+              <a href="author.html#20265">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

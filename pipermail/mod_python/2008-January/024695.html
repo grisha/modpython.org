@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] strange behavior with mpm worker (inaccurate number
+	of max processes?)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20strange%20behavior%20with%20mpm%20worker%20%28inaccurate%20number%0A%09of%20max%20processes%3F%29&In-Reply-To=0e0901c85c17%24d4370d40%247ca527c0%24%40com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024689.html">
+   <LINK REL="Next"  HREF="024696.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] strange behavior with mpm worker (inaccurate number
+	of max processes?)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20strange%20behavior%20with%20mpm%20worker%20%28inaccurate%20number%0A%09of%20max%20processes%3F%29&In-Reply-To=0e0901c85c17%24d4370d40%247ca527c0%24%40com"
+       TITLE="[mod_python] strange behavior with mpm worker (inaccurate number
+	of max processes?)">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Mon Jan 21 22:37:34 EST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024689.html">[mod_python] strange behavior with mpm worker (inaccurate number of
+	max processes?)
+</A></li>
+        <LI>Next message: <A HREF="024696.html">[mod_python] strange behavior with mpm worker (inaccurate number
+	of max processes?)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24695">[ date ]</a>
+              <a href="thread.html#24695">[ thread ]</a>
+              <a href="subject.html#24695">[ subject ]</a>
+              <a href="author.html#24695">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Just ignore it if it seems wrong. It is quite possible mod_python does
+it wrong, or does it in a way which isn't compatible with newer
+versions of Apache. The code certainly has various warnings against
+the code which make it look a little suspect.
+
+    /* figure out maximum possible concurrent connections */
+    /* MAX_DAEMON_USED seems to account for MaxClients, as opposed to
+       MAX_DAEMONS, which is ServerLimit
+    */
+    ap_mpm_query(AP_MPMQ_IS_THREADED, &amp;is_threaded);
+    if (is_threaded != AP_MPMQ_NOT_SUPPORTED) {
+        ap_mpm_query(AP_MPMQ_MAX_THREADS, &amp;max_threads);
+    }
+    ap_mpm_query(AP_MPMQ_IS_FORKED, &amp;is_forked);
+    if (is_forked != AP_MPMQ_NOT_SUPPORTED) {
+        /* XXX This looks strange, and it is. prefork.c seems to use
+           MAX_DAEMON_USED the same way that worker.c uses
+           MAX_DAEMONS (prefork is wrong IMO) */
+        ap_mpm_query(AP_MPMQ_MAX_DAEMON_USED, &amp;max_procs);
+        if (max_procs == -1) {
+            ap_mpm_query(AP_MPMQ_MAX_DAEMONS, &amp;max_procs);
+        }
+    }
+    max_clients = (((max_threads &lt;= 0) ? 1 : max_threads) *
+                   ((max_procs &lt;= 0) ? 1 : max_procs));
+
+Graham
+
+On 21/01/2008, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at yahoo.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> We are using worker MPM
+</I>&gt;<i>
+</I>&gt;<i> Our apache configuration is
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> ServerLimit 40
+</I>&gt;<i>
+</I>&gt;<i> ThreadLimit 70
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> StartServers          10
+</I>&gt;<i>
+</I>&gt;<i> MaxClients            1600
+</I>&gt;<i>
+</I>&gt;<i> MinSpareThreads       75
+</I>&gt;<i>
+</I>&gt;<i> MaxSpareThreads       200
+</I>&gt;<i>
+</I>&gt;<i> ThreadsPerChild       40
+</I>&gt;<i>
+</I>&gt;<i> MaxRequestsPerChild   10000
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> When apache is restarted with
+</I>&gt;<i>
+</I>&gt;<i> #apachectl stop
+</I>&gt;<i>
+</I>&gt;<i> #apachectl start
+</I>&gt;<i>
+</I>&gt;<i> We get in the error log:
+</I>&gt;<i>
+</I>&gt;<i> [notice] mod_python: Creating 32 session mutexes based on 40 max processes
+</I>&gt;<i> and 40 max threads
+</I>&gt;<i>
+</I>&gt;<i> [notice] Apache/2.2.6 (Unix) mod_python/3.3.1 Python/2.4.1 configured --
+</I>&gt;<i> resuming normal operations
+</I>&gt;<i>
+</I>&gt;<i> This is what we expect.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Now we restart apache this way:
+</I>&gt;<i>
+</I>&gt;<i> #apachectl restart
+</I>&gt;<i>
+</I>&gt;<i> In the error log:
+</I>&gt;<i>
+</I>&gt;<i> [notice] SIGHUP received.  Attempting to restart
+</I>&gt;<i>
+</I>&gt;<i>  [notice] mod_python: Creating 32 session mutexes based on 11 max processes
+</I>&gt;<i> and 40 max threads.
+</I>&gt;<i>
+</I>&gt;<i>  [notice] mod_python: using mutex_directory /tmp
+</I>&gt;<i>
+</I>&gt;<i>  [notice] Apache/2.2.6 (Unix) mod_python/3.3.1 Python/2.4.1 configured --
+</I>&gt;<i> resuming normal operations
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Where does this number &quot;11 max processes&quot; come from? We do not have it
+</I>&gt;<i> anywhere in the configuration.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> We get
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024689.html">[mod_python] strange behavior with mpm worker (inaccurate number of
+	max processes?)
+</A></li>
+	<LI>Next message: <A HREF="024696.html">[mod_python] strange behavior with mpm worker (inaccurate number
+	of max processes?)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24695">[ date ]</a>
+              <a href="thread.html#24695">[ thread ]</a>
+              <a href="subject.html#24695">[ subject ]</a>
+              <a href="author.html#24695">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

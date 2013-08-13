@@ -1,0 +1,284 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] PythonAuthenHandler issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthenHandler%20issues&In-Reply-To=46A1295A.3090001%40sankatygroup.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024053.html">
+   <LINK REL="Next"  HREF="024054.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] PythonAuthenHandler issues</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20PythonAuthenHandler%20issues&In-Reply-To=46A1295A.3090001%40sankatygroup.com"
+       TITLE="[mod_python] PythonAuthenHandler issues">jpg at jgassociates.ca
+       </A><BR>
+    <I>Sat Jul 21 20:54:46 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024053.html">[mod_python] PythonAuthenHandler issues
+</A></li>
+        <LI>Next message: <A HREF="024054.html">[mod_python] PythonAuthenHandler issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24052">[ date ]</a>
+              <a href="thread.html#24052">[ thread ]</a>
+              <a href="subject.html#24052">[ subject ]</a>
+              <a href="author.html#24052">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Brad,
+
+It's been awhile since I've messed with aaa, but I may have a spark of 
+an idea.
+
+Brad Anderson wrote:
+&gt;<i> Hi,
+</I>&gt;<i> 
+</I>&gt;<i> I'm trying to tie into Django's auth subsystem for http authn/authz in
+</I>&gt;<i> front of Subversion, as seen here:
+</I>&gt;<i> <A HREF="http://www.djangoproject.com/documentation/apache_auth/">http://www.djangoproject.com/documentation/apache_auth/</A>
+</I>&gt;<i> 
+</I>&gt;<i> So, my Apache 2.0.59 conf looks like this (with some mod_macro voodoo):
+</I>&gt;<i> 
+</I>&gt;<i> #####################################################################
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Macro ProjectClosed $PROJ&gt;
+</I>&gt;<i>  &lt;Location /projects/$PROJ&gt;
+</I>&gt;<i>   DAV svn
+</I>&gt;<i>   SVNPath /var/svn/$PROJ
+</I>&gt;<i>   AuthType Basic
+</I>
+Try changing your AuthType to something else. Heck, you could even use:
+
+AuthType somethingelse
+
+but you'll likely want something a little clearer - dsource-auth might 
+be a good choice. You can retrieve this string in your handler with 
+req.auth_type(). Likewise req.auth_name() will get you the AuthName setting.
+
+As I recall the AuthType Basic will cause the default authentication 
+mechanism to fire, and that's the thing that is generating the 
+&quot;couldn't check access.  No groups file?&quot; verbiage in your log.
+
+&gt;<i>   AuthName &quot;dsource-$PROJ&quot;
+</I>&gt;<i> 
+</I>&gt;<i>   SetEnv DJANGO_SETTINGS_MODULE dsource.settings
+</I>&gt;<i>   PythonOption DJANGO_SETTINGS_MODULE dsource.settings
+</I>&gt;<i>   PythonOption PROJECT $PROJ
+</I>&gt;<i>   PythonPath &quot;['/home/brad/dev/python'] + sys.path&quot;
+</I>&gt;<i> 
+</I>&gt;<i>   PythonAuthenHandler dsource.web.modpython
+</I>&gt;<i>   AuthAuthoritative Off
+</I>&gt;<i>   Require dsource-group project_admin developer
+</I>&gt;<i> #  Require valid-user
+</I>&gt;<i> 
+</I>&gt;<i>   SetHandler None
+</I>&gt;<i>  &lt;/Location&gt;
+</I>&gt;<i> &lt;/Macro&gt;
+</I>&gt;<i> 
+</I>&gt;<i> #####################################################################
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> And the dsource.web.modpython handler function looks like this:
+</I>&gt;<i> 
+</I>&gt;<i> #####################################################################
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> import os
+</I>&gt;<i> 
+</I>&gt;<i> def authenhandler(req, **kwargs):
+</I>&gt;<i>     &quot;&quot;&quot;
+</I>&gt;<i>     Authentication handler that checks against Django's auth database.
+</I>&gt;<i>     &quot;&quot;&quot;
+</I>&gt;<i> 
+</I>&gt;<i>     # mod_python fakes the environ, and thus doesn't process SetEnv.
+</I>&gt;<i>     # This fixes that so that the following import works
+</I>&gt;<i>     os.environ.update(req.subprocess_env)
+</I>&gt;<i> 
+</I>&gt;<i>     # check for PythonOptions
+</I>&gt;<i>     _str_to_bool = lambda s: s.lower() in ('1', 'true', 'on', 'yes')
+</I>&gt;<i> 
+</I>&gt;<i>     options = req.get_options()
+</I>&gt;<i>     permission_name = options.get('DjangoPermissionName', None)
+</I>&gt;<i>     staff_only = _str_to_bool(options.get('DjangoRequireStaffStatus', &quot;on&quot;))
+</I>&gt;<i>     superuser_only =
+</I>&gt;<i> _str_to_bool(options.get('DjangoRequireSuperuserStatus', &quot;off&quot;))
+</I>&gt;<i>     settings_module = options.get('DJANGO_SETTINGS_MODULE', None)
+</I>&gt;<i>     if settings_module:
+</I>&gt;<i>         os.environ['DJANGO_SETTINGS_MODULE'] = settings_module
+</I>&gt;<i> 
+</I>&gt;<i>     from django.contrib.auth.models import User
+</I>&gt;<i>     from django import db
+</I>&gt;<i>     db.reset_queries()
+</I>&gt;<i> 
+</I>&gt;<i>     username = req.user
+</I>&gt;<i>     password = req.get_basic_auth_pw()
+</I>&gt;<i>     requires = req.requires()
+</I>&gt;<i>     proj = options['PROJECT']
+</I>&gt;<i> 
+</I>&gt;<i>     # check that the username is valid
+</I>&gt;<i>     kwargs = {'username': username, 'is_active': True}
+</I>&gt;<i>     if staff_only:
+</I>&gt;<i>         kwargs['is_staff'] = True
+</I>&gt;<i>     if superuser_only:
+</I>&gt;<i>         kwargs['is_superuser'] = True
+</I>&gt;<i>     try:
+</I>&gt;<i>         try:
+</I>&gt;<i>             user = User.objects.get(**kwargs)
+</I>&gt;<i>         except User.DoesNotExist:
+</I>&gt;<i>             return apache.HTTP_UNAUTHORIZED
+</I>&gt;<i> 
+</I>&gt;<i>         # check the password and any permission given
+</I>&gt;<i>         if user.check_password(password):
+</I>&gt;<i> 
+</I>&gt;<i>             if requires:
+</I>&gt;<i>                 # check dsource groups
+</I>&gt;<i>                 required_groups = _get_required_groups(req, requires)
+</I>&gt;<i>                 req.log_error(&quot;required_groups : %s&quot; % required_groups)
+</I>&gt;<i> 
+</I>&gt;<i>                 if required_groups:
+</I>&gt;<i>                     from tracdsource.perm import get_groups
+</I>&gt;<i>                     user_groups = get_groups(username, proj, db.connection)
+</I>&gt;<i>                     req.log_error(&quot;user_groups     : %s&quot; % user_groups)
+</I>&gt;<i> 
+</I>&gt;<i>                     for group in required_groups:
+</I>&gt;<i>                         if group in user_groups:
+</I>&gt;<i>                             req.log_error(&quot;w00t - match    : %s&quot; % group)
+</I>&gt;<i>                             return apache.OK  # WTF? working?
+</I>&gt;<i>             else:
+</I>&gt;<i>                 req.log_error(&quot;no requires&quot;)
+</I>&gt;<i>                 return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i>         else:
+</I>&gt;<i>             # password check failed
+</I>&gt;<i>             return apache.HTTP_UNAUTHORIZED
+</I>&gt;<i> 
+</I>&gt;<i>     finally:
+</I>&gt;<i>         db.connection.close()
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> def _get_required_groups(req, requires):
+</I>&gt;<i>     groups = []
+</I>&gt;<i>     group_token = 'dsource-group '
+</I>&gt;<i> 
+</I>&gt;<i>     for require in requires:
+</I>&gt;<i>         if require.startswith(group_token):
+</I>&gt;<i>             try:
+</I>&gt;<i>                 group_list = require[len(group_token):].split(' ')
+</I>&gt;<i>                 for group in group_list:
+</I>&gt;<i>                     groups.append(group)
+</I>&gt;<i> #                    req.log_error(&quot;group: %s&quot; % group)
+</I>&gt;<i>             finally:
+</I>&gt;<i>                 pass
+</I>&gt;<i>         else:
+</I>&gt;<i>             try:
+</I>&gt;<i>                 user_list = require.split(' ')
+</I>&gt;<i>                 for user in user_list:
+</I>&gt;<i>                     if user == &quot;valid-user&quot;:
+</I>&gt;<i>                         groups.append('registered_user')
+</I>&gt;<i> #                    req.log_error(&quot;group: %s&quot; % group)
+</I>&gt;<i>             finally:
+</I>&gt;<i>                 pass
+</I>&gt;<i> 
+</I>&gt;<i>     return groups
+</I>&gt;<i> #####################################################################
+</I>&gt;<i> 
+</I>&gt;<i> When I activate 'Require valid-user' things are fine (in error_log):
+</I>&gt;<i> 
+</I>&gt;<i>  required_groups : ['registered_user']
+</I>&gt;<i>  user_groups     : ['anonymous', 'registered_user', 'project_admin']
+</I>&gt;<i>  w00t - match    : registered_user
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> But when I activate 'Require dsource-group project_admin developer' I
+</I>&gt;<i> get an error:
+</I>&gt;<i> 
+</I>&gt;<i>  required_groups : ['dsource', 'project_admin', 'developer']
+</I>&gt;<i>  user_groups     : ['anonymous', 'registered_user', 'project_admin']
+</I>&gt;<i>  w00t - match    : project_admin
+</I>&gt;<i>  configuration error:  couldn't check access.  No groups file?:
+</I>&gt;<i> /projects/test
+</I>&gt;<i> 
+</I>&gt;<i> I've been looking at
+</I>&gt;<i> <A HREF="http://www.modpython.org/pipermail/mod_python/2006-April/020959.html">http://www.modpython.org/pipermail/mod_python/2006-April/020959.html</A> and
+</I>&gt;<i> it's caused me to add 'AuthAuthoritative Off' to httpd.conf, but it says
+</I>&gt;<i> 'group' and 'valid-user' are a no-no, but that's all I can get to work.
+</I>&gt;<i>  Maybe this is an Apache 2.2.4 thing?
+</I>
+Nope. AuthAuthoritative disappears in 2.2, along with mod_auth. There 
+was a reorganization of the aaa stuff for 2.2 with a bunch of new 
+modules being added such as mod_auth_basic and mod_auth_digest.
+
+&gt;<i> Search for WTF? in the Python handler code - that return apache.OK
+</I>&gt;<i> doesn't seem to return 200 even though we found a match (in error_log).
+</I>&gt;<i>  It's as if the handler function returns None or 0.
+</I>
+For some reason I can't seem to parse that paragraph. Hopefully the 
+change to AuthType I suggested will take care of the problem.
+
+On the other hand the value of apache.OK *is* 0 and this is perfectly 
+fine. Don't confuse the value your handler returns to apache with the 
+status value that apache eventually sets in the response header. There 
+is obviously a relationship but it's not a 1:1 mapping. For example your 
+handler could return apache.DECLINED, which would cause the next 
+authenhandler in the chain to be called.
+
+&gt;<i> What bonehead thing am I doing?
+</I>
+You think you're boneheaded? I read the thread from April '06 you quoted 
+and I don't remember any of it. The only way I know I participated is 
+that I recognize the typos I typically mak. :)
+
+Jim
+
+
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024053.html">[mod_python] PythonAuthenHandler issues
+</A></li>
+	<LI>Next message: <A HREF="024054.html">[mod_python] PythonAuthenHandler issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24052">[ date ]</a>
+              <a href="thread.html#24052">[ thread ]</a>
+              <a href="subject.html#24052">[ subject ]</a>
+              <a href="author.html#24052">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

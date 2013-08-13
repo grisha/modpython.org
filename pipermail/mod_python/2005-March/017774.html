@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] session locking causes hang with mpservlets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20session%20locking%20causes%20hang%20with%20mpservlets&In-Reply-To=4245E518.9020305%40mischko.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017772.html">
+   <LINK REL="Next"  HREF="017775.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] session locking causes hang with mpservlets</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20session%20locking%20causes%20hang%20with%20mpservlets&In-Reply-To=4245E518.9020305%40mischko.com"
+       TITLE="[mod_python] session locking causes hang with mpservlets">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Mar 27 19:31:00 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017772.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+        <LI>Next message: <A HREF="017775.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17774">[ date ]</a>
+              <a href="thread.html#17774">[ thread ]</a>
+              <a href="subject.html#17774">[ subject ]</a>
+              <a href="author.html#17774">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Scott, did you work this out yet?
+
+I had a little play with it, although I had to change your code first  
+as what
+you posted didn't even work. Needed to use code:
+
+     def respond(self):
+         self.req.log_error('Responding ' + self.req.uri)
+          
+#methodName=self.req.uri[:len(self.req.uri)- 
+len(self.req.path_info)][1:]
+          
+methodName=self.req.uri[len(self.req.uri)-len(self.req.path_info):][1:]
+         self.req.log_error('methodName: '+methodName)
+         if methodName == 'index':
+             #self.internal_redirect('/login')
+              
+prefix=self.req.uri[:len(self.req.uri)-len(self.req.path_info)]
+             self.req.log_error('Redirecting to login '+prefix+'/login')
+             self.internal_redirect(prefix+'/login')
+         if methodName == 'login':
+             self.req.log_error('Doing login')
+             self.writeln ('&lt;h1&gt;login_here&lt;/h1&gt;')
+             return True
+
+This may partly be because I wasn't doing it in document root.
+
+Anyway, after some digging found that adding &quot;self.session.unlock()&quot;  
+will
+fix the problem but it has to be in the mpservlets Servlet class. Thus,  
+it
+may well be a issue that Daniel (author of mpservlets) may need to look  
+at.
+
+The change in mpservlets is:
+
+     def __cleanup_session(self):
+         if self.use_session and self.session is not None:
+             self.session.save()
+             self.session.unlock()
+             self.session = None
+
+Ie., add call to unlock() just after saving the session.
+
+Normally this unlock() would be called, but only when the Session object
+itself is deleted or by way of a cleanup function registered against the
+request using req.register_cleanup().
+
+The problem is that even though one sets self.session to None, this  
+doesn't
+mean it will be deleted immediately as one is in part at the mercy of  
+the
+Python garbage collector. That it isn't unlocked may actually keep it  
+alive
+longer and normally it may only be unlocked by request cleanup function
+at which point it then gets destroyed.
+
+Unfortunately, because your internal redirect loops back onto the same
+servlet, the second time through it tries to lock the same session, but
+where the prior hasn't been unlocked yet. Thus deadlock as lock is not
+reentrant for same thread.
+
+Thus, believe mpservlet possibly needs to be fixed, but might also  
+question
+your design anyway, there possibly being better ways of achieving what  
+you
+want. You might want to explain to the list what you are wanting to  
+achieve
+and you might get some helpful suggestions back.
+
+Graham
+
+
+On 27/03/2005, at 8:41 AM, Scott Chapman wrote:
+
+&gt;<i>
+</I>&gt;<i> My previous post didn't address the issue correctly.
+</I>&gt;<i> I made some error logging in mpservlets to see where things stop.  In  
+</I>&gt;<i> this case, the internal redirect is not being called.  It never gets  
+</I>&gt;<i> that far:
+</I>&gt;<i> [Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] HANDLER -  
+</I>&gt;<i> calling auth
+</I>&gt;<i> [Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] HANDLER -  
+</I>&gt;<i> calling prep
+</I>&gt;<i> [Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] PREP -  
+</I>&gt;<i> clearing self.__out
+</I>&gt;<i> [Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] PREP -  
+</I>&gt;<i> setting self.form
+</I>&gt;<i> [Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] PREP -  
+</I>&gt;<i> calling __load_vars()
+</I>&gt;<i> [Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] PREP -  
+</I>&gt;<i> setting self.session
+</I>&gt;<i>
+</I>&gt;<i> -- end of log --
+</I>&gt;<i>
+</I>&gt;<i> We never see &quot;Redirecting to login&quot; in the log.
+</I>&gt;<i>
+</I>&gt;<i> So, the initial establishment of the session is failing, due to  
+</I>&gt;<i> locking.
+</I>&gt;<i>
+</I>&gt;<i> I have no idea why.
+</I>&gt;<i>
+</I>&gt;<i> Scott
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Try adding:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   self.session.unlock()
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> just before the internal redirect and see what happens.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I don't believe this should be required as mpservlets is using
+</I>&gt;&gt;<i> its own internal redirect which actually saves the session before
+</I>&gt;&gt;<i> doing the real internal redirect.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Anyway, this &quot;experiment&quot; might at least help you to understand
+</I>&gt;&gt;<i> things better.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> BTW, I am assuming when you say &quot;make session lock=0&quot;, you mean
+</I>&gt;&gt;<i> setting &quot;use_session&quot; appropriately. Is that correct?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Graham
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On 27/03/2005, at 7:29 AM, Scott Chapman wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Using linux - prefork mpm.
+</I>&gt;&gt;&gt;<i> I set my httpd.conf:
+</I>&gt;&gt;&gt;<i> StartServers 1
+</I>&gt;&gt;&gt;<i> MinSpareServers 1
+</I>&gt;&gt;&gt;<i> MaxSpareServers 0
+</I>&gt;&gt;&gt;<i> MaxClients 1
+</I>&gt;&gt;&gt;<i> MaxRequestsPerChild  0
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> for this test run.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Here's my UberServlet:
+</I>&gt;&gt;&gt;<i> -------------- snip --------------
+</I>&gt;&gt;&gt;<i> from mod_python.servlet import Servlet
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> class uberservlet(Servlet):
+</I>&gt;&gt;&gt;<i>     use_session = True
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     def respond(self):
+</I>&gt;&gt;&gt;<i>         self.req.log_error('Responding')
+</I>&gt;&gt;&gt;<i> methodName=self.req.uri[:len(self.req.uri)- 
+</I>&gt;&gt;&gt;<i> len(self.req.path_info)][1:]
+</I>&gt;&gt;&gt;<i>         self.req.log_error('methodName: '+methodName)
+</I>&gt;&gt;&gt;<i>         if methodName == 'index':
+</I>&gt;&gt;&gt;<i>             self.req.log_error('Redirecting to login')
+</I>&gt;&gt;&gt;<i>             self.internal_redirect('/login')
+</I>&gt;&gt;&gt;<i>         if methodName == 'login':
+</I>&gt;&gt;&gt;<i>             self.req.log_error('Doing login')
+</I>&gt;&gt;&gt;<i>             self.writeln ('&lt;h1&gt;login_here&lt;/h1&gt;')
+</I>&gt;&gt;&gt;<i>             return True
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>     def wrapup(self):
+</I>&gt;&gt;&gt;<i>         Servlet.wrapup(self)
+</I>&gt;&gt;&gt;<i> -------------- snip --------------
+</I>&gt;&gt;&gt;<i> When I make Sesssion lock=0, it doesn't hang.
+</I>&gt;&gt;&gt;<i> When I don't set lock = 0 (the default) it hangs when trying to  
+</I>&gt;&gt;&gt;<i> establish the session:
+</I>&gt;&gt;&gt;<i>   self.session = Session.Session(self.req,  
+</I>&gt;&gt;&gt;<i> timeout=self.session_timeout)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> What problems do I look forward to if I run with lock=0?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Quoting Grisha:
+</I>&gt;&gt;&gt;<i> &quot;One thing you may try as an experiment is to disable session locking
+</I>&gt;&gt;&gt;<i> (Session(lock=0)). It will still use locking for access to the DBM,  
+</I>&gt;&gt;&gt;<i> but it won't lock individual sessions.&quot;
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Grisha calls this &quot;an experiment&quot;.  Can anyone tell me why locking  
+</I>&gt;&gt;&gt;<i> is failing and what will happen if I run with locking off?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> TIA,
+</I>&gt;&gt;&gt;<i> Scott
+</I>&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017772.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+	<LI>Next message: <A HREF="017775.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17774">[ date ]</a>
+              <a href="thread.html#17774">[ thread ]</a>
+              <a href="subject.html#17774">[ subject ]</a>
+              <a href="author.html#17774">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

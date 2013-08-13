@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] python module loaded, but not parsed (huh?)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20python%20module%20loaded%2C%20but%20not%20parsed%20%28huh%3F%29&In-Reply-To=d3d66b1c0601131952r703bdc6eu%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019962.html">
+   <LINK REL="Next"  HREF="019964.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] python module loaded, but not parsed (huh?)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20python%20module%20loaded%2C%20but%20not%20parsed%20%28huh%3F%29&In-Reply-To=d3d66b1c0601131952r703bdc6eu%40mail.gmail.com"
+       TITLE="[mod_python] python module loaded, but not parsed (huh?)">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Jan 14 01:34:43 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019962.html">[mod_python] python module loaded, but not parsed (huh?)
+</A></li>
+        <LI>Next message: <A HREF="019964.html">[mod_python] python module loaded, but not parsed (huh?)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19963">[ date ]</a>
+              <a href="thread.html#19963">[ thread ]</a>
+              <a href="subject.html#19963">[ subject ]</a>
+              <a href="author.html#19963">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 14/01/2006, at 2:52 PM, Fabiano Sidler wrote:
+
+&gt;<i> Wow! Two answers within this short time! Are you competing yourself? ;)
+</I>&gt;<i>
+</I>&gt;<i> 2006/1/14, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+</I>&gt;&gt;<i> Hmmm, I looked at your code, its awfully complicated.
+</I>&gt;<i>
+</I>&gt;<i> Which one? The older is much more difficult than the one I have by
+</I>&gt;<i> now. Actually, the container now only set the name for invoking the
+</I>&gt;<i> application (handler in this case) and generates some static classes
+</I>&gt;<i> like Request.
+</I>In this last thread, you have only posted one bit of code. I used the 
+term
+&quot;complicated&quot; because you use features line metaclasses, static methods
+creation, overloading of new, etc. It just seems to fail the test of 
+keeping
+it simple for me. I can't really see the reason for doing it all, it 
+just seems
+to me that it is only going to result in something that will be hard to
+maintain by someone done the track.
+
+&gt;<i> The problem now is: How can I get the name 'handler' to be set at the
+</I>&gt;<i> right place? I'll work on it after a few hours of sleep! ;)
+</I>Well, I had a snooze for a couple of hours and didn't help me much. ;-)
+
+In one of your emails you said you were using configuration of:
+
+&#160; SetHandler python-program
+&#160; PythonHandler mymodule
+&#160; PythonDebug On
+
+This means mymodule::handler() needed to exist. Your quote code
+did not even have a mymodule.py and there was no handler() at
+global scope in the code, the only reference to handler() was nested
+in a function. You were somehow trying to stuff the handler() method
+into a module of a class, but that wasn't going to work as the type of
+cls.__module__ is a string not a module, so attempts to set Request
+and handler in the module were going to be applied to a string object.
+Ie., a value containing the name of the module, not the actual module.
+All in all, it&#160;wasn't even clear where the entry point was going to be 
+to
+trigger stuff to created. It also worried me as well that you were 
+making
+req.write() a static method.
+
+Let me describe a few basic concepts about mod_python which may
+help you (or not).
+
+When you specify 'PythonHandler', the value can be the name of a
+module, in which case that module must provide a 'handler()&quot; function
+as entry point. Or, it can specify 'module::name' where name is the
+name of a function in the module to use as an entry point. Whatever
+the entry point is, it needs to take the single argument which is the
+request object.
+
+What most people don't realise is that if 'name' identifies an unbound
+method of a&#160;class type, an instance of the class type will be created
+and then the method will be called. Thus you can have:
+
+&#160; # .htaccess
+
+&#160; SetHandler python-program
+&#160; PythonHandler example::MyWebApp.__call__
+
+&#160; # example.py
+
+&#160; from mod_python import apache
+
+   class MyWebApp:
+     def __init__(self,req):
+       apache.log_error(&quot;__init__&quot;)
+       pass
+     def __call__(self,req):
+       apache.log_error(&quot;__call__&quot;)
+       req.content_type = 'text/plain'
+       req.write('hello')
+       return apache.OK
+&#160;&#160; &#160;
+In terms of what you are doing, if you wanted an instance of MyWebApp
+to be created on each class, this is what you would be best off doing.
+The __init__() method could do any initialisation which might be 
+specific
+to mod_python to create your server independent interface. Because
+__init__() must accept a request object, derived classes couldn't 
+override
+it though for their own purposes.
+
+Now I don't know if this helps in anyway. I could ramble on a bit more 
+about
+other things that may be of interest, but have to run out the door 
+right now.
+
+Graham
+
+
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019962.html">[mod_python] python module loaded, but not parsed (huh?)
+</A></li>
+	<LI>Next message: <A HREF="019964.html">[mod_python] python module loaded, but not parsed (huh?)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19963">[ date ]</a>
+              <a href="thread.html#19963">[ thread ]</a>
+              <a href="subject.html#19963">[ subject ]</a>
+              <a href="author.html#19963">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

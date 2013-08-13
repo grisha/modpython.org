@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Approach to mod_python &quot;secure&quot; code
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Approach%20to%20mod_python%20%22secure%22%20code&In-Reply-To=5c06fa770611170857p2e8a6e8ajc053fe3521bb60ea%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022630.html">
+   <LINK REL="Next"  HREF="022633.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Approach to mod_python &quot;secure&quot; code</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>fizban</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Approach%20to%20mod_python%20%22secure%22%20code&In-Reply-To=5c06fa770611170857p2e8a6e8ajc053fe3521bb60ea%40mail.gmail.com"
+       TITLE="[mod_python] Approach to mod_python &quot;secure&quot; code">fizban at paranoici.org
+       </A><BR>
+    <I>Fri Nov 17 12:38:17 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022630.html">[mod_python] Approach to mod_python &quot;secure&quot; code
+</A></li>
+        <LI>Next message: <A HREF="022633.html">[mod_python] Approach to mod_python &quot;secure&quot; code
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22631">[ date ]</a>
+              <a href="thread.html#22631">[ thread ]</a>
+              <a href="subject.html#22631">[ subject ]</a>
+              <a href="author.html#22631">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Deron Meranda wrote:
+&gt;<i> On 11/17/06, fizban &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">fizban at paranoici.org</A>&gt; wrote:
+</I>&gt;&gt;<i> 1* take req.uri, str() it (just in case?) and split('/') it.
+</I>&gt;&gt;<i> [stuff = str(req.uri).split('/')
+</I>&gt;<i> 
+</I>&gt;<i> There's no need to str() it.  It's already a string.  It will also have
+</I>&gt;<i> been url decoded.
+</I>
+Ok, I see.
+
+[snip]
+&gt;&gt;<i> 3* if stuff[1] is valid, and it is in a tuple containing a list of
+</I>&gt;&gt;<i> special sections with a matching function, we run that function
+</I>&gt;&gt;<i> [eval(&quot;%s(%s)&quot; % (section, &quot;req&quot;))].
+</I>&gt;<i> 
+</I>&gt;<i> This should be secure, if you are definitely checking the string
+</I>&gt;<i> against a known acceptible list of them.
+</I>&gt;<i> 
+</I>&gt;<i> But it's bad Python form!  eval should only be used as a last
+</I>&gt;<i> resort (unless you don't care about form/style).  It's almost
+</I>&gt;<i> never necessary.  This is a bad habit encouraged by PHP that
+</I>&gt;<i> you will want to unlearn quickly.
+</I>
+Heh, I was actually told to do so by someone more skilled in python than
+me, let's blame him! I've never used eval myself.
+
+I do care about form/style for this particular project -- I'm also
+considering to release the code. It wouldn't probably be used by many
+(it's pretty specific for this kind of site, so not much portable), but
+maybe I can help convert someone else to python/mod_python, or help
+similar projects dealing with their sites.
+
+&gt;<i> The simplest way to do this without eval is to change your
+</I>&gt;<i> list into a dictionary.  Assuming you have something like
+</I>&gt;<i> 
+</I>&gt;<i>   allowed_sections = ['one', 'two', 'three']
+</I>&gt;<i> 
+</I>&gt;<i> change it to
+</I>&gt;<i> 
+</I>&gt;<i>   def one(req): ...
+</I>&gt;<i>   def two(req): ...
+</I>&gt;<i>   def three(req): ...
+</I>&gt;<i>   section_mapping = { 'one': one,  'two': two,  'three': three }
+</I>&gt;<i> 
+</I>&gt;<i> and then rather than eval call them as
+</I>&gt;<i> 
+</I>&gt;<i>   try:
+</I>&gt;<i>       section_mapping[section]( req )
+</I>&gt;<i>   except KeyError:
+</I>&gt;<i>       raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+</I>
+Ok cool, I'll do that
+
+&gt;<i> Another common way is to put all your functions inside a class
+</I>&gt;<i> and use getattr and such.  You might want to get the O'Reilly
+</I>&gt;<i> book &quot;Python Cookbook&quot; to learn more techniques of Python
+</I>&gt;<i> programming.
+</I>
+I'm not a big fan of classes actually.. and it's not because of my PHP
+&quot;background&quot;.. But I'll sure get that book
+
+[snip]
+&gt;<i> Lets just say that what you've shown us shouldn't be insecure,
+</I>&gt;<i> but we can't say it's secure either.  There's so much that's not
+</I>&gt;<i> even talked about.  For example the whole user authentication,
+</I>&gt;<i> SSL, use of database queries, embedded/hardcoded passwords
+</I>&gt;<i> (which are a definte no-no, especially if you have PythonDebug
+</I>&gt;<i> turned on).
+</I>
+Yeah, PythonDebug will be off when we get in &quot;production&quot;.. and
+embedded/hardcoded passwords are bad in all the cases I can think at :)
+
+However, I think I mis-used &quot;userbase&quot;. The userbase is actually the
+visitors plus the kiddies we attract because it's the site of a pretty
+well known project. The &quot;admin&quot; zone has always been protected in
+various ways (like, letting it being accessed by known IP and using a
+login/pass, etc etc), and the protection method is likely to stay the
+same. Also, I'll set it up to be dealt with another handler.
+I think I'll let apache alone dealing with ip and login/password
+restrictions.. Unless there's some good reason not to do so when using a
+custom handler.. is there?
+
+[snip]
+&gt;<i> Just be cautious of where the data came from and how you
+</I>&gt;<i> use it and you should be fine.
+</I>
+&gt;<i> As for 404s, don't worry about any &quot;impression&quot;.  Use the correct
+</I>&gt;<i> code for the correct situation.  The only case where I might deviate
+</I>&gt;<i> from this is to send 302 rather than the recommended 307, since
+</I>&gt;<i> many old browsers (IE) don't understand 307.
+</I>
+Oh, I didn't know IE doesn't deal with 307, good to know!
+
+&gt;<i> Also you may want to use the symbolic names, such as
+</I>&gt;<i> apache.HTTP_NOT_FOUND, provided by the modpython.apache
+</I>&gt;<i> module rather than numbers, as it makes your code more readable.
+</I>
+Yep, I'm already doing so -- I was just being lazy so I used the numeric
+error in the email :-)
+
+&gt;<i> Good luck.
+</I>
+Thanks!
+
+Ciao,
+
+Andreas
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022630.html">[mod_python] Approach to mod_python &quot;secure&quot; code
+</A></li>
+	<LI>Next message: <A HREF="022633.html">[mod_python] Approach to mod_python &quot;secure&quot; code
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22631">[ date ]</a>
+              <a href="thread.html#22631">[ thread ]</a>
+              <a href="subject.html#22631">[ subject ]</a>
+              <a href="author.html#22631">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

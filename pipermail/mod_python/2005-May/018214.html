@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod python + apache problem
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod%20python%20%2B%20apache%20problem&In-Reply-To=8764x3rre3.fsf%40nb-acer.bettercom.de">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018212.html">
+   <LINK REL="Next"  HREF="018213.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mod python + apache problem</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod%20python%20%2B%20apache%20problem&In-Reply-To=8764x3rre3.fsf%40nb-acer.bettercom.de"
+       TITLE="[mod_python] Mod python + apache problem">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat May 28 18:13:30 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018212.html">[mod_python] Mod python + apache problem
+</A></li>
+        <LI>Next message: <A HREF="018213.html">[mod_python] Mod python + apache problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18214">[ date ]</a>
+              <a href="thread.html#18214">[ thread ]</a>
+              <a href="subject.html#18214">[ subject ]</a>
+              <a href="author.html#18214">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>A few comments to avoid confusion.
+
+On 29/05/2005, at 7:07 AM, Martin Lesser wrote:
+
+&gt;<i> Rafal Zawadzki &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bluszcz at jabberpl.org</A>&gt; writes:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Fragments my configurations are:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &lt;Directory /var/www/modpython&gt;
+</I>&gt;&gt;<i>         AllowOverride All
+</I>&gt;&gt;<i>         AddHandler python-program .py
+</I>&gt;&gt;<i>         PythonHandler mptest.py #i tried also with mptest (withoout 
+</I>&gt;&gt;<i> .py)
+</I>&gt;&gt;<i>         PythonDebug On
+</I>&gt;&gt;<i> &lt;/Directory&gt;
+</I>&gt;<i>
+</I>&gt;<i> Do you want to use the publisher-handler? (Makes sense)? Then put
+</I>&gt;<i>
+</I>&gt;<i>   PythonHandler mod_python.publisher
+</I>&gt;<i>
+</I>&gt;<i> into your apache-config or .htaccess
+</I>
+That isn't what his code suggested he was trying to do .... :-(
+
+&gt;<i> Additionally you may want to put
+</I>&gt;<i>
+</I>&gt;<i>   MultiviewsMatch Handlers
+</I>
+I personally recommend turning off MultiViews altogether, it just 
+causes too
+many problems. If you want to specifically use of no extension or 
+&quot;.html&quot; instead
+of &quot;.py&quot;, would suggest you look at the Vampire glue extensions for 
+mod_python.
+Vampire gives you more control over what handler is executed for what 
+extension
+and thereby you can avoid altogether the chance that &quot;.py&quot; will work or 
+be used
+thus avoiding showing in your URLS how you web application is 
+implemented.
+
+&gt;<i> also in there so that URIs like
+</I>&gt;<i> <A HREF="http://your.domain/path/whatever">http://your.domain/path/whatever</A>
+</I>&gt;<i>
+</I>&gt;<i> will in fact be handeled by
+</I>&gt;<i>
+</I>&gt;<i> def whatever(req):
+</I>&gt;<i>   ...
+</I>
+Just be aware that there is more to changing to publisher than just 
+changing
+the name of the handler. How the handler is implemented is different. 
+For
+example the original handler would have needed to be rewritten as:
+
+def whatever(req):
+         req.content_type = &quot;text/plain&quot; # missing in original
+         req.send_http_header()
+         req.write(&quot;Hello World!&quot;)
+         # do not return anything
+
+or the much shorter form of:
+
+def whatever():
+         return &quot;Hello World!&quot;) # content type automatically determined
+
+&gt;<i> in the file path.py in your htdocs-documentroot
+</I>&gt;<i>
+</I>&gt;<i> IIRC you have to put
+</I>&gt;<i>
+</I>&gt;<i>   DirectoryIndex ... index.py ...
+</I>&gt;<i>
+</I>&gt;<i> into your global apache-conf to make the extension-less URIs work.
+</I>
+There are long standing issues with doing this. If you have &quot;index.py&quot; 
+files in
+multiple directories, you will suffer a reload of the module each time 
+a URL
+accesses a different one. If you have subdirectories, once a 
+subdirectory one
+is accessed you can no longer access the one in the parent directory as 
+it
+existed. Use of the same name can also result in cross module pollution.
+
+Thus, specifying index.py as a directory index file in global Apache 
+config
+is not a good idea. Until 3.2 comes out, the only alternative to doing 
+it
+safely is have the index handler in each directory be a different named 
+file
+and specify the DirectoryIndex directive in the .htaccess file of each
+directory, listing each distinct file as appropriate. Relying on 
+handlers
+for index files means the handler also needs to be called index() and 
+you
+couldn't call it &quot;whatever()&quot;. With the automapping to index() method, 
+the
+name of the file becomes the last part of the URL.
+
+These issues are covered in:
+
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-9">http://issues.apache.org/jira/browse/MODPYTHON-9</A>
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-10">http://issues.apache.org/jira/browse/MODPYTHON-10</A>
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-11">http://issues.apache.org/jira/browse/MODPYTHON-11</A>
+
+For publisher at least, these problems should go away with mod_python 
+3.2.
+In the interim, you could also use Vampire whose equivalent to publisher
+doesn't suffer the problems.
+
+Graham
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018212.html">[mod_python] Mod python + apache problem
+</A></li>
+	<LI>Next message: <A HREF="018213.html">[mod_python] Mod python + apache problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18214">[ date ]</a>
+              <a href="thread.html#18214">[ thread ]</a>
+              <a href="subject.html#18214">[ subject ]</a>
+              <a href="author.html#18214">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

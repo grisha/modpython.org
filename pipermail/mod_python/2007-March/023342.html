@@ -1,0 +1,134 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] null pointer to PyObject_CallMethod
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20null%20pointer%20to%20PyObject_CallMethod&In-Reply-To=71a75690703241231i12005488g312a83c769492655%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023338.html">
+   <LINK REL="Next"  HREF="023343.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] null pointer to PyObject_CallMethod</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20null%20pointer%20to%20PyObject_CallMethod&In-Reply-To=71a75690703241231i12005488g312a83c769492655%40mail.gmail.com"
+       TITLE="[mod_python] null pointer to PyObject_CallMethod">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat Mar 24 22:21:10 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023338.html">[mod_python] null pointer to PyObject_CallMethod
+</A></li>
+        <LI>Next message: <A HREF="023343.html">[mod_python] null pointer to PyObject_CallMethod
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23342">[ date ]</a>
+              <a href="thread.html#23342">[ thread ]</a>
+              <a href="subject.html#23342">[ subject ]</a>
+              <a href="author.html#23342">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 25/03/07, Nicholas Milkovits &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nmilkovits at gmail.com</A>&gt; wrote:
+&gt;<i> Hello,
+</I>&gt;<i>
+</I>&gt;<i> I am trying to find out the cause of a segmentation fault that occurs
+</I>&gt;<i> when occasionally processing database requests. The environment is
+</I>&gt;<i> Apache 2.0.59 (it happens when run in either prefork or threaded), Mod
+</I>&gt;<i> Python 3.3.1, Python 2.5 and cx_Oracle 4.3. All of this software was
+</I>&gt;<i> compiled from source. The database is Oracle 10g (I believe). I have
+</I>&gt;<i> pasted a stack trace from gdb below but here is my question:
+</I>&gt;<i>
+</I>&gt;<i> It appears the seg fault is in the database code but in frames 17 - 14
+</I>&gt;<i> it appears as though the func argument is a NULL pointer. How is it
+</I>&gt;<i> possible that execution continues after the call from python_handler
+</I>&gt;<i> into the interpreter when the beginning of the PyObject_CallMethod is
+</I>&gt;<i> supposed to raise an error if the func argument is NULL. Is this a
+</I>&gt;<i> problem with gdb or is there something going on that I am missing?
+</I>&gt;<i>
+</I>&gt;<i> ...
+</I>&gt;<i> #17 0x0064f750 in PyObject_CallMethod (o=0x0, name=0xad72456c &quot;\001&quot;,
+</I>&gt;<i>     format=0x72ae92 &quot;O&quot;) at Objects/abstract.c:1891
+</I>&gt;<i> #18 0x00648c32 in python_handler (req=0x993a038,
+</I>&gt;<i>     phase=0x71ba44 &quot;PythonHandler&quot;) at mod_python.c:1652
+</I>&gt;<i> #19 0x0064a9ca in PythonHandler (req=0x993a038) at mod_python.c:2878
+</I>
+Since the code in mod_python calling PyObject_CallMethod() is:
+
+    resultobject = PyObject_CallMethod(idata-&gt;obcallback, &quot;HandlerDispatch&quot;,
+                                       &quot;O&quot;, request_obj);
+
+and gdb isn't even showing the string literal argument for name
+correctly, ie., &quot;HandlerDispatch&quot;, I would say gdb is screwing up
+somehow.
+
+What I would suggest, in case the Oracle module hasn't be written
+properly to be able to work in sub interpreters, is to force
+mod_python to run your application in main Python interpreter rather
+than default of sub interpreter. To do this, add:
+
+  PythonInterpreter main_interpreter
+
+into context where you have enabled PythonHandler for your
+application. See if the problem goes away when that is done. Confirm
+in your application that main interpreter is being used by dumping out
+'apache.interpreter' or 'req.interpreter'.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023338.html">[mod_python] null pointer to PyObject_CallMethod
+</A></li>
+	<LI>Next message: <A HREF="023343.html">[mod_python] null pointer to PyObject_CallMethod
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23342">[ date ]</a>
+              <a href="thread.html#23342">[ thread ]</a>
+              <a href="subject.html#23342">[ subject ]</a>
+              <a href="author.html#23342">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

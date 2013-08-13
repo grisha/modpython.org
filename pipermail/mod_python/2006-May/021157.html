@@ -1,0 +1,151 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Form upload
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Form%20upload&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021156.html">
+   <LINK REL="Next"  HREF="021160.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Form upload</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Form%20upload&In-Reply-To="
+       TITLE="[mod_python] Form upload">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu May 18 19:14:42 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021156.html">[mod_python] Form upload
+</A></li>
+        <LI>Next message: <A HREF="021160.html">[mod_python] Form upload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21157">[ date ]</a>
+              <a href="thread.html#21157">[ thread ]</a>
+              <a href="subject.html#21157">[ subject ]</a>
+              <a href="author.html#21157">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Please keep followups on the mailing list. Response at end of message.
+
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jaba at findyourcore.com</A> wrote ..
+&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jaba at findyourcore.com</A> wrote ..
+</I>&gt;<i> &gt;&gt; heres my code:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; #########upload.py#########
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; from mod_python import util
+</I>&gt;<i> &gt;&gt; import sys
+</I>&gt;<i> &gt;&gt; def handler(req):
+</I>&gt;<i> &gt;&gt;     sys.stdout=sys.stderr=req
+</I>&gt;<i> &gt;&gt;     form=util.FieldStorage(req)
+</I>&gt;<i> &gt;&gt;     if form.has_key(&quot;file&quot;):print form.list[0].file.getvalue()
+</I>&gt;<i> &gt;&gt;     print &quot;&lt;form method=post&gt;&lt;input type=file name=file&gt;&lt;/form&gt;&quot;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; ###########################
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; the problem is, it only returns the filename, not the file contents.
+</I>&gt;<i> &gt;&gt; Whats wrong?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Am sure someone else will answer your real question, I can't remember
+</I>&gt;<i> &gt; off the top of my head how to handle files as not something I do.
+</I>&gt;<i> &gt; Anyway, would like to point out some other things you are doing wrong.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The main issue is that you MUST not set sys.stdout/sys.stderr to the
+</I>&gt;<i> &gt; req object and then use &quot;print&quot;. This will blow up in bad ways if you
+</I>&gt;<i> &gt; are using a multithreaded MPM such as used on Win32 or &quot;worker&quot;
+</I>&gt;<i> &gt; on UNIX. If you really want to use &quot;print&quot;, leave sys.std??? alone and
+</I>&gt;<i> &gt; use:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   if form.has_key(&quot;file&quot;):
+</I>&gt;<i> &gt;     print &gt;&gt; req, form.list[0].file.getvalue()
+</I>&gt;<i> &gt;   print &gt;&gt; req, &quot;&lt;form method=post&gt;&lt;input type=file name=file&gt;&lt;/form&gt;&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Ie., use &quot;&gt;&gt;&quot; redirection to make it print to the req object.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Since you are returning HTML, also make sure you set content type.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   req.content_type = 'text/html'
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; before first content written. Don't assume browsers will always guess
+</I>&gt;<i> &gt; correctly.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Also, I assume that not returning apache.OK is purely because you
+</I>&gt;<i> &gt; didn't need it necessary to supply all the code????
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> 
+</I>&gt;<i> How would it blow up? (its a little annoying doing the &quot;print &gt;&gt; req,&quot;
+</I>&gt;<i> all
+</I>&gt;<i> the time.
+</I>&gt;<i> And yes, your assumption is correct.
+</I>
+In a multithreaded MPM, multiple requests can be executing in the same
+Apache child process at the same time. Further, they could be executing
+in the same handler at the same time. If a handler modifies sys.std???
+and sets it to the req object for a particular request, it may get replaced
+by that for a different request before it even got to use it. Thus you will
+get responses going back to the wrong clients. Further, after a handler
+returns, the req object internals have been deleted, although the Python
+wrapper will not. Any write to the req object at that point will cause
+Apache to crash usually.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021156.html">[mod_python] Form upload
+</A></li>
+	<LI>Next message: <A HREF="021160.html">[mod_python] Form upload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21157">[ date ]</a>
+              <a href="thread.html#21157">[ thread ]</a>
+              <a href="subject.html#21157">[ subject ]</a>
+              <a href="author.html#21157">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

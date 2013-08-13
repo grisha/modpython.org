@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python 3.3.1 memory leak?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%203.3.1%20memory%20leak%3F&In-Reply-To=88e286470707032055m2df2b848qd64b2e740c71ec55%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023983.html">
+   <LINK REL="Next"  HREF="023986.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python 3.3.1 memory leak?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>yubing</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%203.3.1%20memory%20leak%3F&In-Reply-To=88e286470707032055m2df2b848qd64b2e740c71ec55%40mail.gmail.com"
+       TITLE="[mod_python] mod_python 3.3.1 memory leak?">trueice at gmail.com
+       </A><BR>
+    <I>Wed Jul  4 00:00:49 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023983.html">[mod_python] mod_python 3.3.1 memory leak?
+</A></li>
+        <LI>Next message: <A HREF="023986.html">[mod_python] mod_python 3.3.1 memory leak?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23985">[ date ]</a>
+              <a href="thread.html#23985">[ thread ]</a>
+              <a href="subject.html#23985">[ subject ]</a>
+              <a href="author.html#23985">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>quite right, thanks a lot:)
+Then is the connection object suitable for my case? It seems request based
+handling is just for short connections, and conn_write() has its own pool
+mgmt code:
+
+
+    if (len) {
+        buff = apr_pmemdup(c-&gt;pool, PyString_AS_STRING(s), len);
+
+        bb = apr_brigade_create(c-&gt;pool, c-&gt;bucket_alloc);
+
+        b = apr_bucket_pool_create(buff, len, c-&gt;pool, c-&gt;bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+
+        /* Make sure the data is flushed to the client */
+        b = apr_bucket_flush_create(c-&gt;bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+
+        ap_pass_brigade(c-&gt;output_filters, bb);
+    }
+
+
+
+
+On 7/4/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> On 04/07/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; On 04/07/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; On 03/07/07, yubing &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">trueice at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; Anyhow, it's clear that ap_rflush is the root cause of this memory
+</I>&gt;<i> leak,
+</I>&gt;<i> &gt; &gt; &gt; maybe we should find a new API for this (maybe we should also add a
+</I>&gt;<i> new
+</I>&gt;<i> &gt; &gt; &gt; method to the request_object ).
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; It is not just ap_rflush() but also ap_rwrite(), as it is also using
+</I>&gt;<i> &gt; &gt; the request pool.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; To avoid the problem would mean creating a separate pool just for the
+</I>&gt;<i> &gt; &gt; one operation and for the buckets to be allocated from that, with the
+</I>&gt;<i> &gt; &gt; pool destroyed at the end of the call.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Unfortunately it isn't perhaps quite as simple as that though. This is
+</I>&gt;<i> &gt; &gt; because one can only use a separate pool if you know the buckets would
+</I>&gt;<i> &gt; &gt; be used up and no longer required after the call. When doing a flush
+</I>&gt;<i> &gt; &gt; this may be the case, but need to check. Definitely not the case if
+</I>&gt;<i> &gt; &gt; not doing a flush though.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Okay, I'm confused now. The bucket functions aren't supposed to be
+</I>&gt;<i> &gt; allocating memory out of the resource pool.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; /**
+</I>&gt;<i> &gt;  * Create a new bucket brigade.  The bucket brigade is originally empty.
+</I>&gt;<i> &gt;  * @param p The pool to associate with the brigade.  Data is not
+</I>&gt;<i> allocated out
+</I>&gt;<i> &gt;  *          of the pool, but a cleanup is registered.
+</I>&gt;<i> &gt;  * @param list The bucket allocator to use
+</I>&gt;<i> &gt;  * @return The empty bucket brigade
+</I>&gt;<i> &gt;  */
+</I>&gt;<i> &gt; APU_DECLARE(apr_bucket_brigade *) apr_brigade_create(apr_pool_t *p,
+</I>&gt;<i> &gt;                                                      apr_bucket_alloc_t
+</I>&gt;<i> *list);
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Ie., it takes buckets from a bucket list, to which buckets are
+</I>&gt;<i> &gt; returned for reuse when the bucket brigade is no longer needed at the
+</I>&gt;<i> &gt; completion of the operation.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The only reason the request pool is required is so that the bucket
+</I>&gt;<i> &gt; brigade can be cleaned up automatically if the code forgets to
+</I>&gt;<i> &gt; explicitly destroy it before the request is over.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; So, looks like I have some more research to do to understand all this.
+</I>&gt;<i> :-(
+</I>&gt;<i>
+</I>&gt;<i> Understand now. The buckets themselves are reused, but the bucket
+</I>&gt;<i> brigade object is not. Thus for each ap_rwrite()/ap_rflush() memory
+</I>&gt;<i> will increase still because of the bucket brigade object. What is also
+</I>&gt;<i> odd is that the bucket brigade isn't even notionally destroyed,
+</I>&gt;<i> meaning that the cleanup handler isn't killed off and would appear to
+</I>&gt;<i> hang around until the end of the request at which point it would be
+</I>&gt;<i> called. If you have lots of bucket brigade objects created, that could
+</I>&gt;<i> be a lot of cleanup handlers needing to be killed.
+</I>&gt;<i>
+</I>&gt;<i> Anyway, I will not post any more on this. I'll work out a solution for
+</I>&gt;<i> mod_wsgi and then create a JIRA issue for mod_python describing what
+</I>&gt;<i> might be done for mod_python when we get around to doing more changes
+</I>&gt;<i> to it.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>
+
+
+-- 
+truly yours
+ice
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070704/cde51588/attachment-0001.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070704/cde51588/attachment-0001.html</A>
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023983.html">[mod_python] mod_python 3.3.1 memory leak?
+</A></li>
+	<LI>Next message: <A HREF="023986.html">[mod_python] mod_python 3.3.1 memory leak?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23985">[ date ]</a>
+              <a href="thread.html#23985">[ thread ]</a>
+              <a href="subject.html#23985">[ subject ]</a>
+              <a href="author.html#23985">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

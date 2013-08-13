@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Using threading.local with Worker MPM
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20threading.local%20with%20Worker%20MPM&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021854.html">
+   <LINK REL="Next"  HREF="021856.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Using threading.local with Worker MPM</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20threading.local%20with%20Worker%20MPM&In-Reply-To="
+       TITLE="[mod_python] Using threading.local with Worker MPM">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Aug 16 18:40:09 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021854.html">[mod_python] Using threading.local with Worker MPM
+</A></li>
+        <LI>Next message: <A HREF="021856.html">[mod_python] Using threading.local with Worker MPM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21855">[ date ]</a>
+              <a href="thread.html#21855">[ thread ]</a>
+              <a href="subject.html#21855">[ subject ]</a>
+              <a href="author.html#21855">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Gavin Panella wrote ..
+&gt;<i> I was using a PythonInitHandler to set up various objects for the rest
+</I>&gt;<i> of my 
+</I>&gt;<i> request. I set up a shared 'space' object which is based on threading.local
+</I>&gt;<i> because this code needs to run in several different scenarios, not just
+</I>&gt;<i> under 
+</I>&gt;<i> mod_python, or even in a web context.
+</I>
+Just setting data as attributes of the mod_python request object is generally
+preferred, but if all code doesn't get passed the request object, then what
+you have done is probably reasonable.
+
+&gt;<i> However, any object I put into 
+</I>&gt;<i> the 'space' in the PythonInitHandler was disappearing by the time the main
+</I>&gt;<i> PythonHandler started.
+</I>
+I presumed you added calls to apache.log_error() to confirm your inithandler()
+was actually being called?
+
+Anyway, first off is that there are bugs in mod_python 3.1.4 related to the
+creation of the Python interpreters and thread locking. I am not sure how
+this would affect use of thread local storage, perhaps not depending on
+where the data is held, but would definitely suggest you upgrade to 3.2.10.
+This doesn't eliminate all module reloading problems, but gets rid of a few
+nasty ones.
+
+Second is that your success may be determined by what directives you are
+using related to the Python interpreters. If you are using either of the directives
+PythonInterpPerDirective or PythonInterPerDirectory then you can have
+problems. Some of these are related to bugs in 3.1.4, some of which are
+fixed in 3.2.10.
+
+The basic problem with interpreters here is that if you are using these
+directives, or even if you are using PythonInterpreter directive explicitly, is
+that the inithandler() could be executed within the context of a different
+interpreter to your handler(). To check, out messages to the Apache error
+log in both which show the value of req.interpreter.
+
+If they are different post the results back to the mailing list along with how
+you are using the above directives, showing what the enclosing Directory
+and or Location directives are that enclose your handler directives.
+
+&gt;<i> It took hours to track down this behaviour, and today I've also been having
+</I>&gt;<i> lots of fun with PythonAuthzHandler (which I eventually abandoned) so it's
+</I>&gt;<i> been a very frustrating and non-productive kind of day :-) Please, someone
+</I>&gt;<i> help me!
+</I>
+You need to know the correct set of directives to use in order to get the
+authhandler() and authzhandler() to trigger. This includes use of the Require
+directive but possible also AuthType and AuthName. Problem is that in 3.1.4
+even if you can get it to trigger you still may have problems if you have
+multiple stacked auth[z]?handler() functions as mod_python doesn't interpreter
+return status codes properly. This is fixed in 3.3.
+
+Suggest you post to the mailing list what directives you were using to try and
+attempt to trigger the authzhandler().
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021854.html">[mod_python] Using threading.local with Worker MPM
+</A></li>
+	<LI>Next message: <A HREF="021856.html">[mod_python] Using threading.local with Worker MPM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21855">[ date ]</a>
+              <a href="thread.html#21855">[ thread ]</a>
+              <a href="subject.html#21855">[ subject ]</a>
+              <a href="author.html#21855">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

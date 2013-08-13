@@ -1,0 +1,361 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How can I turn off apparent caching of python code?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20can%20I%20turn%20off%20apparent%20caching%20of%20python%20code%3F&In-Reply-To=46078FA6-F63D-11D8-83D1-000393DCF16E%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016218.html">
+   <LINK REL="Next"  HREF="016184.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How can I turn off apparent caching of python code?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20can%20I%20turn%20off%20apparent%20caching%20of%20python%20code%3F&In-Reply-To=46078FA6-F63D-11D8-83D1-000393DCF16E%40dscpl.com.au"
+       TITLE="[mod_python] How can I turn off apparent caching of python code?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Aug 29 21:42:15 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016218.html">[mod_python] How can I turn off apparent caching of python code?
+</A></li>
+        <LI>Next message: <A HREF="016184.html">RES: [mod_python] The right way to handle sessions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16251">[ date ]</a>
+              <a href="thread.html#16251">[ thread ]</a>
+              <a href="subject.html#16251">[ subject ]</a>
+              <a href="author.html#16251">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 25/08/2004, at 12:20 PM, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 24/08/2004, at 9:54 AM, Gregory (Grisha) Trubetskoy wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Mon, 23 Aug 2004, Tobiah wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>  DEBUG = 1
+</I>&gt;&gt;&gt;&gt;<i>  import mymodulea
+</I>&gt;&gt;&gt;&gt;<i>  import mymoduleb
+</I>&gt;&gt;&gt;&gt;<i>  if DEBUG:
+</I>&gt;&gt;&gt;&gt;<i>         mymodulea = reload(mymodulea)
+</I>&gt;&gt;&gt;&gt;<i>         mymoduleb = reload(mymoduleb)
+</I>&gt;&gt;&gt;&gt;<i> That is O.K., but still, unwieldy.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This method is pretty old, now a simpler way to do it is:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> mymodulea = apache.import_module(&quot;mymodulea&quot;)
+</I>&gt;&gt;<i> mymoduleb = apache.import_module(&quot;mymoduleb&quot;)
+</I>&gt;<i>
+</I>&gt;<i> No time right now for an extended description, will send one later, 
+</I>&gt;<i> but Vampire which I
+</I>&gt;<i> described recently and which is available at 
+</I>&gt;<i> &quot;<A HREF="http://www.dscpl.com.au/projects/vampire&quot;">http://www.dscpl.com.au/projects/vampire&quot;</A>
+</I>&gt;<i> has a module caching system which has explicit module importing 
+</I>&gt;<i> similar to the
+</I>&gt;<i> mod_python.apache module, but what it will do is track relationships 
+</I>&gt;<i> between module
+</I>&gt;<i> imports and is able to do a reload even when child imports are changed 
+</I>&gt;<i> and not the
+</I>&gt;<i> immediate module you are loading.
+</I>&gt;<i>
+</I>&gt;<i> What this means is if that A imports B which imports C and similarly D 
+</I>&gt;<i> imports C, if C
+</I>&gt;<i> is then changed, all the modules which depend on C, ie., A, B and D 
+</I>&gt;<i> will be automatically
+</I>&gt;<i> reloaded when requested, rather than them being grabbed from the 
+</I>&gt;<i> cache. If all your
+</I>&gt;<i> application modules are in one place and you always use the module 
+</I>&gt;<i> importer in Vampire
+</I>&gt;<i> for importing any application module from a page, but also one 
+</I>&gt;<i> application module from
+</I>&gt;<i> another, any change to an application module should see anything that 
+</I>&gt;<i> depends on it
+</I>&gt;<i> automatically reloaded.
+</I>
+I said I would follow up later with a better description. Being on 
+holidays in a
+foreign land this has turned out to the first opportunity to do so.
+
+The module caching mechanism in Vampire is used as:
+
+   import vampire.cache
+
+   cache = vampire.cache.ModuleCache()
+   c = cache.importModule(&quot;c&quot;,&quot;.&quot;)
+
+The first argument to importModule() is the name of the module to load 
+and the second
+argument is the specific directory to look in. Specifically, the 
+contents of the
+sys.path variable is NOT used to find the module, instead you have to 
+tell it where
+it resides.
+
+The reason for doing this is so you know you pick up the exact module 
+you want. The
+idea is that all the modules which relate to the application component 
+of your web
+pages would reside in one place. The name of that root directory would 
+be the second
+argument you use to importModule(). This avoids any problems where you 
+can't be
+certain about the order of sys.path when multiple applications are 
+running within
+the same web server and each different application uses the same module 
+name.
+
+Another important feature of the module cache is the encoding of the 
+actual path to
+the module into the lookup key for the module as it is listed in 
+sys.modules. The
+module cache in mpservlets does a similar thing, although in Vampire, 
+for reasons I
+can't quite remember, I encode the name to a greater degree. I vaguely 
+remember
+having some problems with really long module names in some older 
+version of Python.
+
+For example, the module &quot;c&quot; above would appear in sys.modules under the 
+key:
+
+   _vampire__2b_yg4_2b_XZhHdEtPHG6AmTz9w_3
+
+The path recorded in the loaded module would be &quot;./c.py&quot; or &quot;./c.pyc&quot; 
+as appropriate.
+
+The reason for this is to work around a problem often described on the 
+mailing list
+whereby using the same name in multiple locations will potentially 
+cause reloading
+of the handler every time it is accessed from the different locations 
+even no changes
+have been made.
+
+To explain the tracking of parent/child relationships between modules, 
+now consider
+the following Python code files.
+
+   # c.py
+
+   print &quot;c&quot;
+
+   # b.py
+
+   import vampire.cache
+   print &quot;b 1&quot;
+   cache = vampire.cache.ModuleCache()
+   c = cache.importModule(&quot;c&quot;,&quot;.&quot;)
+   print &quot;b 2&quot;
+
+   # a.py
+
+   import vampire.cache
+   print &quot;a 1&quot;
+   cache = vampire.cache.ModuleCache()
+   b = cache.importModule(&quot;b&quot;,&quot;.&quot;)
+   print &quot;a 2&quot;
+
+   # test.py
+
+   import vampire.cache
+   import time
+
+   cache = vampire.cache.ModuleCache()
+
+   for i in range(100):
+     print &quot;test&quot;,i
+     a = cache.importModule(&quot;a&quot;,&quot;.&quot;)
+     for n in cache.cachedModules():
+       c = cache.moduleInfo(n)
+       print 
+c.name,c.label,c.generation,c.file,c.mtime,c.atime,c.direct,c.indirect
+     time.sleep(5)
+
+First thing to be noted is that a normal &quot;import&quot; is not used for any 
+module which
+would be in your application module directory. Any access to such 
+modules is mediated
+through the module cache.
+
+Now when the test script is run, it will on the first iteration 
+generate the output:
+
+   test 0
+   a 1
+   c
+   b 1
+   b 2
+   a 2
+   c _vampire__2b_yg4_2b_XZhHdEtPHG6AmTz9w_3 1 ./c.py 1093773189 
+1093774844.22 2 0
+   a _vampire_LqOp5S04uKeR2wBXKPT61w_3 3 ./a.py 1093773270 1093774844.23 
+1 0
+   b _vampire_XcjTxdeaT7e4Z8DD4M2Axg_3 2 ./b.py 1093773255 1093774844.22 
+1 0
+
+The code in each of the modules &quot;a.py&quot;, &quot;b.py&quot; and &quot;c.py&quot; has been 
+executed upon loading
+as demonstrated by print statements outputs.
+
+On the subsequent iteration, the output of the test program is:
+
+   test 1
+   c _vampire__2b_yg4_2b_XZhHdEtPHG6AmTz9w_3 1 ./c.py 1093773189 
+1093774849.24 2 1
+   a _vampire_LqOp5S04uKeR2wBXKPT61w_3 3 ./a.py 1093773270 1093774849.24 
+2 0
+   b _vampire_XcjTxdeaT7e4Z8DD4M2Axg_3 2 ./b.py 1093773255 1093774849.24 
+1 1
+
+That is, no modules were reloaded, instead they were obtained from the 
+cache. The output
+here is information maintained by the cache about modification and 
+access times, number
+of access and overall generation snapshot of the cache as a whole at 
+the point the
+module was loaded.
+
+Note that the test script only attempts to load module &quot;a&quot;. If we touch 
+the file &quot;a.py&quot;,
+will now see the iteration of test script following point when file was 
+modified showing:
+
+   test 19
+   a 1
+   a 2
+   c _vampire__2b_yg4_2b_XZhHdEtPHG6AmTz9w_3 1 ./c.py 1093773189 
+1093774939.5 3 19
+   a _vampire_LqOp5S04uKeR2wBXKPT61w_3 4 ./a.py 1093774935 1093774939.5 
+1 0
+   b _vampire_XcjTxdeaT7e4Z8DD4M2Axg_3 2 ./b.py 1093773255 1093774939.5 
+2 18
+
+Because only &quot;a.py&quot; was modified, there is no need to reload &quot;b&quot; and 
+&quot;c&quot; from disk and
+they instead come from the cache.
+
+If instead we modify &quot;b.py&quot; and then &quot;c.py&quot; we will see the output:
+
+   test 22
+   a 1
+   b 1
+   b 2
+   a 2
+   c _vampire__2b_yg4_2b_XZhHdEtPHG6AmTz9w_3 1 ./c.py 1093773189 
+1093774954.54 5 21
+   a _vampire_LqOp5S04uKeR2wBXKPT61w_3 6 ./a.py 1093774935 1093774954.55 
+1 0
+   b _vampire_XcjTxdeaT7e4Z8DD4M2Axg_3 5 ./b.py 1093774951 1093774954.55 
+1 0
+
+   test 25
+   a 1
+   c
+   b 1
+   b 2
+   a 2
+   c _vampire__2b_yg4_2b_XZhHdEtPHG6AmTz9w_3 7 ./c.py 1093774966 
+1093774969.64 2 1
+   a _vampire_LqOp5S04uKeR2wBXKPT61w_3 9 ./a.py 1093774935 1093774969.65 
+1 0
+   b _vampire_XcjTxdeaT7e4Z8DD4M2Axg_3 8 ./b.py 1093774951 1093774969.65 
+1 0
+
+In these cases, although &quot;a.py&quot; was not modified, but &quot;b.py&quot; and then 
+&quot;c.py&quot; were,
+the module cache knows that &quot;a.py&quot; depends on &quot;b.py&quot; and that &quot;b.py&quot; 
+depends on
+&quot;c.py&quot; and thus that it should force a reload of &quot;a.py&quot; anyway in case 
+the latter
+files have changed in some important way.
+
+As an example, imagine that &quot;c.py&quot; contained configuration information. 
+This
+module cache will ensure that modules which use that configuration are 
+reloaded
+to pick up the changed information. This auto reloading would also be 
+good where
+a servlet style approach was used and each file contained a servlet 
+which was
+part of a hierarchy. If the lowest base class were changed and it 
+contained
+important site layout code, those servlets derived from it would be 
+automatically
+reloaded when next used.
+
+ From what I can see, this module cache will solve the sorts of problems 
+people
+are talking about with how to force reloading of modules when changed. 
+Unless I
+am missing something, the other suggestions are okay when there is only 
+one level
+of module importing, but if there are multiple levels of imports from 
+your set
+of application modules, they will not detect when the file associated 
+with a child
+import is changed and thus that an unchanged parent should still be 
+reloaded.
+
+I will apologise in advance for not answering any followup questions, 
+if any, for a
+few days as am about to travel to yet another country for a few days 
+and will not be
+taking my laptop with me on this part of my trip.
+
+FWIW, Vampire can currently be obtained from:
+
+   <A HREF="http://www.dscpl.com.au/projects/vampire">http://www.dscpl.com.au/projects/vampire</A>
+
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016218.html">[mod_python] How can I turn off apparent caching of python code?
+</A></li>
+	<LI>Next message: <A HREF="016184.html">RES: [mod_python] The right way to handle sessions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16251">[ date ]</a>
+              <a href="thread.html#16251">[ thread ]</a>
+              <a href="subject.html#16251">[ subject ]</a>
+              <a href="author.html#16251">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

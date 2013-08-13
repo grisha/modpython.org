@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: import and mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20import%20and%20mod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019251.html">
+   <LINK REL="Next"  HREF="019253.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: import and mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20import%20and%20mod_python&In-Reply-To="
+       TITLE="[mod_python] Re: import and mod_python">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Oct 12 21:30:10 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019251.html">[mod_python] PyThreadState_Delete: tstate is still current
+</A></li>
+        <LI>Next message: <A HREF="019253.html">[mod_python] mod_python mptest.py works publisher not
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19252">[ date ]</a>
+              <a href="thread.html#19252">[ thread ]</a>
+              <a href="subject.html#19252">[ subject ]</a>
+              <a href="author.html#19252">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Wim Heirman wrote ..
+&gt;<i> Hello,
+</I>&gt;<i> 
+</I>&gt;<i> When doing a first toy project in mod_python, I stumbled upon the --
+</I>&gt;<i> apparently well-known problem -- of mod_python not reloading custom
+</I>&gt;<i> modules imported with 'import'. I think I've found a pretty descent
+</I>&gt;<i> solution for it, described below. In search for existing documentation
+</I>&gt;<i> on this I mainly found
+</I>&gt;<i> <A HREF="http://www.modpython.org/pipermail/mod_python/2004-October/016567.html">http://www.modpython.org/pipermail/mod_python/2004-October/016567.html</A>
+</I>&gt;<i> and <A HREF="http://www.dscpl.com.au/articles/modpython-002.html">http://www.dscpl.com.au/articles/modpython-002.html</A> (that's why I'm
+</I>&gt;<i> sending this to you), I'm not sure if this method or something similar
+</I>&gt;<i> might already be described elsewhere -- if not I suppose other people
+</I>&gt;<i> will be interested and I'll write out a descent description and put it
+</I>&gt;<i> on my website.
+</I>&gt;<i> So this is how it goes:
+</I>&gt;<i> 
+</I>&gt;<i> Add this to the .htaccess of the directory where the modules are used:
+</I>&gt;<i> 
+</I>&gt;<i> PythonHeaderParserHandler purge
+</I>&gt;<i> 
+</I>&gt;<i> Create a purge.py file (in the same directory or somewhere in sys.path)
+</I>&gt;<i> with these contents:
+</I>&gt;<i> 
+</I>&gt;<i> import sys
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> 
+</I>&gt;<i> def headerparserhandler(req):
+</I>&gt;<i>   prefix = '/user/wheirman'
+</I>&gt;<i>   for name, mod in sys.modules.items():
+</I>&gt;<i>     print name, mod
+</I>&gt;<i>     if getattr(mod, '__file__', '')[:len(prefix)] == prefix:
+</I>&gt;<i>       del sys.modules[name]
+</I>&gt;<i>   return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> purge.py will unload all modules that are located in a certain directory
+</I>&gt;<i> (here: everything under my home directory, so not the ones from
+</I>&gt;<i> /usr/lib/python or the ones other people may be using on a shared
+</I>&gt;<i> production server). The PythonHeaderParserHandler makes that this purge
+</I>&gt;<i> is done just before the normal PythonHandler, so when importing a user
+</I>&gt;<i> module (using the normal 'import' statement) in the main script, it is
+</I>&gt;<i> reloaded from disk. This is done every time the user script is executed
+</I>&gt;<i> (so no need to manually browse to 'purge/doit') and for the right forked
+</I>&gt;<i> Apache process. In short: no need to modify any code, transparent to the
+</I>&gt;<i> developer, and reasonably cheap performance-wise.
+</I>&gt;<i> Any comments on this?
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> Wim.
+</I>&gt;<i> 
+</I>&gt;<i> -- 
+</I>&gt;<i> ir. Wim Heirman,
+</I>&gt;<i> ELIS Department, Ghent University, Belgium
+</I>&gt;<i> Phone: +32-9-264.95.27
+</I>&gt;<i> E-mail: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">wim.heirman at elis.UGent.be</A>
+</I>&gt;<i> <A HREF="http://www.elis.UGent.be/~wheirman/">http://www.elis.UGent.be/~wheirman/</A>
+</I>
+Note, response cc'd to mod_python mailing list. Preferable that you get
+on the mod_python mailing list and post discussions on such topics
+there.
+
+Anyway, deleting modules out of sys.modules like this is dangerous and
+can cause various problems if a multithreaded MPM such as &quot;winnt&quot; on
+Win32 systems or &quot;worker&quot; on UNIX is used. This is because you could be
+deleting the module at the same time as something was first importing
+it, or while a later request is executing code held within the module.
+
+The first of these issues could be avoided by acquiring the importer
+module lock while deleting modules, but second can't be avoided.
+Other strange problems could also result.
+
+The original suggestion I made about deleting stuff out of sys.modules
+was intended only to be used in extreme cases where you had no choice
+because Apache couldn't be restarted for some reason.
+
+There are better solutions to this problem and Vampire indicates one
+direction that can be taken, including having &quot;import&quot; layer on top of a
+special purpose module importer so that &quot;import&quot; modules in
+selected directories are reloaded when changed. See changes added
+in mod_python 1.7 for details:
+
+  <A HREF="http://www.dscpl.com.au/projects/vampire/changes.html">http://www.dscpl.com.au/projects/vampire/changes.html</A>
+
+The whole module importer problem will hopefully be addressed in
+mod_python 3.3 now that there is some idea of what can be done.
+
+Graham
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019251.html">[mod_python] PyThreadState_Delete: tstate is still current
+</A></li>
+	<LI>Next message: <A HREF="019253.html">[mod_python] mod_python mptest.py works publisher not
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19252">[ date ]</a>
+              <a href="thread.html#19252">[ thread ]</a>
+              <a href="subject.html#19252">[ subject ]</a>
+              <a href="author.html#19252">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

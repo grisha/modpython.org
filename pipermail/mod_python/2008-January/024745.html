@@ -1,0 +1,402 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] remnant 'orphan' apache subprocesses
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20remnant%20%27orphan%27%20apache%20subprocesses&In-Reply-To=88e286470801222036v243707c4q40ee44432c2cfae%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024723.html">
+   <LINK REL="Next"  HREF="024746.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] remnant 'orphan' apache subprocesses</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Alec Matusis</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20remnant%20%27orphan%27%20apache%20subprocesses&In-Reply-To=88e286470801222036v243707c4q40ee44432c2cfae%40mail.gmail.com"
+       TITLE="[mod_python] remnant 'orphan' apache subprocesses">matusis at yahoo.com
+       </A><BR>
+    <I>Thu Jan 24 00:59:02 EST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024723.html">[mod_python] remnant 'orphan' apache subprocesses
+</A></li>
+        <LI>Next message: <A HREF="024746.html">[mod_python] remnant 'orphan' apache subprocesses
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24745">[ date ]</a>
+              <a href="thread.html#24745">[ thread ]</a>
+              <a href="subject.html#24745">[ subject ]</a>
+              <a href="author.html#24745">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i> Which almost suggests it was actually a fork of an Apache child
+</I>&gt;<i> process as that is possibly only way the other threads could have been
+</I>&gt;<i> killed off.
+</I>
+I think this is right. I caught this evidence:
+
+# ps -ef | grep http  
+root     16197     1  0 Jan21 ?
+nobody     787 16197  9 18:06 ?
+nobody    1096 16197  9 18:09 ?
+nobody    1240 16197  8 18:12 ?
+nobody    1389 16197  8 18:13 ?
+nobody    1525 16197  9 18:14 ?
+nobody    1732  1525  0 18:16 ?
+....
+
+Note pid 1732 with 0 CPU total being a child of a sub process (pid 1525)
+20 minutes later, the parent sub process pid 1525 exited, and pid 1732
+became an orphan:
+
+# ps -ef | grep http  
+root     16197     1  0 Jan21 ? 
+nobody    1732     1  0 18:16 ? 
+nobody    9895 16197  6 20:07 ?
+.....
+
+&gt;<i> I can't find though any evidence of fork() being used direct in PIL
+</I>&gt;<i> code at least, but then the popen2 module uses fork() in Popen3 and
+</I>&gt;<i> Popen4 classes.
+</I>
+I found that we send email like this:
+
+try:
+     handle = os.popen2('/usr/sbin/sendmail.postfix -f mailzero -t')
+     handle[0].write(msg)
+     handle[0].write(&quot;\n.\n&quot;)
+ finally :
+     if handle:
+         handle[0].close()
+         handle[1].close()
+
+Could this be the culprit?
+
+PS. I finally obtained lsof for an orphan:
+
+# lsof -p 552
+COMMAND PID   USER   FD   TYPE DEVICE     SIZE                 NODE NAME
+httpd   552 nobody  cwd    DIR    3,1      560                    2 /
+httpd   552 nobody  rtd    DIR    3,1      560                    2 /
+httpd   552 nobody  txt    REG    3,3  1459487               120154
+/web10/encap/httpd-2.2.6/bin/httpd
+httpd   552 nobody  mem    REG    3,1   108173                10583
+/lib64/ld-2.3.4.so
+httpd   552 nobody  mem    REG    3,1   208464                13742
+/usr/lib/locale/en_US.utf8/LC_CTYPE
+httpd   552 nobody  mem    REG    3,1    21546                67725
+/usr/lib64/gconv/gconv-modules.cache
+httpd   552 nobody  mem    REG    3,1   422191               149865
+/lib64/tls/libm.so.6
+httpd   552 nobody  mem    REG    3,3   359952               120180
+/web10/encap/httpd-2.2.6/lib/libaprutil-1.so.0.2.11
+httpd   552 nobody  mem    REG    3,3   399356                86545
+/web10/encap/expat-1.95.8/lib/libexpat.so.0.5.0
+httpd   552 nobody  mem    REG    3,3   644280               120177
+/web10/encap/httpd-2.2.6/lib/libapr-1.so.0.2.11
+httpd   552 nobody  mem    REG    3,1    44393               149867
+/lib64/tls/librt.so.1
+httpd   552 nobody  mem    REG    3,1    49785                10590
+/lib64/libcrypt.so.1
+httpd   552 nobody  mem    REG    3,1   104333               149866
+/lib64/tls/libpthread.so.0
+httpd   552 nobody  mem    REG    3,1    15367               149856
+/lib64/libdl.so.2
+httpd   552 nobody  mem    REG    3,1  1446783               149864
+/lib64/tls/libc.so.6
+httpd   552 nobody  mem    REG    3,3    32293               120510
+/web10/encap/httpd-2.2.6/modules/mod_authz_host.so
+httpd   552 nobody  mem    REG    3,3    49742               120526
+/web10/encap/httpd-2.2.6/modules/mod_mime.so
+httpd   552 nobody  mem    REG    3,3    80479               120514
+/web10/encap/httpd-2.2.6/modules/mod_log_config.so
+httpd   552 nobody  mem    REG    3,3    41745               120525
+/web10/encap/httpd-2.2.6/modules/mod_alias.so
+httpd   552 nobody  mem    REG    3,3    29404               120540
+/web10/encap/httpd-2.2.6/modules/mod_env.so
+httpd   552 nobody  mem    REG    3,3    38369               120492
+/web10/encap/httpd-2.2.6/modules/mod_setenvif.so
+httpd   552 nobody  mem    REG    3,3   104277               120499
+/web10/encap/httpd-2.2.6/modules/mod_negotiation.so
+httpd   552 nobody  mem    REG    3,3   146518               120535
+/web10/encap/httpd-2.2.6/modules/mod_rewrite.so
+httpd   552 nobody  mem    REG    3,3    52083               120520
+/web10/encap/httpd-2.2.6/modules/mod_status.so
+httpd   552 nobody  mem    REG    3,3    52373               120503
+/web10/encap/httpd-2.2.6/modules/mod_info.so
+httpd   552 nobody  mem    REG    3,3  4984833               120515
+/web10/encap/httpd-2.2.6/modules/mod_python.so
+httpd   552 nobody  mem    REG    3,1    14784                10606
+/lib64/libutil.so.1
+httpd   552 nobody  mem    REG    3,3    38039               120494
+/web10/encap/httpd-2.2.6/modules/mod_expires.so
+httpd   552 nobody  mem    REG    3,1   217016                69589
+/var/run/nscd/passwd
+httpd   552 nobody  mem    REG    3,1   217016                69590
+/var/run/nscd/group
+httpd   552 nobody  DEL    REG    3,1                         69591
+/var/run/nscd/dbMxLNyI
+httpd   552 nobody  DEL    REG    0,7          18446744073632515035
+/dev/zero
+httpd   552 nobody  mem    REG    3,1    46664                16459
+/lib64/libgcc_s.so.1
+httpd   552 nobody  mem    REG    3,3    49339                 2814
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/time.so
+httpd   552 nobody  mem    REG    3,3    70274                 2838
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/strop.so
+httpd   552 nobody  mem    REG    3,3   101469                 2839
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/itertools.so
+httpd   552 nobody  mem    REG    3,3    54133                 2791
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/cStringIO.so
+httpd   552 nobody  mem    REG    3,3   138480                 2837
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/_socket.so
+httpd   552 nobody  mem    REG    3,3    74923                 2819
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/_ssl.so
+httpd   552 nobody  mem    REG    3,1   245682               141938
+/usr/lib64/libssl.so.0.9.7
+httpd   552 nobody  mem    REG    3,1  1441278                59209
+/usr/lib64/libcrypto.so.0.9.7
+httpd   552 nobody  mem    REG    3,3    46577                 2811
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/math.so
+httpd   552 nobody  mem    REG    3,3    56810                 2833
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/binascii.so
+httpd   552 nobody  mem    REG    3,3    36773                 2818
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/_random.so
+httpd   552 nobody  mem    REG    3,3    37259                 2821
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/fcntl.so
+httpd   552 nobody  mem    REG    3,3    62744                 2803
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/collections.so
+httpd   552 nobody  mem    REG    3,3    21960                 2807
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/syslog.so
+httpd   552 nobody  mem    REG    3,3    82224                 2802
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/struct.so
+httpd   552 nobody  mem    REG    3,3   264023                 2815
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/datetime.so
+httpd   552 nobody  mem    REG    3,3    34866                 2823
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/md5.so
+httpd   552 nobody  mem    REG    3,3    34443                 2827
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/sha.so
+httpd   552 nobody  mem    REG    3,3    28020                 2832
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/_bisect.so
+httpd   552 nobody  mem    REG    3,3    21455                 2795
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/_weakref.so
+httpd   552 nobody  mem    REG    3,3   154790               135012
+/web10/encap/MySQL-python-1.2.0/lib/python2.4/site-packages/_mysql.so
+httpd   552 nobody  mem    REG    3,3   477383               133941
+/web10/encap/mysql-4.1.15/lib/mysql/libmysqlclient_r.so.14.0.0
+httpd   552 nobody  mem    REG    3,3    95574               133804
+/web10/encap/mysql-4.1.15/lib/mysql/libz.so.0.0.0
+httpd   552 nobody  mem    REG    3,1   101209                10594
+/lib64/libnsl.so.1
+httpd   552 nobody  mem    REG    3,3   119746                 2831
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/array.so
+httpd   552 nobody  mem    REG    3,1    53431               149860
+/lib64/libnss_files.so.2
+httpd   552 nobody  mem    REG    3,3    28411                 9381
+/web10/encap/Cheetah-0.9.15-nogeninfo/lib/python2.4/site-packages/Cheetah/_n
+amemapper.so
+httpd   552 nobody  mem    REG    3,3    76289                 9344
+/web10/encap/pycrypto-2.0.1/lib/python2.4/site-packages/Crypto/Cipher/DES3.s
+o
+httpd   552 nobody  mem    REG    3,3   940471                 9223
+/web10/encap/Imaging-1.1.5/lib/python2.4/site-packages/PIL/_imaging.so
+httpd   552 nobody  mem    REG    3,1   137928                14016
+/usr/lib64/libjpeg.so.62.0.0
+httpd   552 nobody  mem    REG    3,1    77960                14723
+/lib64/libz.so.1.2.2
+httpd   552 nobody  mem    REG    3,3    64166                 2843
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/operator.so
+httpd   552 nobody  mem    REG    3,3    44969                 9267
+/web10/encap/Imaging-1.1.5/lib/python2.4/site-packages/PIL/_imagingft.so
+httpd   552 nobody  mem    REG    3,1   588288               130060
+/usr/lib64/libfreetype.so.6.3.7
+httpd   552 nobody  mem    REG    3,3    56595                 2813
+/web10/encap/Python-2.4.1/lib/python2.4/lib-dynload/zlib.so
+httpd   552 nobody    0r  FIFO    0,5                    4292655466 pipe
+httpd   552 nobody    1w  FIFO    0,5                    4292655467 pipe
+httpd   552 nobody    2w   REG    3,3 21074695                86518
+/web10/web/logs/web10_error_log
+
+
+
+
+
+&gt;<i> -----Original Message-----
+</I>&gt;<i> From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;<i> Sent: Tuesday, January 22, 2008 8:36 PM
+</I>&gt;<i> To: Alec Matusis
+</I>&gt;<i> Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Subject: Re: [mod_python] remnant 'orphan' apache subprocesses
+</I>&gt;<i> 
+</I>&gt;<i> On 23/01/2008, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at yahoo.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; Hmmm, there should have been 39 other stack traces, one for each
+</I>&gt;<i> &gt; &gt; worker thread based on your Apache configuration.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Looks like it has only one thread:
+</I>&gt;<i> 
+</I>&gt;<i> Which almost suggests it was actually a fork of an Apache child
+</I>&gt;<i> process as that is possibly only way the other threads could have been
+</I>&gt;<i> killed off. This would sort of sit with idea that some code had tried
+</I>&gt;<i> to further fork and daemonise the process. This is the only thing that
+</I>&gt;<i> seems to fit at the moment.
+</I>&gt;<i> 
+</I>&gt;<i> I can't find though any evidence of fork() being used direct in PIL
+</I>&gt;<i> code at least, but then the popen2 module uses fork() in Popen3 and
+</I>&gt;<i> Popen4 classes. Again, PIL, although it uses os.popen() doesn't use
+</I>&gt;<i> popen2 module. Also, that doesn't involved setsid(). The only place in
+</I>&gt;<i> standard Python modules that appears to use setsid() is pty.fork() and
+</I>&gt;<i> PIL doesn't use that.
+</I>&gt;<i> 
+</I>&gt;<i> All I can suggest is you might in your loaded application dump out
+</I>&gt;<i> sys.modules and see if anything has imported pty module. Otherwise
+</I>&gt;<i> troll through all the Python code you know is used and see if anything
+</I>&gt;<i> for whatever reason uses fork(), setsid(), popen2 module, or
+</I>&gt;<i> pty.fork(). More nasty would be a C extension module doing forks and
+</I>&gt;<i> trying to do Python stuff in forked process but not doing necessary
+</I>&gt;<i> Python cleanup after the fork. Would have expected to see a C
+</I>&gt;<i> extension module stack frame in traceback if that was the case though.
+</I>&gt;<i> 
+</I>&gt;<i> Anyway, running out of ideas.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Orphaned sub process:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; # ps -mTp 3812
+</I>&gt;<i> &gt;   PID  SPID TTY          TIME CMD
+</I>&gt;<i> &gt;  3812     - ?        00:00:00 httpd
+</I>&gt;<i> &gt;     -  3812 -        00:00:00 -
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Normal sub-process:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; # ps -mTp 20205
+</I>&gt;<i> &gt;   PID  SPID TTY          TIME CMD
+</I>&gt;<i> &gt; 20205     - ?        00:00:10 httpd
+</I>&gt;<i> &gt;     - 20205 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20207 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20208 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20209 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20210 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20211 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20212 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20213 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20214 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20215 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20216 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20217 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20218 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20219 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20220 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20221 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20222 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20223 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20224 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20225 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20226 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20227 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20228 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20229 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20230 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20231 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20232 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20233 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20234 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20235 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20236 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20237 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20238 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20239 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20240 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20241 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20242 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20243 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20244 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20245 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20246 -        00:00:00 -
+</I>&gt;<i> &gt;     - 20247 -        00:00:00 -
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt; -----Original Message-----
+</I>&gt;<i> &gt; &gt; From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;<i> &gt; &gt; Sent: Tuesday, January 22, 2008 7:00 PM
+</I>&gt;<i> &gt; &gt; To: Alec Matusis
+</I>&gt;<i> &gt; &gt; Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> &gt; &gt; Subject: Re: [mod_python] remnant 'orphan' apache subprocesses
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; On 23/01/2008, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at yahoo.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; (gdb) thread apply all bt
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Thread 1 (Thread 1111562592 (LWP 3812)):
+</I>&gt;<i> &gt; &gt; &gt; #0  0x00002aaaab2c94df in sem_wait () from
+</I>&gt;<i> /lib64/tls/libpthread.so.0
+</I>&gt;<i> &gt; &gt; &gt; #1  0x00002aaaac204dcd in PyThread_acquire_lock (lock=0x5b7820,
+</I>&gt;<i> &gt; &gt; waitflag=1)
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Hmmm, there should have been 39 other stack traces, one for each
+</I>&gt;<i> &gt; &gt; worker thread based on your Apache configuration.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Don't necessarily post them all, but you should look and see what
+</I>&gt;<i> is
+</I>&gt;<i> &gt; &gt; in frame #0 for all of them and see if there is anything odd such
+</I>&gt;<i> as
+</I>&gt;<i> &gt; &gt; one blocking in a call out to some external C library. If no such
+</I>&gt;<i> &gt; &gt; thing and they are all stuck on Python mutex locks, then must be
+</I>&gt;<i> &gt; &gt; internal deadlock.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; This still doesn't explain though how the process has been
+</I>&gt;<i> associated
+</I>&gt;<i> &gt; &gt; with PPID of 1, which would  still only seem possible if something
+</I>&gt;<i> had
+</I>&gt;<i> &gt; &gt; tried to daemonise process.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Graham
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024723.html">[mod_python] remnant 'orphan' apache subprocesses
+</A></li>
+	<LI>Next message: <A HREF="024746.html">[mod_python] remnant 'orphan' apache subprocesses
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24745">[ date ]</a>
+              <a href="thread.html#24745">[ thread ]</a>
+              <a href="subject.html#24745">[ subject ]</a>
+              <a href="author.html#24745">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

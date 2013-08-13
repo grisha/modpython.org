@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Articles on module importing.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Articles%20on%20module%20importing.&In-Reply-To=a7076c0d5bcba6e7842b68172f3283ef%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018619.html">
+   <LINK REL="Next"  HREF="018624.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Articles on module importing.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Articles%20on%20module%20importing.&In-Reply-To=a7076c0d5bcba6e7842b68172f3283ef%40dscpl.com.au"
+       TITLE="[mod_python] Articles on module importing.">list at joreybump.com
+       </A><BR>
+    <I>Thu Jul  7 14:34:49 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018619.html">[mod_python] Articles on module importing.
+</A></li>
+        <LI>Next message: <A HREF="018624.html">[mod_python] Vampire for module reloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18623">[ date ]</a>
+              <a href="thread.html#18623">[ thread ]</a>
+              <a href="subject.html#18623">[ subject ]</a>
+              <a href="author.html#18623">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+
+&gt;<i> What is missing is my ideas of how the module importing system can be
+</I>&gt;<i> fixed. I would rather get documented what I feel needs to be done
+</I>&gt;<i> before I get drawn into an any arguments on how to fix it. Thus, feel
+</I>&gt;<i> free to comment on the list of problems/issues, letting me know of any
+</I>&gt;<i> other problems you know of or where you feel I am wrong in my analysis,
+</I>&gt;<i> but can we please defer the discussion on how to fix it for a while
+</I>&gt;<i> yet. :-)
+</I>&gt;<i> 
+</I>&gt;<i> The articles can be found along with my prior article on getting
+</I>&gt;<i> started with mod_python at:
+</I>&gt;<i> 
+</I>&gt;<i>   <A HREF="http://www.dscpl.com.au/articles.html">http://www.dscpl.com.au/articles.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> The two new articles which have been posted are:
+</I>&gt;<i> 
+</I>&gt;<i>   <A HREF="http://www.dscpl.com.au/articles/modpython-002.html">http://www.dscpl.com.au/articles/modpython-002.html</A>
+</I>&gt;<i>   <A HREF="http://www.dscpl.com.au/articles/modpython-003.html">http://www.dscpl.com.au/articles/modpython-003.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> I have posted this message to the general list rather than just the
+</I>&gt;<i> developer list as the information may be of general interest in as
+</I>&gt;<i> much as it will raise awareness that there are actually problems.
+</I>&gt;<i> I suggest that when we later get down to discussions on how to fix
+</I>&gt;<i> it that it be done on the developer list and not here however.
+</I>
+Graham, this is great work. It's helpful to understand the inner 
+workings of mod_python when confronting the issues that arise.
+
+Most (but not all) of the issues you raise concern writing handlers. I'd 
+hate to see someone leave with the wrong impression about how to deal 
+with these issues in their applications, when the advice given is more 
+appropriate at the handler level. While each issue you discuss clearly 
+demonstrates a problem, we should identify the higher level problems 
+that fixing the module import system would address (such as, &quot;Editing 
+imported modules doesn't take effect immediately.&quot;).
+
+On the other side of the coin, it's important to identify what sort of 
+functionality should be retained. For example, despite its faults, an 
+application written for mod_python.publisher can look like any other 
+python application. Attempts to use alternate importing mechanisms at 
+this level would look ugly and, even worse, make most of the code 
+proprietary to mod_python (using apache.import_module() instead of 
+import, for example). Extending the path outside of the application, 
+such as via PythonPath, plays an important role here in the localised 
+environment used by many developers. It can be key for the portability 
+of the code, especially to non-mod_python environments.
+
+It should be an established goal that web applications written for any 
+handler included with mod_python can be written using only the standard 
+library, even if that's not always the practice. It would be a shame to 
+see developers come to mod_python only to find obstacles that restrict 
+their productivity (and I'll grant that the current import issues fall 
+into that category).
+
+I think that defining the higher level problems and goals now will help 
+to arrive at solutions that might not necessarily involve fixing current 
+components.
+
+For example, let's imagine that all of mod_python's import problems can 
+be solved with some kind of magic bullet:
+
+1. We want the PythonPath extended automatically based on the location 
+of a file.
+
+2. We want imported modules to be unloaded/reloaded automatically if 
+modified or replaced in any way.
+
+3. Imports of application code should be handled in a way that supports 
+the packaging and portablility of an application.
+
+Perhaps this can be addressed by adding code that looks for a .htPython 
+directory in a file's current directory. This could be used to hold 
+imported modules and packages shared by other files in the current 
+directory. Because it follows an established convention, mod_python 
+could import it in a way that doesn't cause namespace collisions and 
+allows it to check it explicitly for changes. Conventional import 
+statements can be used because it simply becomes part of an 
+application's path (but not for the entire virtual host). Finally, a 
+little security is offered if the server is configured to deny direct 
+access to .ht* resources (typical in many apache installations). A 
+compromise, to be sure, but it does allow sensitive resources to be 
+packaged with an application.
+
+I know you didn't want to go into the mechanics of fixing the module 
+import mechanism, and I offer this only as an example to highlight the 
+benefits of determining *what* to fix before deciding *how* to fix it. A 
+scheme such as the one I outline offers backwards compatibility for 
+legacy applications at the expense of adding some code that offers 
+important new functionality. Hopefully, any changes to mod_python can be 
+done in a similar way that doesn't threaten to fork the code.
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018619.html">[mod_python] Articles on module importing.
+</A></li>
+	<LI>Next message: <A HREF="018624.html">[mod_python] Vampire for module reloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18623">[ date ]</a>
+              <a href="thread.html#18623">[ thread ]</a>
+              <a href="subject.html#18623">[ subject ]</a>
+              <a href="author.html#18623">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

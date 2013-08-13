@@ -1,0 +1,240 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How to find a filename
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20to%20find%20a%20filename&In-Reply-To=29576.1169351470%40talentica.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023060.html">
+   <LINK REL="Next"  HREF="023062.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How to find a filename</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20to%20find%20a%20filename&In-Reply-To=29576.1169351470%40talentica.com"
+       TITLE="[mod_python] How to find a filename">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Jan 20 23:17:21 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023060.html">[mod_python] How to find a filename
+</A></li>
+        <LI>Next message: <A HREF="023062.html">[mod_python] How to start a new &quot;page&quot; from within program?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23061">[ date ]</a>
+              <a href="thread.html#23061">[ thread ]</a>
+              <a href="subject.html#23061">[ subject ]</a>
+              <a href="author.html#23061">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 21/01/2007, at 2:51 PM, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">sandipm at talentica.com</A> wrote:
+
+&gt;<i> other way of doing this..dont use req.form at all...
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import util
+</I>&gt;<i>
+</I>&gt;<i> frm = util.FieldStorage(req)
+</I>&gt;<i>  upfile = frm.getlist('UploadFile')[0] # name of field
+</I>&gt;<i>  filename = upfile.filename
+</I>&gt;<i>  filedata = upfile.value
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> you can get all form fields using frm.getlist('fieldname')[0]
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Thanks
+</I>&gt;<i>
+</I>&gt;<i> Sandip
+</I>Your getting a bit confused.
+
+Where req.form comes into it is that it is the prevailing convention  
+that if anything
+ever creates an instance of util.FieldStorage, that it store it as  
+req.form. It should
+only create the instance of util.FieldStorage though if req.form  
+doesn't already exist.
+
+Thus the code for a handler becomes:
+
+   if not hasattr(req, 'form'):
+     req.form = util.FieldStorage(req)
+
+   upfile = req.form.getfirst('UploadFile')
+   if upfile:
+     ...
+
+This is what mod_python.publisher and mod_python.psp do in more  
+recent versions.
+
+Peoples comments about req.form were referring to that under the  
+belief that the
+person was using one of the handlers that leaves the form it creates  
+as req.form.
+The person was however using a basic handler where it isn't created  
+and so they
+would have to create it themselves. Following best practice, they  
+should when
+they create the form, store it as req.form as the code I give shows.  
+Using this
+convention you have a better chance of things working when  
+integrating different
+handler mechanisms together as you will inherit the form created by  
+another
+handler instead of creating it again and loosing your POST data.
+
+BTW, one is best off using getfirst() instead of either subscript  
+operator or getlist().
+By using getfirst() in preference to getlist(), you do not have to  
+then access the
+first element as only one will be returned or None if it doesn't  
+exist. If there is no
+field, getlist() returns an empty list and access the first entry in  
+the list will raise
+an exception. It is also better than using subscript operator as it  
+will raise an
+exception if field doesn't exist also and if it does exist can return  
+either a single
+field object or a list of fields if there were duplicated entries.
+
+Graham
+
+&gt;<i> On Sat Jan 20 11:01 , Jim Gallacher sent:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">export at hope.cz</A> wrote:
+</I>&gt;<i> &gt; But how can I get the name of an uploaded file?
+</I>&gt;<i> &gt; I tried util.FieldStorage but I received the content of the file  
+</I>&gt;<i> but not the
+</I>&gt;<i> &gt; name of the file.
+</I>&gt;<i>
+</I>&gt;<i> Jorey already gave you that answer.
+</I>&gt;<i>
+</I>&gt;<i> filename = req.form['Picture'].filename
+</I>&gt;<i>
+</I>&gt;<i> Jim
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; Did I make a mistake somewhere?
+</I>&gt;<i> &gt; Lad.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;&gt; If you are not using publisher or the psp handler you'll need to  
+</I>&gt;<i> create
+</I>&gt;<i> &gt;&gt; a FieldStorage instance explicitly.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; from mod_python import util
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; def handler(req):
+</I>&gt;<i> &gt;&gt; req.form = util.FieldStorage(req)
+</I>&gt;<i> &gt;&gt; ... and so on ...
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Jim
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">export at hope.cz</A> wrote:
+</I>&gt;<i> &gt;&gt; &gt; Thank you for your reply but I do not use publisher.
+</I>&gt;<i> &gt;&gt; &gt; Is there any other way?
+</I>&gt;<i> &gt;&gt; &gt; Thank you for help
+</I>&gt;<i> &gt;&gt; &gt; Lad
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">export at hope.cz</A> wrote:
+</I>&gt;<i> &gt;&gt; &gt;&gt;&gt; I have a form through which users upload a file.
+</I>&gt;<i> &gt;&gt; &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt;&gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt;&gt; &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt;&gt; Is it possible to find out the name of a file the user is  
+</I>&gt;<i> being uploaded?
+</I>&gt;<i> &gt;&gt; &gt;&gt; If you are using Publisher, it will be available as:
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;&gt; req.form['Picture'].filename
+</I>&gt;<i> &gt;&gt; &gt;&gt;
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; _______________________________________________
+</I>&gt;<i> &gt;&gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt;&gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt;&gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;  
+</I>&gt;<i> ---------------------------------------------------------------------- 
+</I>&gt;<i> --
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070121/5207a30b/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070121/5207a30b/attachment.html</A>
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023060.html">[mod_python] How to find a filename
+</A></li>
+	<LI>Next message: <A HREF="023062.html">[mod_python] How to start a new &quot;page&quot; from within program?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23061">[ date ]</a>
+              <a href="thread.html#23061">[ thread ]</a>
+              <a href="subject.html#23061">[ subject ]</a>
+              <a href="author.html#23061">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

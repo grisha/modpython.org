@@ -1,0 +1,149 @@
+#TODO - this method should verify that the user indeed exists in the user
+#table of the auth system
+
+import TicketTool
+import Cookie
+from mod_python import apache
+from mod_python.util import FieldStorage
+
+ticketTool = None
+
+def handler(req):
+	apache.log_error( "[TicketMaster] calling handler() method" )
+
+	# this will only need doing once during the life of the apache child process
+	global ticketTool
+	if ticketTool == None:
+		ticketTool = TicketTool.TicketTool(req)
+		
+
+	req.add_common_vars()
+
+	request_uri = None
+
+	# 1. check for a paramater named request_uri
+	# 2. check for a cookie named request_uri
+	# 3. check for a req.prev uri
+
+	fields = FieldStorage(req)
+	if fields.has_key('request_uri'):
+		request_uri = fields['request_uri']
+	else:
+		apache.log_error( "[TicketMaster] no request_uri param" )
+
+		if req.prev:
+			request_uri = req.prev.unparsed_uri
+			apache.log_error( "[TicketMaster] have a prev request_uri:" + request_uri )
+		else:
+			cookies = Cookie.SimpleCookie()
+			try:
+				apache.log_error( "[TicketMaster] cookie headers_in:" + req.headers_in['Cookie'] )
+				cookies.load(req.headers_in['Cookie'])
+				request_uri = cookies['request_uri'].value
+				#request_uri = cookies['request_uri']
+				apache.log_error( "[TicketMaster] have a cookie request_uri:" + str(request_uri) )
+			except KeyError:
+				apache.log_error( "[TicketMaster] no cookies were found, what now?" )
+			
+
+	# if nothing by here, display and error and move on with life.
+	# it's too short		
+	if request_uri == None:
+		apache.log_error( "[TicketMaster] no request_uri could be found" )
+		no_cookie_error(req)
+		return apache.OK
+
+
+
+	user = ''
+	try:
+		user = req.subprocess_env['SSL_CLIENT_S_DN']
+		apache.log_error("[TicketMaster] user dn:" + user)
+	except KeyError:
+		apache.log_error("[TicketMaster] no SSL DN env variable!" )
+		display_missing_cert_screen(req, request_uri)
+		return apache.OK
+
+
+	result = 0
+	msg = ''
+
+	if user:
+		# I don't authenticate here, since the SSL layer does that
+		# for me
+
+		try:
+			ticket = ticketTool.make_ticket(req, user)
+			go_to_uri(req, request_uri, ticket)
+			return apache.OK
+
+		except:
+			apache.log_error( 'could not create ticket, missing secret key?', apache.APLOG_ERR)
+			raise
+			#return apache.HTTP_INTERNAL_SERVER_ERROR
+
+	apache.log_error( "[TicketMaster] no req.user, so cannot make ticket" )
+	display_missing_cert_screen(req, request_uri)
+	return apache.OK
+
+
+def go_to_uri(req, request_uri, ticket):
+	apache.log_error( "[TicketMaster] sending refresh to browser to go here:" + request_uri)
+	apache.log_error( "[TicketMaster] setting the following cookie:" + ticket.output(header=""))
+	req.content_type = 'text/html'
+	req.headers_out['Set-Cookie'] = ticket.output(header="")
+	# the following line causes MSIE to wig out, so don't uncomment it.
+	#req.headers_out['Refresh'] = '1;' + request_uri
+	req.headers_out['Pragma'] = 'no-cache'
+	req.headers_out['Cache-Control'] = 'no-cache'
+	req.headers_out['Expires'] = '-1'
+	#req.send_http_header()
+	req.write("""
+		<html>
+			<head>
+				<title>Successfully Authenticated</title>
+			</head>
+			<body>
+				<h4>Congratulations, you have successfully authenticated</h4>
+				<p>Click <a href="%s">here</a> to continue</p>
+				<p>A nice explanation about the cookie I just set would be swell</p>
+			</body>
+		</html>
+
+	""" % request_uri)
+	return apache.OK
+		
+
+
+def display_missing_cert_screen(req,request_uri):
+	req.content_type = 'text/html'
+	req.write("""
+		<html>
+			<head>
+				<title>Missing Entrust PKI Certificate</title>
+			</head>
+			<body>
+				<p>The page you attempted to view (%s) was protected.</p>
+				<p>Protection for this web site is based on Digital Certificate technology.
+				You need a PKI certificate to access this portion of the website.
+				Contact Human Resources.</p>
+			</body>
+		</html>""" % request_uri)
+
+def no_cookie_error(req):
+	req.content_type = 'text/html'
+	req.write("""
+		<html>
+			<head>
+				<title>Unable to Log In</title>
+			</head>
+			<body>
+				<h4>Unable to Log In</h4>
+				<p>This site uses cookies for security.  Your browser must be capable
+        		of processing cookies <em>and</em> cookies must be activated.  
+				Please set your browser to accept cookies, then press the
+        		<strong>reload</strong> button.</p>
+				<hr>
+			</body>
+		</html>""")
+

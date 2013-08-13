@@ -1,0 +1,127 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] IPC, db conn sharing, and other fine things
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20IPC%2C%20db%20conn%20sharing%2C%20and%20other%20fine%20things&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002977.html">
+   <LINK REL="Next"  HREF="002979.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] IPC, db conn sharing, and other fine things</H1>
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20IPC%2C%20db%20conn%20sharing%2C%20and%20other%20fine%20things&In-Reply-To="
+       TITLE="[mod_python] IPC, db conn sharing, and other fine things">mike.looijmans at asml.com
+       </A><BR>
+    <I>Wed Aug 27 07:38:01 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002977.html">[mod_python] PythonDebug and Traceback
+</A></li>
+        <LI>Next message: <A HREF="002979.html">[mod_python] PythonDebug and Traceback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2978">[ date ]</a>
+              <a href="thread.html#2978">[ thread ]</a>
+              <a href="subject.html#2978">[ subject ]</a>
+              <a href="author.html#2978">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;<i>- nsv buckets --- nsv == NaviServer (AOLServer's original name) shared
+</I>&gt;<i>variables... they were effectively arrays that stored information
+</I>&gt;<i>accessible and modifiable by any running thread... perfect for caching
+</I>&gt;<i>database information for faster generation of dynamic pages...
+</I>
+
+In mod_python, just use global variables in modules. Use dictionary objects
+as fast storage mechanism.
+
+
+&gt;<i>- database connection pooling --- provided easy, standardized, and
+</I>&gt;<i>scalable access to existing database connections
+</I>
+
+Same as above: Use global variables.
+
+&gt;<i>... obviously I could write some sort of
+</I>&gt;<i>caching daemon in Python that used UNIX sockets and some simple
+</I>&gt;<i>key/value pair protocol to do db data caching... or I could write some
+</I>&gt;<i>sort of db-pooling daemon...
+</I>
+Why not integrate it into one of your modules?
+Once loaded, the module remains in memory. So you can have it start a daemon
+thread and use that as your IPC server. I always design the pages such that
+no IPC is needed, each page gets its data exclusively from the request and
+the database. The database is a great way to exchange data anyway, performs
+excellent and survives even a power-down.
+
+&gt;<i>So I suppose what I'm asking is that is there any way natively in
+</I>&gt;<i>mod_python to support these enterprise critical features? And if not,
+</I>&gt;<i>how the hell do you guys who use mod_python manage to have massive
+</I>&gt;<i>hit-per-second sites without data caching?
+</I>
+Python is so powerful a language, that creating these &quot;enterprise critical
+features&quot; in raw code is just something you do on the side. I don't put
+these in a library because there's more work in maintaining that library
+than just entering the code. A threadsafe DB pooling system takes about 5
+lines of Python code to program, and you need only one for the whole
+project.
+
+I do a little caching for 'static' tables, something like:
+
+cache = {}
+...
+try:
+    data = cache[key]
+except KeyError:
+    c = db.cursor()
+    c.execute(somequery % key)
+    data = c.fetchall()[0][0]
+    cache[key] = data
+return data
+
+
+Also, I did some experiments with our  MySQL database, and found that the
+overhead in a DB connection creation is very, very low when the DBMS is on
+the same host. I was unable to measure any difference in performance,
+compared to running an SQL statement, connecting to the socket just didn't
+take any time. I implemented DB connection pooling anyway.
+
+When tuning performance, I tend to optimize the design, SQL and index trees,
+that helps performance a lot more than fiddling with fancy features.
+Database pooling helped about 1%, changing a primary key from a,b to b,a
+increased performance by 300%.
+
+Mike.
+
+
+
+-- 
+The information contained in this communication and any attachments is confidential and may be privileged, and is for the sole use of the intended recipient(s). Any unauthorized review, use, disclosure or distribution is prohibited. If you are not the intended recipient, please notify the sender immediately by replying to this message and destroy all copies of this message and any attachments. ASML is neither liable for the proper and complete transmission of the information contained in this communication, nor for any delay in its receipt.
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002977.html">[mod_python] PythonDebug and Traceback
+</A></li>
+	<LI>Next message: <A HREF="002979.html">[mod_python] PythonDebug and Traceback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2978">[ date ]</a>
+              <a href="thread.html#2978">[ thread ]</a>
+              <a href="subject.html#2978">[ subject ]</a>
+              <a href="author.html#2978">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

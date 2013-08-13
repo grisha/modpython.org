@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] authenhandler woes
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20authenhandler%20woes&In-Reply-To=E99D0651-1594-11D9-8241-000A95CCEA34%40itodd.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016557.html">
+   <LINK REL="Next"  HREF="016559.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] authenhandler woes</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Brian Bird</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20authenhandler%20woes&In-Reply-To=E99D0651-1594-11D9-8241-000A95CCEA34%40itodd.org"
+       TITLE="[mod_python] authenhandler woes">brian.bird at securetrading.com
+       </A><BR>
+    <I>Mon Oct  4 10:21:04 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016557.html">[mod_python] authenhandler woes
+</A></li>
+        <LI>Next message: <A HREF="016559.html">[mod_python] wierd python path problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16560">[ date ]</a>
+              <a href="thread.html#16560">[ thread ]</a>
+              <a href="subject.html#16560">[ subject ]</a>
+              <a href="author.html#16560">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Not sure what will happen if you turn off locking. However, I experienced
+similar hangs when I first started using Session. It seemed to happen
+whenever a single request tried to instantiate two new Session objects, the
+second instantiation would usually (if not always) hang the script. No idea
+why, but I re-wrote my code to only create one Session and it was fine.
+
+Brian
+
+-----Original Message-----
+From: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+[mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] On Behalf Of Todd Boland
+Sent: 04 October 2004 00:36
+To: mod_python user mailing list
+Subject: Re: [mod_python] authenhandler woes
+
+
+A bit of googling reveals this post by Grisha who recommended passing 
+lock=0 when instantiating the session:
+
+<A HREF="http://www.modpython.org/pipermail/mod_python/2004-April/015374.html">http://www.modpython.org/pipermail/mod_python/2004-April/015374.html</A>
+
+This fixes my problem but I am unaware of the implications of turning 
+session locking off. Can anyone explain them?
+
+Todd
+
+On Oct 3, 2004, at 6:26 PM, Todd Boland wrote:
+
+&gt;<i> I've created a mod_python authenhandler which sets some session data.
+</I>&gt;<i> It works perfectly for the initial request. Unfortunately, all 
+</I>&gt;<i> subsequent requests hang on the line I marked with a &gt; character. 
+</I>&gt;<i> Anyone have any ideas?
+</I>&gt;<i>
+</I>&gt;<i> The behavior  I'm experiencing is as if the handler was waiting for a
+</I>&gt;<i> lock to be released on the session dbm file. I'm using mod_python 
+</I>&gt;<i> 3.1.3 with Python 2.3.4
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import apache, util
+</I>&gt;<i> from mod_python.Session import Session
+</I>&gt;<i>
+</I>&gt;<i> def authenhandler(req):
+</I>&gt;<i>         password = req.get_basic_auth_pw()
+</I>&gt;<i>         username = req.user
+</I>&gt;<i>
+</I>&gt;<i> &gt;        req.session = Session(req, secret=&quot;********&quot;)
+</I>&gt;<i>
+</I>&gt;<i>         if req.session.is_new() == True:
+</I>&gt;<i>                 from RPM.database import connection
+</I>&gt;<i>                 cursor = connection.cursor()
+</I>&gt;<i>
+</I>&gt;<i>                 try:
+</I>&gt;<i>                         cursor.execute(&quot;SELECT accounts.id AS
+</I>&gt;<i> account_id, users.id AS user_id, people.id AS person_id, 
+</I>&gt;<i> organizations.id AS organization_id, users.username AS username, 
+</I>&gt;<i> CONCAT(people.first_name, ' ', people.last_name) AS person_name, 
+</I>&gt;<i> organizations.name AS organization_name, people.email_address AS 
+</I>&gt;<i> email_address FROM accounts, users, people, organizations WHERE 
+</I>&gt;<i> users.person_id = people.id AND people.organization_id = 
+</I>&gt;<i> organizations.id AND accounts.organization_id = organizations.id AND 
+</I>&gt;<i> users.username = %s AND users.password = PASSWORD(%s)&quot; % 
+</I>&gt;<i> (connection.escape(username), connection.escape(password)))
+</I>&gt;<i>
+</I>&gt;<i>                         req.session.update(cursor.fetchone())
+</I>&gt;<i>                         cursor.execute(&quot;UPDATE users SET last_login =
+</I>&gt;<i> NOW() WHERE id = %d&quot; % req.session[&quot;user_id&quot;])
+</I>&gt;<i>                         cursor.close()
+</I>&gt;<i>                         req.session.save()
+</I>&gt;<i>
+</I>&gt;<i>                 except(KeyError, AttributeError):
+</I>&gt;<i>                         req.log_error(&quot;Invalid password for %s&quot; %
+</I>&gt;<i> req.user,
+</I>&gt;<i>                                 apache.APLOG_NOTICE )
+</I>&gt;<i>                         return apache.HTTP_UNAUTHORIZED
+</I>&gt;<i>
+</I>&gt;<i>         return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A> 
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016557.html">[mod_python] authenhandler woes
+</A></li>
+	<LI>Next message: <A HREF="016559.html">[mod_python] wierd python path problem
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16560">[ date ]</a>
+              <a href="thread.html#16560">[ thread ]</a>
+              <a href="subject.html#16560">[ subject ]</a>
+              <a href="author.html#16560">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,258 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Capturing PSP output
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Capturing%20PSP%20output&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018231.html">
+   <LINK REL="Next"  HREF="018233.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Capturing PSP output</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Capturing%20PSP%20output&In-Reply-To="
+       TITLE="[mod_python] Capturing PSP output">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Jun  1 02:31:38 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018231.html">[mod_python] Capturing PSP output
+</A></li>
+        <LI>Next message: <A HREF="018233.html">[mod_python] Capturing PSP output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18232">[ date ]</a>
+              <a href="thread.html#18232">[ thread ]</a>
+              <a href="subject.html#18232">[ subject ]</a>
+              <a href="author.html#18232">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Nicolas Lehuen wrote ..
+&gt;<i> The problem with this is that if the PSP needs to access some request
+</I>&gt;<i> variables (like form variables), then it will fail.
+</I>
+Agreed, and why I pointed out request object was being replaced
+completely with dummy object. ;-)
+
+&gt;<i> I think the best
+</I>&gt;<i> way is still to decorate the request object with a fake write method,
+</I>&gt;<i> something like this :
+</I>&gt;<i> 
+</I>&gt;<i> # this is pseudo code...
+</I>&gt;<i> buffer = StringIO()
+</I>&gt;<i> real_write = req.write
+</I>&gt;<i> req.write = buffer.write
+</I>&gt;<i> try:
+</I>&gt;<i>     # do the PSP trick
+</I>&gt;<i> finally:
+</I>&gt;<i>     req.write = real_write
+</I>
+This will not work as written as req.write() takes an optional second argument
+to indicate whether output should be flushed. The StringIO.write() doesn't
+have an equivalent second argument and the generated PSP code explicitly
+sets the second argument of the write() call to 0. Thus PSP writing direct to
+StringIO.write() will cause a failure. You could do it with an extra level of
+indirection though which is what I was doing by deriving from the StringIO
+class in the first place to override write(). I think you probably realise that
+as later suggestion has extra level of indirection.
+
+&gt;<i> Another method could be to use a delegating request object, something like
+</I>&gt;<i> :
+</I>&gt;<i> 
+</I>&gt;<i> class FakeRequest(object):
+</I>&gt;<i>     def __init__(self,req):
+</I>&gt;<i>         self.req = req
+</I>&gt;<i>         self.buffer = StringIO()
+</I>&gt;<i> 
+</I>&gt;<i>     def write(self,string,flush=1):
+</I>&gt;<i>         self.buffer.write(string)
+</I>&gt;<i> 
+</I>&gt;<i>     def __getattr__(self,name):
+</I>&gt;<i>         return getattr(self.req,name)
+</I>
+In some ways this is nicer, but also has problems in that it cannot entirely
+replace the original request object because of type checking within the C
+code in mod_python.
+
+For example, if using the fake request object and you wrote something like:
+
+  req.register_cleanup(req,somefunc)
+
+it will fail. This is because req.register_cleanup() is implemented in C code
+and explicitly checks to see if the &quot;req&quot; argument matches the the type of
+the C implemented &lt;requestobject&gt;. The check will fail and an exception
+is raised.
+
+Overall, the way of doing it is probably going to have to be tailored to the
+individual circumstances it is being used for. Ie., whether access to the
+request object and forms is needed or not etc. Not knowing the exact
+circumstances the original poster wanted to use it in, I am sure we could
+come up with all sorts of variations and still not come up with one which
+would be the best for that case. At least the discussion generated may be
+useful to someone. :-)
+
+Graham
+
+&gt;<i> def index(req):
+</I>&gt;<i>     fake_req = FakeRequest(req)
+</I>&gt;<i>     # do the PSP trick using fake_req and additional variables
+</I>&gt;<i>     req.write(fake_req.buffer.get_value())
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> Nicolas
+</I>&gt;<i> 
+</I>&gt;<i> 2005/6/1, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+</I>&gt;<i> &gt; Only just got the chance to revisit this. Here is an alternate bit of
+</I>&gt;<i> &gt; code which avoids having to munge PSP code. This only works for
+</I>&gt;<i> &gt; where PSP code is stored in a file. It bypasses any caching mechanism
+</I>&gt;<i> &gt; present in the PSP class, but you could add your own if need be. It
+</I>&gt;<i> &gt; also replaces the request object entirely with a dummy object purely
+</I>&gt;<i> &gt; for the purposes of collecting output.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; from mod_python import apache
+</I>&gt;<i> &gt; from mod_python import _psp
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; import os
+</I>&gt;<i> &gt; import StringIO
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; def _psp_to_str(filename,vars={}):
+</I>&gt;<i> &gt;   directory,file = os.path.split(filename)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   code = _psp.parse(file,directory+'/')
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   class _MPStringIO(StringIO.StringIO):
+</I>&gt;<i> &gt;     def write(self,string,flush=1):
+</I>&gt;<i> &gt;       StringIO.StringIO.write(self,string)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   vars[&quot;req&quot;] = _MPStringIO()
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   exec code in vars
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   return vars[&quot;req&quot;].getvalue()
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; def handler(req):
+</I>&gt;<i> &gt;   directory = os.path.dirname(__file__)
+</I>&gt;<i> &gt;   filename = os.path.join(directory,&quot;_sample.psp&quot;)
+</I>&gt;<i> &gt;   content = _psp_to_str(filename)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   req.content_type = &quot;text/html&quot;
+</I>&gt;<i> &gt;   req.send_http_header()
+</I>&gt;<i> &gt;   req.write(content)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   return apache.OK
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Graham Dumpleton wrote ..
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; On 31/05/2005, at 2:19 AM, Joshua Ginsberg wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Hello --
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; I'm trying to do something a little unorthodox... I didn't know if
+</I>&gt;<i> &gt; &gt; &gt; anybody had tried it before... Within a PSP page, I want to run
+</I>&gt;<i> &gt; &gt; &gt; another PSP page and capture the output to a string.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; To do a little testing, I wrote the following PSP page:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &lt;%
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; def sAppend(self, thestring):
+</I>&gt;<i> &gt; &gt; &gt;     if '__s__' not in dir(self):
+</I>&gt;<i> &gt; &gt; &gt;         self.__s__ = ''
+</I>&gt;<i> &gt; &gt; &gt;     self.__s__ += str(thestring)
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; oldReqWrite = req.write
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; req.write = sAppend
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; This is a bit confusing. Your method accepts a &quot;self&quot; parameter as
+</I>&gt;<i> if
+</I>&gt;<i> &gt; &gt; it is a
+</I>&gt;<i> &gt; &gt; method of a class when it isn't. Just because you replace an existing
+</I>&gt;<i> &gt; &gt; instance
+</I>&gt;<i> &gt; &gt; method will not turn your one into one.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; The result is that the string to be output is being passed as self
+</I>&gt;<i> and
+</I>&gt;<i> &gt; &gt; string
+</I>&gt;<i> &gt; &gt; doesn't have a &quot;__s__&quot; member.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; There are other problems with using &quot;__s__&quot; as well but rather than
+</I>&gt;<i> go
+</I>&gt;<i> &gt; &gt; into it,
+</I>&gt;<i> &gt; &gt; you should just look at:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;    <A HREF="http://www.modpython.org/pipermail/mod_python/2005-May/018134.html">http://www.modpython.org/pipermail/mod_python/2005-May/018134.html</A>
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; That code could probably still be cleaned up a bit perhaps as certain
+</I>&gt;<i> &gt; &gt; things
+</I>&gt;<i> &gt; &gt; don't need to be done, also not sure why other things are being done
+</I>&gt;<i> &gt; &gt; either.
+</I>&gt;<i> &gt; &gt; If I get a chance later I'll see if I can come up with a more
+</I>&gt;<i> &gt; &gt; streamlined
+</I>&gt;<i> &gt; &gt; version.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; BTW, did you want to actually reference the original &quot;req&quot; object for
+</I>&gt;<i> &gt; &gt; any
+</I>&gt;<i> &gt; &gt; data. The example referenced obviously doesn't allow this as it
+</I>&gt;<i> &gt; &gt; completely
+</I>&gt;<i> &gt; &gt; replaces the &quot;req&quot; object with a StringIO object.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Graham
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; _______________________________________________
+</I>&gt;<i> &gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018231.html">[mod_python] Capturing PSP output
+</A></li>
+	<LI>Next message: <A HREF="018233.html">[mod_python] Capturing PSP output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18232">[ date ]</a>
+              <a href="thread.html#18232">[ thread ]</a>
+              <a href="subject.html#18232">[ subject ]</a>
+              <a href="author.html#18232">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

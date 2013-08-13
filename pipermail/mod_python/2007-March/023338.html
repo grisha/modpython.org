@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] null pointer to PyObject_CallMethod
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20null%20pointer%20to%20PyObject_CallMethod&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023337.html">
+   <LINK REL="Next"  HREF="023342.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] null pointer to PyObject_CallMethod</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicholas Milkovits</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20null%20pointer%20to%20PyObject_CallMethod&In-Reply-To="
+       TITLE="[mod_python] null pointer to PyObject_CallMethod">nmilkovits at gmail.com
+       </A><BR>
+    <I>Sat Mar 24 14:31:20 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023337.html">[mod_python] mod_python: handling file uploads
+</A></li>
+        <LI>Next message: <A HREF="023342.html">[mod_python] null pointer to PyObject_CallMethod
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23338">[ date ]</a>
+              <a href="thread.html#23338">[ thread ]</a>
+              <a href="subject.html#23338">[ subject ]</a>
+              <a href="author.html#23338">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello,
+
+I am trying to find out the cause of a segmentation fault that occurs
+when occasionally processing database requests. The environment is
+Apache 2.0.59 (it happens when run in either prefork or threaded), Mod
+Python 3.3.1, Python 2.5 and cx_Oracle 4.3. All of this software was
+compiled from source. The database is Oracle 10g (I believe). I have
+pasted a stack trace from gdb below but here is my question:
+
+It appears the seg fault is in the database code but in frames 17 - 14
+it appears as though the func argument is a NULL pointer. How is it
+possible that execution continues after the call from python_handler
+into the interpreter when the beginning of the PyObject_CallMethod is
+supposed to raise an error if the func argument is NULL. Is this a
+problem with gdb or is there something going on that I am missing?
+Thanks for the help
+
+PyObject *
+PyObject_CallMethod(PyObject *o, char *name, char *format, ...)
+{
+	va_list va;
+	PyObject *args;
+	PyObject *func = NULL;
+	PyObject *retval = NULL;
+
+	if (o == NULL || name == NULL)
+		return null_error();
+
+        .....function continues
+
+#0  0xad8d7ba5 in kpureq2 ()
+   from /usr/vendor/pkg/oracle/product/10.2.0/lib/libclntsh.so.10.1
+#1  0xad9b6dc3 in OCIStmtPrepare2 ()
+   from /usr/vendor/pkg/oracle/product/10.2.0/lib/libclntsh.so.10.1
+#2  0x069ac873 in Cursor_InternalPrepare (self=0x9968d80, statement=0x98b326c)
+    at Cursor.c:1073
+#3  0x069ad82d in Cursor_Execute (self=0xacb8f020, args=0x1774,
+    keywordArgs=0x98b326c) at Cursor.c:1397
+#4  0x00674561 in PyCFunction_Call (func=0xacba58ec, arg=0xacb48eac,
+    kw=0xae41c10c) at Objects/methodobject.c:77
+#5  0x006a9ff6 in PyEval_EvalFrameEx (f=0x994c19c, throwflag=0)
+    at Python/ceval.c:3566
+#6  0x006aaff3 in PyEval_EvalFrameEx (f=0x994c02c, throwflag=0)
+    at Python/ceval.c:3652
+#7  0x006aaff3 in PyEval_EvalFrameEx (f=0x98198c4, throwflag=0)
+    at Python/ceval.c:3652
+#8  0x006aaff3 in PyEval_EvalFrameEx (f=0x9819724, throwflag=0)
+    at Python/ceval.c:3652
+#9  0x006aaff3 in PyEval_EvalFrameEx (f=0x97f3bf4, throwflag=0)
+    at Python/ceval.c:3652
+#10 0x006ab8a6 in PyEval_EvalCodeEx (co=0xae6585c0, globals=0xae41c10c,
+    locals=0x1774, args=0x7, argcount=0, kws=0x97f3b84, kwcount=7, defs=0x0,
+    defcount=0, closure=0x0) at Python/ceval.c:2833
+#11 0x006a9c6c in PyEval_EvalFrameEx (f=0x97f39fc, throwflag=0)
+    at Python/ceval.c:3661
+#12 0x006ab8a6 in PyEval_EvalCodeEx (co=0xae658698, globals=0xae41c10c,
+    locals=0x1774, args=0x0, argcount=2, kws=0x0, kwcount=0, defs=0x0,
+    defcount=0, closure=0x0) at Python/ceval.c:2833
+#13 0x00701318 in function_call (func=0xae5dd144, arg=0xad71790c, kw=0x0)
+    at Objects/funcobject.c:517
+#14 0x0064f397 in PyObject_Call (func=0x0, arg=0x1774, kw=0x1774)
+    at Objects/abstract.c:1860
+#15 0x00658cee in instancemethod_call (func=0x1774, arg=0xad71790c, kw=0x1774)
+    at Objects/classobject.c:2493
+#16 0x0064f397 in PyObject_Call (func=0x0, arg=0x1774, kw=0x1774)
+    at Objects/abstract.c:1860
+#17 0x0064f750 in PyObject_CallMethod (o=0x0, name=0xad72456c &quot;\001&quot;,
+    format=0x72ae92 &quot;O&quot;) at Objects/abstract.c:1891
+#18 0x00648c32 in python_handler (req=0x993a038,
+    phase=0x71ba44 &quot;PythonHandler&quot;) at mod_python.c:1652
+#19 0x0064a9ca in PythonHandler (req=0x993a038) at mod_python.c:2878
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023337.html">[mod_python] mod_python: handling file uploads
+</A></li>
+	<LI>Next message: <A HREF="023342.html">[mod_python] null pointer to PyObject_CallMethod
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23338">[ date ]</a>
+              <a href="thread.html#23338">[ thread ]</a>
+              <a href="subject.html#23338">[ subject ]</a>
+              <a href="author.html#23338">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

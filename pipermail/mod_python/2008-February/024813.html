@@ -1,0 +1,355 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Physical paths ?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Physical%20paths%20%3F&In-Reply-To=88e286470802021304u74f0f11aq52a8369d69530a36%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024798.html">
+   <LINK REL="Next"  HREF="024816.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Physical paths ?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Physical%20paths%20%3F&In-Reply-To=88e286470802021304u74f0f11aq52a8369d69530a36%40mail.gmail.com"
+       TITLE="[mod_python] Physical paths ?">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Tue Feb  5 05:20:34 EST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024798.html">Fwd: [mod_python] Physical paths ?
+</A></li>
+        <LI>Next message: <A HREF="024816.html">[mod_python] Physical paths ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24813">[ date ]</a>
+              <a href="thread.html#24813">[ thread ]</a>
+              <a href="subject.html#24813">[ subject ]</a>
+              <a href="author.html#24813">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Sorry for the delay.
+
+Since you are using .psp files, then you must be using AddHandler. As
+a result the following should work to give you the name of the
+directory corresponding to the Directory container in Apache
+configuration, or .htaccess file, that you defined PythonHandler in.
+
+        root = req.hlist.directory
+        parent = req.hlist.parent
+        while parent is not None:
+            root = parent.directory
+            parent = parent.parent
+
+In other words, if in main Apache configuration you have:
+
+  Alias /MyApp/ /home/user/MyApp/
+
+  &lt;Directory /home/user/MyApp&gt;
+  AddHandler mod_python .psp
+  PythonHandler mod_python.psp | .psp
+  ...
+  &lt;/Directory&gt;
+
+The 'root' should end up being '/home/user/MyApp'.
+
+This only works where PythonHandler in a Directory container or .htaccess file.
+
+You must be using mod_python 3.3.1.
+
+Graham
+
+On 03/02/2008, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+&gt;<i> Please keep your replies on the list.
+</I>&gt;<i>
+</I>&gt;<i> FYI. That code was setting req.application_root so you could use it as
+</I>&gt;<i> a reference, not trying to use it.
+</I>&gt;<i>
+</I>&gt;<i> Do:
+</I>&gt;<i>
+</I>&gt;<i>   PythonHandler somemodulenameinrootofpspfilesdirectory .psp
+</I>&gt;<i>   PythonHandler mod_python.psp .psp
+</I>&gt;<i>
+</I>&gt;<i> In somemodulenameinrootofpspfilesdirectory.py have:
+</I>&gt;<i>
+</I>&gt;<i>   import os
+</I>&gt;<i>
+</I>&gt;<i>   def handler(req):
+</I>&gt;<i>     req.application_root = os.path,dirname(__file__)
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> Read the documentation about stacked mod_python handlers to see how this works.
+</I>&gt;<i>
+</I>&gt;<i> Have no time to read all this new mail now, maybe someone else will help.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> ---------- Forwarded message ----------
+</I>&gt;<i> From: S.R.Pard&#225; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">linux at qbox.es</A>&gt;
+</I>&gt;<i> Date: 2 Feb 2008 21:26
+</I>&gt;<i> Subject: Re: [mod_python] Physical paths ?
+</I>&gt;<i> To: Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Thank You.
+</I>&gt;<i>
+</I>&gt;<i> I'm using: PythonHandler mod_python.psp and req.application_root doesn't
+</I>&gt;<i> exist.
+</I>&gt;<i> But __file__ is '/usr/lib/python2.5/site-packages/mod_python/psp.pyc' in
+</I>&gt;<i> the psp page, so it doen't seem related to the root of my app pages
+</I>&gt;<i> where I wnt to save.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Anyway, I will try to explain it better, so it can help any other person
+</I>&gt;<i> in the future looking for info like this.
+</I>&gt;<i>
+</I>&gt;<i> Basically, I want the mod_python psp application, allow content upload
+</I>&gt;<i> from the user client:
+</I>&gt;<i>
+</I>&gt;<i> That's done in:         <A HREF="http://SERVER/MyApp/config/upload.psp">http://SERVER/MyApp/config/upload.psp</A>
+</I>&gt;<i> (and that page is in /home/user/MyApp/config/index.psp)
+</I>&gt;<i>
+</I>&gt;<i> And I want to save the user file to a directory accesible later at:
+</I>&gt;<i>         <A HREF="http://SERVER/MyApp/images/users/USER_FILE">http://SERVER/MyApp/images/users/USER_FILE</A>
+</I>&gt;<i> (that page would be in /home/user/MyApp/images/users)
+</I>&gt;<i>
+</I>&gt;<i> So the upload.psp save the file received from form at that images
+</I>&gt;<i> directory (instead of the form directory).
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I wanted that the code from upload psp will pass a relative path from
+</I>&gt;<i> the root of the App (/MyApp) to the module that saves the file, that is
+</I>&gt;<i> something like:
+</I>&gt;<i>         save_file(USER_FILE,&quot;images/users/&quot;, req)
+</I>&gt;<i>
+</I>&gt;<i> I needed the save_file to obtain the physical path to the URL:
+</I>&gt;<i>         '//SERVER' + '/MyApp/' + 'images/users/'
+</I>&gt;<i>         (server + application_root + destiny_folder)
+</I>&gt;<i> that is, the physical path to save the file:
+</I>&gt;<i>         '/home/user/MyApp/config/index.psp'
+</I>&gt;<i>
+</I>&gt;<i> Of course, I didn't wanted the function to use a constant to the root of
+</I>&gt;<i> the application '/home/user/MyApp' (at code time) to allow to the
+</I>&gt;<i> application to be independent from the installation directory.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I know req.filename give me the physical path to
+</I>&gt;<i> <A HREF="http://SERVER/MyApp/config/upload.psp">http://SERVER/MyApp/config/upload.psp</A>
+</I>&gt;<i> that is:
+</I>&gt;<i> /home/user/MyApp/config/upload.psp
+</I>&gt;<i>
+</I>&gt;<i> so I could save to '/home/user/MyApp/config/' without problem. And the
+</I>&gt;<i> same in some subdirectory like '/home/user/MyApp/config/images/users/'.
+</I>&gt;<i> I know.
+</I>&gt;<i>
+</I>&gt;<i> But, I had an images directory in '/home/user/MyApp/images/', and maybe
+</I>&gt;<i> I like the things in the hard way. And decide to save to that directory
+</I>&gt;<i> of images (don't ask me why).
+</I>&gt;<i> I know that ... application root is at '..' relative to the physical
+</I>&gt;<i> directory of the page ('/home/user/MyApp/config/').
+</I>&gt;<i> But I really like the things in the hard way and I wanted the save
+</I>&gt;<i> function to be usable from any other pages in other directories, and I
+</I>&gt;<i> don't wanted to send a constant relative path to the app root (remember
+</I>&gt;<i> '/home/user/MyApp/') from every page to the save function (because, I
+</I>&gt;<i> want app to be independent of the installation directory, and I don't
+</I>&gt;<i> want to worry about the constant relative paths if I move the pages).
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> So, the code I'm using now, take the physical path of the page, and the
+</I>&gt;<i> uri of the page , and the application root (uri), to obtain the physical
+</I>&gt;<i> path of the application.
+</I>&gt;<i> And from that , I can take the pyshical path of any subdirectory
+</I>&gt;<i> relative to root (only if no subdirectory with alias are involved, of
+</I>&gt;<i> course).
+</I>&gt;<i>
+</I>&gt;<i> ######
+</I>&gt;<i> def physicalAppRoot(req):
+</I>&gt;<i>
+</I>&gt;<i>   rootApp = req.get_options()['mod_python.session.application_path']
+</I>&gt;<i>   pageDir, pageName = os.path.split(req.parsed_uri[6])
+</I>&gt;<i>
+</I>&gt;<i>   if pageDir.startswith(rootApp):
+</I>&gt;<i>      appPageDir = pageDir[len(rootApp):]
+</I>&gt;<i>   else:
+</I>&gt;<i>      appPageDir = pageDir
+</I>&gt;<i>
+</I>&gt;<i>   physPath = os.path.dirname(req.filename)
+</I>&gt;<i>
+</I>&gt;<i>   i = physPath.rfind(appPageDir)
+</I>&gt;<i>   physAppRoot = physPath[:i]+os.path.sep
+</I>&gt;<i>
+</I>&gt;<i>   return physAppRoot
+</I>&gt;<i> ######
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> The application path is an apache's directory alias, so option
+</I>&gt;<i> application_path is indicated in the config (like you said me Graham, to
+</I>&gt;<i> set different paths for cookies from various applications, and that
+</I>&gt;<i> worked great for me).
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> That's work for me but, really all I wanted was some function like:
+</I>&gt;<i>
+</I>&gt;<i>         physicalPath(uri = 'images/users/')
+</I>&gt;<i> or
+</I>&gt;<i>         physicalPath(uri = '/MyApp/images/users/')
+</I>&gt;<i>
+</I>&gt;<i> that give me:  '/home/user/MyApp/images/users/'
+</I>&gt;<i> for an apache mod_python application installed in /home/user/MyApp,
+</I>&gt;<i> accessible at '<A HREF="http://server/MyApp'">http://server/MyApp'</A> (because an alias would be set at
+</I>&gt;<i> apache 'alias /MyApp/ &quot;/home/user/MyApp&quot;').
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Sorry, if I can explain it better. Maybe I'm doing a silly thing,
+</I>&gt;<i> because an apache function available at mod_python does exctly this, but
+</I>&gt;<i> I didn't found it.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Thank You,
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>         S.R.Pard&#225;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> El s&#225;b, 02-02-2008 a las 08:36 +1100, Graham Dumpleton escribi&#243;:
+</I>&gt;<i> &gt; I think I only partly understand what you want. Anyway, work out what
+</I>&gt;<i> &gt; the following would do if done in your mod_python handler.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   import os
+</I>&gt;<i> &gt;   req.application_root = os.path.dirname(__file__)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On 01/02/2008, S.R.Pard&#225; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">linux at qbox.es</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; Hi,
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Now, thank you to your help,  my applicattion is capable of receive
+</I>&gt;<i> &gt; &gt; image files from users using forms.
+</I>&gt;<i> &gt; &gt; And app store them into a physical path of the server.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; It's possible to save from the app to an uri folder ?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Can I know the physical path of one uri ?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; I can save easily to a subfolder of the pyhsical path obtained by
+</I>&gt;<i> &gt; &gt; req.filename relative to the page visited, and that can work without
+</I>&gt;<i> &gt; &gt; problem.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; But I would like the module (the module that implements the form
+</I>&gt;<i> &gt; &gt; proccesing) receive the relative route relative to the root of the
+</I>&gt;<i> &gt; &gt; application path, so module will not need to know the physical structure
+</I>&gt;<i> &gt; &gt; of directories, and can save to a route not descendent of the directory
+</I>&gt;<i> &gt; &gt; of my own page.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; ... And in my app, the root of the app is a directory alias. outside of
+</I>&gt;<i> &gt; &gt; the apache document_root '/var/www'
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; That's it
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;         DocumentRoot    /             /var/www
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;         Alias           MyApp         /home/user/MyApp/
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;         /MyApp/index.psp   .......... /home/user/MyApp/index.psp
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;         /MyApp/config/upload.psp  ... /home/user/MyApp/config/index.psp
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;         /MyApp/images/  ............. /home/user/MyApp/images/
+</I>&gt;<i> &gt; &gt;         /MyApp/images/users/    ..... /home/user/MyApp/images/users/
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; And I want to obtain from code executed in
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;         http:/MyApp/config/upload.psp
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; the physical path of root of the application:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; so I can't sent to a function in form.py:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;         app_root = ???    # function that returns '/home/user/MyApp/'
+</I>&gt;<i> &gt; &gt;         imgs_folder = 'images/users/'
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;         process(form, directory_to_save = app_root+imgs_folder)
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; So, the code is independent of the installation directory and the app
+</I>&gt;<i> &gt; &gt; path.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Another thing ... if images would be an alias, &#191; could I know the path ?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Thank You again.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;         S.R.Parda
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; _______________________________________________
+</I>&gt;<i> &gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024798.html">Fwd: [mod_python] Physical paths ?
+</A></li>
+	<LI>Next message: <A HREF="024816.html">[mod_python] Physical paths ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24813">[ date ]</a>
+              <a href="thread.html#24813">[ thread ]</a>
+              <a href="subject.html#24813">[ subject ]</a>
+              <a href="author.html#24813">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

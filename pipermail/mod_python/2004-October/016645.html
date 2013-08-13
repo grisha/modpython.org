@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20RE%3A%20Bug%20in%20mod_python.c%20causing%0A%09multiple/redundantinterpreter%20creation.&In-Reply-To=F5E5C843-2000-11D9-9AA7-000393DCF16E%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016644.html">
+   <LINK REL="Next"  HREF="016635.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20RE%3A%20Bug%20in%20mod_python.c%20causing%0A%09multiple/redundantinterpreter%20creation.&In-Reply-To=F5E5C843-2000-11D9-9AA7-000393DCF16E%40dscpl.com.au"
+       TITLE="[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Oct 17 22:17:15 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016644.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+        <LI>Next message: <A HREF="016635.html">[mod_python] Re: Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16645">[ date ]</a>
+              <a href="thread.html#16645">[ thread ]</a>
+              <a href="subject.html#16645">[ subject ]</a>
+              <a href="author.html#16645">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On Sunday, October 17, 2004, at 03:54  PM, Graham Dumpleton wrote:
+
+&gt;<i>
+</I>&gt;<i> On 17/10/2004, at 9:32 AM, Graham Dumpleton wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> I knew there was an issue with apache.py as well, with there being no 
+</I>&gt;&gt;<i> locking,
+</I>&gt;&gt;<i> but didn't mention it in my email with the fix as I wanted to check 
+</I>&gt;&gt;<i> that that
+</I>&gt;&gt;<i> was the source of the other problem I was seeing and make sure I came 
+</I>&gt;&gt;<i> up with
+</I>&gt;&gt;<i> a proper fix.
+</I>&gt;<i>
+</I>&gt;<i> Turns out I had made the fix to the import_module() method as the 
+</I>&gt;<i> first thing I
+</I>&gt;<i> did, looks like I forgot. This is actually the way I uncovered that 
+</I>&gt;<i> there was still
+</I>&gt;<i> a further problem and thus the bug with creation of multiple 
+</I>&gt;<i> interpreters. I spent
+</I>&gt;<i> a good few hours tracking the problem done and then coming up with a 
+</I>&gt;<i> fix. Drove me
+</I>&gt;<i> nuts for a while as I knew exactly what I had to do to fix it but the 
+</I>&gt;<i> result would
+</I>&gt;<i> just hang. Finally realised the locking had to be done outside of the 
+</I>&gt;<i> GIL locking
+</I>&gt;<i> and not inside. Putting it inside later resulted in deadlock.
+</I>&gt;<i>
+</I>&gt;<i> Anyway, the fix to apache.py I am running with at the moment is:
+</I>&gt;<i>
+</I>&gt;<i> try:
+</I>&gt;<i>   from threading import Lock
+</I>&gt;<i> except:
+</I>&gt;<i>   class Lock:
+</I>&gt;<i>     def acquire(self): pass
+</I>&gt;<i>     def release(self): pass
+</I>&gt;<i>
+</I>&gt;<i> _lock = Lock()
+</I>
+Whoops. That should be RLock and not Lock. Lock is not reentrant so if 
+a module which
+was being imported called back into import_module(), it would deadlock 
+on itself. Thus
+should use RLock instead. Ie.,
+
+try:
+   from threading import RLock
+except:
+   class RLock:
+     def acquire(self): pass
+     def release(self): pass
+
+_lock = RLock()
+
+The two level locking scheme is still going to be better, as an import 
+that takes
+a long time to execute is going to block out new requests for that 
+time. The
+import_module() method really needs to be rewritten completely to 
+address this
+properly. :-(
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016644.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+	<LI>Next message: <A HREF="016635.html">[mod_python] Re: Bug in mod_python.c causing multiple/redundant
+	interpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16645">[ date ]</a>
+              <a href="thread.html#16645">[ thread ]</a>
+              <a href="subject.html#16645">[ subject ]</a>
+              <a href="author.html#16645">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

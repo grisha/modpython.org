@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Questions on _call_ with mp servlets and python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Questions%20on%20_call_%20with%20mp%20servlets%20and%20python&In-Reply-To=20040902201916.18861.qmail%40web41312.mail.yahoo.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016311.html">
+   <LINK REL="Next"  HREF="016332.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Questions on _call_ with mp servlets and python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Daniel Popowich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Questions%20on%20_call_%20with%20mp%20servlets%20and%20python&In-Reply-To=20040902201916.18861.qmail%40web41312.mail.yahoo.com"
+       TITLE="[mod_python] Questions on _call_ with mp servlets and python">dpopowich at comcast.net
+       </A><BR>
+    <I>Fri Sep  3 17:04:39 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016311.html">[mod_python] Questions on _call_ with mp servlets and python
+</A></li>
+        <LI>Next message: <A HREF="016332.html">[mod_python] Questions on _call_ with mp servlets and python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16333">[ date ]</a>
+              <a href="thread.html#16333">[ thread ]</a>
+              <a href="subject.html#16333">[ subject ]</a>
+              <a href="author.html#16333">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Vinj Vinj writes:
+&gt;<i> I figured out a way to do this, but I'm not sure it is
+</I>&gt;<i> too elegant:
+</I>&gt;<i> 
+</I>&gt;<i> Have your output go to a string in your _call_
+</I>&gt;<i> do_some_function()
+</I>&gt;<i> 
+</I>&gt;<i> so replace self.write with self.result.append
+</I>&gt;<i> 
+</I>&gt;<i> and in your write_content function have the following:
+</I>&gt;<i> 
+</I>&gt;<i> self.writeln(&quot;&quot;.join(self.result))
+</I>
+No, I think you want to do what I said in my previous response: have
+your method return True so write_html() is not called.
+
+&gt;<i> Also does anyone know how to redirect the current
+</I>&gt;<i> request to another servlet so that the current req
+</I>&gt;<i> object is kept intact. The problem in some more
+</I>&gt;<i> details is as follows. I have an application which
+</I>&gt;<i> checks to see if a user is logged in through the
+</I>&gt;<i> session. However, if the user is not logged in I want
+</I>&gt;<i> to redirect to the login servlet with the error
+</I>&gt;<i> message sent as part of the req object. 
+</I>&gt;<i> 
+</I>&gt;<i> I can do that by /Login?err_msg=&quot;You have to be logged
+</I>&gt;<i> in&quot; however then anyone can send messages to my login
+</I>&gt;<i> screen which get displayed on the return. I'd rather
+</I>&gt;<i> have someway (secure) of passing the err_msg
+</I>&gt;<i> internally. 
+</I>
+This is what I've done:
+
+Let's assume you have a servlet for your site that all servlets
+inherit from:
+
+  class MySitePage(HTMLPage):
+     ...
+
+and let's also assume that certain pages (not all) need
+authentication, then I would create another servlet:
+
+  class MySiteAuthPage(MySitePage):
+    ...
+
+Notice how it subclasses MySitePage.  In MySiteAuthPage.prep() I
+check the session for proper authentication and set a boolean, say,
+authenticated.  Then I override write_html() in MySiteAuthPage:
+
+    def write_html(self):
+        if not self.authenticated:
+            save, self.write_content = self.write_content, self.genloginform
+            MySitePage.write_html(self)
+            self.write_content = save
+        else:
+            MySitePage.write_html(self)
+
+where genloginform() makes calls to self.writeln() writing the login
+form to the browser.  What this does is, if not authenticated,
+momentarily replaces the write_content method of the servlet with the
+login form, otherwise, if authenticated, just writes out the page.
+
+Then all my pages for my app either subclass MySitePage or
+MySiteAuthPage depending on whether or not the page needs
+authentication.  No calls to internal_redirect are necessary!
+
+Daniel Popowich
+-----------------------------------------------
+<A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016311.html">[mod_python] Questions on _call_ with mp servlets and python
+</A></li>
+	<LI>Next message: <A HREF="016332.html">[mod_python] Questions on _call_ with mp servlets and python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16333">[ date ]</a>
+              <a href="thread.html#16333">[ thread ]</a>
+              <a href="subject.html#16333">[ subject ]</a>
+              <a href="author.html#16333">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

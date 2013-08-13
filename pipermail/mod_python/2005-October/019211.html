@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] threading module within mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20threading%20module%20within%20mod_python&In-Reply-To=200510071528.14837.fabianosidler%40swissonline.ch">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019209.html">
+   <LINK REL="Next"  HREF="019283.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] threading module within mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20threading%20module%20within%20mod_python&In-Reply-To=200510071528.14837.fabianosidler%40swissonline.ch"
+       TITLE="[mod_python] threading module within mod_python">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Oct  7 18:56:21 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019209.html">[mod_python] threading module within mod_python
+</A></li>
+        <LI>Next message: <A HREF="019283.html">[mod_python] threading module within mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19211">[ date ]</a>
+              <a href="thread.html#19211">[ thread ]</a>
+              <a href="subject.html#19211">[ subject ]</a>
+              <a href="author.html#19211">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 07/10/2005, at 11:28 PM, Fabiano Sidler wrote:
+
+&gt;<i> Therefore I need to store the req object globally, but in a   
+</I>&gt;<i> threadsafe
+</I>&gt;<i> manner. Actually, I wrote a pure static class returning the  
+</I>&gt;<i> thread's req
+</I>&gt;<i> object to the caller, which I'm going to use in the lower level  
+</I>&gt;<i> code of my
+</I>&gt;<i> application otherwise written as portable as possible.
+</I>
+FWIW, you might look at:
+
+   <A HREF="http://www.modpython.org/pipermail/mod_python/2005-September/">http://www.modpython.org/pipermail/mod_python/2005-September/</A> 
+019071.html
+
+It isn't a simple matter of just storing the request object based on the
+thread. You have to consider that a handler can do an internal redirect
+which will result in the same thread having to deal with a new request
+object. You therefore need a stack onto which you push the request
+object and pop it off when done.
+
+This though still doesn't contend with the strange situation you are
+going to have where the handler actually triggers separate threads
+to do the work. Those separate threads will not be able to access the
+request object using their own thread identifier as key as it will be
+different to the main handler thread.
+
+Not sure how you intend dealing with that, but then, since you are
+using prefork and not a threaded MPM, you will probably have
+something simpler anyway. Your code though probably will not work
+in a threaded MPM, so isn't going to be portable to &quot;winnt&quot; or &quot;worker&quot;
+MPM.
+
+&gt;<i> The handler function should become the smallest thing in my  
+</I>&gt;<i> application.
+</I>&gt;<i> I want to build the application as a set of classes on top of  
+</I>&gt;<i> everything and
+</I>&gt;<i> have the handler only create these classes and then pass them the  
+</I>&gt;<i> control.
+</I>
+If the aim is to make the handler only deal with view presentation, I
+still don't see the need for threads, a simple separation of view and
+control code from the main model code of the application is generally
+sufficient. I feel that threads generally only serve to complicate code
+and make it harder to get right. There are a lot of traps in thread
+programming to begin with and mod_python doesn't make it any
+easier with its own set of gotchas when using threads.
+
+Where real clear separation is required, a better approach may be
+to host the whole core of the application in a separate process and
+use something like XML-RPC to communicate from the handler
+to the backend system. The handler then becomes a series of call
+outs to do things with results being formatted into a result.
+
+In the extreme, a full blown messaging system could be used allowing
+construction of a service oriented like architecture where service
+agents could reside in distinct processes or in the Apache process.
+Through appropriate use of threading in conjunction with the event
+driven messaging system, service agents in the Apache process and
+the backend can be active standalone agents that still communicate
+with each other independent of HTTP requests, but still service requests
+from the handlers as well.
+
+Note that in this case the service agent framework is there only to
+support the internal operation of your application, just because I use
+the SOA term doesn't mean SOAP is involved or that users are
+making direct calls to service agents via HTTP.
+
+&gt;&gt;<i> What you are better off doing is catching any exceptions in the  
+</I>&gt;&gt;<i> separate
+</I>&gt;&gt;<i> thread, formatting your own exception traceback and details and  
+</I>&gt;&gt;<i> logging
+</I>&gt;&gt;<i> it directly to the Apache log using the apache.log_error() function
+</I>&gt;&gt;<i> provided with mod_python. This is possibly the only way to get the
+</I>&gt;&gt;<i> information to appear immediately.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> The problem is, raised exceptions should be communicated to the  
+</I>&gt;<i> client because
+</I>&gt;<i> I intend to raise exceptions in my application too. That's why I need
+</I>&gt;<i> exceptions to be brought to the thread in which handler() was called.
+</I>
+Still seems messy to me and complexity which possibly should not be
+in the Apache processes.
+
+Anyway, I can only make huge assumptions about what you are doing.
+You probably have it very clear in your head and thus it possibly is not
+as bad as it seems to me. ;-)
+
+Graham
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20051008/106b4dbf/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20051008/106b4dbf/attachment.html</A>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019209.html">[mod_python] threading module within mod_python
+</A></li>
+	<LI>Next message: <A HREF="019283.html">[mod_python] threading module within mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19211">[ date ]</a>
+              <a href="thread.html#19211">[ thread ]</a>
+              <a href="subject.html#19211">[ subject ]</a>
+              <a href="author.html#19211">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Custom handler thread safety
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Custom%20handler%20thread%20safety&In-Reply-To=45b52d58b25b19dc2f8f858d5f178fb9%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017348.html">
+   <LINK REL="Next"  HREF="017351.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Custom handler thread safety</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Huzaifa Tapal</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Custom%20handler%20thread%20safety&In-Reply-To=45b52d58b25b19dc2f8f858d5f178fb9%40dscpl.com.au"
+       TITLE="[mod_python] Custom handler thread safety">huzaifa at hostway.com
+       </A><BR>
+    <I>Sat Feb  5 14:03:45 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017348.html">[mod_python] Custom handler thread safety
+</A></li>
+        <LI>Next message: <A HREF="017351.html">[mod_python] Custom handler thread safety
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17350">[ date ]</a>
+              <a href="thread.html#17350">[ thread ]</a>
+              <a href="subject.html#17350">[ subject ]</a>
+              <a href="author.html#17350">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello Graham,
+
+All of the problems you describe and the scenarios you provided were 
+right on target as to the kind of issues I am running into.  Here is the 
+response to your question:
+
+ &gt; Anyway, confirm exactly what you meant by having thread locking going
+ &gt; into the handler and describe how you are managing the database
+ &gt; connections. Do you create a certain number of database connections at
+ &gt; startup, or on demand as required, but only up to a certain maximum?
+ &gt; Is your connection caching mechanism thread protected in any way?
+
+Pretty much, the way i have setup the handler is as follows:
+
+    *def handler(req):
+        _lock.acquire()
+       try:
+          # instantiate and call my driver class that processes the request
+       finally:
+          _lock.release()*    
+
+
+You were exactly right about what I was experiencing in that each thread 
+was waiting on another to release the lock before processing so the 
+processing of the threads with 20 concurrent users was serialized.  
+Taking that into account, I removed the locking from the handler and ran 
+the 20 concurrent users test again and then I started running into 
+problems with the MySQL server dropping connections due to there being 
+too many simultaneous connections being made from my application.
+
+To answer your second question of how I am managing the database 
+connections, pretty much it is very simple.  My framework, was 
+originally written by a friend of mine to work only in CGI about 3 years 
+ago.  So, in the Data Access Layer, he has a class that manages 
+connections to different sources being, databases, servers, and payment 
+processors.  For database connections, there is a dictionary that holds 
+all the connections.  Because, it was originally written for CGI, he 
+saved a connection to a database in the dictionary using the key 
+&quot;dbname:thread id&quot;.  This worked fine, because the environment wasn't 
+multi threaded, so there was always only one thread id for all 
+requests.  So all the db connections were created on demand and then 
+cached and then all subsequent requests for the same db connections were 
+then given back from cache.  So it works as follows:
+
+    *class DALResources:
+
+        def getDB(self, db_name):
+           resource_name = &quot;%s:%s&quot; % (db_name,thread_id)
+           db_conn = self.__resource_dict.get(resource_name,None)
+
+           if db_conn == None:
+              # create a db connections
+              # cache it in the __resource_dict
+
+           return db_conn*
+
+So for each db, there is only one connection cached and that is the one 
+that is shared.  The thread_id caused a problem in the multithreaded 
+environment because there could be a huge number of threads that are 
+processing requests and as a result too many connections were made.  I 
+tried to go around this problem by removing the thread_id from the 
+resource_name, however, I still started running into MySQL connection 
+problems.
+
+My caching mechanism is not thread protected at all.  Pretty much the 
+DALResources class is created as a singleton and imported in my handler 
+so that is available for all child threads in a process.  One thing I 
+did yesterday was to try to make my DB Connection object thread safe by 
+locking the connection where it queries the db.  That actually, resulted 
+in no more connection problems to the db.
+
+However, I still run into various problems, and I am very sure that is 
+because there is no locking mechanism available for all the objects I am 
+sharing by putting it in shared memory.   What would you suggest I do in 
+terms of locking objects?  Should I make the objects I am storing in the 
+cache thread safe or should I create one Caching object and store all my 
+shared objects in that and add locking to the get and set methods?
+
+Thanks again for all your help and I hope I explained all the items you 
+asked for.
+
+Hozi
+
+Graham Dumpleton wrote:
+
+&gt;<i> I'll try and get back to your original problem. I probably digressed
+</I>&gt;<i> and certainly said some things already that most likely aren't relevant
+</I>&gt;<i> at all. I should have perhaps read the email properly. My excuse is that
+</I>&gt;<i> I was having a busy day that day. :-)
+</I>&gt;<i>
+</I>&gt;<i> On 05/02/2005, at 6:56 AM, Huzaifa Tapal wrote:
+</I>&gt;<i>
+</I>&gt;&gt;&gt;<i> Is the Python database connection object internally thread safe?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -- not its not.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I should have phrased this question a bit better. Does the database
+</I>&gt;<i> interface code support having multiple connection objects active at
+</I>&gt;<i> the same time, where each may be held by a distinct thread with that
+</I>&gt;<i> thread doing whatever it wants with its own connection object?
+</I>&gt;<i>
+</I>&gt;<i> Thus, a single database connection object doesn't necessarily have
+</I>&gt;<i> to be thread safe in itself, as long as there can be multiple connection
+</I>&gt;<i> objects each being used at the same time by different threads.
+</I>&gt;<i>
+</I>&gt;<i> Anyway, in your original email you said:
+</I>&gt;<i>
+</I>&gt;<i>   Just to be safe, I implemented thread locking into the handler
+</I>&gt;<i>   before any request is processed.
+</I>&gt;<i>
+</I>&gt;<i> That to me says what you did was to make sure only one request at a
+</I>&gt;<i> time could actually do anything. Thus all requests were serialised.
+</I>&gt;<i> If this was the case, you wouldn't have had any thread problems because
+</I>&gt;<i> there wouldn't have actually been multiple requests active, a latter
+</I>&gt;<i> request would have sat there until the previous one finished.
+</I>&gt;<i>
+</I>&gt;<i> If this is true, using a multithreaded MPM would also have just made
+</I>&gt;<i> things worse. You would have been better of using Apache in &quot;prefork&quot;
+</I>&gt;<i> mode as then each request in each process could have at least run in
+</I>&gt;<i> parallel.
+</I>&gt;<i>
+</I>&gt;<i> Next you said:
+</I>&gt;<i>
+</I>&gt;<i>   We are gaining huge performance increases by caching our template
+</I>&gt;<i>   objects and db connection objects.
+</I>&gt;<i>
+</I>&gt;<i> Which is logical, as you have avoided the startup cost with creating
+</I>&gt;<i> a database connection for each request, as well as the cost of loading
+</I>&gt;<i> a template on every request. This would be true whether or not you are
+</I>&gt;<i> using threads.
+</I>&gt;<i>
+</I>&gt;<i> Your next comment was:
+</I>&gt;<i>
+</I>&gt;<i>   The problem I am running into is that if I run through the application,
+</I>&gt;<i>   each request takes on average 300 ms to process.  However, when we
+</I>&gt;<i>   benchmark with 20 concurrent users, the average goes up to around
+</I>&gt;<i>   2200 ms.  I am very sure that this is due to a thread locking
+</I>&gt;<i>   shared objects in memory which results in another thread waiting for
+</I>&gt;<i>   the lock to be released.
+</I>&gt;<i>
+</I>&gt;<i> If each thread was trying to acquire the same lock before going into a
+</I>&gt;<i> handler and only releasing it when exiting the handler, thus serialising
+</I>&gt;<i> requests, what you are seeing would be expected. In short you were
+</I>&gt;<i> simply overloading your servers ability to respond quickly enough. Add
+</I>&gt;<i> even more concurrent users and the average would like keep growing.
+</I>&gt;<i>
+</I>&gt;<i> Finally you said:
+</I>&gt;<i>
+</I>&gt;<i>   If I take the thread locking mechanism out then we run into problems
+</I>&gt;<i>   with there being too many connections being made to the MySQL db if
+</I>&gt;<i>   the cached connection is being used and then the db starts dropping
+</I>&gt;<i>   connections.
+</I>&gt;<i>
+</I>&gt;<i> If there was indeed a lock around any handler call and you took it out,
+</I>&gt;<i> you would at least still need to thread protect your database connection
+</I>&gt;<i> pool/cache.
+</I>&gt;<i>
+</I>&gt;<i> You might need to explain how you manage your database connections.
+</I>&gt;<i>
+</I>&gt;<i> I haven't done database connection pooling in mod_python when using
+</I>&gt;<i> threads yet but there are others here who have and may suggest the 
+</I>&gt;<i> best ways
+</I>&gt;<i> of doing it.
+</I>&gt;<i>
+</I>&gt;<i> To me the simplest way would be to create a set of database connection
+</I>&gt;<i> objects at startup and place these in a Queue.Queue object. As each 
+</I>&gt;<i> request
+</I>&gt;<i> comes in, it can get an available database connection off the queue,
+</I>&gt;<i> use it then put it back. In practice, it probably needs to be a bit more
+</I>&gt;<i> robust than that.
+</I>&gt;<i>
+</I>&gt;<i> Anyway, confirm exactly what you meant by having thread locking going
+</I>&gt;<i> into the handler and describe how you are managing the database
+</I>&gt;<i> connections. Do you create a certain number of database connections at
+</I>&gt;<i> startup, or on demand as required, but only up to a certain maximum?
+</I>&gt;<i> Is your connection caching mechanism thread protected in any way?
+</I>&gt;<i>
+</I>&gt;<i> Sorry again for getting off the track. :-)
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20050205/df7c395d/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20050205/df7c395d/attachment.html</A>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017348.html">[mod_python] Custom handler thread safety
+</A></li>
+	<LI>Next message: <A HREF="017351.html">[mod_python] Custom handler thread safety
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17350">[ date ]</a>
+              <a href="thread.html#17350">[ thread ]</a>
+              <a href="subject.html#17350">[ subject ]</a>
+              <a href="author.html#17350">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

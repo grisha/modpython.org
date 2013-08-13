@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Circular references starting from the request object
+	are not collected
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Circular%20references%20starting%20from%20the%20request%20object%0A%09are%20not%20collected&In-Reply-To=21007.66.192.34.8.1094758837.squirrel%4066.192.34.8">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016396.html">
+   <LINK REL="Next"  HREF="016408.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Circular references starting from the request object
+	are not collected</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Circular%20references%20starting%20from%20the%20request%20object%0A%09are%20not%20collected&In-Reply-To=21007.66.192.34.8.1094758837.squirrel%4066.192.34.8"
+       TITLE="[mod_python] Circular references starting from the request object
+	are not collected">nicolas at lehuen.com
+       </A><BR>
+    <I>Fri Sep 10 09:17:18 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016396.html">[mod_python] Circular references starting from the request 
+	object are not collected
+</A></li>
+        <LI>Next message: <A HREF="016408.html">[mod_python] Circular references starting from the request object
+	are not collected
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16404">[ date ]</a>
+              <a href="thread.html#16404">[ thread ]</a>
+              <a href="subject.html#16404">[ subject ]</a>
+              <a href="author.html#16404">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Mike Bayer wrote :
+&gt;<i> thats not a weakref of the request object, thats the request 
+</I>&gt;<i> object pointing to a weakref of *your* object, which 
+</I>&gt;<i> effectively breaks the circular reference.
+</I>&gt;<i> 
+</I>&gt;<i> request &lt;-- (strong ref) --
+</I>&gt;<i>         --- (weak ref) --&gt; yourobject
+</I>
+I also thought about this, but until now I had dismissed this since I think
+it would be too effective in breaking the reference cycle. My handler would
+set the weak reference in the request object and give it to the application
+object, but the weak ref being for a while the only reference to my object,
+it could be cleared before I actually use it...
+
+I'll give it a try, though.
+
+Meanwhile, manually deleting the reference in a finally block at the end of
+the handler does the trick... But there is a leak remaining, which means I
+have to search thoroughly through the code to find where this circular
+reference is built, and delete a link from the reference chain when the
+request processing is over. No exactly what I'd expect from a high level
+language.
+
+I also had a look at how to support circular references in native coded
+objects (
+<A HREF="http://www.python.org/doc/2.3.4/api/supporting-cycle-detection.html">http://www.python.org/doc/2.3.4/api/supporting-cycle-detection.html</A> ). It
+seems that it can be done without changing too much in requestobject.c,
+namely by modifying MpRequest_FromRequest, request_dealloc and
+MpRequest_Type and adding a tp_traverse and a tp_clear handler. The only
+thing I don't see is how to get the extraneous attributes of the request
+object (since I must traverse them in the traverse_tp handler). I just
+managed to build mod_python from source, so I may try to work on this this
+week-end.
+
+Regards,
+
+Nicolas
+
+&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Mike Bayer wrote :
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; workaround: use a weakref for one side of the circular reference.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; import weakref
+</I>&gt;<i> &gt;&gt; req.foobar = weakref.ref(myfoobar)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Indeed, I thought about using a weakref, alas the request object 
+</I>&gt;<i> &gt; cannot be weak referenced (there again, native code must 
+</I>&gt;<i> implement a 
+</I>&gt;<i> &gt; few trick to support weak references).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Regards,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Nicolas
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016396.html">[mod_python] Circular references starting from the request 
+	object are not collected
+</A></li>
+	<LI>Next message: <A HREF="016408.html">[mod_python] Circular references starting from the request object
+	are not collected
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16404">[ date ]</a>
+              <a href="thread.html#16404">[ thread ]</a>
+              <a href="subject.html#16404">[ subject ]</a>
+              <a href="author.html#16404">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

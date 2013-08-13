@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] question - Getting/Setting Cookies
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20question%20-%20Getting/Setting%20Cookies&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015025.html">
+   <LINK REL="Next"  HREF="015024.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] question - Getting/Setting Cookies</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>perry.tew at cibavision.novartis.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20question%20-%20Getting/Setting%20Cookies&In-Reply-To="
+       TITLE="[mod_python] question - Getting/Setting Cookies">perry.tew at cibavision.novartis.com
+       </A><BR>
+    <I>Thu Feb 12 12:04:09 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015025.html">[mod_python] Mod Python Issue?
+</A></li>
+        <LI>Next message: <A HREF="015024.html">[mod_python] question - Getting/Setting Cookies
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15023">[ date ]</a>
+              <a href="thread.html#15023">[ thread ]</a>
+              <a href="subject.html#15023">[ subject ]</a>
+              <a href="author.html#15023">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>First, sorry for posting redundant information about how to handle 
+cookies.  I hadn't received everyone's posts until after I sent mine.
+
+Second, as far as cookies go, I've used SimpleCookie.   I see that Grisha 
+recently added a Cookie class specific to mod_python.
+Let me ask, has any investigation been done into libapreq?  I know it 
+seems to be a mod_perl thing, but on their main page they have a blurb 
+about python tie-ins with nothing listed below.
+
+I ask of speed issues.
+Using python code to parse cookies is pretty expensive.  Not horrible, but 
+when every request is parsed for cookies it becomes a significant part of 
+processing time, especially with a lot of cookies being set and passed 
+around.  For an authentication handler, I've been able to reduce this time 
+by slicing the cookie header for just my cookie and then passing that to 
+the cookie load() method.  It cut my time to 1/5 when I had a lot of 
+cookies.
+
+                cookie_header = req.headers_in.get('Cookie', '')
+                start_index = string.find(cookie_header, 'Ticket')
+ 
+                if start_index == -1:
+                        return 0, &quot;user has no ticket cookie&quot;, 'noone'
+
+                end_index = string.find(cookie_header, ';', start_index)
+                if end_index == -1:
+                        end_index = len(cookie_header)
+                stripped_down_cookie = 
+cookie_header[start_index:end_index] 
+
+                cookie = Cookie.SimpleCookie()
+                cookie.load(stripped_down_cookie)
+                ticket = cookie['Ticket'].value
+
+The above code is much quicker than passing the entire header to the 
+load() when there are many cookies.  btw, if someone has some optimization 
+tips for the above code, or a better way to do it, please let me know!
+
+At any rate, I haven't tested Grisha's new cookie class, but it's also a 
+pure python solution.   That's what got me thinking about libapreq since 
+it's a C solution and has routines for parsing cookies.   Thought I'd ask 
+if anything has been done yet.   I googled and came up blank.  Anyone?
+
+Thanks,
+Perry Tew
+
+
+
+
+
+
+
+
+# I use this
+cookies = SimpleCookie()
+cookies['cookie1'] = value1
+cookies['cookie2'] = value2
+req.headers_out.add('Set-Cookie', cookies.output(header='', 
+sep='\r\nSet-Cookie:'))
+
+
+Bud P. Bruegger wrote:
+
+&gt;<i> Hi David,
+</I>&gt;<i>
+</I>&gt;<i> I don't know much about mod-python--just planning to use it myself. 
+</I>&gt;<i> But maybe this is what you're looking for:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://www.modpython.org/live/mod_python-3.1.2b/doc-html/pyapi-cookie.html">http://www.modpython.org/live/mod_python-3.1.2b/doc-html/pyapi-cookie.html</A> 
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I came across this before and had a hell of a time finding it again. 
+</I>&gt;<i> Trouble seems to be that it is in the 3.1 beta version and the home 
+</I>&gt;<i> page links to the stable manual (3.0).
+</I>&gt;<i>
+</I>&gt;<i> cheers
+</I>&gt;<i> -b
+</I>&gt;<i>
+</I>&gt;<i> At 17.26 12/02/2004 +1300, you wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Hi,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I've been a longtime user of Cookie.SimpleCookie, as an easy way of 
+</I>&gt;&gt;<i> getting/setting cookies within Python CGI scripts.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> A couple of days ago, I installed mod_python.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> While I'm impressed with the performance gain mod_python is giving me 
+</I>&gt;&gt;<i> with its CGI handler, I suspect things can run faster still if I 
+</I>&gt;&gt;<i> write my own handler.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Only problem is - I can't see a trivial way to get a Cookie object 
+</I>&gt;&gt;<i> from the 'req' object which gets passed to one's mod_python handler.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> So my question is - is there any code for getting a Cookie object 
+</I>&gt;&gt;<i> from the 'req' object?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> It's not too hard to write one - just a bit of farting about. But I'd 
+</I>&gt;&gt;<i> rather not 'reinvent a wheel' if someone else has already done this.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> But if I have to write it myself, here's another question - how do I 
+</I>&gt;&gt;<i> get the raw http headers from 'req' as a bulk string, which I can 
+</I>&gt;&gt;<i> pass to Cookie.load()?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Thanks in advance for your help
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -- 
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Kind regards
+</I>&gt;&gt;<i> David
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -- 
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> leave this line intact so your email gets through my junk mail filter
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> 
+</I>------------------------------------------------------------------------------------------------- 
+
+&gt;<i>
+</I>&gt;<i> Ing. Bud P. Bruegger, Ph.D.                 <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">bud at comune.grosseto.it</A>
+</I>&gt;<i> Servizio Elaborazione Dati                    0564-488 577 (voice)
+</I>&gt;<i> Comune di Grosseto                            0564- 21139 (fax)
+</I>&gt;<i> Via Ginori, 43
+</I>&gt;<i> 58100 Grosseto
+</I>&gt;<i>
+</I>&gt;<i> Collaborazione Open Source per la CIE <A HREF="http://www.comune.grosseto.it/cie/">http://www.comune.grosseto.it/cie/</A>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015025.html">[mod_python] Mod Python Issue?
+</A></li>
+	<LI>Next message: <A HREF="015024.html">[mod_python] question - Getting/Setting Cookies
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15023">[ date ]</a>
+              <a href="thread.html#15023">[ thread ]</a>
+              <a href="subject.html#15023">[ subject ]</a>
+              <a href="author.html#15023">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

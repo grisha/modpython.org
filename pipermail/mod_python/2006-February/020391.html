@@ -1,0 +1,232 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] shared memory and module import problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20shared%20memory%20and%20module%20import%20problems&In-Reply-To=c298f2d70602210711h65788804t%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020388.html">
+   <LINK REL="Next"  HREF="020392.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] shared memory and module import problems</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Kevin J. Smith</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20shared%20memory%20and%20module%20import%20problems&In-Reply-To=c298f2d70602210711h65788804t%40mail.gmail.com"
+       TITLE="[mod_python] shared memory and module import problems">hockeysk8 at gmail.com
+       </A><BR>
+    <I>Tue Feb 21 12:46:42 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020388.html">[mod_python] shared memory and module import problems
+</A></li>
+        <LI>Next message: <A HREF="020392.html">[mod_python] shared memory and module import problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20391">[ date ]</a>
+              <a href="thread.html#20391">[ thread ]</a>
+              <a href="subject.html#20391">[ subject ]</a>
+              <a href="author.html#20391">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>In trying to answer the question of which MPM model the server uses I think
+I may have come across my answer.  In Graham's article
+<A HREF="http://www.dscpl.com.au/articles/modpython-004.html">http://www.dscpl.com.au/articles/modpython-004.html</A> (not sure why I did run
+across this article in my many Google searches for an answer) he has
+explained the behaviour of mod_python with the various MPM models.
+
+It is most likely that I am using a prefork model because the server is
+running out-of-the-box fedora (don't have access to the server at the
+moment.)  And therefore, if I have understood Graham's article correctly,
+with a prefork model, even though the interpreter may be named the same,
+different requests may be picked up by different apache child processes
+therefore they will not be sharing the same memory.  To quote from the
+article:
+
+&quot;This ability to access the same global data from any request handler and
+for that data to persist for the lifetime of that instance of Apache is not
+present when either of the &quot;prefork&quot; or &quot;worker&quot; modes are used. This is
+because handlers can be executing within the context of distinct child
+processes, each with their own set of global data unique to that child
+process. Further, the global data present within a particular child process
+only exists for the lifetime of that child process and Apache could shutdown
+and kill off a child process at any time.&quot;
+
+This certainly makes sense within the prefork model.  I am not sure why it
+wouldn't work for worker threads because in my mind they should be sharing
+the same memory?  Nonetheless, I need my handler to be portable therefore I
+will have to implement my own memory cache with something like
+memcached (<A HREF="http://www.danga.com/memcached/">http://www.danga.com/memcached/</A>)
+&lt;<A HREF="http://www.danga.com/memcached/">http://www.danga.com/memcached/</A>&gt;or the like (Django uses memcached for a
+similar purpose.)
+
+Somebody please correct me if I have any of this wrong.
+
+Cheers
+
+On 2/21/06, Nicolas Lehuen &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">nicolas at lehuen.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Hi Kevin,
+</I>&gt;<i>
+</I>&gt;<i> 1) Please give us your full configuration : OS, Python version, Apache
+</I>&gt;<i> version and the MPM you use. Your problem may be related to the fact
+</I>&gt;<i> that you are using a forking MPM.
+</I>&gt;<i>
+</I>&gt;<i> 2) Are you sure your module is continually reimported ? Do you see
+</I>&gt;<i> traces in the error log about that ? Your problem may be related to a
+</I>&gt;<i> bug in your cache code.
+</I>&gt;<i>
+</I>&gt;<i> 3) If you want to re-use the importing mechanism that
+</I>&gt;<i> mod_python.publisher uses, you can have a look at the ModuleCache
+</I>&gt;<i> class found in mod_python/cache.py. Moreover, this package can be
+</I>&gt;<i> re-used for all kind of caching issues (see the source code).
+</I>&gt;<i>
+</I>&gt;<i> Regards,
+</I>&gt;<i> Nicolas
+</I>&gt;<i>
+</I>&gt;<i> 2006/2/21, Kevin J. Smith &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">hockeysk8 at gmail.com</A>&gt;:
+</I>&gt;<i> &gt; Hi,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I have a page controller that all handlers import with &quot;from
+</I>&gt;<i> &gt; myapp.gui.pagecontroller import PageController&quot;.  Each handler is a
+</I>&gt;<i> class
+</I>&gt;<i> &gt; derived from the PageController.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; In the page controller, I have attempted to set up a shared memory cache
+</I>&gt;<i> for
+</I>&gt;<i> &gt; all the controllers with code very similar to the following:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; #...
+</I>&gt;<i> &gt; import threading
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; CACHE_LOCK = threading.Lock()
+</I>&gt;<i> &gt; cache = {}
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; def _fillCache():
+</I>&gt;<i> &gt;     cache['one'] = '1'
+</I>&gt;<i> &gt;     cache['two'] = '2'
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; class PageController:
+</I>&gt;<i> &gt; # ...
+</I>&gt;<i> &gt;     def __init__(self):
+</I>&gt;<i> &gt;         #....
+</I>&gt;<i> &gt;         if not len(cache.keys()):
+</I>&gt;<i> &gt;             CACHE_LOCK.acquire()
+</I>&gt;<i> &gt;             _fillCache()
+</I>&gt;<i> &gt;             CACHE_LOCK.release()
+</I>&gt;<i> &gt;         #...
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; However, I have discovered that this module is continually reimported
+</I>&gt;<i> &gt; because it ALWAYS calls the _fillCache() function despite all the
+</I>&gt;<i> handlers
+</I>&gt;<i> &gt; running within the same interpreter.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I have upgraded to mod_python 3.2.7 noticing that in the change log
+</I>&gt;<i> there is
+</I>&gt;<i> &gt; a lot about fixing module import problems but my app is still behaving
+</I>&gt;<i> the
+</I>&gt;<i> &gt; same way.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The flow of my app is that all requests are handled by a frontController
+</I>&gt;<i> &gt; handler (this is explicitly set in the httpd config) which, after
+</I>&gt;<i> checking
+</I>&gt;<i> &gt; the session and authentication and what-not and based on the request
+</I>&gt;<i> path,
+</I>&gt;<i> &gt; forwards the request onto one of my pageController handlers via
+</I>&gt;<i> &gt; util.redirect().  If I have followed Graham's notes about module
+</I>&gt;<i> importing
+</I>&gt;<i> &gt; correctly, the frontController and pageController classes would be
+</I>&gt;<i> imported
+</I>&gt;<i> &gt; via import_module() whereas the actual pageController module is imported
+</I>&gt;<i> via
+</I>&gt;<i> &gt; the regular python import mechanism.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I have spent some time reading about the various &quot;uniquenesses&quot; of
+</I>&gt;<i> module
+</I>&gt;<i> &gt; importing within mod_python but it hurt my head slightly and I didn't
+</I>&gt;<i> know
+</I>&gt;<i> &gt; if most of it reflected the state of affairs in version 3.2.7.  From
+</I>&gt;<i> reading
+</I>&gt;<i> &gt; Graham's page I don't believe I should have a problem with the
+</I>&gt;<i> &gt; PageController handler continually being reimported but it certainly
+</I>&gt;<i> appears
+</I>&gt;<i> &gt; to be doing just that.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Can someone shed some light on what I may be doing wrong or a possible
+</I>&gt;<i> &gt; solution to setting up a shared cache within an interpreter?  I know
+</I>&gt;<i> that if
+</I>&gt;<i> &gt; I run similar code outside of mod_python my cache design works fine.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Cheers
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060221/e861bb19/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060221/e861bb19/attachment.html</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020388.html">[mod_python] shared memory and module import problems
+</A></li>
+	<LI>Next message: <A HREF="020392.html">[mod_python] shared memory and module import problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20391">[ date ]</a>
+              <a href="thread.html#20391">[ thread ]</a>
+              <a href="subject.html#20391">[ subject ]</a>
+              <a href="author.html#20391">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

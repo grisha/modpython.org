@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: Chunked encoding
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Chunked%20encoding&In-Reply-To=4817b6fc0602181414y722275dbpe529c8d9ce05ee1e%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020350.html">
+   <LINK REL="Next"  HREF="020354.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: Chunked encoding</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Chunked%20encoding&In-Reply-To=4817b6fc0602181414y722275dbpe529c8d9ce05ee1e%40mail.gmail.com"
+       TITLE="[mod_python] Re: Chunked encoding">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Feb 18 19:09:03 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020350.html">[mod_python] Re: Chunked encoding
+</A></li>
+        <LI>Next message: <A HREF="020354.html">[mod_python] Re: Chunked encoding
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20351">[ date ]</a>
+              <a href="thread.html#20351">[ thread ]</a>
+              <a href="subject.html#20351">[ subject ]</a>
+              <a href="author.html#20351">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 19/02/2006, at 9:14 AM, Dan Eloff wrote:
+
+&gt;<i> I'm curious about this &quot;chunked encoding&quot; what does that mean? I  
+</I>&gt;<i> output all my pages in my handler as a single string, so I have a  
+</I>&gt;<i> sort of interest in understanding what the write method does. If  
+</I>&gt;<i> I'm to take a wild guess at how the below works, you set the  
+</I>&gt;<i> content length so that mod_python realizes when it recieves your  
+</I>&gt;<i> data string that no more is coming and it doesn't need to copy the  
+</I>&gt;<i> string into a buffer, it can just keep a reference to it? And  
+</I>&gt;<i> somehow the act of buffering the data as opposed to writing it  
+</I>&gt;<i> immediately causes mod_python not to emply this &quot;chunked encoding&quot;?
+</I>&gt;<i>
+</I>&gt;<i> It'd be great if someone explained this to me :)
+</I>&gt;<i>
+</I>&gt;<i> Thanks,
+</I>&gt;<i> -Dan
+</I>&gt;<i>
+</I>&gt;<i> On 2/15/06, Lars Eriksen &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">downgrade at gmx.org</A> &gt; wrote:Yes, there  
+</I>&gt;<i> is :-) RTFM, I guess ...
+</I>&gt;<i>
+</I>&gt;<i> from mod_python.util import *
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i> def handle(req):
+</I>&gt;<i>     data = 'No chunking involved.' * 1024
+</I>&gt;<i>     req.set_content_length(len(data))
+</I>&gt;<i>     req.write(data, 0)
+</I>&gt;<i>     req.flush()
+</I>&gt;<i>     return apache.OK
+</I>
+As far as I can tell, there is no difference between that and:
+
+def handler(req):
+     data = 'No chunking involved.' * 1024
+     req.set_content_length(len(data))
+     req.write(data)
+     return apache.OK
+
+When no second argument is supplied to req.write(), it automatically  
+flushes.
+
+In this particular case, since there is only one call to req.write(),  
+it is also
+probably equivalent to:
+
+def handler(req):
+     data = 'No chunking involved.' * 1024
+     req.set_content_length(len(data))
+     req.write(data,0)
+     return apache.OK
+
+That is, returning apache.OK is going to have the same effect of  
+flushing the
+buffered data if there is any.
+
+FWIW, chunked encoding is only of relevance to HTTP/1.1 clients. You  
+as the
+provider of the handler does not really have to care about it as  
+Apache will
+worry about it and use it if the client is capable of handling HTTP/ 
+1.1. That is,
+mod_python doesn't do anything about chunked encoding either.
+
+As to the connection between req.set_content_length() and how much data
+you write, there isn't really any. Calling req.set_content_length()  
+only has the
+effect of setting the &quot;Content-Length&quot; response header. You could set  
+the
+content length to a small value and write more data that you say  
+there will be
+and mod_python/Apache will quite happily let you do it. A remote  
+client on
+the other handle may well probably discard any extra content if it  
+honours the
+content length header.
+
+For most people, how many times you call req.write() and whether you use
+buffering isn't going to matter one bit. Some may want to minimise  
+the number
+of calls to req.write() or use buffering for perceived performance  
+reasons (right
+or wrong).
+
+One valid reason for not having req.write() flush data automatically  
+though is
+if you are using an output filter that wants to see the whole data in  
+one go. An
+example is the &quot;CONTENT_LENGTH&quot; filter. If you had configured your  
+handler
+output to go through this filter, you could just say:
+
+def handler(req):
+     data = 'No chunking involved.' * 1024
+     req.write(data,0)
+     req.write(data,0)
+     ....
+     return apache.OK
+
+and the output filter would add the content length header for you  
+automatically.
+For this to work, you have to ensure that flush isn't called  
+explicitly or implicitly.
+
+What are the underlying concerns that make you think you need to  
+understand
+this better?
+
+Graham
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020350.html">[mod_python] Re: Chunked encoding
+</A></li>
+	<LI>Next message: <A HREF="020354.html">[mod_python] Re: Chunked encoding
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20351">[ date ]</a>
+              <a href="thread.html#20351">[ thread ]</a>
+              <a href="subject.html#20351">[ subject ]</a>
+              <a href="author.html#20351">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] other file than .py
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20other%20file%20than%20.py&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021434.html">
+   <LINK REL="Next"  HREF="021444.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] other file than .py</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20other%20file%20than%20.py&In-Reply-To="
+       TITLE="[mod_python] other file than .py">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Jun 20 01:48:33 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021434.html">[mod_python] other file than .py
+</A></li>
+        <LI>Next message: <A HREF="021444.html">[mod_python] Unicode Oddity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21435">[ date ]</a>
+              <a href="thread.html#21435">[ thread ]</a>
+              <a href="subject.html#21435">[ subject ]</a>
+              <a href="author.html#21435">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>elekis wrote ..
+&gt;<i> hi,
+</I>&gt;<i> 
+</I>&gt;<i> I continue my little way in the magic world of python script under web
+</I>&gt;<i> and after installeing, testing and begin really to program a
+</I>&gt;<i> interractive site , I confronted with a little problem. I cannot touch
+</I>&gt;<i> other file than .py
+</I>&gt;<i> 
+</I>&gt;<i> exemple. there is my .htaccess
+</I>&gt;<i> 
+</I>&gt;<i> ----------------------------------
+</I>&gt;<i> SetHandler mod_python
+</I>&gt;<i> PythonHandler mod_python.publisher
+</I>&gt;<i> PythonDebug On
+</I>&gt;<i> ----------------------------------
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> here is my event.css
+</I>&gt;<i> 
+</I>&gt;<i> --------------------------------
+</I>&gt;<i> h6 { font-size: 50pt ; }
+</I>&gt;<i> -------------------------------
+</I>&gt;<i> but when he trie to load the event.css I have a 500 error
+</I>&gt;<i> 
+</I>&gt;<i> --&gt;<A HREF="http://localhost/public_html/add_event.css">http://localhost/public_html/add_event.css</A> and it's the same thing
+</I>&gt;<i> for other file. is there a thing than I must put on my htacces???
+</I>
+Use &quot;AddHandler&quot; instead of &quot;SetHandler&quot; directive. For example:
+
+  AddHandler mod_python .py
+  PythonHandler mod_python.publisher
+
+What this says is that only requests with a .py in URL will be routed
+through to mod_python.publisher and not every request in that
+directory. This will allow you to place .css, .html, .jpg, .gif, etc files
+in the same directory.
+
+Depending on which version of mod_python you are using, you should
+also use:
+
+  &lt;Files *.pyc&gt;
+  deny from all
+  &lt;/Files&gt;
+
+For older versions of mod_python this will ensure that compiled Python
+byte code files are not downloadable. In mod_python 3.2.X these byte
+code files are no longer generated for mod_python.publisher but can
+for basic handlers, but still good to use it regardless.
+
+&gt;<i> other thing. I very like the publisher mod.  cause we
+</I>&gt;<i> <A HREF="http://localhost/public_html/balbla/">http://localhost/public_html/balbla/</A> link (and that 's cool.
+</I>
+If you are talking about the ability to not have .py in the URL, ie the
+multiviews feature of Apache, then you also need to include additional
+configuration to get it to work when using the AddHandler directive.
+These additional directives are:
+
+  Options +MultiViews
+  MultiviewsMatch Handlers
+
+  AddType text/html;qs=1.0 .py
+  AddType text/html;qs=0.9 .html
+  AddType text/plain;qs=0.8 .txt
+
+If you don't have this, you will find that you can't leave off the .py
+in the URL. Note that you may have to have Apache 2.0 and most
+recent version of mod_python (3.2.X) for this all to work properly.
+
+One last issue with using &quot;AddHandler&quot; over &quot;SetHandler&quot;. When
+using &quot;SetHandler&quot;, mod_python.publisher will automatically map
+a request against a directory to the 'index.py' file in the directory.
+When using &quot;AddHandler&quot; this will not happen by default. If you
+want this to happen, you must also include:
+
+  DirectoryIndex index.py
+
+This will cause Apache to take 'index.py' as a candidate index
+directory when request is against the directory.
+
+In summary, use the configuration:
+
+  AddHandler mod_python .py
+  PythonHandler mod_python.publisher
+  PythonDebug On
+
+  &lt;Files *.pyc&gt;
+  deny from all
+  &lt;/Files&gt;
+
+  Options +MultiViews
+  MultiviewsMatch Handlers
+
+  AddType text/html;qs=1.0 .py
+  AddType text/html;qs=0.9 .html
+  AddType text/plain;qs=0.8 .txt
+
+  DirectoryIndex index.py
+
+&gt;<i> but on modpython.org they say that is not the fastest way.
+</I>&gt;<i> 
+</I>&gt;<i>  Standard CGI:               23 requests/s
+</I>&gt;<i>     Mod_python cgihandler:     385 requests/s
+</I>&gt;<i>     Mod_python publisher:      476 requests/s
+</I>&gt;<i>     Mod_python handler:       1203 requests/s
+</I>&gt;<i> 
+</I>&gt;<i> is it possible to have the publisher link mod and the handler request???
+</I>
+Both mod_python.publisher and mod_python.cgihandler are merely
+instances of mod_python handlers. There are slower because of the
+extra work they do on top of the basic handler interface.
+
+I would suggest you don't worry about speed issues, most sites do not need
+to be blindingly fast and you are probably going to have enough to contend
+with as it is, plus find it fast enough anyway.
+
+FWIW, those figures were probably based on really old hardware as well
+and can be ignored due to that fact. New hardware should perform much
+better.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021434.html">[mod_python] other file than .py
+</A></li>
+	<LI>Next message: <A HREF="021444.html">[mod_python] Unicode Oddity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21435">[ date ]</a>
+              <a href="thread.html#21435">[ thread ]</a>
+              <a href="subject.html#21435">[ subject ]</a>
+              <a href="author.html#21435">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

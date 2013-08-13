@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] ValueError with Flash 8 FileReference.upload(url)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ValueError%20with%20Flash%208%20FileReference.upload%28url%29&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020780.html">
+   <LINK REL="Next"  HREF="020781.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] ValueError with Flash 8 FileReference.upload(url)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Harold J. Ship</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20ValueError%20with%20Flash%208%20FileReference.upload%28url%29&In-Reply-To="
+       TITLE="[mod_python] ValueError with Flash 8 FileReference.upload(url)">Harold at giant-steps-networks.com
+       </A><BR>
+    <I>Wed Apr  5 02:51:57 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020780.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)
+</A></li>
+        <LI>Next message: <A HREF="020781.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20779">[ date ]</a>
+              <a href="thread.html#20779">[ thread ]</a>
+              <a href="subject.html#20779">[ subject ]</a>
+              <a href="author.html#20779">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Attempting to upload a file using Flash 8 FileReference.upload(url)
+causes a ValueError at line 173 of util.py.
+ 
+Windows XP
+Apache 2.0.54
+mod_python 3.2.8
+ 
+&gt;<i>From httpd.conf:
+</I>&lt;VirtualHost *:8020&gt;
+    ServerName python
+    DocumentRoot &quot;c:/Program Files/Apache Group/Apache2/htdocs/python&quot;
+    &lt;Directory &quot;c:/Program Files/Apache Group/Apache2/htdocs/python&quot;&gt;
+        AddHandler mod_python .py
+        PythonHandler deko_publisher
+        PythonDebug Off
+        RewriteEngine On
+        RewriteRule ^$ ^$ [F]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteRule ^(\w+)/(.*)$ $1.py/$2 [QSA,L]
+        ErrorDocument 500 &quot;&lt;h2&gt;Application error&lt;/h2&gt;Problem with Python
+Setup&quot;
+    &lt;/Directory&gt;
+&lt;/VirtualHost&gt;
+ 
+deko_publisher is my own handler that delegates to mod_python.publisher
+ 
+It seems that the HTTP request has some header lines that aren't of the
+form &quot;Name: value&quot; such as file boundaries.
+ 
+&gt;<i>From error.log:
+</I> 
+[Mon Apr 03 12:05:40 2006] [INFO] WebPython deko_publisher.py:17 about
+to run uploadFoo
+[Mon Apr 03 12:05:40 2006] [error] [client 127.0.0.1] PythonHandler
+deko_publisher: Traceback (most recent call last):
+[Mon Apr 03 12:05:40 2006] [error] [client 127.0.0.1] PythonHandler
+deko_publisher:   File
+&quot;C:\\Python23\\Lib\\site-packages\\mod_python\\apache.py&quot;, line 299, in
+HandlerDispatch\n    result = object(req)
+[Mon Apr 03 12:05:41 2006] [error] [client 127.0.0.1] PythonHandler
+deko_publisher:   File &quot;C:/Program Files/Apache
+Group/Apache2/htdocs/python/deko_publisher.py&quot;, line 18, in handler\n
+return apache.handler(req)
+[Mon Apr 03 12:05:41 2006] [error] [client 127.0.0.1] PythonHandler
+deko_publisher:   File
+&quot;C:\\Python23\\Lib\\site-packages\\mod_python\\publisher.py&quot;, line 213,
+in handler\n    published = publish_object(req, object)
+[Mon Apr 03 12:05:41 2006] [error] [client 127.0.0.1] PythonHandler
+deko_publisher:   File
+&quot;C:\\Python23\\Lib\\site-packages\\mod_python\\publisher.py&quot;, line 411,
+in publish_object\n    req.form = util.FieldStorage(req,
+keep_blank_values=1)
+[Mon Apr 03 12:05:41 2006] [error] [client 127.0.0.1] PythonHandler
+deko_publisher:   File
+&quot;C:\\Python23\\Lib\\site-packages\\mod_python\\util.py&quot;, line 173, in
+__init__\n    h, v = line.split(&quot;:&quot;, 1)
+[Mon Apr 03 12:05:41 2006] [error] [client 127.0.0.1] PythonHandler
+deko_publisher: ValueError: unpack list of wrong size
+ 
+util.py (lines 169-175):
+           while line not in ('\r','\r\n'):
+               # we read the headers until we reach an empty line
+               # NOTE : a single \n would mean the entity is malformed,
+but
+               # we're tolerating it anyway
+               h, v = line.split(&quot;:&quot;, 1)
+               headers.add(h, v)
+               h = h.lower()
+ 
+proposed change:
+           while line not in ('\r','\r\n'):
+               # we read the headers until we reach an empty line
+               # NOTE : a single \n would mean the entity is malformed,
+but
+               # we're tolerating it anyway
+               try:
+                  h, v = line.split(&quot;:&quot;, 1)
+               except ValueError:
+                  h, v = &quot;&quot;, &quot;&quot;
+               headers.add(h, v)
+               h = h.lower()
+
+ 
+ 
+Harold Ship
+Giant Steps Networks
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020780.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)
+</A></li>
+	<LI>Next message: <A HREF="020781.html">[mod_python] ValueError with Flash 8 FileReference.upload(url)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20779">[ date ]</a>
+              <a href="thread.html#20779">[ thread ]</a>
+              <a href="subject.html#20779">[ subject ]</a>
+              <a href="author.html#20779">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

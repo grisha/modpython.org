@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: Mike's psp upload
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Mike%27s%20psp%20upload&In-Reply-To=5f56302b0602201605s455f39a2g46cc5b55effdb05e%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020370.html">
+   <LINK REL="Next"  HREF="020384.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: Mike's psp upload</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20Mike%27s%20psp%20upload&In-Reply-To=5f56302b0602201605s455f39a2g46cc5b55effdb05e%40mail.gmail.com"
+       TITLE="[mod_python] Re: Mike's psp upload">nlv11281 at natlab.research.philips.com
+       </A><BR>
+    <I>Tue Feb 21 01:48:46 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020370.html">[mod_python] Re: Mike's psp upload
+</A></li>
+        <LI>Next message: <A HREF="020384.html">[mod_python] Re: Mike's psp upload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20376">[ date ]</a>
+              <a href="thread.html#20376">[ thread ]</a>
+              <a href="subject.html#20376">[ subject ]</a>
+              <a href="author.html#20376">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I saw that traceback too, but it is util.py that is going wrong here:
+
+## code snippet from mod_python/util.py
+    def __getitem__(self, key):
+        &quot;&quot;&quot;Dictionary style indexing.&quot;&quot;&quot;
+        if self.list is None:
+            raise TypeError, &quot;not indexable&quot;
+        found = []
+        for item in self.list:
+            if item.name == key:
+                if isinstance(item.file, FileType) or \
+                       isinstance(getattr(item.file, 'file', None), 
+FileType):
+                    found.append(item)
+                else:
+                    found.append(StringField(item.value))
+        if not found:
+            raise KeyError, key
+        if len(found) == 1:
+            return found[0]
+        else:
+            return found
+## end code snippet from mod_python/util.py
+
+The result is that the callback will ONLY work if you create a REAL file 
+in make_file. Otherwise, the &quot;isinstance(item.file, FileType)&quot; will 
+return FALSE and it creates a StringField, which attempts to read the 
+whole file into memory (not a good idea). Then you get the stacktrace. 
+It also means that you won't get the filename back from the form.
+
+I have submitted a patch that fixes the issue, but it is scheduled for 
+3.3 now.
+
+--
+Mike Looijmans
+Philips Natlab / Topic Automation
+
+
+Daniel Nogradi wrote:
+&gt;&gt;<i>Hmm. I tested and indeed, the program does not work any more.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>The problem is NOT that FileCounter does not supply a read() method though.
+</I>&gt;&gt;<i>There's no reason for
+</I>&gt;&gt;<i>any object to 'read' the file, it's just writing it.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Well, here is the traceback that I get:
+</I>&gt;<i> 
+</I>&gt;<i> Mod_python error: &quot;PythonHandler mod_python.psp&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line
+</I>&gt;<i> 299, in HandlerDispatch
+</I>&gt;<i>     result = object(req)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/mod_python/psp.py&quot;, line 302,
+</I>&gt;<i> in handler
+</I>&gt;<i>     p.run()
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/mod_python/psp.py&quot;, line 213, in run
+</I>&gt;<i>     exec code in global_scope
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/var/www/html/psp/upload.psp&quot;, line 43, in ?
+</I>&gt;<i>     for afile in frm.getlist('archivefile'):
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/mod_python/util.py&quot;, line
+</I>&gt;<i> 354, in getlist
+</I>&gt;<i>     found.append(StringField(item.value))
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.3/site-packages/mod_python/util.py&quot;, line 74,
+</I>&gt;<i> in __getattr__
+</I>&gt;<i>     value = self.file.read()
+</I>&gt;<i> 
+</I>&gt;<i> AttributeError: FileCounter instance has no attribute 'read'
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> That seems pretty clear about a required 'read' method in util.py.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i>(Oh, and remove the reference to 'fmt.py' which I forgot to strip out)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Yes of course, I removed that.
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020370.html">[mod_python] Re: Mike's psp upload
+</A></li>
+	<LI>Next message: <A HREF="020384.html">[mod_python] Re: Mike's psp upload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20376">[ date ]</a>
+              <a href="thread.html#20376">[ thread ]</a>
+              <a href="subject.html#20376">[ subject ]</a>
+              <a href="author.html#20376">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

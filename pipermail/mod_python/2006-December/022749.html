@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Publisher and DEFLATE Filter
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Publisher%20and%20DEFLATE%20Filter&In-Reply-To=a595de7a0612021012g35953225pdbcb1cb9de8b476f%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022756.html">
+   <LINK REL="Next"  HREF="022752.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Publisher and DEFLATE Filter</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Publisher%20and%20DEFLATE%20Filter&In-Reply-To=a595de7a0612021012g35953225pdbcb1cb9de8b476f%40mail.gmail.com"
+       TITLE="[mod_python] Publisher and DEFLATE Filter">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Dec  2 18:08:15 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022756.html">[mod_python] Publisher and DEFLATE Filter
+</A></li>
+        <LI>Next message: <A HREF="022752.html">[mod_python] Publisher and DEFLATE Filter
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22749">[ date ]</a>
+              <a href="thread.html#22749">[ thread ]</a>
+              <a href="subject.html#22749">[ subject ]</a>
+              <a href="author.html#22749">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 03/12/2006, at 5:12 AM, Clodoaldo wrote:
+
+&gt;<i> I want all the Publisher produced pages to be Apache DEFLATEd. So i
+</I>&gt;<i> added this directive to the virtual server configuration.
+</I>&gt;<i>
+</I>&gt;<i>   AddOutputFilter DEFLATE py
+</I>&gt;<i>
+</I>&gt;<i> As the Publisher does not require a py extension this obviously does
+</I>&gt;<i> not work. The AddOutputFilterByType directive is said to be deprecated
+</I>&gt;<i> in the 2.2.3 manual. So i add req.add_output_filter('DEFLATE') to the
+</I>&gt;<i> script and it works. But it will have to be added to all the scripts.
+</I>&gt;<i> Is there a way to set the DEFLATE filter to all Publisher scripts?
+</I>&gt;<i>
+</I>&gt;<i> If i use &quot;SetOutputFilter DEFLATE&quot; it will deflate everything
+</I>&gt;<i> including images and i will have to somehow disable it for the files
+</I>&gt;<i> or directories i eventually don't want to be deflated.
+</I>&gt;<i>
+</I>&gt;<i> I looked at the PythonOutputFilter but to activate it the
+</I>&gt;<i> AddOutputFilter directive must be used and it is back to the original
+</I>&gt;<i> problem. Or do I understand it wrong?
+</I>
+Presuming you are using something like:
+
+   SetHandler mod_python
+   PythonHandler mod_python.publisher
+
+Instead using something like:
+
+   SetHandler mod_python
+   PythonHandler ~/_filters.py
+   PythonHandler mod_python.publisher
+
+Then in '_filters.py' in the handler root directory have:
+
+   from mod_python import apache
+
+   def handler(req):
+     req.add_output_filter('DEFLATE')
+     return apache.OK
+
+This is making use of the ability to stack handlers, ie., have more than
+one executed for the phase.
+
+You could also have written:
+
+   SetHandler mod_python
+   PythonHandler ~/_publisher.py
+
+Then in '_publisher.py' in the handler root directory have:
+
+   from mod_python import publisher
+
+   def handler(req):
+     req.add_output_filter('DEFLATE')
+     return publisher.handler(req)
+
+I have used an underscore prefix for the file adding the filter as  
+then publisher
+will ignore it and not allow requests against it.
+
+Note for others, this requires mod_python 3.3 as it is only in 3.3  
+which the
+ability to add output filters dynamically was added. Knowing it was  
+3.3, I have
+used the path method for referencing a module in the handler directive,
+which is another new 3.3 feature.
+
+BTW, using a wrapper like '_publisher.py' is also one way of managing  
+the
+creation of user sessions without having to add the session code in  
+every
+handler. For example:
+
+   from mod_python import publisher, Session
+
+   def handler(req):
+     req.add_output_filter('DEFLATE')
+     req.session = Session.Session(req)
+     if req.session.is_new():
+       ...
+     ...
+     return publisher.handler(req)
+
+For more complicated session stuff requiring login and which needs to  
+control
+access to static files or other types of handlers, you are much  
+better off using
+an authenhandler(), something which is much easier to do properly in  
+3.3.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022756.html">[mod_python] Publisher and DEFLATE Filter
+</A></li>
+	<LI>Next message: <A HREF="022752.html">[mod_python] Publisher and DEFLATE Filter
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22749">[ date ]</a>
+              <a href="thread.html#22749">[ thread ]</a>
+              <a href="subject.html#22749">[ subject ]</a>
+              <a href="author.html#22749">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

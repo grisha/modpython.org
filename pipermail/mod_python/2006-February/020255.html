@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: forks, daemons and other beasts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20forks%2C%20daemons%20and%20other%20beasts&In-Reply-To=5f56302b0602131244v45d559eag81f33f25668c5673%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020251.html">
+   <LINK REL="Next"  HREF="020256.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: forks, daemons and other beasts</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Daniel J. Popowich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20forks%2C%20daemons%20and%20other%20beasts&In-Reply-To=5f56302b0602131244v45d559eag81f33f25668c5673%40mail.gmail.com"
+       TITLE="[mod_python] Re: forks, daemons and other beasts">dpopowich at comcast.net
+       </A><BR>
+    <I>Mon Feb 13 19:08:54 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020251.html">[mod_python] Re: forks, daemons and other beasts
+</A></li>
+        <LI>Next message: <A HREF="020256.html">[mod_python] Re: forks, daemons and other beasts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20255">[ date ]</a>
+              <a href="thread.html#20255">[ thread ]</a>
+              <a href="subject.html#20255">[ subject ]</a>
+              <a href="author.html#20255">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+Daniel Nogradi writes:
+&gt;<i> Thanks a lot for the code, I didn't even think about such an
+</I>&gt;<i> approach, this would be the best of course.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; For example, if you have this script, /tmp/foo.py:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     ############################################################
+</I>&gt;<i> &gt;     # /tmp/foo.py
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     import signal
+</I>&gt;<i> &gt;     import time
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     # ignore the TERM signal, so if apache kills the child process
+</I>&gt;<i> &gt;     # that forked me I won't die.
+</I>&gt;<i> &gt;     signal.signal(signal.SIGTERM, signal.SIG_IGN)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     # Your Code Here!
+</I>&gt;<i> &gt;     # for this demo we'll sleep, so you have time to stop apache and
+</I>&gt;<i> &gt;     # see this is still running
+</I>&gt;<i> &gt;     time.sleep(30)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     # some output to prove we ran
+</I>&gt;<i> &gt;     print &quot;hello, world&quot;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     #
+</I>&gt;<i> &gt;     ############################################################
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Then in your handler:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     os.system('python /tmp/foo.py &gt;&amp; /tmp/foo.log &amp;')
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Daniel Popowich
+</I>&gt;<i> &gt; ---------------
+</I>&gt;<i> &gt; <A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>
+</I>&gt;<i> 
+</I>&gt;<i>
+</I>&gt;<i> I'm not sure I understand this. AFAIK both os.spawn* and os.system
+</I>&gt;<i> start a brand new process, with the only difference being how
+</I>&gt;<i> command line arguments are handled. Or not?
+</I>
+For python on unix, the os.spawn* calls are implemented in python with
+underlying calls to os.fork and os.exec*.  You can see the python
+source yourself; look in os.py in the standard library.  So, there's
+really no difference between the exec* and spawn* calls.
+
+You *could* do what you want with calls to os.fork and os.exec*, but
+unless you're a unix systems programmer you will be biting off more
+than you can chew.  That is, this simple command line:
+
+  $ python myscript.py &gt; logfile 2&gt; errfile &amp;
+
+which can be easily executed from within python with:
+
+    os.system('python myscript.py &gt; logfile 2&gt; errfile &amp;')
+
+would be MANY tens of lines of code if implemented with fork and exec*
+calls; setting up the redirection is particularly tricky.  Take a look
+at the implementation of the spawn* calls in os.py, that will give you
+an idea, plus realize there is NO redirection of std{in,out,err}
+happening in the spawn* code.  It's a non-trivial undertaking.
+
+Unless you want the intellectual exercise (which is more than enough
+reason in my book!  :-)), or need minutia control of process
+parameters within python, I'd go with the os.system method and trap
+signal.SIGTERM in your script.
+
+Cheers,
+
+Daniel Popowich
+---------------
+<A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020251.html">[mod_python] Re: forks, daemons and other beasts
+</A></li>
+	<LI>Next message: <A HREF="020256.html">[mod_python] Re: forks, daemons and other beasts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20255">[ date ]</a>
+              <a href="thread.html#20255">[ thread ]</a>
+              <a href="subject.html#20255">[ subject ]</a>
+              <a href="author.html#20255">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

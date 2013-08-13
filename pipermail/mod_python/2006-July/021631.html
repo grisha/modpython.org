@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] modpython, mysqldb best paractice
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20modpython%2C%20mysqldb%20best%20paractice&In-Reply-To=B6C73A5E30565245BB6D32B5F5DF7A520BEC88%40sense.emmastraat.pijnacker">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021630.html">
+   <LINK REL="Next"  HREF="021633.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] modpython, mysqldb best paractice</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Deron Meranda</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20modpython%2C%20mysqldb%20best%20paractice&In-Reply-To=B6C73A5E30565245BB6D32B5F5DF7A520BEC88%40sense.emmastraat.pijnacker"
+       TITLE="[mod_python] modpython, mysqldb best paractice">deron.meranda at gmail.com
+       </A><BR>
+    <I>Wed Jul 19 11:32:04 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021630.html">[mod_python] modpython, mysqldb best paractice
+</A></li>
+        <LI>Next message: <A HREF="021633.html">[mod_python] modpython, mysqldb best paractice
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21631">[ date ]</a>
+              <a href="thread.html#21631">[ thread ]</a>
+              <a href="subject.html#21631">[ subject ]</a>
+              <a href="author.html#21631">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 7/19/06, Martijn Moeling &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">martijn at xs4us.nu</A>&gt; wrote:
+&gt;<i> If mod python is running in Interpreter per directory mode, one
+</I>&gt;<i> interpreter is created since all my content for mkbOK resides in / in
+</I>&gt;<i> total over 1 in total over 14.000 different pages, and since we have
+</I>&gt;<i> over 10.000 pageviews per day and aim for 100.000+ per day at the end of
+</I>&gt;<i> the year I am preparing for a second server (which my system can handle)
+</I>&gt;<i>
+</I>&gt;<i> If mod python is running in Interpreter per directive mode I can and up
+</I>&gt;<i> with god knows how many interpreters.
+</I>
+There's probably no need for you to use multiple python interpreters
+at all.  The only advantage is that it can provide you with some
+level of isolation (but not perfect); it will not provide any performance
+benifits (and actually is more likely to decrease performance somewhat).
+But as you're using it, you don't need more than one interpreter.  So just
+avoid all the PythonInter* directives.
+
+&gt;<i> The register cleanup is clear now, since my system creates the database
+</I>&gt;<i> connection in the class module (the init call creates the class) I might
+</I>&gt;<i> have to alter that but.
+</I>
+Also don't forget about try:...finally:... blocks.  That's often the
+simplest way to make sure you clean up after something.
+
+If the database connection is made inside your class, perhaps you
+should put a disconnect call in the class's destructor, __del__().  I
+don't know if you're using new-style classes, or traditional classes,
+but perhaps something like:
+
+    class db_based_service(object):
+        def __init__(self):
+            self.db = None
+        def __del__(self):
+            self.disconnect()
+        def connect(self):
+            self.db = MySQLdb.connect( ..... )
+        def disconnect(self):
+            if self.db is not None:
+                self.db.disconnect()
+                self.db = None
+        def init(self):
+            self.connect()
+
+Furthermore, if you're using transactions, you should make sure
+that you don't have any lingering open transactions.  If you're
+connecting and disconnecting on every request you probably don't
+need to worry quite so much.  But if you ever re-use or pool your
+database connections in the future, you may want to consider
+insuring that all your transactions get terminated at the end of
+the request.  Perhaps extending the framework to something like
+
+    class ..... (same as above)
+        def __init__(self):
+            # same other stuff above
+            self.in_trans = False
+        def __del__(self):
+             self.rollback()
+             self.disconnect()
+        def start_transaction(self):
+            if self.in_trans:
+                raise RuntimeError(&quot;Attempted nested transaction&quot;)
+            self.db.begin()
+            self.in_trans = True
+        def commit(self):
+            if self.in_trans:
+                db.commit()
+                self.in_trans = False
+        def rollback(self):
+            if self.in_trans:
+                db.rollback()
+                self.in_trans = False
+
+Of course you may want to see if too-many-connections or
+non-terminated transactions are even a problem.  Periodically
+run the mysql &quot;show processlist&quot; command.  Maybe even an
+occasional &quot;show status&quot; may be informative.
+
+&gt;<i> The system goes from normal cpu utilization to 100% within a few
+</I>&gt;<i> microseconds, and it happens now and then, sometimes within a few hours
+</I>&gt;<i> after a reboot, sometimes it runs for weeks without trouble
+</I>
+Once it gets in that state will it ever eventually clear up?
+
+Is your system going into an I/O paging fit?  Run the command
+&quot;vmstat 5&quot; and watch the &quot;so&quot; and &quot;bo&quot; columns for a minute.
+&quot;so&quot; should stay near 0, and &quot;bo&quot; should have faily low numbers
+(say &lt;30), but really you should compare it against when the
+system is running okay.
+
+Also run &quot;top&quot; and determine exactly which process(es) are
+charged with using the most cpu.
+
+&gt;<i> I tried multiple cron thingies to investigate, but even cron slows down
+</I>&gt;<i> so mutch that a &quot;service httpd restart, and/or a service mysql restart&quot;
+</I>&gt;<i> take hours to complete,
+</I>
+Certainly sounds like heavy paging or swapping.
+
+&gt;<i> in fact (but keep in mind I have had no interactive access) I think
+</I>&gt;<i> mysql stops responding at all even to signals. I even tried &quot;nice&quot; in
+</I>&gt;<i> the hope that mysql could not take 100% but that was not the case and it
+</I>&gt;<i> slowed down the page building process (not surprised haha). Even
+</I>&gt;<i> installing a second CPU did not help.
+</I>
+&gt;<i> The even more stupid thing is that this behavior does not happen on a
+</I>&gt;<i> PIII 1 Ghz with a excact copy of the HDD (dd if=/dev/hd1 of=/dev/hd2)
+</I>&gt;<i> Since the cpu in our production machine is 64 bit I suspected that, and
+</I>&gt;<i> build apache, and mod_python and python all from scratch,.. no luck.
+</I>
+What about the amount of memory.  That can have an even bigger
+impact than the speed of the CPU.
+
+&gt;<i> Different mysql versions did not matter too.
+</I>&gt;<i>
+</I>&gt;<i> The oddest thing is that after an update of my python code on the server
+</I>&gt;<i> (new release of my system) is takes 1 or 2 days before it happens, than
+</I>&gt;<i> it takes say 4 or 5 days, next it runs ok for weeks.
+</I>
+Perhaps you've got some suboptimal SQL.  For instance are you
+doing a lot of sorts, or very large joins?
+
+Also what MySQL storage engine are you using?  InnoDB, or
+MyISAM, etc?
+
+Oh, you may also want to visit the MySQL forums too and see
+if anybody over there has any insights.
+-- 
+Deron Meranda
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021630.html">[mod_python] modpython, mysqldb best paractice
+</A></li>
+	<LI>Next message: <A HREF="021633.html">[mod_python] modpython, mysqldb best paractice
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21631">[ date ]</a>
+              <a href="thread.html#21631">[ thread ]</a>
+              <a href="subject.html#21631">[ subject ]</a>
+              <a href="author.html#21631">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

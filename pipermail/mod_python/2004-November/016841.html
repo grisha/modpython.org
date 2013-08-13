@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Controlled output bufferring with psp
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Controlled%20output%20bufferring%20with%20psp&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016840.html">
+   <LINK REL="Next"  HREF="016842.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Controlled output bufferring with psp</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>josh-modpython at valleyfree.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Controlled%20output%20bufferring%20with%20psp&In-Reply-To="
+       TITLE="[mod_python] Controlled output bufferring with psp">josh-modpython at valleyfree.com
+       </A><BR>
+    <I>Wed Nov 24 16:03:51 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016840.html">[mod_python] Secure storage of sensitive variables,
+	such as passwords
+</A></li>
+        <LI>Next message: <A HREF="016842.html">[mod_python] mysql_python connections
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16841">[ date ]</a>
+              <a href="thread.html#16841">[ thread ]</a>
+              <a href="subject.html#16841">[ subject ]</a>
+              <a href="author.html#16841">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello folks
+
+I'm new to mod_python (trying to migrate from php) and, being used to 
+php, have liked php's output buffering features.
+
+Specifically what I was looking for was a way to buffer all output and 
+still control it (clear it inside an error handler, run it through a 
+filter, etc.) Initially this is easy to acheive just using a StringIO 
+object, but when I began using PSP I found this no longer worked, since 
+PSP outputs to the request object directly, and once output is sent to 
+the request object I saw no way to &quot;take it back&quot; or modify it.
+
+So, for all the people in my boat, here is some code that will allow you 
+do just that. This comes in very handy if you expect to have errors 
+occur after or during a psp template is run, or if you want to do 
+something like filter the final output.
+
+I would appreciate it if any mod_python gurus could point out any 
+pitfalls in this approach.
+
+Thanks for any feedback, and I hope this helps a few people out there.  
+(I assume this is kosher to post code straight to the list, if not 
+please slap my hand and inform me of list protocol)
+
+import sys
+import cStringIO
+import traceback
+from mod_python import apache
+from mod_python import psp
+
+class bufferProxy:  
+    &quot;&quot;&quot;This proxy class is used to supply a write() method
+    to replace req.write(), including the optional flush
+    parameter, which is ignored and only present to prevent
+    an exception being raised for its presence. If it
+    weren't for the flush parameter, you wouldn't need this
+    proxy class at all, you could just assign req.write to
+    the StringIO object's write method.&quot;&quot;&quot;
+    
+    def __init__(self,outputBuffer):
+        self.outputBuffer = outputBuffer
+        
+    def write(self,data,flush=None):
+        &quot;&quot;&quot;Writes data to the output buffer. The flush
+        argument is simply ignored; the buffer is only
+        flushed at the end of the handler in the finally
+        clause. Though, you could allow flushing by sending
+        the contents of the buffer to the oldReqWrite
+        method and then clearing it.&quot;&quot;&quot;
+        
+        self.outputBuffer.write(data)
+
+def handler(req):
+    &quot;&quot;&quot;A request handler that illustrates the use of a 
+    StringIO output buffer instead of using the Apache 
+    buffer normally written to by req.write, which allows 
+    for simultaneous use of all of the following:
+    
+    1. print statements (redirecting sys.stdout)
+    2. psp templates (that use req.write)
+    3. error handlers that can erase/override/filter all 
+    output even after it has been written to the buffer
+    
+    &quot;&quot;&quot;
+    
+    req.content_type = &quot;text/html&quot;
+    
+    outputBuffer = cStringIO.StringIO()
+    outputBufferProxy = bufferProxy(outputBuffer)
+    
+    oldStdout = sys.stdout
+    oldReqWrite = req.write
+    
+    sys.stdout = outputBuffer
+    req.write = outputBufferProxy.write
+    
+    try: # outer try block used for finally clause
+        
+        try: # inner block used for exception handling
+            
+            # this works
+            print 'Hello world!&lt;br&gt;'
+            
+            # and this works
+            req.write('Hello, again!&lt;br&gt;\n')
+            
+            # and PSP works, too, just put a real psp
+            # template in there and uncomment it, of course
+            # also placing any needed vars in run()...
+            
+            # template = psp.PSP(req, \
+            #    filename='mytemplate.psp')
+            # template.run()
+            
+            # raise and catch the an exception or do error
+            # handling however you like...
+            raise &quot;some error&quot;
+            
+        except:
+            
+            # on error, clear the buffer and show an error, 
+            # do stuff, show a stack trace, etc, you can 
+            # even show everything output up to this point:
+            
+            allOutputUpToNow = outputBuffer.getvalue()
+            outputBuffer.seek(0)
+            outputBuffer.truncate(0)
+            print '&lt;h1&gt;An exception has occurred...&lt;/h1&gt;'
+            print '&lt;pre&gt;'
+            traceback.print_exc(None,outputBuffer)
+            print '&lt;/pre&gt;'
+            print '&lt;hr&gt;'
+            print '&lt;h2&gt;Here is all the output up to the point' \
+                ' of the exception:&lt;/h2&gt;'
+            print allOutputUpToNow
+            # note that it would be a good idea to html 
+            # entity quote the contents of allOutputUpToNow
+            
+    finally:
+        
+        # restore IO streams and send final output
+        sys.stdout = oldStdout
+        req.write = oldReqWrite
+        req.write(outputBuffer.getvalue())
+        outputBuffer.close()
+        return apache.OK
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016840.html">[mod_python] Secure storage of sensitive variables,
+	such as passwords
+</A></li>
+	<LI>Next message: <A HREF="016842.html">[mod_python] mysql_python connections
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16841">[ date ]</a>
+              <a href="thread.html#16841">[ thread ]</a>
+              <a href="subject.html#16841">[ subject ]</a>
+              <a href="author.html#16841">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

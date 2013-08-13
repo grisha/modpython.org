@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] returning errors from python handler and
+	ErrorDocument
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20returning%20errors%20from%20python%20handler%20and%0A%09ErrorDocument&In-Reply-To=438891BB.4050804%40jgassociates.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019614.html">
+   <LINK REL="Next"  HREF="019624.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] returning errors from python handler and
+	ErrorDocument</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20returning%20errors%20from%20python%20handler%20and%0A%09ErrorDocument&In-Reply-To=438891BB.4050804%40jgassociates.ca"
+       TITLE="[mod_python] returning errors from python handler and
+	ErrorDocument">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Nov 27 16:44:43 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019614.html">[mod_python] returning errors from python handler and
+	ErrorDocument
+</A></li>
+        <LI>Next message: <A HREF="019624.html">[mod_python] returning errors from python handler and
+	ErrorDocument
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19623">[ date ]</a>
+              <a href="thread.html#19623">[ thread ]</a>
+              <a href="subject.html#19623">[ subject ]</a>
+              <a href="author.html#19623">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>AFAIK, the distinction is that using:
+
+   req.status = apache.HTTP_UNAUTHORIZED
+   ...
+   return apache.OK
+
+is for when you want to formulate your own response content. Ie.,  
+override in the
+handler what the error message displayed to the browser is, where  
+&quot;...&quot; is replaced
+by assignment to req.content_type and req.write() calls. Although, in  
+practice, it
+possibly should return apache.DONE and not apache.OK so as to avoid  
+any later
+handlers within the phase or later phases being run. Thus:
+
+   req.status = apache.HTTP_UNAUTHORIZED
+   req.content_type = 'text/plain'
+   req.write('my error message')
+   return apache.DONE
+
+Raise an exception using apache.SERVER_RETURN should be used when you
+want to again abort latter handlers in same phase or later phase but  
+otherwise
+want Apache to then deal with the error response further by  
+formatting a precanned
+error message or triggering any handler associated with a  
+ErrorDocument directive
+or delivering back a static file associated with an ErrorDocument  
+directive.
+
+Graham
+
+On 27/11/2005, at 3:47 AM, Jim Gallacher wrote:
+
+&gt;<i> Nic Ferrier wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> I've got a python handler that does this:
+</I>&gt;&gt;<i>    # something.py
+</I>&gt;&gt;<i>    def handler(http):
+</I>&gt;&gt;<i>       http.status = apache.UNAUTHORIZED
+</I>&gt;&gt;<i>       return apache.OK
+</I>&gt;&gt;<i> And in the apache config I've got something like:
+</I>&gt;&gt;<i>    &lt;Location /something&gt;
+</I>&gt;&gt;<i>    SetHandler python-program
+</I>&gt;&gt;<i>    PythonHandler something
+</I>&gt;&gt;<i>    &lt;/Location&gt;
+</I>&gt;&gt;<i>    ErrorDocument 401 /somepage.html
+</I>&gt;&gt;<i> But the error document is not being served for requests to my
+</I>&gt;&gt;<i> handler. I think it should because I'm returning 401.
+</I>&gt;&gt;<i> Can someone enlighten me? Does the request processing just not work
+</I>&gt;&gt;<i> like that?
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> You would think that just setting the status would suffice but this  
+</I>&gt;<i> does not seem to be the way it works. Without actually checking I  
+</I>&gt;<i> imagine that the client will still see the req.status you set, plus  
+</I>&gt;<i> whatever content your handler dishes out, but you have not told  
+</I>&gt;<i> apache that you want to interupt processing have sling some  
+</I>&gt;<i> different content. You do this by raising an exception.
+</I>&gt;<i>
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>     if unknown_user(req):
+</I>&gt;<i>         raise apache.SERVER_RETURN, apache.HTTP_UNAUTHORIZED
+</I>&gt;<i>
+</I>&gt;<i>     if  user_is_naughty(req):
+</I>&gt;<i>         raise apache.SERVER_RETURN, apache.HTTP_FORBIDDEN
+</I>&gt;<i>
+</I>&gt;<i>     if user_is_asking_for_something_silly(req):
+</I>&gt;<i>         raise apache.SERVER_RETURN, apache.HTTP_NOT_FOUND
+</I>&gt;<i>
+</I>&gt;<i>     req.write(&quot;It's all good&quot;)
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> Jim
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019614.html">[mod_python] returning errors from python handler and
+	ErrorDocument
+</A></li>
+	<LI>Next message: <A HREF="019624.html">[mod_python] returning errors from python handler and
+	ErrorDocument
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19623">[ date ]</a>
+              <a href="thread.html#19623">[ thread ]</a>
+              <a href="subject.html#19623">[ subject ]</a>
+              <a href="author.html#19623">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

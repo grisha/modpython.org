@@ -1,0 +1,219 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Concurrence and virtual host interpreter python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Concurrence%20and%20virtual%20host%20interpreter%20python&In-Reply-To=W3S1N5kG.1190971173.8215010.pfreixes%40milnou.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024260.html">
+   <LINK REL="Next"  HREF="024256.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Concurrence and virtual host interpreter python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Concurrence%20and%20virtual%20host%20interpreter%20python&In-Reply-To=W3S1N5kG.1190971173.8215010.pfreixes%40milnou.net"
+       TITLE="[mod_python] Concurrence and virtual host interpreter python">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Sat Sep 29 18:15:36 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024260.html">[mod_python] Concurrence and virtual host interpreter python
+</A></li>
+        <LI>Next message: <A HREF="024256.html">[mod_python] PSP returning empty result
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24262">[ date ]</a>
+              <a href="thread.html#24262">[ thread ]</a>
+              <a href="subject.html#24262">[ subject ]</a>
+              <a href="author.html#24262">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On top of what Jim already said ...
+
+On 28/09/2007, Pau Freixes &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">pfreixes at milnou.net</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Hi to all, Im new in a list.
+</I>&gt;<i>
+</I>&gt;<i> Well, this last days I was work for testing and learn how work with multi
+</I>&gt;<i> thread and multi interpreter environment in embedding python in C
+</I>&gt;<i> applications, and of course mod_python it's a excellent place for
+</I>&gt;<i> understand this.
+</I>
+Huh, are you only looking at how things are done at the Python level,
+or are you trying to understand how the C code is implemented
+underneath?
+
+If you are also interested in the C code level of how it is
+implemented, I would recommend looking at mod_wsgi
+(<A HREF="http://www.modwsgi.org">http://www.modwsgi.org</A>) instead as its C code is probably easier to
+follow and does certain things correctly where as mod_python currently
+gets it wrong causing some limitations in what C extension modules can
+be used with it.
+
+&gt;<i> Ok, with my lectures and test with mod_python code, i have a some
+</I>&gt;<i> questions, somebody can help me for understand this concepts ?
+</I>&gt;<i>
+</I>&gt;<i> 1. I was try multi concurrence in a virtual host python script with this
+</I>&gt;<i> easy code
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>
+</I>&gt;<i>     # Request Content Type
+</I>&gt;<i>     req.content_type = &quot;text/plain&quot;
+</I>&gt;<i>
+</I>&gt;<i>     VALUE2 = 1
+</I>&gt;<i>     for i in range(1,10):
+</I>&gt;<i>         req.write(&quot;Value is %d\r\n&quot; % VALUE2)
+</I>&gt;<i>         time.sleep(5)
+</I>&gt;<i>
+</I>&gt;<i>         # change global variable
+</I>&gt;<i>         VALUE2 = VALUE2 + 1;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>     req.write(&quot;Hellow World&quot;)
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> And my surprise it's that apache only process the next request when the
+</I>&gt;<i> previous request has been served. !!
+</I>&gt;<i>
+</I>&gt;<i> I don't understand this strange behavior, because mod_python it's made
+</I>&gt;<i> for accept concurrent threads in same interpreter, and i test a similar
+</I>&gt;<i> situation  in a c code and it's possible do run some threads at same
+</I>&gt;<i> time in same interpreter.
+</I>&gt;<i>
+</I>&gt;<i> time.sleep(5) it's a pretty situation for python core for change the
+</I>&gt;<i> context and release GIL and assign to this to other thread. yes ?
+</I>
+This almost suggest you are running prefork MPM with a single process,
+or are running prefork MPM in foreground (debugging) mode. In those
+cases everything would be serialised.
+
+Suggest you read:
+
+  <A HREF="http://code.google.com/p/modwsgi/wiki/ProcessesAndThreading">http://code.google.com/p/modwsgi/wiki/ProcessesAndThreading</A>
+
+This talks about the various Apache MPM modes and what each implies
+with respect to use of multiples processes and multithreading.
+
+&gt;<i> 2. And de second question it's in similar situation, when you reuse a
+</I>&gt;<i> interpreter for all request to same virtual host, with this code :
+</I>&gt;<i>
+</I>&gt;<i> import time
+</I>&gt;<i>
+</I>&gt;<i> VALUE = 1
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>     global VALUE
+</I>&gt;<i>
+</I>&gt;<i>     # Request Content Type
+</I>&gt;<i>     req.content_type = &quot;text/plain&quot;
+</I>&gt;<i>
+</I>&gt;<i>     for i in range(1,10):
+</I>&gt;<i>         req.write(&quot;Value is %d\r\n&quot; % VALUE)
+</I>&gt;<i>         time.sleep(5)
+</I>&gt;<i>
+</I>&gt;<i>         # change global variable
+</I>&gt;<i>         VALUE = VALUE + 1;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>     req.write(&quot;Hellow World&quot;)
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> VALUE it's a global variable for de index.py, and subsequent request for
+</I>&gt;<i> the same url (<A HREF="http://...../index.py">http://...../index.py</A>) show one incremental value for
+</I>&gt;<i> VALUE. For example, this two request produced this two results
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://...../index.py">http://...../index.py</A>
+</I>&gt;<i>
+</I>&gt;<i> Value is 1
+</I>&gt;<i> Value is 2
+</I>&gt;<i> Value is 3
+</I>&gt;<i> Value is 4
+</I>&gt;<i> Value is 5
+</I>&gt;<i> Value is 6
+</I>&gt;<i> Value is 7
+</I>&gt;<i> Value is 8
+</I>&gt;<i> Value is 9
+</I>&gt;<i> Hellow World
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://...../index.py">http://...../index.py</A>
+</I>&gt;<i>
+</I>&gt;<i> Value is 10
+</I>&gt;<i> Value is 11
+</I>&gt;<i> Value is 12
+</I>&gt;<i> Value is 13
+</I>&gt;<i> Value is 14
+</I>&gt;<i> Value is 15
+</I>&gt;<i> Value is 16
+</I>&gt;<i> Value is 17
+</I>&gt;<i> Value is 18
+</I>&gt;<i> Hellow World
+</I>&gt;<i>
+</I>&gt;<i> Ok, this situation it's really and i think its very normal because only
+</I>&gt;<i> callback to handler it's made with the same interpreter and VALUE is
+</I>&gt;<i> not re assigned to value 1, may be ?
+</I>
+Read the document I reference above as it talks about data sharing
+issues with the various Apache MPMs.
+
+&gt;<i> 3. And the most important question, why mod_python not use a separate
+</I>&gt;<i> interpreters for all request ?
+</I>
+Because creating a new Python interpreter instance for each request
+would result in CGI like speeds. Also, creating a new Python
+interpreter for each request implies having to destroy the Python
+interpreter instance as well. Various C extension modules for Python
+are not written properly so as to cope with the destruction of Python
+sub interpreters within a process and the module then be loaded again
+into a new sub interpreter instance in the same process. The result
+typically being that the process will crash. See:
+
+  <A HREF="http://code.google.com/p/modwsgi/issues/detail?id=12&amp;can=1">http://code.google.com/p/modwsgi/issues/detail?id=12&amp;can=1</A>
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024260.html">[mod_python] Concurrence and virtual host interpreter python
+</A></li>
+	<LI>Next message: <A HREF="024256.html">[mod_python] PSP returning empty result
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24262">[ date ]</a>
+              <a href="thread.html#24262">[ thread ]</a>
+              <a href="subject.html#24262">[ subject ]</a>
+              <a href="author.html#24262">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

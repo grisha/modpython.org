@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] External connections in mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20External%20connections%20in%20mod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020803.html">
+   <LINK REL="Next"  HREF="020805.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] External connections in mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20External%20connections%20in%20mod_python&In-Reply-To="
+       TITLE="[mod_python] External connections in mod_python">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Apr  6 23:29:33 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020803.html">[mod_python] External connections in mod_python
+</A></li>
+        <LI>Next message: <A HREF="020805.html">[mod_python] apr_socketaddr_port_get
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20804">[ date ]</a>
+              <a href="thread.html#20804">[ thread ]</a>
+              <a href="subject.html#20804">[ subject ]</a>
+              <a href="author.html#20804">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I am not sure that what you are trying to do would work anyway.
+
+You seem to create threads within the context of a request where
+the threads could live beyond when the handler returns, yet the
+threads then write back to the req object whose Apache internals
+by that point may have been destroyed which thus could result
+in a crash.
+
+How are you sure that the line you quote is where it crashes?
+
+Perhaps you can explain what you are trying to do rather than us
+decipher the code.
+
+Graham
+
+Blake Householder wrote ..
+&gt;<i> I have a bit of code that's trying to access google from a mod_python
+</I>&gt;<i> request handler, and it crashes Apache when it reaches the line
+</I>&gt;<i> 
+</I>&gt;<i> response = opener.open(self.url)
+</I>&gt;<i> 
+</I>&gt;<i> Is it possible to connect to external sites from Apache in this manner,
+</I>&gt;<i> or
+</I>&gt;<i> should I just give up and use PHP?
+</I>&gt;<i> 
+</I>&gt;<i> import httplib, profile, pstats, re, sys, thread, threading, urllib2
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> from BeautifulSoup import BeautifulSoup
+</I>&gt;<i> 
+</I>&gt;<i> MAXCONNECTIONS = 2
+</I>&gt;<i> MAXRESULTS = 10
+</I>&gt;<i> 
+</I>&gt;<i> class PageGrabber(threading.Thread):
+</I>&gt;<i>     connectionPool = threading.Semaphore(MAXCONNECTIONS)
+</I>&gt;<i>     outputSemaphore = threading.Semaphore()
+</I>&gt;<i> 
+</I>&gt;<i>     def __init__(self, url, req):
+</I>&gt;<i>         self.url = url
+</I>&gt;<i>         self.req = req
+</I>&gt;<i>         threading.Thread.__init__(self)
+</I>&gt;<i> 
+</I>&gt;<i>     def run(self):
+</I>&gt;<i>         opener = urllib2.build_opener()
+</I>&gt;<i>         opener.addheaders = [('User-agent', 'Mozilla/5.0')]
+</I>&gt;<i>         try:
+</I>&gt;<i>             PageGrabber.connectionPool.acquire()
+</I>&gt;<i>             response = opener.open(self.url)
+</I>&gt;<i>             PageGrabber.connectionPool.release()
+</I>&gt;<i>             soup = BeautifulSoup(response)
+</I>&gt;<i>             PageGrabber.outputSemaphore.acquire()
+</I>&gt;<i>             #strip google cache header stuff
+</I>&gt;<i>             cutPage = re.split('&lt;hr&gt;|&lt;hr /&gt;', str(soup), 1)
+</I>&gt;<i>             strippedPage = cutPage[1]
+</I>&gt;<i>             #split into words
+</I>&gt;<i>             wordList = re.split('\t|\n|
+</I>&gt;<i> |&lt;.*?&gt;|\r|&lt;!--|--&gt;|&amp;nbsp;|,|&amp;quot;|&amp;lt;|&amp;gt;|\?|!|:|\*|\.|\[|\]|\(|\)|\'|\-|&quot;|=|/|&lt;|&gt;|\+|&amp;|@|#',
+</I>&gt;<i> str(strippedPage))
+</I>&gt;<i>             #print only nonzero words
+</I>&gt;<i>             for word in wordList:
+</I>&gt;<i>                 if len(word) &gt; 0:
+</I>&gt;<i>                     self.req.write(word + ' / ')
+</I>&gt;<i>             PageGrabber.outputSemaphore.release()
+</I>&gt;<i>         except Exception:
+</I>&gt;<i>             print 'timed out'
+</I>&gt;<i>         return
+</I>&gt;<i> 
+</I>&gt;<i> def main(req):
+</I>&gt;<i>     opener = urllib2.build_opener()
+</I>&gt;<i>     opener.addheaders = [('User-agent', 'Mozilla/5.0')]
+</I>&gt;<i>     searchTerms = ['python']
+</I>&gt;<i>     if len(searchTerms) &gt; 1:
+</I>&gt;<i>         searchString = '+'.join(searchTerms)
+</I>&gt;<i>     else:
+</I>&gt;<i>         searchString = searchTerms[0]
+</I>&gt;<i>     response = opener.open('<A HREF="http://www.google.com/search?num='">http://www.google.com/search?num='</A> +
+</I>&gt;<i> str(MAXRESULTS) +'&amp;q=' + searchString)
+</I>&gt;<i> 
+</I>&gt;<i>     soup = BeautifulSoup(response)
+</I>&gt;<i>     cachedURLs = []
+</I>&gt;<i>     #extract cache urls
+</I>&gt;<i>     for result in soup('a'):
+</I>&gt;<i>         if re.search('q=cache', result['href']):
+</I>&gt;<i>             cachedURLs.append(result['href'])
+</I>&gt;<i> 
+</I>&gt;<i>     #start threads to pull down cached data
+</I>&gt;<i>     for cachedURL in cachedURLs:
+</I>&gt;<i>         #use google's image strip thingie
+</I>&gt;<i>         stripURL = cachedURL + '&amp;strip=1'
+</I>&gt;<i>         PageGrabber(stripURL, req).start()
+</I>&gt;<i> 
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>     req.content_type = 'text/plain'
+</I>&gt;<i>     main(req)
+</I>&gt;<i>     return apache.OK
+</I></PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020803.html">[mod_python] External connections in mod_python
+</A></li>
+	<LI>Next message: <A HREF="020805.html">[mod_python] apr_socketaddr_port_get
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20804">[ date ]</a>
+              <a href="thread.html#20804">[ thread ]</a>
+              <a href="subject.html#20804">[ subject ]</a>
+              <a href="author.html#20804">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

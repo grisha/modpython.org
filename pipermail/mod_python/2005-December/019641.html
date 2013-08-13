@@ -1,0 +1,195 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] returning errors from python handler and
+	ErrorDocument
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20returning%20errors%20from%20python%20handler%20and%0A%09ErrorDocument&In-Reply-To=0F56EF57-484A-45E5-AC25-3B8339401661%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019640.html">
+   <LINK REL="Next"  HREF="019724.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] returning errors from python handler and
+	ErrorDocument</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martin _</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20returning%20errors%20from%20python%20handler%20and%0A%09ErrorDocument&In-Reply-To=0F56EF57-484A-45E5-AC25-3B8339401661%40dscpl.com.au"
+       TITLE="[mod_python] returning errors from python handler and
+	ErrorDocument">gzlist at googlemail.com
+       </A><BR>
+    <I>Thu Dec  1 01:17:47 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019640.html">[mod_python] ANNOUNCE: Mod_python 3.2.5 Beta
+</A></li>
+        <LI>Next message: <A HREF="019724.html">[mod_python] returning errors from python handler and
+	ErrorDocument
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19641">[ date ]</a>
+              <a href="thread.html#19641">[ thread ]</a>
+              <a href="subject.html#19641">[ subject ]</a>
+              <a href="author.html#19641">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I like the idea, unfortunately it seems to suffer from the same
+problem - the file is created, status is 200 as it leaves the python,
+but ends up as a 404, and a browser refresh is needed to fetch the
+content. Even bumping up the pre-check to HeaderParserHandler had the
+same problem, which makes me wonder if apache has already decided if
+the file exists or not when it resolves the filename, and doesn't look
+again... but then I don't quite understand why it doesn't set the 404
+then. Or maybe the file isn't created 'enough', or there's some kinda
+race condition... I don't know. As the file is created literally with:
+if not os.path.isfile(req.filename):
+    fi = file(req.filename, mode='wb')
+    ## etc ##
+it really should be finding the file if it looks...
+
+Martin
+
+On 11/28/05, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+&gt;<i> My guess is that once the content handler phase has been executed,
+</I>&gt;<i> or logically passed, that you have no chance of changing what the return
+</I>&gt;<i> status is. Thus, since for an ErrorDocument directive it is only applied
+</I>&gt;<i> after the content handler phase of the first attempt has been passed,
+</I>&gt;<i> whether that is for a mod_python content handler or an inbuilt static
+</I>&gt;<i> Apache handler for serving static files, you will not be able to do it.
+</I>&gt;<i>
+</I>&gt;<i> What you instead need to do is to try and detect the condition of a
+</I>&gt;<i> missing
+</I>&gt;<i> file before the content handler phase is executed. To do that, setup a
+</I>&gt;<i> PythonFixupHandler. Eg:
+</I>&gt;<i>
+</I>&gt;<i>    &lt;Directory &quot;D:/website/search&quot;&gt;
+</I>&gt;<i>    PythonFixupHandler check_for_missing_target
+</I>&gt;<i>    &lt;/Directory&gt;
+</I>&gt;<i>
+</I>&gt;<i> This should be done for the search directory. You DO NOT not need to
+</I>&gt;<i> specify any corresponding SetHandler/AddHandler directive as they
+</I>&gt;<i> are only relevant to PythonHandler directive and not the other phase
+</I>&gt;<i> directives.
+</I>&gt;<i>
+</I>&gt;<i> What will happen now is that for any request received, it will be routed
+</I>&gt;<i> through the function &quot;fixuphandler&quot; within the specified module. In that
+</I>&gt;<i> module, you could check for the existance of the target. If it doesn't
+</I>&gt;<i> exist, then create it:
+</I>&gt;<i>
+</I>&gt;<i>    # check_for_missing_target.py (module)
+</I>&gt;<i>
+</I>&gt;<i>    def fixuphandler(req):
+</I>&gt;<i>      if target is missing:
+</I>&gt;<i>        create target of request
+</I>&gt;<i>      return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> With the target now existing, the content handler phase when applied
+</I>&gt;<i> will
+</I>&gt;<i> possibly be able to find it. I say possibly, as I don't know what you
+</I>&gt;<i> are
+</I>&gt;<i> serving up and other issues such as Apache's URL matching algorithms
+</I>&gt;<i> may come into play. You may need to actually adjust req.filename to
+</I>&gt;<i> undo some of what Apache has done.
+</I>&gt;<i>
+</I>&gt;<i> Anyway, hope that gives you some ideas to play with.
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> On 28/11/2005, at 9:27 AM, Martin _ wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; In a related query to this one, is it possible to undo a raised
+</I>&gt;<i> &gt; http error? I've not had much luck in sending 404s to a script that
+</I>&gt;<i> &gt; then creates the resource asked for and bounces apache back to try
+</I>&gt;<i> &gt; again from the start, the 404 sticks despite my best attempts to
+</I>&gt;<i> &gt; overwrite it with a 200:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; # httpd.conf
+</I>&gt;<i> &gt; &lt;Directory &quot;D:/website/search&quot;&gt;
+</I>&gt;<i> &gt;         ErrorDocument 404 /py/404.xml
+</I>&gt;<i> &gt; &lt;/Directory&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &lt;Directory &quot;D:/website/py&quot;&gt;
+</I>&gt;<i> &gt;         AddHandler mod_python .xml
+</I>&gt;<i> &gt;         PythonHandler index
+</I>&gt;<i> &gt; &lt;/Directory&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; # D:/website/py/index.py
+</I>&gt;<i> &gt; def handler(req):
+</I>&gt;<i> &gt;         if not req.prev:
+</I>&gt;<i> &gt;                 return apache.HTTP_FORBIDDEN
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;         ## create relevant resource here ##
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;         # doesn't help # req.prev.state = apache.HTTP_OK
+</I>&gt;<i> &gt;         # doesn't help # req.state = apache.HTTP_OK
+</I>&gt;<i> &gt;         req.internal_redirect(req.prev.unparsed_uri)
+</I>&gt;<i> &gt;         # doesn't help # req.next.state = apache.HTTP_OK
+</I>&gt;<i> &gt;         # doesn't help # raise apache.SERVER_RETURN, apache.HTTP_OK
+</I>&gt;<i> &gt;         return apache.OK
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'm open to complete rethinks here, this doesn't strike me as
+</I>&gt;<i> &gt; optimal, as the few requests that don't want existing resources
+</I>&gt;<i> &gt; will go through three independant handlers, but for requirements:
+</I>&gt;<i> &gt; -I want to serve static content, even if it's generated because of
+</I>&gt;<i> &gt; that request, as static content, not mod_python created chunked output
+</I>&gt;<i> &gt; -I want to keep all python stuff in that /py/ dir, rather than
+</I>&gt;<i> &gt; scattering scripts all over the tree
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Any wise thoughts gratefully received,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Martin
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019640.html">[mod_python] ANNOUNCE: Mod_python 3.2.5 Beta
+</A></li>
+	<LI>Next message: <A HREF="019724.html">[mod_python] returning errors from python handler and
+	ErrorDocument
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19641">[ date ]</a>
+              <a href="thread.html#19641">[ thread ]</a>
+              <a href="subject.html#19641">[ subject ]</a>
+              <a href="author.html#19641">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

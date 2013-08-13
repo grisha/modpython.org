@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] how to make fallback authentication
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20to%20make%20fallback%20authentication&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020333.html">
+   <LINK REL="Next"  HREF="020335.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] how to make fallback authentication</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20how%20to%20make%20fallback%20authentication&In-Reply-To="
+       TITLE="[mod_python] how to make fallback authentication">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Feb 17 00:14:43 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020333.html">[mod_python] High traffic recommendations
+</A></li>
+        <LI>Next message: <A HREF="020335.html">[mod_python] PSP TypeError: cannot concatenate 'str' and 'instance'
+	objects
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20334">[ date ]</a>
+              <a href="thread.html#20334">[ thread ]</a>
+              <a href="subject.html#20334">[ subject ]</a>
+              <a href="author.html#20334">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Deron Meranda wrote ..
+&gt;<i> Implementing HTTP BASIC is actually pretty straight forward.
+</I>&gt;<i> Read <A HREF="http://www.faqs.org/rfcs/rfc2617.html">http://www.faqs.org/rfcs/rfc2617.html</A> -- you can ignore
+</I>&gt;<i> all the Proxy stuff if you're not trying to write a proxy server.
+</I>&gt;<i> The general strategy is to look for the &quot;Authorization&quot;
+</I>&gt;<i> input header.  If it's there, decode it (check that the scheme
+</I>&gt;<i> is &quot;BASIC&quot; (case-insensitive) then base64-decode the
+</I>&gt;<i> username:password).  Then validate the username and password
+</I>&gt;<i> by whatever means you want.
+</I>&gt;<i> 
+</I>&gt;<i> If there is no Authorization header, or it is not valid, then you
+</I>&gt;<i> need to return an HTTP 401; and also insure you also output
+</I>&gt;<i> an WWW-Authenticate response header.
+</I>
+Code for basic authentication included down below as drawn from my own
+library of play stuff. Haven't had a chance to put something together to
+properly show how to use it in original posters example, but can be
+adapted by simply creating instance of BasicAuthentication class with
+appropriate parameters and then using instance as callable object.
+
+  realm = &quot;Disney Land&quot;
+  userdb = { &quot;mickey&quot;: &quot;mouse&quot; }
+
+  authenticator = BasicAuthentication(realm,userdb)
+
+  authenticator(req)
+
+  if req.user:
+    # was able to autheticate okay
+    ....
+
+Code for BasicAuthentication is then as follows. I hope it still runs, I have
+not used/tested this in a while.
+
+class BasicAuthentication:
+
+    def __init__(self,realm,auth,access=None):
+        self.__realm = realm
+        self.__auth = auth
+        self.__access = access
+
+    def __call__(self,req):
+
+        user = None
+        passwd = None
+
+        if req.headers_in.has_key('Authorization'):
+            try:
+                header = req.headers_in['Authorization']
+                scheme,credentials = header.split(None,1)
+                credentials = credentials.strip()
+
+                scheme = scheme.lower()
+                if scheme == 'basic':
+                    credentials = base64.decodestring(credentials)
+                    user,passwd = string.split(credentials,':',1)
+                else:
+                    raise apache.SERVER_RETURN, apache.HTTP_BAD_REQUEST
+            except:
+                raise apache.SERVER_RETURN, apache.HTTP_BAD_REQUEST
+
+        if self.__realm is None:
+            raise apache.SERVER_RETURN, apache.HTTP_INTERNAL_SERVER_ERROR
+
+        if not user:
+            s = 'Basic realm=&quot;%s&quot;' % self.__realm
+            req.err_headers_out['WWW-Authenticate'] = s
+            raise apache.SERVER_RETURN, apache.HTTP_UNAUTHORIZED
+
+        if callable(self.__auth):
+            result = self.__auth(req,user,passwd)
+        else:
+            if type(self.__auth) is types.DictionaryType:
+                result = self.__auth.has_key(user) and \
+                        self.__auth[user] == passwd
+            else:
+                result = self.__auth
+
+        if not result:
+            s = 'Basic realm=&quot;%s&quot;' % self.__realm
+            req.err_headers_out['WWW-Authenticate'] = s
+            raise apache.SERVER_RETURN, apache.HTTP_UNAUTHORIZED
+
+        if self.__access is not None:
+
+            if callable(self.__access):
+                result = self.__access(req,user)
+            else:
+                if type(self.__access) in (types.ListType,types.TupleType):
+                    result = user in self.__access
+                else:
+                    result = self.__access
+
+	# If access check failed, and authentication was
+	# performed with actual user details being
+	# checked, as opposed to any user being allowed,
+	# must provide ability to reauthenticate with a
+	# different user and not just return forbidden.
+
+        if not result:
+            if self.__auth is not None and (callable(self.__auth) or \
+                    type(self.__auth) == types.DictionaryType):
+                s = 'Basic realm=&quot;%s&quot;' % self.__realm
+                req.err_headers_out['WWW-Authenticate'] = s
+                raise apache.SERVER_RETURN, apache.HTTP_UNAUTHORIZED
+            else:
+                raise apache.SERVER_RETURN, apache.HTTP_FORBIDDEN
+
+        req.user = user
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020333.html">[mod_python] High traffic recommendations
+</A></li>
+	<LI>Next message: <A HREF="020335.html">[mod_python] PSP TypeError: cannot concatenate 'str' and 'instance'
+	objects
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20334">[ date ]</a>
+              <a href="thread.html#20334">[ thread ]</a>
+              <a href="subject.html#20334">[ subject ]</a>
+              <a href="author.html#20334">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

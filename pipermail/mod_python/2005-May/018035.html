@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python session trouble
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20session%20trouble&In-Reply-To=1115703135.408.24.camel%40cm61-10-50-104.hkcable.com.hk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018033.html">
+   <LINK REL="Next"  HREF="018037.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python session trouble</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20session%20trouble&In-Reply-To=1115703135.408.24.camel%40cm61-10-50-104.hkcable.com.hk"
+       TITLE="[mod_python] mod_python session trouble">jg.lists at sympatico.ca
+       </A><BR>
+    <I>Tue May 10 02:01:32 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018033.html">[mod_python] mod_python session trouble
+</A></li>
+        <LI>Next message: <A HREF="018037.html">[mod_python] mod_python session trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18035">[ date ]</a>
+              <a href="thread.html#18035">[ thread ]</a>
+              <a href="subject.html#18035">[ subject ]</a>
+              <a href="author.html#18035">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Wouter van Marle wrote:
+&gt;<i> Hi all,
+</I>&gt;<i> 
+</I>&gt;<i> Recently I started experimenting with mod_python and the Session module. 
+</I>&gt;<i> I run into a very serious problem (tested in both Mozilla/Linux and 
+</I>&gt;<i> Safari/Mac), which appears to be a server side problem, in the 
+</I>&gt;<i> interaction of mod_python with Apache.
+</I>&gt;<i> Description:
+</I>&gt;<i> I open a session using sess=Session.Session(req).
+</I>&gt;<i> When trying to load the same page (with session) again, it goes fine for 
+</I>&gt;<i> no more than about five times (sometimes not at all), and after that the 
+</I>&gt;<i> page hangs: waiting for response from server. I have noticed that there 
+</I>&gt;<i> are many new apache processes created, one for every attempted reload.
+</I>&gt;<i> Restarting the server (service httpd restart) fixes the problem. 
+</I>&gt;<i> Switching off cookies in the browser also solves this problem, though it 
+</I>&gt;<i> of course also prevents session tracking and storage.
+</I>&gt;<i> 
+</I>&gt;<i> Software:
+</I>&gt;<i> - Apache 2.0.50-5mdk (installed from Mandrake rpm)
+</I>&gt;<i> - Python 2.3.4-6mdk
+</I>&gt;<i> - mod_python 3.2.3 (rpm name: apache2-mod_python-2.0.50_3.1.3-1mdk)
+</I>&gt;<i> 
+</I>&gt;<i> Anyone having the same problem? Any solutions?
+</I>&gt;<i> Instead of sessions I've tried to use cookies, but info is only really 
+</I>&gt;<i> updated after the page is refreshed from the browser! I can set a cookie 
+</I>&gt;<i> and when re-reading it immediate after it is still the old info. So 
+</I>&gt;<i> that's also not a great solution.
+</I>&gt;<i> 
+</I>&gt;<i> Wouter.
+</I>
+Hi Wouter,
+
+This looks like a problem with session locking, which is the default 
+when creating a session. Are you creating more than one session object 
+in a request? If so you'll end up with a deadlock. For example the 
+following code will deadlock as it is really just accessing the same 
+session data:
+
+sess1 = Session.Session(req)
+sess2 - Session.Session(req)
+
+Note that if you reference a session object in both your handler code 
+and in a psp page, the psp publisher will also try to create a new 
+session object resulting in a deadlock in a similar fashion.
+
+Once a session is deadlocked, the process handling that request is 
+blocked and is unavailable to handle additional requests, which is why 
+you see the number of apache processes increasing. Eventually you'll hit 
+the limit and apache will stop responding until you restart, which 
+releases the locks being held.
+
+There are very good reasons for session locking, but it is not well 
+documented. (I'm actually working on expanding the documentation for 
+sessions which should help).
+
+Perhaps you could elaborate a little on how you are using sesisons?
+
+Regards,
+Jim
+
+
+
+
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018033.html">[mod_python] mod_python session trouble
+</A></li>
+	<LI>Next message: <A HREF="018037.html">[mod_python] mod_python session trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18035">[ date ]</a>
+              <a href="thread.html#18035">[ thread ]</a>
+              <a href="subject.html#18035">[ subject ]</a>
+              <a href="author.html#18035">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

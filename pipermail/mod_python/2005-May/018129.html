@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] feature request: psp templating returns html code
+	to calling script, not to browser.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20feature%20request%3A%20psp%20templating%20returns%20html%20code%0A%09to%20calling%20script%2C%20not%20to%20browser.&In-Reply-To=1116471488.18468.39.camel%40cm61-10-50-104.hkcable.com.hk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018128.html">
+   <LINK REL="Next"  HREF="018130.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] feature request: psp templating returns html code
+	to calling script, not to browser.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Wouter van Marle</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20feature%20request%3A%20psp%20templating%20returns%20html%20code%0A%09to%20calling%20script%2C%20not%20to%20browser.&In-Reply-To=1116471488.18468.39.camel%40cm61-10-50-104.hkcable.com.hk"
+       TITLE="[mod_python] feature request: psp templating returns html code
+	to calling script, not to browser.">wouter at squirrel-systems.com
+       </A><BR>
+    <I>Thu May 19 01:27:36 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018128.html">[mod_python] feature request: psp templating returns html code to
+	calling script, not to browser.
+</A></li>
+        <LI>Next message: <A HREF="018130.html">[mod_python] feature request: psp templating returns html codeto
+	calling script, not to browser.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18129">[ date ]</a>
+              <a href="thread.html#18129">[ thread ]</a>
+              <a href="subject.html#18129">[ subject ]</a>
+              <a href="author.html#18129">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Regarding my feature request below, I've hacked together a small piece
+of code to retrieve the raw python source, and the html result of that
+source. This code is heavily inspired by the PSP class of psp.py script
+from mod_python.
+It works for me, does not support forms and sessions (it is meant to
+produce html formatted e-mail bodies), does not support Windows (path
+names there use backslashes), and maybe more limitations.
+
+Maybe the developers are interested in adding (something like) this to
+the psp.py file?
+
+get_source produces the python source code, get_html compiles the psp
+input file to html code.
+
+Wouter.
+
+
+
+from mod_python import _psp
+
+import os
+import sys
+
+def get_source(filename):
+    dir, fname = os.path.split(filename)
+    dir += &quot;/&quot;
+    pycode = _psp.parse(fname, dir).splitlines()
+    pycode = [s.rstrip() for s in pycode]
+    for line in pycode:
+        left = line.replace(&quot;\t&quot;, &quot; &quot;*4)
+        result += left+&quot;\n&quot;
+    return result
+
+def get_html(filename, vars={}):
+    code = get_source(filename)
+    lines = code.splitlines()
+    code = 'html = &quot;&quot;\n'
+    for l in lines:
+        l = l.replace(&quot;req.write(&quot;, &quot;html +=&quot;).replace(&quot;,0)&quot;, &quot;&quot;)
+        code += l+&quot;\n&quot;
+    global_scope = globals().copy()
+    global_scope.update(vars)
+    html = &quot;&quot;
+    l = locals()
+    try:
+        exec code in global_scope, l
+    except:
+        et, ev, etb = sys.exc_info()
+        raise et, ev, etb
+    return l[&quot;html&quot;]
+
+
+
+On Thu, 2005-05-19 at 10:58 +0800, Wouter van Marle wrote:
+&gt;<i> Hi all,
+</I>&gt;<i> 
+</I>&gt;<i> Then hereby I'll make it a feature request:
+</I>&gt;<i> 
+</I>&gt;<i> I'd like to have a method to catch the html code as produced by the
+</I>&gt;<i> run() method of the psp.PSP object for use in e.g. an e-mail body,
+</I>&gt;<i> instead of having the run() method automatically pass it to the
+</I>&gt;<i> browser.
+</I>&gt;<i> 
+</I>&gt;<i> I mean: normally one does something like:
+</I>&gt;<i> page = psp.PSP(req,  &quot;template.psp&quot;)
+</I>&gt;<i> page.run({&quot;spam&quot;: 1, &quot;eggs&quot;: 5})
+</I>&gt;<i> and the page is converted to html, and displayed in the browser. I'd
+</I>&gt;<i> like to use this templating for creating an e-mail, e.g.:
+</I>&gt;<i> 
+</I>&gt;<i> page = psp.PSP(req,  &quot;template.psp&quot;)
+</I>&gt;<i> body = page.create({&quot;spam&quot;: 1, &quot;eggs&quot;: 5})
+</I>&gt;<i> 
+</I>&gt;<i> Which basically would do exactly the same as the run() module, except
+</I>&gt;<i> for having the html code as output.
+</I>&gt;<i> 
+</I>&gt;<i> Regards,
+</I>&gt;<i> Wouter van Marle 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018128.html">[mod_python] feature request: psp templating returns html code to
+	calling script, not to browser.
+</A></li>
+	<LI>Next message: <A HREF="018130.html">[mod_python] feature request: psp templating returns html codeto
+	calling script, not to browser.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18129">[ date ]</a>
+              <a href="thread.html#18129">[ thread ]</a>
+              <a href="subject.html#18129">[ subject ]</a>
+              <a href="author.html#18129">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

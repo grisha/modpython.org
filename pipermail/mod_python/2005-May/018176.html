@@ -1,0 +1,214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] apache 2.0.54 and SSLUserName
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20apache%202.0.54%20and%20SSLUserName&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018175.html">
+   <LINK REL="Next"  HREF="018227.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] apache 2.0.54 and SSLUserName</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20apache%202.0.54%20and%20SSLUserName&In-Reply-To="
+       TITLE="[mod_python] apache 2.0.54 and SSLUserName">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue May 24 21:09:06 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018175.html">[mod_python] apache 2.0.54 and SSLUserName
+</A></li>
+        <LI>Next message: <A HREF="018227.html">[mod_python] apache 2.0.54 and SSLUserName
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18176">[ date ]</a>
+              <a href="thread.html#18176">[ thread ]</a>
+              <a href="subject.html#18176">[ subject ]</a>
+              <a href="author.html#18176">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Eric Jonas wrote ..
+&gt;<i> &gt; Not a solution, but try a handler:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; def handler(req):
+</I>&gt;<i> &gt;   req.add_common_vars()
+</I>&gt;<i> &gt;   req.content_type = &quot;text/plain&quot;
+</I>&gt;<i> &gt;   req.send_http_header()
+</I>&gt;<i> &gt;   for name in req.subprocess_env.keys():
+</I>&gt;<i> &gt;     print &gt;&gt; req, name, req.subprocess_env[name]
+</I>&gt;<i> &gt;   return apache.OK
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; You might find that the specific bit of information you are after is
+</I>&gt;<i> in one of
+</I>&gt;<i> &gt; the SSL variables which are populated into the req.subprocess_env table
+</I>&gt;<i> &gt; thus giving you an alternate way of finding it.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Alas, I still get:
+</I>&gt;<i> 
+</I>&gt;<i> REMOTE_PORT 33059
+</I>&gt;<i> REMOTE_USER /C=US/ST=Massachusetts/O=Massachusetts Institute of
+</I>&gt;<i> Technology/OU=Client CA v1/CN=Eric M Jonas/emailAddress=<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jonas at MIT.EDU</A>
+</I>&gt;<i> AUTH_TYPE Basic
+</I>
+These aren't the variables I am thinking of. If the handler is executed as
+a content handler (not earlier phases) and mod_ssl is being used, there
+should be a host of &quot;SSL_*&quot; variables available. The list is at the end of
+this email. It is these variables I was suggesting may have just the specific
+bit you want as a separate item.
+
+Unfortunately, if you are trying to get the information in a authhandler
+you will not have access to them as they are only populated by the SSL
+fixup handler. There is also no gaurantee that the SSL fixuphandler is
+run before a mod_python fixuphandler, so you can't even attempt to
+access it from the mod_python fixuphandler.
+
+This issue was recently talked about on the mailing list so you may want
+to review the discussion in the mailing list archive, starting with:
+
+  <A HREF="http://www.modpython.org/pipermail/mod_python/2005-May/018157.html">http://www.modpython.org/pipermail/mod_python/2005-May/018157.html</A>
+  <A HREF="http://www.modpython.org/pipermail/mod_python/2005-May/018163.html">http://www.modpython.org/pipermail/mod_python/2005-May/018163.html</A>
+  <A HREF="http://www.modpython.org/pipermail/mod_python/2005-May/018163.html">http://www.modpython.org/pipermail/mod_python/2005-May/018163.html</A>
+
+In the last quoted message I posted code (untested), that may allow you
+to access all these SSL variables from an earlier handler than the content
+handler. if you needed to do it from the authhandler. The URLs for the
+attachments are broken though. I think those which will work are:
+
+  <A HREF="http://www.modpython.org/pipermail/mod_python/attachments/20050523/9fa0275b/_mp_mod_ssl.obj">http://www.modpython.org/pipermail/mod_python/attachments/20050523/9fa0275b/_mp_mod_ssl.obj</A>
+  <A HREF="http://www.modpython.org/pipermail/mod_python/attachments/20050523/9fa0275b/setup.obj">http://www.modpython.org/pipermail/mod_python/attachments/20050523/9fa0275b/setup.obj</A>
+
+If they don't, let me know and will send files to you.
+
+Anyway, this is on the basis that you are in fact relying on mod_ssl.
+
+Below are all the SSL variables.
+
+static const char *ssl_hook_Fixup_vars[] = {
+    &quot;SSL_VERSION_INTERFACE&quot;,
+    &quot;SSL_VERSION_LIBRARY&quot;,
+    &quot;SSL_PROTOCOL&quot;,
+    &quot;SSL_CIPHER&quot;,
+    &quot;SSL_CIPHER_EXPORT&quot;,
+    &quot;SSL_CIPHER_USEKEYSIZE&quot;,
+    &quot;SSL_CIPHER_ALGKEYSIZE&quot;,
+    &quot;SSL_CLIENT_VERIFY&quot;,
+    &quot;SSL_CLIENT_M_VERSION&quot;,
+    &quot;SSL_CLIENT_M_SERIAL&quot;,
+    &quot;SSL_CLIENT_V_START&quot;,
+    &quot;SSL_CLIENT_V_END&quot;,
+    &quot;SSL_CLIENT_S_DN&quot;,
+    &quot;SSL_CLIENT_S_DN_C&quot;,
+    &quot;SSL_CLIENT_S_DN_ST&quot;,
+    &quot;SSL_CLIENT_S_DN_L&quot;,
+    &quot;SSL_CLIENT_S_DN_O&quot;,
+    &quot;SSL_CLIENT_S_DN_OU&quot;,
+    &quot;SSL_CLIENT_S_DN_CN&quot;,
+    &quot;SSL_CLIENT_S_DN_T&quot;,
+    &quot;SSL_CLIENT_S_DN_I&quot;,
+    &quot;SSL_CLIENT_S_DN_G&quot;,
+    &quot;SSL_CLIENT_S_DN_S&quot;,
+    &quot;SSL_CLIENT_S_DN_D&quot;,
+    &quot;SSL_CLIENT_S_DN_UID&quot;,
+    &quot;SSL_CLIENT_S_DN_Email&quot;,
+    &quot;SSL_CLIENT_I_DN&quot;,
+    &quot;SSL_CLIENT_I_DN_C&quot;,
+    &quot;SSL_CLIENT_I_DN_ST&quot;,
+    &quot;SSL_CLIENT_I_DN_L&quot;,
+    &quot;SSL_CLIENT_I_DN_O&quot;,
+    &quot;SSL_CLIENT_I_DN_OU&quot;,
+    &quot;SSL_CLIENT_I_DN_CN&quot;,
+    &quot;SSL_CLIENT_I_DN_T&quot;,
+    &quot;SSL_CLIENT_I_DN_I&quot;,
+    &quot;SSL_CLIENT_I_DN_G&quot;,
+    &quot;SSL_CLIENT_I_DN_S&quot;,
+    &quot;SSL_CLIENT_I_DN_D&quot;,
+    &quot;SSL_CLIENT_I_DN_UID&quot;,
+    &quot;SSL_CLIENT_I_DN_Email&quot;,
+    &quot;SSL_CLIENT_A_KEY&quot;,
+    &quot;SSL_CLIENT_A_SIG&quot;,
+    &quot;SSL_SERVER_M_VERSION&quot;,
+    &quot;SSL_SERVER_M_SERIAL&quot;,
+    &quot;SSL_SERVER_V_START&quot;,
+    &quot;SSL_SERVER_V_END&quot;,
+    &quot;SSL_SERVER_S_DN&quot;,
+    &quot;SSL_SERVER_S_DN_C&quot;,
+    &quot;SSL_SERVER_S_DN_ST&quot;,
+    &quot;SSL_SERVER_S_DN_L&quot;,
+    &quot;SSL_SERVER_S_DN_O&quot;,
+    &quot;SSL_SERVER_S_DN_OU&quot;,
+    &quot;SSL_SERVER_S_DN_CN&quot;,
+    &quot;SSL_SERVER_S_DN_T&quot;,
+    &quot;SSL_SERVER_S_DN_I&quot;,
+    &quot;SSL_SERVER_S_DN_G&quot;,
+    &quot;SSL_SERVER_S_DN_S&quot;,
+    &quot;SSL_SERVER_S_DN_D&quot;,
+    &quot;SSL_SERVER_S_DN_UID&quot;,
+    &quot;SSL_SERVER_S_DN_Email&quot;,
+    &quot;SSL_SERVER_I_DN&quot;,
+    &quot;SSL_SERVER_I_DN_C&quot;,
+    &quot;SSL_SERVER_I_DN_ST&quot;,
+    &quot;SSL_SERVER_I_DN_L&quot;,
+    &quot;SSL_SERVER_I_DN_O&quot;,
+    &quot;SSL_SERVER_I_DN_OU&quot;,
+    &quot;SSL_SERVER_I_DN_CN&quot;,
+    &quot;SSL_SERVER_I_DN_T&quot;,
+    &quot;SSL_SERVER_I_DN_I&quot;,
+    &quot;SSL_SERVER_I_DN_G&quot;,
+    &quot;SSL_SERVER_I_DN_S&quot;,
+    &quot;SSL_SERVER_I_DN_D&quot;,
+    &quot;SSL_SERVER_I_DN_UID&quot;,
+    &quot;SSL_SERVER_I_DN_Email&quot;,
+    &quot;SSL_SERVER_A_KEY&quot;,
+    &quot;SSL_SERVER_A_SIG&quot;,
+    &quot;SSL_SESSION_ID&quot;,
+    NULL
+};
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018175.html">[mod_python] apache 2.0.54 and SSLUserName
+</A></li>
+	<LI>Next message: <A HREF="018227.html">[mod_python] apache 2.0.54 and SSLUserName
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18176">[ date ]</a>
+              <a href="thread.html#18176">[ thread ]</a>
+              <a href="subject.html#18176">[ subject ]</a>
+              <a href="author.html#18176">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

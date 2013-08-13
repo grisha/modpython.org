@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] session and psp (Was This is just friggin' weird...)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20session%20and%20psp%20%28Was%20This%20is%20just%20friggin%27%20weird...%29&In-Reply-To=fc86463d832afeb02b8e0131bcc5f1f0%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018492.html">
+   <LINK REL="Next"  HREF="018497.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] session and psp (Was This is just friggin' weird...)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20session%20and%20psp%20%28Was%20This%20is%20just%20friggin%27%20weird...%29&In-Reply-To=fc86463d832afeb02b8e0131bcc5f1f0%40dscpl.com.au"
+       TITLE="[mod_python] session and psp (Was This is just friggin' weird...)">jg.lists at sympatico.ca
+       </A><BR>
+    <I>Fri Jun 24 11:33:53 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018492.html">[mod_python] This is just friggin' weird...
+</A></li>
+        <LI>Next message: <A HREF="018497.html">[mod_python] session and psp (Was This is just friggin' weird...)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18496">[ date ]</a>
+              <a href="thread.html#18496">[ thread ]</a>
+              <a href="subject.html#18496">[ subject ]</a>
+              <a href="author.html#18496">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> 
+</I>&gt;<i> On 24/06/2005, at 10:36 PM, Jim Gallacher wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;<i> And misses these issues:
+</I>&gt;&gt;<i> 3. Should the session automatically be saved in psp run()?
+</I>&gt;&gt;<i>    Yes: - it's the current behavoiur
+</I>&gt;&gt;<i>         - using sessions with psp pages is transparent
+</I>&gt;&gt;<i>         - the user does not need to remember to do this
+</I>&gt;&gt;<i>    No:  - the code monkey has less control over their application
+</I>&gt;&gt;<i>         - ?
+</I>&gt;&gt;<i>    Maybe we just need a attribute in the session to enable/disable 
+</I>&gt;&gt;<i> saving? Default would be to save the session.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 4. Should the session be unlocked in psp run()?
+</I>&gt;&gt;<i>    Yes: - it's the current behavoiur
+</I>&gt;&gt;<i>    No:  - since we are now passing around the session instance with 
+</I>&gt;&gt;<i> the request, the session will be unlocked when the request is completed.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Am not suggesting that the behaviour of PSP object be changed for where it
+</I>&gt;<i> is triggered from mod_python.psp, that would stay the same to ensure
+</I>&gt;<i> compatibility. Am thinking more about the situation where someone is
+</I>&gt;<i> using PSP object explicitly from a publisher handler to render HTML.
+</I>&gt;<i> 
+</I>&gt;<i> As it stands at the moment, if publisher code created a session object
+</I>&gt;<i> and the PSP page accesses &quot;session&quot;, you will get a deadlock. This means
+</I>&gt;<i> that in practice no one is doing this at the moment. Thus, one could have:
+</I>&gt;<i> 
+</I>&gt;<i>         session = None
+</I>&gt;<i>         session_created = False
+</I>&gt;<i>         if &quot;session&quot; in code.co_names:
+</I>&gt;<i>             if not hasattr(req,&quot;session&quot;) or req.session is None:
+</I>&gt;<i>                 session_created = True
+</I>&gt;<i>             session = req.get_session()
+</I>&gt;<i> 
+</I>&gt;<i>         ....
+</I>&gt;<i> 
+</I>&gt;<i>                 if session is not None and session_created:
+</I>&gt;<i>                     session.save()
+</I>&gt;<i> 
+</I>&gt;<i>         finally:
+</I>&gt;<i>             if session is not None and session_created:
+</I>&gt;<i>                     session.unlock()
+</I>&gt;<i> 
+</I>&gt;<i> In other words, if created by PSP object, still save it and unlock it.
+</I>&gt;<i> If created externally, assume that code that triggered creation of it
+</I>&gt;<i> will also ensure it is saved as well and unlock if appropriate.
+</I>
+Makes sense. There is still a problem where a user is keeping a 
+reference to their session in the request object but using a name other 
+than session as the key. eg. req.sess = Session.Session(). Oops, 
+deadlock. No easy solution to that other than documenting it.
+
+&gt;<i> Only problem with this is that req.get_session() hides the real session
+</I>&gt;<i> object and there isn't a way to tell if it has already been created.
+</I>&gt;<i> Ie., above assumes that &quot;session&quot; attribute stores the Session object
+</I>&gt;<i> instance or provides access to it which doesn't current occur.
+</I>&gt;<i> Thus, you might want to consider adding to request_rec_mbrs a hook for
+</I>&gt;<i> getting access to the session object so one can tell if it has already been
+</I>&gt;<i> created, or have a member function that can be called to query whether
+</I>&gt;<i> session exists yet.
+</I>
+I had considered using getreq_recmbr/setreq_recmbr for managing sessions 
+but rejected it because of concern about breaking existing user code. It 
+may seem obvious that people would only save a session instance in 
+something called req.session, but I'm never suprised by the strange 
+things people do. You just know that someone is using req.session for 
+something else, like the session id, or their mother's maiden name.
+
+I do see a need for a way to test of the existence of a session with 
+something like req.session_exists(). Go too far done that road though 
+and we end up with get_session, set_sesssion and session_exists methods, 
+which is becoming rather ugly. What I really need to do is put together 
+a document which outlines the goals for the new session management 
+mechanism, and throw it out there for a wider discussion. The code to 
+handle all this is pretty simple, so it won't really delay the release 
+of 3.2 if changes are required.
+
+Regards,
+Jim
+
+
+
+
+
+
+
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018492.html">[mod_python] This is just friggin' weird...
+</A></li>
+	<LI>Next message: <A HREF="018497.html">[mod_python] session and psp (Was This is just friggin' weird...)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18496">[ date ]</a>
+              <a href="thread.html#18496">[ thread ]</a>
+              <a href="subject.html#18496">[ subject ]</a>
+              <a href="author.html#18496">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

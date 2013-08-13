@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Sessions and problems with cookie path attribute
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20and%20problems%20with%20cookie%20path%20attribute&In-Reply-To=16355.28225.866414.517954%40gargle.gargle.HOWL">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010968.html">
+   <LINK REL="Next"  HREF="010964.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] Sessions and problems with cookie path attribute</H1>
+    <B>Daniel J. Popowich</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20and%20problems%20with%20cookie%20path%20attribute&In-Reply-To=16355.28225.866414.517954%40gargle.gargle.HOWL"
+       TITLE="[mod_python] Sessions and problems with cookie path attribute">dpopowich at mtrsd.k12.ma.us
+       </A><BR>
+    <I>Mon Dec 22 11:02:45 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010968.html">[mod_python] Sessions and problems with cookie path attribute
+</A></li>
+        <LI>Next message: <A HREF="010964.html">[mod_python] newbie
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10973">[ date ]</a>
+              <a href="thread.html#10973">[ thread ]</a>
+              <a href="subject.html#10973">[ subject ]</a>
+              <a href="author.html#10973">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+&gt;<i> I had a serious problem getting sessions to work with an app I'm
+</I>&gt;<i> writing (modpython 3.1.2b, httpd-2.0.40, python 2.3.2) and after
+</I>&gt;<i> browsing the archives I've seen others getting bitten by the same
+</I>&gt;<i> problem...
+</I>&gt;<i> 
+</I>&gt;<i> Session ids are stored on the client as a cookie with name pysid.
+</I>&gt;<i> This is fine and the cookie gets stored, but the path attribute can
+</I>&gt;<i> get badly mangled by the code in Session.BaseSession.make_cookie(), in
+</I>&gt;<i> particular, this section:
+</I>&gt;<i> 
+</I>&gt;<i>         if config.has_key(&quot;ApplicationPath&quot;):
+</I>&gt;<i>             c.path = config[&quot;ApplicationPath&quot;]
+</I>&gt;<i>         else:
+</I>&gt;<i>             docroot = self._req.document_root()
+</I>&gt;<i>             # the path where *Handler directive was specified
+</I>&gt;<i>             dirpath = self._req.hlist.directory 
+</I>&gt;<i>             c.path = dirpath[len(docroot):]
+</I>&gt;<i> 
+</I>&gt;<i> If you don't have AppliationPath set as a PythonOption and your
+</I>&gt;<i> handler isn't in a &lt;Directory&gt; under DocumentRoot you're probably
+</I>&gt;<i> going to have trouble.  Two scenarios hurt me:
+</I>&gt;<i> 
+</I>&gt;<i>   1.  using a handler inside a &lt;Location&gt;.  There is no path.  My
+</I>&gt;<i>       browser (galeon 1.2.7) hung for infinity on reloads.  Never
+</I>&gt;<i>       could figure out why.
+</I>&gt;<i> 
+</I>&gt;<i>   2.  using mod_python under UserDir directories.  I do this for
+</I>&gt;<i>       prototyping because it's so easy to tweak a .htaccess file under
+</I>&gt;<i>       a ~username/public_html subdirectory and you don't have to
+</I>&gt;<i>       restart/reload apache to see your changes.  In this situation
+</I>&gt;<i>       the length of DocumentRoot has no relationship to the URIs so
+</I>&gt;<i>       the path attribute of the cookie gets oddly chopped at the
+</I>&gt;<i>       head.  I kept getting new sessions because the browser wasn't
+</I>&gt;<i>       sending the cookie because of paths not matching the uri.
+</I>&gt;<i> 
+</I>&gt;<i> I believe the same problem will occur under certain circumstances if
+</I>&gt;<i> Alias directives affect mod_python usage although I haven't tested
+</I>&gt;<i> this.
+</I>&gt;<i> 
+</I>&gt;<i> I think the ELSE clause above is trying to do something that can't be
+</I>&gt;<i> done easily: extract the leading uri of the handler.  With Alias,
+</I>&gt;<i> UserDir and Location directives, it's pretty difficult.  Is it
+</I>&gt;<i> possible?  Perhaps the code shouldn't try to be so clever.  Default
+</I>&gt;<i> the path to &quot;/&quot; unless the Session constructor overrides the value??
+</I>&gt;<i> 
+</I>&gt;<i> My temporary fix is to always explicitly use ApplicationPath.  Setting
+</I>&gt;<i> it to &quot;/&quot; is certainly general enough for my prototyping.
+</I>&gt;<i> 
+</I>&gt;<i> Minimally, I think the documentation for Session should devote some
+</I>&gt;<i> space to addressing and clarifying this issue.
+</I>
+I need to correct myself.  The problem does not occur inside
+&lt;Location&gt; directives (the hanging problem I referred to was a bug in
+my application: my session instance was not being garbage collected).
+In fact, when using Sessions inside &lt;Location&gt; URIs no path attribute
+is specified in the Cookie, so it is ALWAYS sent back to the server.
+
+However, I have confirmed that this problem exists for uses of Session
+within handlers referenced via Alias directives.
+
+In summary, if you use Sessions in handlers referenced via UserDir or
+Alias directives you have to use &quot;PythonOption ApplicationPath ...&quot; in
+your config.
+
+------------------
+Daniel Popowich
+Network Specialist
+-------------------------------------
+Mohawk Trail Regional School District
+24 Ashfield Rd.
+Shelburne Falls, MA 01370
+413.625.0192 x22
+-------------------------------------
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010968.html">[mod_python] Sessions and problems with cookie path attribute
+</A></li>
+	<LI>Next message: <A HREF="010964.html">[mod_python] newbie
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10973">[ date ]</a>
+              <a href="thread.html#10973">[ thread ]</a>
+              <a href="subject.html#10973">[ subject ]</a>
+              <a href="author.html#10973">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,801 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and apache
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20apache&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000536.html">
+   <LINK REL="Next"  HREF="000537.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python and apache</H1>
+    <B>hunter</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20apache&In-Reply-To="
+       TITLE="[mod_python] mod_python and apache">hunter at userfriendly.net
+       </A><BR>
+    <I>Thu Jan 18 07:34:59 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000536.html">[mod_python] pydriver and apache
+</A></li>
+        <LI>Next message: <A HREF="000537.html">[mod_python] 'import site' failed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#538">[ date ]</a>
+              <a href="thread.html#538">[ thread ]</a>
+              <a href="subject.html#538">[ subject ]</a>
+              <a href="author.html#538">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I wrote to the list the other day, asking about converting a webserver
+currently using Netscape Enterprise Server and python-1.5.2c to apache
+running mod_python and python-1.5.2c due to the licensing being cost
+probihitive. We use the &quot;py-driver&quot; within the webserver as nsapi to
+push all our .py/.pd/.pc files to the users with netscape configured as
+follows:
+
+&lt;snip&gt;
+&lt;Object name=&quot;default&quot;&gt;
+NameTrans fn=&quot;pfx2dir&quot; from=&quot;/cgi-bin&quot;
+dir=&quot;/disk2/websites/american/cgi-bin&quot; na
+me=&quot;cgi&quot;
+NameTrans fn=&quot;document-root&quot; root=&quot;/disk2/websites/american/html&quot;
+PathCheck fn=&quot;unix-uri-clean&quot;
+PathCheck fn=&quot;check-acl&quot; acl=&quot;default&quot;
+PathCheck fn=&quot;find-pathinfo&quot;
+PathCheck fn=&quot;find-index&quot; index-names=&quot;index.pd&quot;
+ObjectType fn=&quot;type-by-extension&quot;
+ObjectType fn=&quot;force-type&quot; type=&quot;text/plain&quot;
+Service method=&quot;(GET|HEAD|POST)&quot; type=&quot;magnus-internal/py-driver&quot;
+fn=&quot;query-hand
+ler&quot; path=&quot;/disk2/ns-home/nsapi/pd/py-driver&quot;
+Service method=&quot;(GET|HEAD)&quot; type=&quot;magnus-internal/imagemap&quot;
+fn=&quot;imagemap&quot;
+Service method=&quot;(GET|HEAD)&quot; type=&quot;magnus-internal/directory&quot;
+fn=&quot;index-common&quot;
+Service method=&quot;(GET|HEAD|POST)&quot; type=&quot;*~magnus-internal/*&quot;
+fn=&quot;send-file&quot;
+&lt;/snip&gt;
+
+which basically treats all calls to the .py/.pds as a cgi. Now, in
+trying to convert over to apache and mod_python and do the same thing
+within the apache configuration is where i am getting a bit confused. I
+read through some of the documentation and i think the cgihandler might
+be the way to handle this, but thought i would ask more senior python
+programmers. I am a systems administrator and nowhere near as
+experienced in python as 99% of the group here. So, i am looking for
+advice and suggestions to see if a &quot;proof of concept&quot; can even be done.
+I realize this might include some python module re-writes but if thats
+fairly minimal i am still one step ahead rather than using netscape.
+
+The py-driver being called in the above configuration looks like the
+following:
+
+#!/usr/local/bin/python
+import sys, os
+sys.path.insert(0, '/disk2/ns-home/nsapi/pd/')
+sys.path.insert(1, '/disk2/common/')
+sys.path.insert(2, '/disk2/ns-home/nsapi/mp/')
+import pydriver
+pydriver.topmain()
+
+which imports pydriver which looks like the following:
+
+#!/usr/local/bin/python
+# -*- Python -*-
+# PythonDriver main interpreter
+#
+# 960701 JM added HTML header override (ie: cookies)
+#
+# 960618 JM added Advert class
+#
+
+# common object layer imports
+from col.exception.bopageflagexception import BOPageFlagException
+
+# other imports
+import pccache
+
+__version__ = &quot;1.5&quot;
+
+PD_Okay  = &quot;PD_Okay&quot;                    # JM 960830
+
+intSybFailFrac = 100      # one out of this number of sybase connect
+fails will$
+
+def pd_return(msg=''):
+    raise PD_Okay, msg
+
+
+def get_func(dict, name):
+    if dict.has_key(name):
+        cb = dict[name]
+        if `type(cb)` == &quot;&lt;type 'function'&gt;&quot;:
+            return cb
+    return None
+
+
+class SmartPrint:
+    def __init__(self, real_stdout, headers=''):
+        self.need_headers = 1
+        self.headers = headers
+        self.real_stdout = real_stdout
+
+##     def write(self, msg):
+##      if self.need_headers:
+##          try:
+##              self.real_stdout.write(self.headers.show() + '\n')
+##          except AttributeError:              ## XXXX
+##              self.real_stdout.write(self.headers)
+
+##      self.real_stdout.write(msg)
+##      self.need_headers = 0
+
+
+
+# JM 960517
+#
+#
+def get_hostip(environ):
+    try:
+        return 'IP:' + environ['REMOTE_ADDR']
+    except KeyError:
+        return  'IP:unknown'                    # XX ugh
+
+def dump(environ=None):
+    if not environ:
+        from os import environ
+
+    list = environ.keys()
+    list.sort()
+
+    for k in list:
+        print &quot;&lt;b&gt;%s&lt;/b&gt; %s&lt;BR&gt;&quot; % (k, environ[k])
+
+# JM 960708
+# use the cookie class to get the session ID, or return ''
+#
+
+def get_sessionid(cookiedict):
+    if cookiedict.has_key('ngs_sessionID'):
+        #
+        # Netsite: NGS session-id stuff installed
+        #
+        return cookiedict['ngs_sessionID'][:12]
+
+    elif cookiedict.has_key('Apache'):
+        #
+        # Apache: mod_cookie installed + enabled
+        #
+        return cookiedict['Apache']
+
+    else:
+        #
+        # no session-id thing
+        #
+        return ''
+
+
+### if session ID not given,
+### use client's IP address (XX debugging only!)
+### JM 960517
+##    if environ.has_key('HTTP_COOKIE'):
+##      s = environ['HTTP_COOKIE'] # like &quot;ngs_sessionID=23233885&quot;
+##
+##      if 'ngs_sessionID=' == s[:14]:
+##          s = s[14:14+12]
+##      else:
+##          s = get_hostip(environ)     # XX no session id: error here?
+##
+##    else:
+##      # dump(environ)
+##      s = get_hostip(environ)         # XX no session id: error here?
+##
+##    return s
+
+
+def file_exists(path):
+    try:
+        open(path).close()
+        return 1
+    except IOError:
+        return 0
+# Figure out a few things about what will happen, and put
+# a few extra things in the Python search path.
+#
+# - take the original PD script path (ie:
+'/www/test/htdocs/Tests/if.pd')
+#   (usually from the webserver's PATH_TRANSLATED variable).
+#
+# - turn it into the Python script path ('/www/test/htdocs/Tests/if.py')
+#   and then containing directory ('/www/test/htdocs/Tests/').
+#
+# - insert the PD directory in sys.path, so that PD support files
+#   (like 'cookie' and 'agent') will be found, and wont be overridden
+#   by user app files.
+#
+# - chdir to the user's script directory, so that app-local files
+#   can be found (sys.path contains '.') and written files will
+#   be relative to the script.
+#
+
+def script_setup(path):
+
+    import os, sys, string
+
+    if os.path.isdir(path):
+        if path[-1]!='/': path=path+'/'
+        path=path+'index.pd'
+
+    # replaced following line with a substitution to stop pydriver from
+    # displaying the py code when the URL has a .py.  Set it back to .pd
+    # -MC 8/6/99
+    if path[-3:] == &quot;.py&quot;:
+       path = path[:-3] + &quot;.pd&quot;
+       if os.environ.has_key('PATH_TRANSLATED'):
+          os.environ['PATH_TRANSLATED'] = path
+
+    templatepath = path
+    scriptpath = path[:-2] + &quot;py&quot;
+    scriptdir  = path[:string.rfind(path, '/')]
+    pc_path    = path[:-2] + &quot;pc&quot;
+
+    # make sure the PythonDriver dir is first on the path.
+    # (1st, else 'cookie.py' was being overridden)
+    # JM 961006
+    # commented out. py-driver now puts this at front of path.
+    # Mark Cain
+    #sys.path.insert(0, os.getcwd())
+
+    # raise KeyError, &quot;vars=&quot; + `locals()`
+
+    sys.path.append(scriptdir)
+    os.chdir(scriptdir)                 # JM 960827
+
+    return (templatepath, scriptpath, pc_path, scriptdir)
+
+
+# allow project information to be overridden by the user,
+# either by 'project.py' in the script directory,
+# or in the one just above (XX provide search-path?)
+#
+
+def import_project(pathlist=['.'], modnamelist=['project']):
+    from uniondict import UnionDict
+
+    info     = UnionDict()                      # union of all info
+dicts
+    project  = UnionDict()                      # union of *modules*
+    mod_dict = {}                               # temporary variable
+scope
+
+    for file in modnamelist:
+
+        # load the module
+        #
+        exec   &quot;import &quot;+file in mod_dict
+        module = mod_dict[file]
+
+        # add the module to the UnionDict,
+        # so that its functions *override* earlier ones
+        #
+        project.prepend(module.__dict__)
+
+        # add the 'info' dictionaries
+        # so that just-loaded defs *override* earlier ones
+        #
+        if module.__dict__.has_key('info'):
+            info.prepend(module.__dict__['info'])
+
+    project.info = info
+    return project
+
+
+def html_print_techproblems():
+#    print &quot;Location: <A HREF="http://162.133.26.95/goo.po&quot;">http://162.133.26.95/goo.po&quot;</A>
+#    print &quot;Content-length: 1&quot;
+#    print &quot;\n\n&quot;
+#    import traceback
+#    html_print_exc(traceback)
+    try:
+      import socket
+      filNF = open('/disk2/flags/techproblems.html', 'r')
+      print filNF.read() % socket.gethostname()
+      filNF.close()
+    except:
+      print &quot;&quot;&quot;
+           &lt;table&gt;&lt;tr&gt;
+           &lt;td align=&quot;center&quot; width=&quot;312&quot;&gt;
+           &lt;img src=&quot;/images/banner.gif&quot; width=312 height=45 border=0
+alt=&quot;&quot; al$
+           &lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+            &quot;&quot;&quot;
+      print &quot;&lt;br&gt;&lt;font size=+3&gt;&lt;b&gt;We're sorry.&lt;/b&gt;&quot;
+      print &quot;&lt;p&gt;We are repairing a technical problem. We apol$
+
+def html_print_notfound(message=''):
+    print &quot;Content-type: text/html\n\n&quot;
+    try:
+      filNF = open('/disk2/flags/notfound.html', 'r')
+      print filNF.read()
+      filNF.close()
+      filNF.close()
+    except:
+      print &quot;&quot;&quot;
+           &lt;table&gt;&lt;tr&gt;
+           &lt;td align=&quot;center&quot; width=&quot;312&quot;&gt;
+           &lt;img src=&quot;/images/banner.gif&quot; width=312 height=45 border=0
+alt=&quot;&quot; al$
+           &lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+            &quot;&quot;&quot;
+      print &quot;&lt;br&gt;&lt;font size=+3&gt;&lt;b&gt;Not Found&lt;/b&gt;&lt;/font&gt;&quot;
+      print &quot;&lt;p&gt;The requested file does not exist on our website.&quot;
+
+def html_print_exc(traceback):
+    import sys
+
+    print &quot;Content-type: text/html\n&quot;
+    print &quot;&lt;font size=+3&gt;&lt;b&gt;internal error&lt;/b&gt;&lt;/font&gt;&lt;P&gt;&lt;PRE&gt;&quot;,
+    traceback.print_exc(file=sys.stdout)
+    print &quot;&lt;/PRE&gt;&quot;
+def cgi_main():
+    import os, traceback
+
+    if not os.environ.has_key('PATH_TRANSLATED'):
+        print &quot;Content-type: text/html\n&quot;
+        print &quot;PATH_TRANSLATED not given&quot;
+        return
+
+    try:
+        main(os.environ['PATH_TRANSLATED'], os.environ)
+
+    except IOError, msg:
+        html_print_notfound(msg)
+        print &quot;&lt;!--&quot;
+        html_print_exc(traceback)
+        print &quot;--&gt;&quot;
+    except:
+        html_print_techproblems()
+        print &quot;&lt;!--&quot;
+        html_print_exc(traceback)
+        print &quot;--&gt;&quot;
+
+
+def updatePC(pd_path, py_path, pc_path):
+  import os, codetemplate, time
+  dicPC = {}
+
+  # get stats on files
+  try:
+    tupPD = os.stat(pd_path)
+    tupPY = os.stat(py_path)
+    try:
+    try:
+      tupPC = os.stat(pc_path)
+    except:
+      tupPC = None
+  except:
+    raise IOError, &quot;not found&quot;
+
+  try:
+    # if pc file doesn't exist, or is older than either of the others,
+then rec$
+    if (not tupPC or (tupPD[-2] &gt; tupPC[-2]) or (tupPY[-2] &gt;
+tupPC[-2])):
+      pd_script = codetemplate.PD_Script(pd_path)
+      codPD = pd_script.code
+      dicPdVars = pd_script.dicPdVars
+      filTemp = open(py_path)
+      codPY = compile(filTemp.read(), py_path, &quot;exec&quot;)
+      filTemp.close()
+      dicPC = { 'py': codPY,
+                'pd': codPD,
+                'dicPdVars': dicPdVars,
+                'pyDate': time.asctime(time.localtime(tupPY[-2])),
+                'pdDate': time.asctime(time.localtime(tupPD[-2])),
+                'pcDate': time.asctime(time.localtime(time.time()))
+              }
+      import marshal
+      try:
+        filPC = open(pc_path, 'w')
+        marshal.dump(dicPC, filPC)
+        filPC.close()
+      except IOError:
+        return
+  except:
+      #
+      # since this function runs outside of normal execution (as in
+production)
+      # we add traceback error handling here. Else errors don't
+propigate on th$
+      # normal route, having failed at this early point.
+      #
+      import sys, traceback
+      pd_except(py_path, sys.exc_type, sys.exc_value,
+                        tb=traceback, globals=globals())
+      #
+      # Furthermore, no headers have been printed yet and &quot;main&quot;
+execution is b$
+      # We need the basic header printed here.
+      #
+      #print &quot;Content-type: text/html\n\n&quot;
+      #
+      # Stop further execution by raising an error. Brings us back to
+cgi-main $
+      # screen
+      #
+      raise &quot;Failed&quot;
+
+
+def main(templatepath, environ=None):
+
+    import sys, string, cgi, os, traceback, ctsybase
+
+    dicPC = {}        # dictionary containing pd and py code objects
+    blnInterpSrc = 0
+    blnTechProb  = 0   # to note problem deserving of &quot;tech problem&quot;
+message
+
+    if not environ:
+        environ=os.environ
+
+    (pd_path, py_path, pc_path, scriptdir) = script_setup( templatepath
+)
+
+    if ((len (pd_path) &gt; 13) and (pd_path[-13:] == &quot;html/index.pd&quot;)):
+        import posixpath
+        HOMEFILE = '/disk2/flags/homelive.html'
+        if posixpath.exists(HOMEFILE) == 0:
+            import homedown
+            print homedown.pageVar
+            return
+
+    import marshal, codetemplate, agent
+
+
+    # get the 'project' module, but allow
+    # it to be overidden (unlike all other modules. Ex: cookies.py)
+    #
+    project = import_project(scriptdir)
+
+    from headers import Headers
+
+    # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    # run-time stuff
+    # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    finished   = 0
+    headers    = Headers(environ)
+    # print &quot;info = &quot; + `project.info`
+    if project.info.has_key('cookie_domain'):
+        headers.cookieSetDomain(project.info['cookie_domain'])
+
+    session_id = get_sessionid(headers.cookie)
+
+
+    # grab form variables
+    #
+    try:
+        #          Old and outdated
+        if not os.environ.has_key('QUERY_STRING'):
+           os.environ['QUERY_STRING'] = &quot;&quot;
+        webvars = cgi.SvFormContentDict(environ=os.environ)
+        #webvars.__init__(os.environ)
+        #webvars = cgi.FieldStorage()
+    except:
+        webvars = {}
+
+
+    # grab Python global variables
+    # XXX?
+    script_dict = globals()
+
+    # rename a few variables
+    #
+
+    # XX
+    sp = SmartPrint(sys.stdout, headers)
+
+
+    script_dict.update({
+             'environ'    : environ,
+             'session_id' : session_id,
+             'webvars'    : webvars,
+             'headers'    : headers,
+             'scriptpath' : py_path,
+             'project'    : project,
+             'agent'      : agent.open(environ)
+             })
+
+    for k in ['dbopen', 'pd_except']:
+        if project.has_key(k):
+            script_dict[k] = project[k]
+
+    # XX removed 961006 JM
+    # 'agent'      : agent.open(environ),
+    # 'advert'     : Advert(),
+    # merge globals and other vars into one dictionary
+    #
+    #for k in dict2.keys():
+#       script_dict[k] = dict2[k]
+#
+#    del dict2                          # dont need it anymore
+
+
+    # try to execute the Python script.
+    #
+
+    # call updatePC to compile pd and py file and write to pc file
+    # (do not call in production)
+    #updatePC(pd_path, py_path, pc_path)
+
+    try:
+      if (sys.modules.has_key('pccache')):
+        pccache = sys.modules['pccache']
+        dicPC = pccache.load(pc_path)
+      else:
+        filPC = open(pc_path, 'r')
+        dicPC = marshal.load(filPC)
+        filPC.close()
+
+    except IOError:
+      pd_script = codetemplate.PD_Script(pd_path)
+      blnInterpSrc = 1   # was unable to open compiled. Must interp.
+    else:
+      # load successful
+      # create &quot;empty&quot; PD_Script object and set its code object (no
+processing $
+      pd_script = codetemplate.PD_Script()
+      pd_script.code = dicPC['pd']
+      if dicPC.has_key('dicPdVars'):
+        pd_script.dicPdVars = dicPC['dicPdVars']
+    script_dict['dicPdVars'] = pd_script.dicPdVars
+
+    try:
+      try:
+          try:
+            import pycodewrap
+            pycodewrap.begin(script_dict)
+          except BOPageFlagException, objException:
+            raise objException
+          except:
+            pass
+          if (blnInterpSrc):
+            f = open(py_path)
+            exec f in script_dict  # old
+            f.close()
+          else:
+            exec (dicPC['py'] , script_dict) # new
+          try:
+            pycodewrap.end(script_dict)
+          except:
+            pass
+
+      except PD_Okay, msg:
+          # XX print msg somewhere?
+          pass
+
+      # catch and ignore broken pipe errors
+      except IOError, lstErr:
+        if lstErr[1] == 'Broken pipe':
+          pass
+        else:
+          raise lstErr
+      except ctsybase.error, lstErr:
+        if lstErr[0] == 'failed to connect to server':
+          blnTechProb = 1
+          import time
+          fltTime = time.time()
+          intTemp = int (( int(fltTime) + ((fltTime - int(fltTime)) *
+10000)) %$
+          if intTemp == 0:
+            raise ctsybase.error + &quot;: &quot; + str(lstErr)
+          else:
+            pass
+            #raise &quot;sybase error&quot;
+
+      # catch BOPageFlagException to throw up alternate page
+      except BOPageFlagException, objException:
+          blnTechProb = 0
+          finished = 1                # XX run PD script after error
+          if sp.need_headers:
+
+              # was &gt;&gt; print &quot;Content-type: text/html\n&quot;
+
+              try:
+                  print script_dict['headers'].show()
+              except AttributeError:
+                  print script_dict['headers']
+
+          # headers were printed -- turn them off
+          #
+          sp.need_headers = 0
+
+          try:
+            filT = open(objException.strFile, 'r')
+            strText = filT.read()
+            filT.close()
+         except IOError:
+            objT = IOError(&quot;BOPageFlagException, can't open file '%s'&quot; %
+objExc$
+            raise objT
+          if objException.dicVariables:
+            strText = strText % objException.dicVariables
+          print strText
+
+          # if objException.blnTraceback is true, then do the traceback
+anyhow
+          if objException.blnTraceback:
+            # does PY script have a custom exception handler?
+            # if so, use it; else use default: 'pd_except'.
+            #
+            cb = get_func(script_dict, '__except__')
+            if not cb:
+                cb = pd_except
+
+            finished = not cb(py_path, sys.exc_type, sys.exc_value,
+                              tb=traceback, globals=globals())
+    # catch all for tracebacks
+    except:
+        blnTechProb = 1
+        finished = 0                # XX run PD script after error
+
+        if sp.need_headers:
+
+            # was &gt;&gt; print &quot;Content-type: text/html\n&quot;
+
+            try:
+                print script_dict['headers'].show()
+            except AttributeError:
+                print script_dict['headers']
+
+        # headers were printed -- turn them off
+        #
+        sp.need_headers = 0
+
+        # does PY script have a custom exception handler?
+        # if so, use it; else use default: 'pd_except'.
+        #
+        cb = get_func(script_dict, '__except__')
+        if not cb:
+            cb = pd_except
+
+        finished = not cb(py_path, sys.exc_type, sys.exc_value,
+                          tb=traceback, globals=globals())
+
+
+    #f.close()
+
+
+    # did the PY script take care of everything? (IE: file download,
+    # exception handler doesnt want to show PD).
+    # If so, then just return -- *dont* execute PD script.
+    # JM 960829
+
+    if blnTechProb:
+       if sp.need_headers:
+           # was &gt;&gt; print &quot;Content-type: text/html\n&quot;
+           try:
+               print script_dict['headers'].show()
+           except AttributeError:
+               print script_dict['headers']
+       html_print_techproblems()
+       print &quot;&lt;!-- &quot;
+       html_print_exc(traceback)
+       print &quot;--&gt; &quot;
+       return
+    if finished or script_dict['headers'].finished():
+        return
+
+
+    # go ahead and print out HTTP headers now.
+    # if its whacked, just default it:
+    #
+    if sp.need_headers:
+        try:
+            print script_dict['headers'].show()
+            #print ' *** ' + dict['headers'].show() + ' *** '
+        except AttributeError:
+            print script_dict['headers']
+
+    try:
+      print pd_script.run(script_dict)
+    # catch and ignore broken pipe errors
+    except IOError, lstErr:
+      if lstErr[1] == 'Broken pipe':
+        pass
+      else:
+        raise lstErr
+
+    except:
+      import sys, traceback
+      pd_except(py_path, sys.exc_type, sys.exc_value,
+                        tb=traceback, globals=globals())
+      html_print_techproblems()
+      print &quot;&lt;!-- &quot;
+      html_print_exc(traceback)
+      print &quot;--&gt; &quot;
+
+    return
+def topmain():
+    import os, sys, posixpath
+
+    SFILE = '/disk2/flags/dblive.html'
+    error = &quot;&quot;
+    if posixpath.exists(SFILE) == 0:
+        import dbdown
+        pageVar = dbdown.pageVar
+        error = &quot;DBBAD&quot;
+
+    if error:
+        print pageVar
+    elif os.environ.has_key('PATH_TRANSLATED'):
+        import traceback
+        try:
+            cgi_main()
+        except:
+            print &quot;&lt;font size=+1&gt;%s: problems&lt;/font&gt;&lt;P&gt;&quot; %
+&quot;PythonDriver&quot;
+
+            print &quot;&lt;PRE&gt;&quot;,
+            traceback.print_exc()
+            print &quot;&lt;/PRE&gt;&quot;
+
+    elif len(sys.argv) &gt; 1:
+
+        import string
+
+        scriptpath = sys.argv[1]
+
+        os.environ['REQUEST_METHOD'] = 'GET'
+        os.environ['QUERY_STRING']   = string.joinfields( sys.argv[2:],
+'&amp;' )
+
+        main(scriptpath, os.environ)
+    else:
+
+        print &quot;usage: py-driver &lt;script&gt; [GET-style args...]&quot;
+
+if __name__==&quot;__main__&quot;:
+    main()
+
+
+Any help would be GREATLY appreciated. I just need to mimic the netscape
+behavior within apache, and i am having problems doing so. Maybe
+mod_python isnt the way to go, but if anyone has any ideas for me to
+try, i would be extremely greatful
+
+Michael Weiner
+Systems Administrator/Partner
+The UserFriendly Network
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: smime.p7s
+Type: application/x-pkcs7-signature
+Size: 2626 bytes
+Desc: S/MIME Cryptographic Signature
+Url : <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20010118/51182ff7/smime.bin">http://mailman.modpython.org/pipermail/mod_python/attachments/20010118/51182ff7/smime.bin</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000536.html">[mod_python] pydriver and apache
+</A></li>
+	<LI>Next message: <A HREF="000537.html">[mod_python] 'import site' failed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#538">[ date ]</a>
+              <a href="thread.html#538">[ thread ]</a>
+              <a href="subject.html#538">[ subject ]</a>
+              <a href="author.html#538">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

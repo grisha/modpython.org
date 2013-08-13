@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Can%20i%20have%20both%20Marshal%20and%20Signed%0A%09CookieswithPublisher%3F&In-Reply-To=1162166045.28323%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022431.html">
+   <LINK REL="Next"  HREF="022433.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Clodoaldo Pinto Neto</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Can%20i%20have%20both%20Marshal%20and%20Signed%0A%09CookieswithPublisher%3F&In-Reply-To=1162166045.28323%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?">clodoaldo.pinto at gmail.com
+       </A><BR>
+    <I>Mon Oct 30 05:59:47 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022431.html">[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+</A></li>
+        <LI>Next message: <A HREF="022433.html">[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22432">[ date ]</a>
+              <a href="thread.html#22432">[ thread ]</a>
+              <a href="subject.html#22432">[ subject ]</a>
+              <a href="author.html#22432">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>2006/10/29, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+&gt;<i> Clodoaldo Pinto Neto wrote ..
+</I>&gt;<i> &gt; 2006/10/29, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt;:
+</I>&gt;<i> &gt; IMHO, the least surprise behavior is if Cookie.get_cookies() returned
+</I>&gt;<i> &gt; all cookies of the given class regardless of how many different cookie
+</I>&gt;<i> &gt; classes there are in the header.
+</I>&gt;<i>
+</I>&gt;<i> There is nothing in a cookie string though to be able to identify it as being
+</I>&gt;<i> of a particular type. The only way you can know is to try and decode it and
+</I>&gt;<i> if it works then it probably is.
+</I>
+It is exactly what MarshalCookie.parse() does:
+
+    def parse(Class, s, secret):
+
+        dict = _parse_cookie(s, Class)
+
+        for k in dict:
+            c = dict[k]
+            try:
+                c.unmarshal(secret)
+            except (CookieError, ValueError):
+                # downgrade to Cookie
+                dict[k] = Cookie.parse(Cookie.__str__(c))[k]
+
+        return dict
+
+The problem that is happening is that one exception was not expected
+by the original code piece author. The exception is binascii.Error. It
+will happen whenever MarshalCookie.parse() tries to parse a Signed
+cookie. My proposed fix is just to import binascii and include the
+exception:
+
+            try:
+                c.unmarshal(secret)
+            except (CookieError, ValueError, binascii.Error):
+                # downgrade to Cookie
+                dict[k] = Cookie.parse(Cookie.__str__(c))[k]
+
+This way MarshalCookie.get_cookies() will behave as per the documentation.
+
+&gt;<i> This is probably not a good way of doing
+</I>&gt;<i> things. First off the application should only be decoding its own cookies
+</I>&gt;<i> and not others which may have been sent to the site in general. Thus, allowing
+</I>&gt;<i> one to say which cookies to decode is probably a better step.
+</I>
+I'm not opposing the new names argument. I just don't know enough
+about mod_python to opine on it, although the names argument alone
+will not fix the issue: an *expected* error that should be handled by
+mod_python. Or better, the names argument will only fix the issue if
+it is passed *and* if none of the passed cookie names is a Signed
+cookie. A nice addition perhaps, but not a fix.
+
+&gt;<i> &gt; What is the point in downgrading the cookie? If it is tampered or
+</I>&gt;<i> &gt; corrupted then why not just discard it?
+</I>&gt;<i>
+</I>&gt;<i> This issue has come up recently in relation to signed Sessions. For
+</I>&gt;<i> Sessions at least it wasn't a big problem but couldn't get any feedback
+</I>&gt;<i> on issue in general so nothing done. See:
+</I>&gt;<i>
+</I>&gt;<i>   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-191">http://issues.apache.org/jira/browse/MODPYTHON-191</A>
+</I>&gt;<i>
+</I>&gt;<i> For how the implementation works, the documentation certainly does
+</I>&gt;<i> not say that the type of the cookie should be checked, when it should.
+</I>&gt;<i>
+</I>&gt;<i> To affect some change, some sort of consensus is needed about how
+</I>&gt;<i> to change it and for there to be a good understanding that this will
+</I>&gt;<i> not cause problems with existing code. Remember this code was
+</I>&gt;<i> written many years ago (not by I) and so one always has to be sure
+</I>&gt;<i> that changes will not break things.
+</I>&gt;<i>
+</I>&gt;<i> So, please do contribute further feedback and ideas, but when it comes
+</I>&gt;<i> down to it, unless its obvious a change should be made in a certain
+</I>&gt;<i> way, if only one person is pushing it, I am not always going to do it.
+</I>&gt;<i> I would prefer a few people at least to agree, especially when I don't
+</I>&gt;<i> use a lot of this stuff personally and so don't always know what should
+</I>&gt;<i> be done. Some times I do make an arbitrary decision to make a change
+</I>&gt;<i> when I get no feedback, but one of these days it is going to surely
+</I>&gt;<i> bite me.
+</I>
+You are absolutely right about it. That was just my opinion, and i
+didn't invest the minimum amount of time on it.
+
+Regards, Clodoaldo Pinto Neto
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022431.html">[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+</A></li>
+	<LI>Next message: <A HREF="022433.html">[mod_python] Can i have both Marshal and Signed
+	CookieswithPublisher?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22432">[ date ]</a>
+              <a href="thread.html#22432">[ thread ]</a>
+              <a href="subject.html#22432">[ subject ]</a>
+              <a href="author.html#22432">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

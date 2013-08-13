@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problem keeping persistent object in memory (global)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20keeping%20persistent%20object%20in%20memory%20%28global%29&In-Reply-To=42A481B8.7030604%40hostway.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018294.html">
+   <LINK REL="Next"  HREF="018310.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Problem keeping persistent object in memory (global)</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problem%20keeping%20persistent%20object%20in%20memory%20%28global%29&In-Reply-To=42A481B8.7030604%40hostway.com"
+       TITLE="[mod_python] Problem keeping persistent object in memory (global)">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Jun  6 18:08:02 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018294.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+        <LI>Next message: <A HREF="018310.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18301">[ date ]</a>
+              <a href="thread.html#18301">[ thread ]</a>
+              <a href="subject.html#18301">[ subject ]</a>
+              <a href="author.html#18301">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 07/06/2005, at 3:02 AM, Huzaifa Tapal wrote:
+
+&gt;<i> One option that I use is to create a singleton in the module that I 
+</I>&gt;<i> want to be global at the first import of that module.  So lets take 
+</I>&gt;<i> your mySitePool module for example:
+</I>&gt;<i>
+</I>&gt;<i> class mySitePool:
+</I>&gt;<i>    def __init__(self):
+</I>&gt;<i>          ' suite
+</I>&gt;<i>
+</I>&gt;<i> ....
+</I>&gt;<i>
+</I>&gt;<i> global mysitepool
+</I>&gt;<i> mysitepool = mySitePool()
+</I>
+Using singleton approach as described will help, now for some really 
+obscure
+stuff in case later on you find other strange problems.
+
+First is that if auto reloading of modules is on and the singleton is 
+stored
+in a module which at any time might get reloaded because the file is 
+changed,
+the act of reloading will replace the singleton object, resetting it in 
+the
+process.
+
+This means that the previously created pool object will become 
+inaccessible
+and potentially resources it uses in the way of database connections 
+might
+not get shutdown properly if that required an explicit step not 
+performed by
+normal Python object deletion.
+
+At the same time, a new pool object will be created and perhaps another 
+set
+of database connections. If old ones aren't cleaned up in the 
+inaccessible
+pool and new ones are created due to reloads, you might end up with too 
+many
+connections and not be able to create any more.
+
+To make the code durable and resistant to reloads, intended or not, it 
+is
+useful to write code as:
+
+if not globals().has_attr(&quot;mysitepool&quot;):
+   mysitepool = mySitePool()
+
+What happens is that reload occurs on top of the existing module. By 
+seeing
+if the pool object already exists in globals, you simply avoid creating 
+it a
+second time.
+
+Also note that there are some threading issues in mod_python as well, 
+and
+if you don't do this fiddle but module reloading is turned off, you can 
+still
+have a problem. This is because the threading issues can result in a 
+module
+being loaded twice by mistake, as if a reload had occurred.
+
+For this, see patches at:
+
+   <A HREF="http://www.dscpl.com.au/projects/vampire/patches.html">http://www.dscpl.com.au/projects/vampire/patches.html</A>
+
+Graham
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018294.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+	<LI>Next message: <A HREF="018310.html">[mod_python] Problem keeping persistent object in memory (global)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18301">[ date ]</a>
+              <a href="thread.html#18301">[ thread ]</a>
+              <a href="subject.html#18301">[ subject ]</a>
+              <a href="author.html#18301">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

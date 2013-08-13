@@ -1,0 +1,231 @@
+ # ====================================================================
+ # The Apache Software License, Version 1.1
+ #
+ # Copyright (c) 2000-2003 The Apache Software Foundation.  All rights
+ # reserved.
+ #
+ # Redistribution and use in source and binary forms, with or without
+ # modification, are permitted provided that the following conditions
+ # are met:
+ #
+ # 1. Redistributions of source code must retain the above copyright
+ #    notice, this list of conditions and the following disclaimer.
+ #
+ # 2. Redistributions in binary form must reproduce the above copyright
+ #    notice, this list of conditions and the following disclaimer in
+ #    the documentation and/or other materials provided with the
+ #    distribution.
+ #
+ # 3. The end-user documentation included with the redistribution,
+ #    if any, must include the following acknowledgment:
+ #       "This product includes software developed by the
+ #        Apache Software Foundation (http://www.apache.org/)."
+ #    Alternately, this acknowledgment may appear in the software itself,
+ #    if and wherever such third-party acknowledgments normally appear.
+ #
+ # 4. The names "Apache" and "Apache Software Foundation" must
+ #    not be used to endorse or promote products derived from this
+ #    software without prior written permission. For written
+ #    permission, please contact apache@apache.org.
+ #
+ # 5. Products derived from this software may not be called "Apache",
+ #    "mod_python", or "modpython", nor may these terms appear in their
+ #    name, without prior written permission of the Apache Software
+ #    Foundation.
+ #
+ # THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED
+ # WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ # OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ # DISCLAIMED.  IN NO EVENT SHALL THE APACHE SOFTWARE FOUNDATION OR
+ # ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ # SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ # LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+ # USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+ # OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ # SUCH DAMAGE.
+ # ====================================================================
+ #
+ # This software consists of voluntary contributions made by many
+ # individuals on behalf of the Apache Software Foundation.  For more
+ # information on the Apache Software Foundation, please see
+ # <http://www.apache.org/>.
+ #
+ # Originally developed by Gregory Trubetskoy.
+ # Modified by Perry Tew.
+ #
+ # $Id$
+
+from mod_python import apache
+import _apache
+
+import os
+import time
+import anydbm, whichdb
+import cPickle
+import tempfile
+
+APP_SID = 'app.sid'
+
+tempdir = tempfile.gettempdir()
+
+
+class BaseApplication(dict):
+
+    def __init__(self, req, lock=1):
+
+        self._req = req
+        self._lock = lock
+        self._new = 1
+        self._created = 0
+        self._locked = 0
+
+        dict.__init__(self)
+
+        self.init_lock()
+
+        # attempt to load ourselves
+        #self.lock()
+        if self.load():
+            self._new = 0
+
+        if self._new:
+            self._created = time.time()
+
+
+    def load(self):
+        dict = self.do_load()
+        if dict == None:
+            return 0
+
+        self._created  = dict["_created"]
+        self.update(dict["_data"])
+        return 1
+
+    def save(self):
+        dict = {"_data"    : self.copy(), 
+        "_created" : self._created}
+        self.do_save(dict)
+
+    def delete(self):
+        self.do_delete()
+        self.clear()
+
+    def init_lock(self):
+        pass
+
+    def lock(self):
+        if self._lock:
+            _apache._global_lock(self._req.server, None, 0)
+            self._locked = 1
+
+    def unlock(self):
+        if self._lock and self._locked:
+            _apache._global_unlock(self._req.server, None, 0)
+            self._locked = 0
+
+    def is_new(self):
+        return not not self._new
+
+    def created(self):
+        return self._created
+
+    def __del__(self):
+        self.unlock()
+
+
+
+class DbmApplication(BaseApplication):
+
+    def __init__(self, req, dbm=None, dbmtype=anydbm):
+
+        if not dbm:
+            opts = req.get_options()
+            if opts.has_key("ApplicationDbm"):
+                dbm = opts["ApplicationDbm"]
+            else:
+                dbm = os.path.join(tempdir, req.server.server_hostname + str(req.server.port))
+
+        self._dbmfile = dbm
+        self._dbmtype = dbmtype
+
+        BaseApplication.__init__(self, req)
+
+    def _set_dbm_type(self):
+        module = whichdb.whichdb(self._dbmfile)
+        if module:
+            self._dbmtype = __import__(module)
+        
+    def _get_dbm(self):
+        result = self._dbmtype.open(self._dbmfile, 'c')
+        if self._dbmtype is anydbm:
+            self._set_dbm_type()
+        return result
+
+
+    def do_load(self):
+        _apache._global_lock(self._req.server, None, 0)
+        dbm = self._get_dbm()
+        try:
+            if dbm.has_key(APP_SID):
+                return cPickle.loads(dbm[APP_SID])
+            else:
+                return None
+        finally:
+            dbm.close()
+            _apache._global_unlock(self._req.server, None, 0)
+
+    def do_save(self, dict):
+        _apache._global_lock(self._req.server, None, 0)
+        dbm = self._get_dbm()
+        try:
+            dbm[APP_SID] = cPickle.dumps(dict)
+        finally:
+            dbm.close()
+            _apache._global_unlock(self._req.server, None, 0)
+
+    def do_delete(self):
+        _apache._global_lock(self._req.server, None, 0)
+        dbm = self._get_dbm()
+        try:
+            try:
+                del dbm[APP_SID]
+            except KeyError: pass
+        finally:
+            dbm.close()
+            _apache._global_unlock(self._req.server, None, 0)
+
+
+class MemoryApplication(BaseApplication):
+
+    sdict = {}
+
+    def __init__(self, req):
+
+        BaseApplication.__init__(self, req)
+
+    def do_load(self):
+        if MemoryApplication.sdict.has_key(APP_SID):
+            return MemoryApplication.sdict[APP_SID]
+        return None
+
+    def do_save(self, dict):
+        MemoryApplication.sdict[APP_SID] = dict
+
+    def do_delete(self):
+        try:
+            del MemoryApplication.sdict[APP_SID]
+        except KeyError: pass
+
+def Application(req):
+
+    threaded = _apache.mpm_query(apache.AP_MPMQ_IS_THREADED)
+    forked = _apache.mpm_query(apache.AP_MPMQ_IS_FORKED)
+    daemons =  _apache.mpm_query(apache.AP_MPMQ_MAX_DAEMONS)
+
+    if (threaded and ((not forked) or (daemons == 1))):
+        return MemoryApplication(req)
+    else:
+        return DbmApplication(req)
+

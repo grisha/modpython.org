@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Cookies and sessions trouble
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookies%20and%20sessions%20trouble&In-Reply-To=1115951509.1115.90.camel%40cm61-10-50-104.hkcable.com.hk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018073.html">
+   <LINK REL="Next"  HREF="018075.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Cookies and sessions trouble</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Wouter van Marle</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookies%20and%20sessions%20trouble&In-Reply-To=1115951509.1115.90.camel%40cm61-10-50-104.hkcable.com.hk"
+       TITLE="[mod_python] Cookies and sessions trouble">wouter at squirrel-systems.com
+       </A><BR>
+    <I>Thu May 12 22:54:55 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018073.html">[mod_python] Cookies and sessions trouble
+</A></li>
+        <LI>Next message: <A HREF="018075.html">[mod_python] Cookies and sessions trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18074">[ date ]</a>
+              <a href="thread.html#18074">[ thread ]</a>
+              <a href="subject.html#18074">[ subject ]</a>
+              <a href="author.html#18074">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Sometimes I feel so stupid... remembering &quot;no req.write before finishing
+the cookies&quot;, Stripping those, the cookies part at least works within
+this test module, and seems to work OK in the real page as well. Now the
+rest of the problems still persist:
+
+main.py/home produces a page that a.o. links to user.py/register.
+
+user.py imports main.py (import main), and sometimes gets the error
+message &quot;No module named main&quot;. Sometimes it goes fine, and the module
+is imported and starts running.
+
+It seems the include goes well, as long as I to it within a minute or
+two from loading the home page (main.py/home). If quickly after that I
+click &lt;reload&gt; in the browser it goes fine, a moment later I get the
+include error.
+
+Also I just noticed that changes made to main.py are not used when
+including main in user.py, until I restart apache. I got some old
+wordings that were changed in the source. Some too persistent caching at
+work here?
+
+Wouter.
+
+On Fri, 2005-05-13 at 10:31 +0800, Wouter van Marle wrote:
+&gt;<i> Hi all,
+</I>&gt;<i> 
+</I>&gt;<i> As described in a previous thread (&quot; mod_python session trouble&quot;) I've
+</I>&gt;<i> had some problems with the sessions. Now there is some progress, though
+</I>&gt;<i> not really great...
+</I>&gt;<i> My website is run from a set of python scripts, serving up different
+</I>&gt;<i> pages, pretty much all from psp templates. To keep track of the user,
+</I>&gt;<i> I'm using a session (for current session info) and a more persistent
+</I>&gt;<i> cookie for longer term storage called &quot;basic&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> Now what I found:
+</I>&gt;<i> - the homepage is run from &quot;main.py&quot;, together with a few other pages.
+</I>&gt;<i> Within these pages the session is passed on nicely, and if that doesn't
+</I>&gt;<i> work, the &quot;basic&quot; cookie is accessed for the information.
+</I>&gt;<i> - main.py contains a function (get_session(req)) to read the session,
+</I>&gt;<i> and if expires read the cookie. Works nicely. Returns the session.
+</I>&gt;<i> 
+</I>&gt;<i> Except:
+</I>&gt;<i> - when calling &quot;req.session main.get_session(req)&quot; from my script
+</I>&gt;<i> user.py (via a hyperlink in the homepage) I get all kinds of errors,
+</I>&gt;<i> that are not consequent! Sometimes it complains it can not find the very
+</I>&gt;<i> function, another time it complains about unbound variables in this
+</I>&gt;<i> function, sometimes it runs and returns a session. Reloading the
+</I>&gt;<i> homepage and then moving to one of the subpages served by the other
+</I>&gt;<i> script (user.py).
+</I>&gt;<i> - when trying to read the cookies from user.py, I can not get my
+</I>&gt;<i> original cookies. The session appears to be new all the time
+</I>&gt;<i> (req.session.is_new returns &quot;True&quot;), and I can not read by &quot;basic&quot;
+</I>&gt;<i> cookie that is happily visible from functions that are in main.py. As a
+</I>&gt;<i> result I can not read the user's session settings, nor their defaults,
+</I>&gt;<i> and the script falls back to system defaults.
+</I>&gt;<i> 
+</I>&gt;<i> I've also done some testing, and here a small script showing part of the
+</I>&gt;<i> strange behaviour.
+</I>&gt;<i> When starting up the very first time, you have no cookies (makes sense),
+</I>&gt;<i> and &quot;language&quot; is set to system default &quot;en&quot;. However if you start
+</I>&gt;<i> switching it through the links, the language is NOT saved in the
+</I>&gt;<i> session, nor a &quot;basic&quot; cookie is set at all. This cookie is supposed to
+</I>&gt;<i> be set in the home function, to store the current user settings for
+</I>&gt;<i> later use.
+</I>&gt;<i> 
+</I>&gt;<i> ----------------- BEGIN test.py
+</I>&gt;<i> from mod_python import Cookie
+</I>&gt;<i> from mod_python import Session
+</I>&gt;<i> 
+</I>&gt;<i> import time
+</I>&gt;<i> 
+</I>&gt;<i> def home (req):
+</I>&gt;<i>     req.content_type = &quot;text/html; charset=utf-8&quot;
+</I>&gt;<i>     username = &quot;&quot;
+</I>&gt;<i>     if not hasattr(req, &quot;session&quot;):
+</I>&gt;<i>         req.session = get_session(req)
+</I>&gt;<i>     language = req.session[&quot;language&quot;]
+</I>&gt;<i>     req.write(&quot;home got language: &quot;+language+&quot;&lt;br&gt;&quot;)
+</I>&gt;<i>     # update the cookie on the user's side
+</I>&gt;<i>     value = {&quot;language&quot;: language, &quot;username&quot;: username}
+</I>&gt;<i>     Cookie.add_cookie(req,
+</I>&gt;<i>                       Cookie.MarshalCookie(&quot;basic&quot;, value, &quot;gezellig&quot;,
+</I>&gt;<i>                                            expires = time.time() +
+</I>&gt;<i> 7776000 # 90 days
+</I>&gt;<i>                                            ))
+</I>&gt;<i>     req.write(&quot;Language switcher: &lt;a href=./en&gt;en&lt;/a&gt;  &lt;a
+</I>&gt;<i> href=./cn&gt;cn&lt;/a&gt;&lt;br&gt;&quot;)
+</I>&gt;<i> 
+</I>&gt;<i> def en(req):
+</I>&gt;<i>     if not hasattr(req, &quot;session&quot;):
+</I>&gt;<i>         req.session = get_session(req)
+</I>&gt;<i>     req.session[&quot;language&quot;] = &quot;en&quot;
+</I>&gt;<i>     req.session.save()
+</I>&gt;<i>     home(req)
+</I>&gt;<i>     return 
+</I>&gt;<i> 
+</I>&gt;<i> def cn(req):
+</I>&gt;<i>     if not hasattr(req, &quot;session&quot;):
+</I>&gt;<i>         req.session = get_session(req)
+</I>&gt;<i>     req.session[&quot;language&quot;] = &quot;cn&quot;
+</I>&gt;<i>     req.session.save()
+</I>&gt;<i>     home(req)
+</I>&gt;<i>     return 
+</I>&gt;<i> 
+</I>&gt;<i> def get_session(req):
+</I>&gt;<i>     # gets the current session, checks if complete, if not reads
+</I>&gt;<i> defaults from
+</I>&gt;<i>     # the cookies.
+</I>&gt;<i>     sess = Session.Session(req)
+</I>&gt;<i>     req.content_type = &quot;text/html; charset=utf-8&quot;
+</I>&gt;<i>     # read user's settings from their cookies
+</I>&gt;<i>     language = &quot;en&quot; # system default
+</I>&gt;<i>     cookies = Cookie.get_cookies(req, Cookie.MarshalCookie,
+</I>&gt;<i>                                  secret = &quot;gezellig&quot;)
+</I>&gt;<i>     req.write(&quot;found cookies: &quot;+str(cookies)+&quot;&lt;br&gt;&quot;)
+</I>&gt;<i>     if cookies.has_key(&quot;basic&quot;):
+</I>&gt;<i>         # the basic info is stored in a cookie named &quot;basic&quot;
+</I>&gt;<i>         basiccookie = cookies[&quot;basic&quot;]
+</I>&gt;<i>         if type(basiccookie) is Cookie.MarshalCookie:
+</I>&gt;<i>             try:
+</I>&gt;<i>                 language = basiccookie.value[&quot;language&quot;]
+</I>&gt;<i>             except:
+</I>&gt;<i>                 pass
+</I>&gt;<i>     req.write(&quot;get_session got language: &quot;+language+&quot;&lt;br&gt;&quot;)
+</I>&gt;<i>     sess[&quot;language&quot;] = language
+</I>&gt;<i>     return sess
+</I>&gt;<i> -------------------------- END test.py
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Wouter.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018073.html">[mod_python] Cookies and sessions trouble
+</A></li>
+	<LI>Next message: <A HREF="018075.html">[mod_python] Cookies and sessions trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18074">[ date ]</a>
+              <a href="thread.html#18074">[ thread ]</a>
+              <a href="subject.html#18074">[ subject ]</a>
+              <a href="author.html#18074">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

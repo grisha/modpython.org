@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session deadlocking in Linux but not Windows
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20deadlocking%20in%20Linux%20but%20not%20Windows&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026229.html">
+   <LINK REL="Next"  HREF="026230.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session deadlocking in Linux but not Windows</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Seth VanHeulen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20deadlocking%20in%20Linux%20but%20not%20Windows&In-Reply-To="
+       TITLE="[mod_python] Session deadlocking in Linux but not Windows">svanheulen at gmail.com
+       </A><BR>
+    <I>Fri May 29 14:25:07 EDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026229.html">[mod_python] Mod_Python, multicore and concurrency
+</A></li>
+        <LI>Next message: <A HREF="026230.html">[mod_python] Mod_Python, multicore and concurrency
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26227">[ date ]</a>
+              <a href="thread.html#26227">[ thread ]</a>
+              <a href="subject.html#26227">[ subject ]</a>
+              <a href="author.html#26227">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I hacked together a way of doing forms authentication with mod_python
+and it's been working fine running on our Windows Server 2003 box but
+now I'm trying to get it running on an Ubuntu 9.04 box and I'm having
+troubles with what I think is the session getting deadlocked. It will
+work once sometimes but if I close the browser and try the site again
+apache doesn't respond it just sits there trying to load. No errors
+show up in the apache logs and I don't know where to go from here to
+troubleshoot.
+
+Some info on my setup:
+
+401 errors redirect to /login/auth.py/unauthorized
+/login/ does NOT require a valid user
+/ does require a valid user
+/login/auth is added as a PythonAuthenHandler
+/login/index.psp posts username and password to /login/auth.py/login
+
+Here's the code in auth.py:
+
+import sys
+import ldap
+from mod_python import apache
+from mod_python import Session
+from mod_python import util
+
+_main_page = '/'
+_login_form = '/login/'
+_domain = 'something'
+
+def authenhandler(req):
+    sess = Session.Session(req)
+    if sess.get('authorized') and sess.get('ipaddress') ==
+req.connection.remote_addr[0]:
+        sess.save()
+        req.user = str(sess.get('username'))
+        return apache.OK
+    else:
+        if not sess.is_new():
+            sess.invalidate()
+        return apache.HTTP_UNAUTHORIZED
+
+def unauthorized(req):
+    util.redirect(req, _login_form)
+
+def login(req, username, password):
+    sess = Session.Session(req)
+    #if not sess.get('username', str(username)) == str(username):
+    #    sess.invalidate()
+    sess['username'] = str(username)
+    sess['ipaddress'] = req.connection.remote_addr[0]
+    #l = ldap.open(_domain)
+    l = ldap.open(_domain)
+    try:
+        l.simple_bind_s(_domain + '\\' + str(username), str(password))
+        cn = l.search_s('dc=something,dc=example,dc=com',
+ldap.SCOPE_SUBTREE, '(sAMAccountName=' + str(username) + ')', ['cn'])
+    except ldap.SERVER_DOWN:
+        sess['authorized'] = False
+        sess.save()
+        util.redirect(req, _login_form + '?msg=server')
+    except:
+        sess['authorized'] = False
+        sess.save()
+        errorCode = sys.exc_info()[1][0]
+        if not errorCode.get('info', '').find(' data 773,') == -1:
+            util.redirect(req, _login_form + '?msg=expired')
+        else:
+            util.redirect(req, _login_form + '?msg=invalid')
+    else:
+        if cn:
+            sess['authorized'] = True
+            sess.save()
+            util.redirect(req, _main_page)
+        else:
+            sess['authorized'] = False
+            sess.save()
+            util.redirect(req, _login_form + '?msg=invalid')
+
+def logout(req):
+    sess = Session.Session(req)
+    sess.invalidate()
+    util.redirect(req, _login_form + '?msg=logout')
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026229.html">[mod_python] Mod_Python, multicore and concurrency
+</A></li>
+	<LI>Next message: <A HREF="026230.html">[mod_python] Mod_Python, multicore and concurrency
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26227">[ date ]</a>
+              <a href="thread.html#26227">[ thread ]</a>
+              <a href="subject.html#26227">[ subject ]</a>
+              <a href="author.html#26227">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

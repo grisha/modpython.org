@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] session locking causes hang with mpservlets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20session%20locking%20causes%20hang%20with%20mpservlets&In-Reply-To=f52b2115daddfae9b3da993bb53ee176%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017771.html">
+   <LINK REL="Next"  HREF="017774.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] session locking causes hang with mpservlets</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Scott Chapman</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20session%20locking%20causes%20hang%20with%20mpservlets&In-Reply-To=f52b2115daddfae9b3da993bb53ee176%40dscpl.com.au"
+       TITLE="[mod_python] session locking causes hang with mpservlets">scottie at mischko.com
+       </A><BR>
+    <I>Sat Mar 26 17:41:28 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017771.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+        <LI>Next message: <A HREF="017774.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17772">[ date ]</a>
+              <a href="thread.html#17772">[ thread ]</a>
+              <a href="subject.html#17772">[ subject ]</a>
+              <a href="author.html#17772">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+My previous post didn't address the issue correctly.
+I made some error logging in mpservlets to see where things stop.  In 
+this case, the internal redirect is not being called.  It never gets 
+that far:
+[Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] HANDLER - 
+calling auth
+[Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] HANDLER - 
+calling prep
+[Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] PREP - 
+clearing self.__out
+[Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] PREP - setting 
+self.form
+[Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] PREP - calling 
+__load_vars()
+[Sat Mar 26 14:34:02 2005] [error] [client 192.168.1.127] PREP - setting 
+self.session
+
+-- end of log --
+
+We never see &quot;Redirecting to login&quot; in the log.
+
+So, the initial establishment of the session is failing, due to locking.
+
+I have no idea why.
+
+Scott
+
+
+Graham Dumpleton wrote:
+
+&gt;<i> Try adding:
+</I>&gt;<i>
+</I>&gt;<i>   self.session.unlock()
+</I>&gt;<i>
+</I>&gt;<i> just before the internal redirect and see what happens.
+</I>&gt;<i>
+</I>&gt;<i> I don't believe this should be required as mpservlets is using
+</I>&gt;<i> its own internal redirect which actually saves the session before
+</I>&gt;<i> doing the real internal redirect.
+</I>&gt;<i>
+</I>&gt;<i> Anyway, this &quot;experiment&quot; might at least help you to understand
+</I>&gt;<i> things better.
+</I>&gt;<i>
+</I>&gt;<i> BTW, I am assuming when you say &quot;make session lock=0&quot;, you mean
+</I>&gt;<i> setting &quot;use_session&quot; appropriately. Is that correct?
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>&gt;<i> On 27/03/2005, at 7:29 AM, Scott Chapman wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Using linux - prefork mpm.
+</I>&gt;&gt;<i> I set my httpd.conf:
+</I>&gt;&gt;<i> StartServers 1
+</I>&gt;&gt;<i> MinSpareServers 1
+</I>&gt;&gt;<i> MaxSpareServers 0
+</I>&gt;&gt;<i> MaxClients 1
+</I>&gt;&gt;<i> MaxRequestsPerChild  0
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> for this test run.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Here's my UberServlet:
+</I>&gt;&gt;<i> -------------- snip --------------
+</I>&gt;&gt;<i> from mod_python.servlet import Servlet
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> class uberservlet(Servlet):
+</I>&gt;&gt;<i>     use_session = True
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     def respond(self):
+</I>&gt;&gt;<i>         self.req.log_error('Responding')
+</I>&gt;&gt;<i> methodName=self.req.uri[:len(self.req.uri)-len(self.req.path_info)][1:]
+</I>&gt;&gt;<i>         self.req.log_error('methodName: '+methodName)
+</I>&gt;&gt;<i>         if methodName == 'index':
+</I>&gt;&gt;<i>             self.req.log_error('Redirecting to login')
+</I>&gt;&gt;<i>             self.internal_redirect('/login')
+</I>&gt;&gt;<i>         if methodName == 'login':
+</I>&gt;&gt;<i>             self.req.log_error('Doing login')
+</I>&gt;&gt;<i>             self.writeln ('&lt;h1&gt;login_here&lt;/h1&gt;')
+</I>&gt;&gt;<i>             return True
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     def wrapup(self):
+</I>&gt;&gt;<i>         Servlet.wrapup(self)
+</I>&gt;&gt;<i> -------------- snip --------------
+</I>&gt;&gt;<i> When I make Sesssion lock=0, it doesn't hang.
+</I>&gt;&gt;<i> When I don't set lock = 0 (the default) it hangs when trying to 
+</I>&gt;&gt;<i> establish the session:
+</I>&gt;&gt;<i>   self.session = Session.Session(self.req, timeout=self.session_timeout)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> What problems do I look forward to if I run with lock=0?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Quoting Grisha:
+</I>&gt;&gt;<i> &quot;One thing you may try as an experiment is to disable session locking
+</I>&gt;&gt;<i> (Session(lock=0)). It will still use locking for access to the DBM, 
+</I>&gt;&gt;<i> but it won't lock individual sessions.&quot;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Grisha calls this &quot;an experiment&quot;.  Can anyone tell me why locking is 
+</I>&gt;&gt;<i> failing and what will happen if I run with locking off?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> TIA,
+</I>&gt;&gt;<i> Scott
+</I>&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017771.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+	<LI>Next message: <A HREF="017774.html">[mod_python] session locking causes hang with mpservlets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17772">[ date ]</a>
+              <a href="thread.html#17772">[ thread ]</a>
+              <a href="subject.html#17772">[ subject ]</a>
+              <a href="author.html#17772">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

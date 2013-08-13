@@ -1,0 +1,245 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20RE%3A%20Bug%20in%20mod_python.c%20causing%0A%09multiple/redundantinterpreter%20creation.&In-Reply-To=93CD6910-1FCB-11D9-9AA7-000393DCF16E%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016643.html">
+   <LINK REL="Next"  HREF="016644.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20RE%3A%20Bug%20in%20mod_python.c%20causing%0A%09multiple/redundantinterpreter%20creation.&In-Reply-To=93CD6910-1FCB-11D9-9AA7-000393DCF16E%40dscpl.com.au"
+       TITLE="[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.">nicolas at lehuen.com
+       </A><BR>
+    <I>Sun Oct 17 16:45:16 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016643.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+        <LI>Next message: <A HREF="016644.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16647">[ date ]</a>
+              <a href="thread.html#16647">[ thread ]</a>
+              <a href="subject.html#16647">[ subject ]</a>
+              <a href="author.html#16647">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE> 
+
+&gt;<i> -----Message d'origine-----
+</I>&gt;<i> De : Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>] 
+</I>&gt;<i> Envoy&#233; : dimanche 17 octobre 2004 01:32
+</I>&gt;<i> &#192; : Nicolas Lehuen
+</I>&gt;<i> Cc : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Objet : Re: [mod_python] RE: Bug in mod_python.c causing 
+</I>&gt;<i> multiple/redundantinterpreter creation.
+</I>&gt;<i> 
+</I>&gt;<i> I knew there was an issue with apache.py as well, with there 
+</I>&gt;<i> being no locking, but didn't mention it in my email with the 
+</I>&gt;<i> fix as I wanted to check that that was the source of the 
+</I>&gt;<i> other problem I was seeing and make sure I came up with a proper fix.
+</I>&gt;<i> 
+</I>&gt;<i> I was also thinking to suggest using
+</I>&gt;<i> imp.acquire_lock()/imp.release_lock(), but you need to have a 
+</I>&gt;<i> fallback for when version of Python older than 2.3 as those 
+</I>&gt;<i> functions were only introduced in that version.
+</I>
+I know this is *bad* but I really think people should move forward and
+upgrade to 2.3. Heck, it's not as if 2.3 was brand new ! It always makes me
+cringe when people do their best to support versions as old as Python 1.5.
+Why is it so difficult to upgrade ?
+
+&gt;<i> I'll come up with proper code later, but I was going to 
+</I>&gt;<i> suggest something like:
+</I>&gt;<i> 
+</I>&gt;<i> if not globals().has_key(&quot;_import_lock&quot;):
+</I>&gt;<i>    try:
+</I>&gt;<i>      from threading import Lock
+</I>&gt;<i>    except:
+</I>&gt;<i>      class Lock:
+</I>&gt;<i>        def acquire(self): pass
+</I>&gt;<i>        def release(self): pass
+</I>&gt;<i> 
+</I>&gt;<i>    _import_lock = Lock()
+</I>&gt;<i> 
+</I>&gt;<i> def import_module(module_name, autoreload=1, log=0, path=None):
+</I>&gt;<i>      &quot;&quot;&quot;
+</I>&gt;<i>      Get the module to handle the request. If
+</I>&gt;<i>      autoreload is on, then the module will be reloaded
+</I>&gt;<i>      if it has changed since the last import.
+</I>&gt;<i>      &quot;&quot;&quot;
+</I>&gt;<i> 
+</I>&gt;<i>      _import_lock.acquire()
+</I>&gt;<i>      try:
+</I>&gt;<i> 	# previous code of apache.import_module
+</I>&gt;<i>      finally:
+</I>&gt;<i>          _import_lock.release()
+</I>&gt;<i> 
+</I>&gt;<i> This mess is needed to cater for when threading isn't 
+</I>&gt;<i> compiled in to Python, use of an older version of Python that 
+</I>&gt;<i> didn't have the imp lock functions and also to avoid risk 
+</I>&gt;<i> that apache module might get touched and reloaded and thus 
+</I>&gt;<i> lock being overwritten.
+</I>
+You should use a RLock (reentrant), not a Lock, in case you use
+import_module to import a module which in turn uses import_module.
+ 
+&gt;<i> With the way that the apache module caching uses sys.modules 
+</I>&gt;<i> as its cache and doesn't keep a separate data structure, I am 
+</I>&gt;<i> not sure that a two level locking mechanism would be a good 
+</I>&gt;<i> idea. The lock for a two level scheme would at the moment 
+</I>&gt;<i> need to be stored in the module itself, as is __mtime__ at present.
+</I>&gt;<i>
+</I>&gt;<i> Frankly, I reckon the whole thing should be redone using 
+</I>&gt;<i> execfile() and a purpose built search routine in place of 
+</I>&gt;<i> imp.find_module(). All you loose is the ability to use 
+</I>&gt;<i> .pyc/.pyo files. If implemented correctly, you would also 
+</I>&gt;<i> loose the restriction in mod_python.publisher about having 
+</I>&gt;<i> two copies of the index.py file in different places, but that 
+</I>&gt;<i> would actually be a gain.
+</I>
+Well to me .pyc/.pyo files for published modules are a nuisance, since I had
+to add an access rule to prevent them from being readable through HTTP (it
+would be quite awful to have some of those modules containing passwords on
+the net).
+
+As for the restriction about index.py in mod_python.publisher, I really
+don't understand why it's still there. It's pretty easy to remove it, it's
+just a name mangling issue ! I rewrote my own publisher just because of this
+limitations (then I began to add other features). Now that I understand
+better how mod_python works, I see how it can be fixed.
+
+I think the core of the problem is that import_module was designed to be
+usable for two distincts purposes : loading pages for the publisher and
+loading &quot;normal&quot; modules. Loading &quot;normal&quot; modules should be left to Python,
+possibly with somes tasks like reloading implemented in import hooks.
+Loading pages for the publisher should be pushed into the publisher, and
+should have its own module cache, no need to mess with sys.modules (I don't
+consider it good practice for a page to &quot;import&quot; another page).
+
+Regards,
+
+Nicolas
+
+&gt;<i> You could optionally, have the support for the __clone__ type 
+</I>&gt;<i> method I was talking about before. Ie., in my module 
+</I>&gt;<i> reloading mechanism, I load into a fresh module, but a 
+</I>&gt;<i> rewrite of the apache scheme, would need to preserve the 
+</I>&gt;<i> behaviour of reloading into the existing one otherwise 
+</I>&gt;<i> existing code might break. The presence of a __clone__ method 
+</I>&gt;<i> could turn that off and instead a new module used in a 
+</I>&gt;<i> replacement for the apache scheme.
+</I>&gt;<i> 
+</I>&gt;<i> If one is reimplementing it to this extent, then you could 
+</I>&gt;<i> introduce a two level locking mechanism.
+</I>&gt;<i> 
+</I>&gt;<i> On 17/10/2004, at 12:46 AM, Nicolas Lehuen wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Indeed, having a look at apache.py, I didn't see any 
+</I>&gt;<i> locking done to 
+</I>&gt;<i> &gt; prevent the same module from being reloaded multiple times 
+</I>&gt;<i> &gt; concurrently. What we need is to put a lock in the import_module 
+</I>&gt;<i> &gt; method, so that two threads cannot check the freshness of the 
+</I>&gt;<i> &gt; publisher simultaneously. This can be done in a rather 
+</I>&gt;<i> brutal way by 
+</I>&gt;<i> &gt; calling imp.acquire_lock() at the beginning of import_module, put a 
+</I>&gt;<i> &gt; try/finally block around the code of the function and call 
+</I>&gt;<i> &gt; imp.release_lock() in the finally block :
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; def import_module(module_name, autoreload=1, log=0, path=None):
+</I>&gt;<i> &gt;     &quot;&quot;&quot;
+</I>&gt;<i> &gt;     Get the module to handle the request. If
+</I>&gt;<i> &gt;     autoreload is on, then the module will be reloaded
+</I>&gt;<i> &gt;     if it has changed since the last import.
+</I>&gt;<i> &gt;     &quot;&quot;&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     imp.acquire_lock()
+</I>&gt;<i> &gt;     try:
+</I>&gt;<i> &gt; 	# previous code of apache.import_module
+</I>&gt;<i> &gt;     finally:
+</I>&gt;<i> &gt;         imp.release_lock()
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I tested this, and it works as expected. BTW, maybe it 
+</I>&gt;<i> wouldn't work 
+</I>&gt;<i> &gt; without your patch, Graham, since I could suddenly see two 
+</I>&gt;<i> &gt; interpreters with their own copy of the mod_python.apache 
+</I>&gt;<i> module. But 
+</I>&gt;<i> &gt; the two fixes are required for it to work properly.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Why did I wrote &quot;in a rather brutal way&quot; above ? Because 
+</I>&gt;<i> this locking 
+</I>&gt;<i> &gt; scheme is indeed brutal. It is a global lock, so each and 
+</I>&gt;<i> every thread 
+</I>&gt;<i> &gt; who want to get its handler must acquire it for a brief amount of 
+</I>&gt;<i> &gt; time. The problem is that if a handler module is reloaded, it locks 
+</I>&gt;<i> &gt; each and every other thread during its reloading, even if 
+</I>&gt;<i> they should 
+</I>&gt;<i> &gt; not be handled by the same module.
+</I>&gt;<i> &gt; A smarter way to lock would be to use a two-levels locking 
+</I>&gt;<i> scheme, as 
+</I>&gt;<i> &gt; I described in my caching recipe in the Python Cookbook. I can 
+</I>&gt;<i> &gt; implement it there if it's ok for everybody.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> --
+</I>&gt;<i> Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016643.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+	<LI>Next message: <A HREF="016644.html">[mod_python] RE: Bug in mod_python.c causing
+	multiple/redundantinterpreter creation.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16647">[ date ]</a>
+              <a href="thread.html#16647">[ thread ]</a>
+              <a href="subject.html#16647">[ subject ]</a>
+              <a href="author.html#16647">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

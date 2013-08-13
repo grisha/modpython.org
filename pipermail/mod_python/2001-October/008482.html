@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Problems re-using a child's python interpreter
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problems%20re-using%20a%20child%27s%20python%20interpreter&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008481.html">
+   <LINK REL="Next"  HREF="008483.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] Problems re-using a child's python interpreter</H1>
+    <B>Diedrich Vorberg</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Problems%20re-using%20a%20child%27s%20python%20interpreter&In-Reply-To="
+       TITLE="[mod_python] Problems re-using a child's python interpreter">diedrich at tux4web.de
+       </A><BR>
+    <I>Wed Oct  3 18:19:16 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008481.html">[mod_python] Apache reload problem
+</A></li>
+        <LI>Next message: <A HREF="008483.html">[mod_python] Problems re-using a child's python interpreter
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8482">[ date ]</a>
+              <a href="thread.html#8482">[ thread ]</a>
+              <a href="subject.html#8482">[ subject ]</a>
+              <a href="author.html#8482">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>mod_python: Version 2.7.6
+apache: 1.3.14
+
+Hi folks,
+
+I wrote a sort of minimal 'content management helper', that translates
+XML to html and inserts dynamically created content on the
+fly. Nothing fancy, but it works - thought I, untill I found out it
+dosn't.
+
+My python handler looks like this:
+
+from mod_python import apache
+import logic.util
+
+def handler(req):
+    req.content_type = &quot;text/html&quot;
+    req.send_http_header()    
+
+    rendering = logic.util.getRendering(req.filename, req)
+    rendering = logic.util.insertDynamicContent(req, rendering)
+    req.write(rendering)
+    
+    return apache.OK
+
+The directory it's supposed to work in is:
+
+&lt;Directory /var/public_html/ted-magoo.de/domains/some-domain.de/www&gt;
+  AddHandler python-program .xml
+  PythonHandler roteerde
+  PythonDebug On
+  DirectoryIndex index.xml
+  PythonInterpPerDirectory On
+&lt;/Directory&gt;
+
+There is a 'logic' dir below the 'www' directory that contains a
+__init__.py and a util.py to make the import above work. And so it
+does until I created a second domain with the same setup and (nearly)
+the same files. I can access both directories at a time, but as soon I
+access one and than the other I get an apache error like:
+
+make_obcallback(): could not import mod_python.apache.
+make_obcallback(): could not call init.
+[Wed Oct  3 15:42:38 2001] [error] [client 127.0.0.1] python_handler:
+make_obcallback returned no obCallBack]
+
+I figured out that this has something to do with python being unable
+to find some modules. So I set a very long PYTHONPATH width all module
+paths on it before starting apache. Now I get all sorts of unrelated
+module-not-found errors. However, this only happens sometimes! Every
+second request or so gives me an error message or an error 500.
+
+My attempts debugging seem to indicate that errors do not occur when
+apache created a new sub-process and with it a new python interpreter
+to answer the request. So the only solution I came up with is setting
+
+MaxRequestsPerChild 1
+
+in http.conf. This lets apache sub-processes die as soon they answered
+a request. Of course it creates an enormous overhead.
+
+I'd greatly appreciate any ideas you have to solve the problem. I am
+sure you are facing similar problems when creating complex web
+applications with mod_python. What design patterns do you use to do
+so?
+
+Regards
+Diedrich
+
+
+-- 
+           _..._                            Diedrich Vorberg
+         .'     '.
+        /  _   _  \                         <A HREF="http://www.tux4web.de">http://www.tux4web.de</A>
+        | (o)_(o) |                         <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">info at tux4web.de</A>
+         \(     ) /            .---.
+         //'._.'\ \           /     \       Internet Dienstleistungen
+        //   .   \ \          \<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">. at -</A>@./       und 'Consulting'.
+       ||   .     \ \         /`\_/`\
+       |\   :     / |        //  _  \\      Linux Rules!
+       \ `) '   (`  /_      | \     )|_
+     _)``&quot;.____,.'&quot;` (_    /`\_`&gt;  &lt;_/ \
+     )     )'--'(     (    \__/'---'\__/
+      '---`      `---`
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008481.html">[mod_python] Apache reload problem
+</A></li>
+	<LI>Next message: <A HREF="008483.html">[mod_python] Problems re-using a child's python interpreter
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8482">[ date ]</a>
+              <a href="thread.html#8482">[ thread ]</a>
+              <a href="subject.html#8482">[ subject ]</a>
+              <a href="author.html#8482">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

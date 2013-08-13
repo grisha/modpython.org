@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Complicated GET configuration
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Complicated%20GET%20configuration&In-Reply-To=1029531928.1195.28.camel%40jade.biology.duke.edu">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012842.html">
+   <LINK REL="Next"  HREF="012853.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Complicated GET configuration</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Ian Clelland</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Complicated%20GET%20configuration&In-Reply-To=1029531928.1195.28.camel%40jade.biology.duke.edu"
+       TITLE="[mod_python] Complicated GET configuration">ian at veryfresh.com
+       </A><BR>
+    <I>Fri Aug 16 14:51:37 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012842.html">[mod_python] Complicated GET configuration
+</A></li>
+        <LI>Next message: <A HREF="012853.html">[mod_python] Complicated GET configuration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12849">[ date ]</a>
+              <a href="thread.html#12849">[ thread ]</a>
+              <a href="subject.html#12849">[ subject ]</a>
+              <a href="author.html#12849">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Fri, Aug 16, 2002 at 05:05:28PM -0400, Hunter Matthews wrote:
+&gt;<i> If anyone on the list has any ideas why the authz handler, which
+</I>&gt;<i> _looked_ like the handler I should use (using HTTP request headers to
+</I>&gt;<i> determine if a client was authorized to make this request), isn't
+</I>&gt;<i> working, I'd still appreciate knowing. 
+</I> 
+After playing with it for about 20 minutes, I managed to get your authorization handler to run on my machine. This appears to be a minimal configuration:
+
+Apache http.conf:
+
+&lt;VirtualHost *:80&gt;
+  ServerName pytest.zoostation
+  DocumentRoot /var/local/apache/htdocs/pytest
+  Alias /XMLRPC/$RHN /home/ian/pytest
+
+  &lt;Directory /home/pytest&gt;
+    Options FollowSymLinks
+    AllowOverride None
+  &lt;/Directory&gt;
+
+  &lt;Location ~ &quot;/XMLRPC$&quot;&gt;
+    PythonPath &quot;sys.path+['/home/ian/src/pytest']&quot;
+    SetHandler python-program
+    PythonHandler current_apache
+  &lt;/Location&gt;
+
+  &lt;Location /XMLRPC/$RHN&gt;
+    AuthName 'Restricted Area'
+    AuthType Basic
+    PythonPath &quot;sys.path+['/home/ian/src/pytest']&quot;
+    PythonAuthenHandler current_apache
+    PythonAuthzHandler current_apache
+    require valid-user
+  &lt;/Location&gt;
+
+&lt;/VirtualHost&gt;
+
+
+current_apache.py:
+
+from mod_python import apache
+
+def authenhandler(req):
+    &quot;&quot;&quot; temp function for testing.
+        this version accepts any username and password
+    &quot;&quot;&quot;
+
+    apache.log_error(&quot;Inside the authenhandler!&quot;, apache.APLOG_NOERRNO &amp; apache.APLOG_ERR)
+    apache.log_error(&quot;method = %s&quot; % req.method, apache.APLOG_NOERRNO &amp; apache.APLOG_ERR)
+    apache.log_error(&quot;headers = %s&quot; % `req.headers_in`, apache.APLOG_NOERRNO &amp; apache.APLOG_ERR)
+
+    pw = req.get_basic_auth_pw()
+    if req.connection.user == None:
+      return apache.HTTP_UNAUTHORIZED
+
+    return apache.OK
+
+def authzhandler(req):
+    &quot;&quot;&quot; temp function for testing
+        this version accepts all users for all uris
+    &quot;&quot;&quot;
+
+    apache.log_error(&quot;Inside the authzhandler!&quot;, apache.APLOG_NOERRNO &amp; apache.APLOG_ERR)
+    apache.log_error(&quot;method = %s&quot; % req.method, apache.APLOG_NOERRNO &amp; apache.APLOG_ERR)
+    apache.log_error(&quot;headers = %s&quot; % `req.headers_in`, apache.APLOG_NOERRNO &amp; apache.APLOG_ERR)
+
+    return apache.OK
+
+def handler(req):
+    &quot;&quot;&quot; temp function for testing&quot;&quot;&quot;
+
+    req.content_type = 'text/html'
+    req.send_http_header()
+    req.write(&quot;&lt;html&gt;&lt;body&gt;&lt;h1&gt;Testing&lt;/h1&gt;&lt;/body&gt;&lt;/html&gt;&quot;)
+
+    return apache.OK
+
+
+Explanation:
+
+In the Apache configuration, the line which triggers all of the 
+authentication/authorization is the 'require' line. Without this line, 
+the AuthenHandler and AuthzHandler will not be called. 'require 
+valid-user' seems to be sufficient for most cases, since your 
+AuthenHandler can decide who a valid user is, and your AuthzHandler can 
+filter out anyone unauthorized.
+
+As soon as you add that line, Apache will report an internal server 
+error until you give it an AuthName, AuthType, and some sort of 
+Authentication handler. I added a stub handler which accepts any 
+username and password.
+
+Once those are all present, then Apache will happily run the 
+AuthzHandler whenever the AuthenHandler returns OK.
+
+
+Hope this helps,
+
+Ian
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">ian at veryfresh.com</A>&gt;
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012842.html">[mod_python] Complicated GET configuration
+</A></li>
+	<LI>Next message: <A HREF="012853.html">[mod_python] Complicated GET configuration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12849">[ date ]</a>
+              <a href="thread.html#12849">[ thread ]</a>
+              <a href="subject.html#12849">[ subject ]</a>
+              <a href="author.html#12849">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

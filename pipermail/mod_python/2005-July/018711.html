@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] handling virtual files
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20handling%20virtual%20files&In-Reply-To=42D9148C.7060203%40geeks.cl">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018707.html">
+   <LINK REL="Next"  HREF="018703.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] handling virtual files</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20handling%20virtual%20files&In-Reply-To=42D9148C.7060203%40geeks.cl"
+       TITLE="[mod_python] handling virtual files">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sat Jul 16 20:55:37 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018707.html">[mod_python] handling virtual files
+</A></li>
+        <LI>Next message: <A HREF="018703.html">[mod_python] mod_python startup error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18711">[ date ]</a>
+              <a href="thread.html#18711">[ thread ]</a>
+              <a href="subject.html#18711">[ subject ]</a>
+              <a href="author.html#18711">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 17/07/2005, at 12:07 AM, Alejandro Mery wrote:
+
+&gt;&gt;<i> What base handler were you thinking of using, were you thinking
+</I>&gt;&gt;<i> of starting with something like mod_python.publisher or writing
+</I>&gt;&gt;<i> your own handlers from scratch?
+</I>&gt;<i>
+</I>&gt;<i> my own PythonHandler-s from scratch. I want to write handlers for the  
+</I>&gt;<i> different kind of folders and for the different kind of file, but  
+</I>&gt;<i> keeping file handlers also usable as direct handlers. for example a  
+</I>&gt;<i> handler to render dir/foo.xmi as png and dir/foo.xmi?height=200 with  
+</I>&gt;<i> that fixed height and scaling. or html from .tex files, with  
+</I>&gt;<i> foo.txt?pdf=yes&amp;papersize=letter options even if files are real or  
+</I>&gt;<i> not.
+</I>&gt;<i> i mean, to be called by folder handler or directly by apache.
+</I>
+If your virtual file is notionally adjacent to an actual physical file,
+the quickest way to get something working may be to use Vampire. This
+is because Vampire was designed to make this specific sort of thing
+very easy.
+
+In Vampire it does dispatching to a Python module associated with a
+physical file and can then within that Python module select a handler
+based on the extension to the request.
+
+Consider the &quot;.tex&quot; case first. Here you would have &quot;foo.tex&quot; present
+and next to it you would create a &quot;foo.py&quot; Python module. In it you  
+could
+have:
+
+   def handler_html(req):
+     # render req.filename as HTML
+
+   def handler_pdf(req,papersize=&quot;letter&quot;):
+     # render req.filename as PDF
+
+You could have a customised Python module associated with each &quot;.tex&quot;  
+file
+or, because the process could be the same for all &quot;.tex&quot; files in a  
+directory,
+you could specify a default handler for &quot;.html&quot; or &quot;.pdf&quot; which is  
+triggered
+for any matching request against the directory and it would process the  
+&quot;.tex&quot;
+file appropriately.
+
+For an actual example, see:
+
+   <A HREF="http://svn.dscpl.com.au/vampire/trunk/examples/reportlab/">http://svn.dscpl.com.au/vampire/trunk/examples/reportlab/</A>
+   <A HREF="http://svn.dscpl.com.au/vampire/trunk/examples/reportlab/_handler.py">http://svn.dscpl.com.au/vampire/trunk/examples/reportlab/_handler.py</A>
+
+In this case rather than a &quot;.tex&quot; file as input, it is a &quot;.rml&quot; file
+with output being &quot;.pdf&quot;.
+
+For another example of this idea of multiple views of a physical
+resource, see:
+
+    
+<A HREF="http://svn.dscpl.com.au/vampire/trunk/examples/handler/complex_views.py">http://svn.dscpl.com.au/vampire/trunk/examples/handler/complex_views.py</A>
+    
+<A HREF="http://svn.dscpl.com.au/vampire/trunk/examples/handler/">http://svn.dscpl.com.au/vampire/trunk/examples/handler/</A> 
+complex_views.csv
+
+Here there is a physical &quot;.csv&quot; file, but also virtual resource  
+handlers in
+the associated Python module for returning the data as HTML or tab  
+separated
+data.
+
+Note how the Python module even has a handler for a &quot;.csv&quot; request so  
+that
+some checking can be done, with req.sendfile() being used to return the
+actual &quot;.csv&quot; data.
+
+You could do something similar for your &quot;.xmi&quot; files, although, it may  
+make
+sense to have a handler for &quot;.png&quot; which transforms &quot;.xmi&quot; file to PNG  
+and
+sends the response. Ie., use the appropriate extension type for the top
+of content being returned.
+
+&gt;<i> i have nothing serious written or designed yet, if you think i need  
+</I>&gt;<i> WSGI lets go there :)
+</I>
+Based on how you describe what you want, you might try Vampire first.  
+More
+complicated things can still be done with Vampire, but depends on how  
+you
+want that to work.
+
+BTW, Vampire is available from:
+
+   <A HREF="http://www.dscpl.com.au/projects/vampire">http://www.dscpl.com.au/projects/vampire</A>
+
+This is not the volatile package I talked of, that is something  
+different I
+am working on. Vampire is stable, with only known issue being an obscure
+thing related to module reloading which you unlikely to run up against  
+quickly.
+
+There are various examples included with the source code, including all  
+the
+above.
+
+Graham
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018707.html">[mod_python] handling virtual files
+</A></li>
+	<LI>Next message: <A HREF="018703.html">[mod_python] mod_python startup error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18711">[ date ]</a>
+              <a href="thread.html#18711">[ thread ]</a>
+              <a href="subject.html#18711">[ subject ]</a>
+              <a href="author.html#18711">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

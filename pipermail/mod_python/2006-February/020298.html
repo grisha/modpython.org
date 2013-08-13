@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: reading mod_ssl variables from mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20reading%20mod_ssl%20variables%20from%20mod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020303.html">
+   <LINK REL="Next"  HREF="020299.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: reading mod_ssl variables from mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20reading%20mod_ssl%20variables%20from%20mod_python&In-Reply-To="
+       TITLE="[mod_python] Re: reading mod_ssl variables from mod_python">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Feb 16 01:48:20 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020303.html">[mod_python] Re: reading mod_ssl variables from mod_python
+</A></li>
+        <LI>Next message: <A HREF="020299.html">[mod_python] Problem with PSP and unicode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20298">[ date ]</a>
+              <a href="thread.html#20298">[ thread ]</a>
+              <a href="subject.html#20298">[ subject ]</a>
+              <a href="author.html#20298">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>In my code, delete the line:
+
+  free(variable_value);
+
+It shouldn't be there. Not sure why I had it. That will eliminate
+the crash and complaint about free() in log file.
+
+As suggested by Deron, you may want to use his direct patches
+to mod_python since they have been used where as mine was
+proof of concept and I couldn't actually test it myself. You might
+at least compare how he implements the two functions to what
+I did. See patch associated with:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-94">http://issues.apache.org/jira/browse/MODPYTHON-94</A>
+  <A HREF="http://issues.apache.org/jira/secure/attachment/12321011/requestobject.c.patch">http://issues.apache.org/jira/secure/attachment/12321011/requestobject.c.patch</A>
+
+Graham
+
+Graham Dumpleton wrote ..
+&gt;<i> Please keep stuff on the mailing list. I have resent this to the list 
+</I>&gt;<i> and
+</I>&gt;<i> when I have a chance to look properly will respond.
+</I>&gt;<i> 
+</I>&gt;<i> On 16/02/2006, at 6:10 AM, Tomasz Wlodek wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Hi,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; few weeks ago you gave me a patch which was intended to allow me to 
+</I>&gt;<i> &gt; read
+</I>&gt;<i> &gt; mod_ssl variables from mod_python authentication handler.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I installed it on my site, compiled (no errors nor warnings) and  
+</I>&gt;<i> &gt; converted
+</I>&gt;<i> &gt; to python module. Then I inserted it in mod_python authentication  
+</I>&gt;<i> &gt; handler:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; from mod_python import apache
+</I>&gt;<i> &gt; import _mp_mod_ssl
+</I>&gt;<i> &gt; import os
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; def authenhandler(req):
+</I>&gt;<i> &gt;     req.add_common_vars()
+</I>&gt;<i> &gt;     name='SSL_CLIENT_S_DN'
+</I>&gt;<i> &gt;     is_https = _mp_mod_ssl.is_https(req)
+</I>&gt;<i> &gt;     if is_https!=1:
+</I>&gt;<i> &gt;         return apache.HTTP_FORBIDDEN
+</I>&gt;<i> &gt;     else:
+</I>&gt;<i> &gt;         lookup = _mp_mod_ssl.var_lookup(req,name)
+</I>&gt;<i> &gt;         req.write(lookup)
+</I>&gt;<i> &gt;         return apache.OK
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The code is supposed to check whether the use presented a  
+</I>&gt;<i> &gt; certificate, if
+</I>&gt;<i> &gt; yes let him in. Otherwise reject him.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The problem is that the code does not seem to be stable: sometimes it
+</I>&gt;<i> &gt; returns correctly my DN. Sometimes it fails on the lookup =
+</I>&gt;<i> &gt; _mp_mod_ssl.var_lookup(req,name) line. If I do some innocent code
+</I>&gt;<i> &gt; rearrangement it is enough to make the code fail. I see no apparent 
+</I>&gt;<i> &gt; reason
+</I>&gt;<i> &gt; why sometimes it fails and sometimes works.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The apache error log says only:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; [Wed Feb 15 13:59:18 2006] [notice] child pid 14273 exit signal  
+</I>&gt;<i> &gt; Aborted
+</I>&gt;<i> &gt; (6)
+</I>&gt;<i> &gt; [Wed Feb 15 14:00:13 2006] [error] (13)Permission denied: Cannot open
+</I>&gt;<i> &gt; SSLSessionCache DBM file `/var/cache/mod_ssl/scache' for scanning
+</I>&gt;<i> &gt; [Wed Feb 15 14:00:13 2006] [error] (13)Permission denied: Cannot open
+</I>&gt;<i> &gt; SSLSessionCache DBM file `/var/cache/mod_ssl/scache' for reading  
+</I>&gt;<i> &gt; (fetch)
+</I>&gt;<i> &gt; [Wed Feb 15 14:00:15 2006] [notice] mod_python: (Re)importing module
+</I>&gt;<i> &gt; 'myhandler'
+</I>&gt;<i> &gt; *** glibc detected *** free(): invalid next size (fast): 0x083e0a90 
+</I>&gt;<i> &gt; ***
+</I>&gt;<i> &gt; [Wed Feb 15 14:00:15 2006] [notice] child pid 13342 exit signal  
+</I>&gt;<i> &gt; Aborted
+</I>&gt;<i> &gt; (6)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Is there a simple way to debug the code?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Another question: In the example above I get the value of variable
+</I>&gt;<i> &gt; SSL_CLIENT_S_DN (user DN). It sometimes reads the DN correctly and
+</I>&gt;<i> &gt; sometimes not. But when I try to read the variable SSL_CLIENT_CERT  
+</I>&gt;<i> &gt; (user
+</I>&gt;<i> &gt; certificate) the code always fails. Any idea what could be wrong?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Tomasz Wlodek                        | tel 631-344-7448
+</I>&gt;<i> &gt; Brookhaven Laboratory, Building 510M | fax 631-344-7616
+</I>&gt;<i> &gt; Upton NY 11973-5000                  |
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020303.html">[mod_python] Re: reading mod_ssl variables from mod_python
+</A></li>
+	<LI>Next message: <A HREF="020299.html">[mod_python] Problem with PSP and unicode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20298">[ date ]</a>
+              <a href="thread.html#20298">[ thread ]</a>
+              <a href="subject.html#20298">[ subject ]</a>
+              <a href="author.html#20298">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

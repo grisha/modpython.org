@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Cookie.py problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookie.py%20problems&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020727.html">
+   <LINK REL="Next"  HREF="020732.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Cookie.py problems</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Alberto Ruiz</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Cookie.py%20problems&In-Reply-To="
+       TITLE="[mod_python] Cookie.py problems">al at ruiz.ws
+       </A><BR>
+    <I>Fri Mar 31 21:11:43 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020727.html">[mod_python] How do I troubleshoot a 500 Internal Server Error?
+</A></li>
+        <LI>Next message: <A HREF="020732.html">[mod_python] Re: Cookie.py problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20731">[ date ]</a>
+              <a href="thread.html#20731">[ thread ]</a>
+              <a href="subject.html#20731">[ subject ]</a>
+              <a href="author.html#20731">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Something is wrong with the Cookie class because the web reply is not
+sending the cookie properly.  Am I doing something wrong? This setup was
+working fine on a Debian system.  It is now running on a FreeBSD.  I
+sniffed the web server reply and this is what am getting:
+
+HTTP/1.1  200 OK.
+.Date: S at, 01 A
+pr 2006  01:30:21
+GMT..Se rver: Ap
+ache/1.3 .33 (Uni
+x) mod_p ython/2.
+7.11 Pyt hon/2.4.
+2 PHP/4. 4.2 mod_
+perl/1.2 9..Keep-
+Alive: t imeout=1
+5, max=1 00..Conn
+ection:  Keep-Ali
+ve..Tran sfer-Enc
+oding: c hunked..
+Content- Type: te
+xt/html. ...62 ..
+userq=up date use
+r set SI D='EndNx
+nm0nnJEp Jtug4b2f
+WjusIDRV 3Kw' whe
+re name= 'lorim' 
+and pass word='12
+3'..41 . .&lt;head&gt;&lt;
+meta htt p-equiv=
+'refresh ' conten
+t='0;url =/BB.htm
+l'&gt;&lt;/hea d&gt;..1  .
+. ..0... .      
+
+So as you can see I'm getting a 62 and then some wierd text from a sql
+query and then the Cookie contents, as well as some other stuff.  But
+'Cookie:' should be preappended to the cookie.  Here is a snippet of the
+code handling the cookie:
+
+.....
+from mod_python import Cookie
+
+def index (req,LLRuser='',LLRpw=''):
+	global R; R=req; R.content_type=&quot;text/html&quot;
+	R.send_http_header()
+	cur=DBconnectpropman.DB.cursor()
+	sidrefreshing=0
+	ZWF.R=R
+	global SID;SID=''
+	global UID;UID=''
+	cookies = Cookie.get_cookies(R, Cookie.MarshalCookie,
+secret='LLR14151111')
+	
+	if LLRuser!='' and LLRpw!='':  # login attempt
+		if string.find(LLRuser,&quot;@&quot;)!=-1: #client login attempt
+			cur.execute(&quot;select clientid,name,password from client where
+email='&quot;+LLRuser+&quot;'&quot;)
+			userrs=cur.fetchone()
+			if str(userrs)!='None':
+				LLRuser=userrs[1]
+				usertable='client'
+		else:
+			cur.execute(&quot;select * from user where name='&quot;+LLRuser+&quot;' and
+password='&quot;+LLRpw+&quot;'&quot;) 
+			userrs=cur.fetchone()
+			usertable='user'
+		if str(userrs)!='None': #login success create session key, update user
+record, sett sid cookie
+			SID=''
+			for n in range(0,32):
+				x=random.randint(48,108)
+				if x&gt;57:x+=8
+				if x&gt;90:x+=6
+				SID+=chr(x)
+			cookie = Cookie.Cookie('sid', SID); cookie.expires = time.time() +
+36000; Cookie.add_cookie(R, cookie)
+			q=&quot;update &quot;+usertable+&quot; set SID='&quot;+SID+&quot;' where name='&quot;+LLRuser+&quot;'
+and password='&quot;+LLRpw+&quot;'&quot;
+			R.write(&quot;userq=&quot;+q)
+			cur.execute(q)
+			R.write(&quot;&lt;head&gt;&lt;meta http-equiv='refresh'
+content='0;url=/BB.html'&gt;&lt;/head&gt;&quot;)
+			sidrefreshing=1
+	if cookies.has_key('sid'):
+		#we have a session id, is it valid?
+		USER=ZWF.usercheck(R,cur)
+		SID=USER.SID
+		UID=USER.UID
+		........
+
+Let me know if you need any other info.
+
+Can I use the regular python Cookie class instead?   
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020727.html">[mod_python] How do I troubleshoot a 500 Internal Server Error?
+</A></li>
+	<LI>Next message: <A HREF="020732.html">[mod_python] Re: Cookie.py problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20731">[ date ]</a>
+              <a href="thread.html#20731">[ thread ]</a>
+              <a href="subject.html#20731">[ subject ]</a>
+              <a href="author.html#20731">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

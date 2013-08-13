@@ -1,0 +1,265 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session Hanging Problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Hanging%20Problems&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024522.html">
+   <LINK REL="Next"  HREF="024519.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session Hanging Problems</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martijn Moeling</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Hanging%20Problems&In-Reply-To="
+       TITLE="[mod_python] Session Hanging Problems">martijn at xs4us.nu
+       </A><BR>
+    <I>Wed Nov 28 03:04:23 EST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024522.html">[mod_python] Session Hanging Problems
+</A></li>
+        <LI>Next message: <A HREF="024519.html">[mod_python] unsubscribe
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24523">[ date ]</a>
+              <a href="thread.html#24523">[ thread ]</a>
+              <a href="subject.html#24523">[ subject ]</a>
+              <a href="author.html#24523">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>See below what I did to use MySQL as a session store.
+This is done since I use multiple mod_python frond ends to connect to one DB server.
+ 
+Martijn
+ 
+(these are changes made to the original Session.py from the mod_python package)
+ 
+ 
+###########################################################################
+## MySQLSession
+## M. Moeling, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">martijn at xs4us.nu</A> &lt;mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">martijn at xs4us.nu</A>&gt; 
+##
+## In order to use MySQLSession:
+## in your handler.py:        
+## import MySQLdb
+##
+##  Use:
+##        req.db = MySQLdb.connect(host=Chost,user=Cuser,passwd=Cpasswd,db=Cdb)
+##        req.cursor = req.db.cursor()
+## 
+##  When req.cursor is existing, Session.py will default to MySQLSession
+##  Can be overruled with pythonoptions in apacheconfig
+##
+## To create table in MySQL use the following:
+## CREATE TABLE `Session` (
+##  `sid` varchar(50) NOT NULL,
+##  `store` text NOT NULL,
+##  PRIMARY KEY  (`sid`)
+## ) TYPE=MyISAM;
+        
+def MySQL_cleanup(req):
+    req.cursor.execute(&quot;Select * from Session&quot;)
+    AllSessions = req.cursor.fetchall()
+    stale=0
+    total=0
+    for record in AllSessions:
+        total+=1
+        session = cPickle.loads(record[1])
+        if (time.time() - session[&quot;_accessed&quot;]) &gt; session[&quot;_timeout&quot;]:
+            stale+=1
+            req.cursor.execute(&quot;DELETE FROM Session where sid='&quot;+record[0]+&quot;'&quot;)        
+    req.log_error(&quot;MySQLSession: Removed: &quot;+str(stale)+&quot; stale records from &quot;+str(total)+&quot; in total&quot;,apache.APLOG_NOTICE)
+        
+class MySQLSession(BaseSession):
+
+    def __init__(self, req, sid=0, secret=None, timeout=0, lock=1):
+        BaseSession.__init__(self, req, sid=sid, secret=secret,
+                             timeout=timeout, lock=lock)
+    def do_cleanup(self):
+        self._req.register_cleanup(MySQL_cleanup, self._req)
+        self._req.log_error(&quot;MySQLSession: registered session cleanup.&quot;,apache.APLOG_NOTICE)
+    def do_load(self):
+        self._req.cursor.execute(&quot;Select store from Session where sid='&quot;+self._sid+&quot;'&quot;)
+        store=self._req.cursor.fetchone()
+        if self._req.cursor.rowcount==1:
+            return cPickle.loads(store[0].encode('utf-8'))
+        return None
+    def do_save(self, dict):
+        self._req.cursor.execute(&quot;Select store from Session where sid='&quot;+self._sid+&quot;'&quot;)
+        store=self._req.cursor.fetchone()
+        if self._req.cursor.rowcount==1:
+            Query=&quot;Update Session set store=\&quot;&quot;+cPickle.dumps(dict)+&quot;\&quot; where sid='&quot;+self._sid+&quot;'&quot;
+        else:
+            Query=&quot;Insert into Session (sid,store) values (\&quot;&quot;+self._sid+&quot;\&quot;,\&quot;&quot;+cPickle.dumps(dict)+&quot;\&quot;)&quot;           
+        self._req.cursor.execute(Query)
+            
+        
+    def do_delete(self):
+        try:
+            self._req.cursor.execute(&quot;DELETE FROM Session where sid='&quot;+self._sid+&quot;'&quot;)
+        except:
+            pass
+
+###########################################################################
+## Session
+## Changes made for MySQLSession
+## the application should set req.cursor as an MySQLdb cursor object
+
+def Session(req, sid=0, secret=None, timeout=0, lock=1):
+    opts = req.get_options()
+    if opts.has_key('session'):
+        # Check the apache config for the type of session
+        sess_type = opts['session']
+    else:
+        ## MySQLSession is default when req.cursor exists
+        if req.cursor:
+            sess_type = 'MySQLSession'
+        else:
+        ## END of MySQLSession modification
+            # no session class in config so get the default for the platform
+            threaded = _apache.mpm_query(apache.AP_MPMQ_IS_THREADED)
+            forked = _apache.mpm_query(apache.AP_MPMQ_IS_FORKED)
+            daemons =  _apache.mpm_query(apache.AP_MPMQ_MAX_DAEMONS)
+            if (threaded and ((not forked) or (daemons == 1))):
+                sess_type = 'MemorySession'
+            else:
+                sess_type = 'DbmSession'
+    if sess_type == 'FileSession':
+        sess =  FileSession
+    elif sess_type == 'DbmSession':
+        sess = DbmSession
+    elif sess_type == 'MemorySession':
+        sess = MemorySession
+    ## Added for MySQLSession
+    elif sess_type == 'MySQLSession':
+        sess = MySQLSession
+    else:
+        # TODO Add capability to load a user defined class
+        # For now, just raise an exception.
+        raise Exception, 'Unknown session type %s' % sess_type
+    return sess(req, sid=sid, secret=secret,
+                         timeout=timeout, lock=lock)
+
+ 
+
+________________________________
+
+Van: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A> namens David Janes
+Verzonden: di 27.11.2007 20:06
+Aan: Harish Agarwal
+CC: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>; Graham Dumpleton
+Onderwerp: Re: [mod_python] Session Hanging Problems
+
+
+
+Here's what I'm experimenting with right now -- I'm subclassing
+FileSession and overriding all the lock methods. Obviously this will
+have to be adapted for people not working in the FileSession world.
+
+Regards, etc...
+
+    class BMFileSession(Session.FileSession):
+        def __init__(self, req, sid = None):
+            self.bm_lockf = None
+            ... more init stuff ...
+
+
+        def lock(self):
+            if self._lock:
+                self.bm_lock(self._req.server, self._sid)
+                self._locked = 1
+                self._req.register_cleanup(Session.unlock_session_cleanup, self)
+
+        def unlock(self):
+            if self._lock and self._locked:
+                self.bm_unlock(self._req.server, self._sid)
+                self._locked = 0
+
+        def lock_file(self):
+            if not self._locked:
+                self.bm_lock(self._req.server, self._sid)
+                self._locked = 1
+
+        def unlock_file(self):
+            if self._locked and not self._lock:
+                self.bm_unlock(self._req.server, self._sid)
+                self._locked = 0
+
+        def bm_lockfile(self, sid):
+            lockdir = os.path.join(self._sessdir, sid[:2])
+            if not os.path.exists(lockdir):
+                os.makedirs(lockdir)
+
+            return  os.path.join(lockdir, sid)
+
+        def bm_lock(self, server, sid):
+            if self.bm_lockf:
+                try: self.bm_lockf.close()
+                except: pass
+
+            self.bm_lockf = open(self.bm_lockfile(sid), 'a+')
+            fcntl.lockf(self.bm_lockf, fcntl.LOCK_EX)
+
+        def bm_unlock(self, server, sid):
+            if self.bm_lockf:
+                fcntl.lockf(self.bm_lockf, fcntl.LOCK_UN)
+
+                try: self.bm_lockf.close()
+                except: pass
+
+                self.bm_lockf = None
+_______________________________________________
+Mod_python mailing list
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20071128/0aaa4735/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20071128/0aaa4735/attachment.html</A>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024522.html">[mod_python] Session Hanging Problems
+</A></li>
+	<LI>Next message: <A HREF="024519.html">[mod_python] unsubscribe
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24523">[ date ]</a>
+              <a href="thread.html#24523">[ thread ]</a>
+              <a href="subject.html#24523">[ subject ]</a>
+              <a href="author.html#24523">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

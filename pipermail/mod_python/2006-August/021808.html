@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] For what session locking is? Do i need it while
+	using MySQL?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20For%20what%20session%20locking%20is%3F%20Do%20i%20need%20it%20while%0A%09using%20MySQL%3F&In-Reply-To=5039497640.20060811112336%40zdisk.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021800.html">
+   <LINK REL="Next"  HREF="021784.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] For what session locking is? Do i need it while
+	using MySQL?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20For%20what%20session%20locking%20is%3F%20Do%20i%20need%20it%20while%0A%09using%20MySQL%3F&In-Reply-To=5039497640.20060811112336%40zdisk.net"
+       TITLE="[mod_python] For what session locking is? Do i need it while
+	using MySQL?">jpg at jgassociates.ca
+       </A><BR>
+    <I>Fri Aug 11 12:17:50 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021800.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+        <LI>Next message: <A HREF="021784.html">[mod_python] For what session locking is? Do i need it while
+	using	MySQL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21808">[ date ]</a>
+              <a href="thread.html#21808">[ thread ]</a>
+              <a href="subject.html#21808">[ subject ]</a>
+              <a href="author.html#21808">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Norman Tindall wrote:
+&gt;<i> Hello Jim,
+</I>&gt;<i> 
+</I>&gt;<i>       Yesterday i realized what i saw in BaseSession class and i
+</I>&gt;<i>       think it is terrible.
+</I>&gt;<i> 
+</I>&gt;<i> def lock(self):
+</I>&gt;<i>      if self._lock:
+</I>&gt;<i>          _apache._global_lock(self._req.server, self._sid)
+</I>&gt;<i>          self._locked = 1
+</I>&gt;<i>          self._req.register_cleanup(unlock_session_cleanup, self)
+</I>&gt;<i> 
+</I>&gt;<i>   Attention to last line of fuction &quot;self._req.register_cleanup(unlock_session_cleanup, self)&quot;
+</I>&gt;<i>   so the unlock of session happens when last byte of a request sent to
+</I>&gt;<i>   client and reqest object is to be destroyed.
+</I>&gt;<i> 
+</I>&gt;<i>   And what if i write in handler something like this:
+</I>&gt;<i> 
+</I>&gt;<i>   for x in range(100):
+</I>&gt;<i>        time.sleep(1)
+</I>&gt;<i>        req.write(str(x) +&quot; &quot;+ str(sess._locked)  + &quot;&lt;BR&gt;&quot;,1)
+</I>&gt;<i> 
+</I>&gt;<i>   Session will be locked for a 100 seconds!
+</I>&gt;<i>   Well there may be a blocking timeout but i don`n know how
+</I>&gt;<i>   How parallel thread handle this situation with 100 sec session
+</I>&gt;<i>   blocking.
+</I>&gt;<i> 
+</I>&gt;<i>   I think it SHOULD be added to documentation that after all
+</I>&gt;<i>   manipulation with session data is made you MUST unlock it
+</I>&gt;<i>   explicit.
+</I>&gt;<i> 
+</I>&gt;<i>   For example in my handler i can unlock even before headers is sent
+</I>&gt;<i>   to client - and it is much more faster than 100 sec.
+</I>&gt;<i> 
+</I>
+On the contrary, BaseSession.lock() does *exactly* the right thing. The
+giveaway is the fact that it is registering a *cleanup*. The point of
+the cleanup is to make sure the session is unlocked. Without that a
+small coding error, such as forgetting to unlock the session, would very
+quickly deadlock the server as the mutexes used for locking are a
+limited system resource. The cleanup code makes sure the application
+writer does  not shoot themselves in the foot, and take down their
+server at the same time.
+
+lock() and unlock() are public methods and the app developer is free to
+call them anytime they want. Not every use case can be anticipated it
+would be wrong to dictate when session unlocking should occur, beyond
+ensuring that it *does* occur. It's the app developer's responsibility
+to understand their own code, and adjust accordingly. Personally I think
+that for the majority of cases using implicit unlocking in the request
+cleanup works just fine. Are there times when I would explicitly unlock
+a session? Absolutely, but I'm happy that I don't normally need to worry
+about it.
+
+Jim
+
+
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021800.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+	<LI>Next message: <A HREF="021784.html">[mod_python] For what session locking is? Do i need it while
+	using	MySQL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21808">[ date ]</a>
+              <a href="thread.html#21808">[ thread ]</a>
+              <a href="subject.html#21808">[ subject ]</a>
+              <a href="author.html#21808">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

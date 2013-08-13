@@ -1,0 +1,315 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Unable to import modules in subdirs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Unable%20to%20import%20modules%20in%20subdirs&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019445.html">
+   <LINK REL="Next"  HREF="019448.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Unable to import modules in subdirs</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Unable%20to%20import%20modules%20in%20subdirs&In-Reply-To="
+       TITLE="[mod_python] Unable to import modules in subdirs">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Oct 27 23:59:27 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019445.html">[mod_python] Unable to import modules in subdirs
+</A></li>
+        <LI>Next message: <A HREF="019448.html">[mod_python] mod_python questions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19442">[ date ]</a>
+              <a href="thread.html#19442">[ thread ]</a>
+              <a href="subject.html#19442">[ subject ]</a>
+              <a href="author.html#19442">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Brandon N wrote ..
+&gt;<i> I meant seeing as others had pointed out the concern that one shouldn't put
+</I>&gt;<i> .py files under htdocs/ or similar directories for fear that someone might
+</I>&gt;<i> find access to one's source files, wholly intact.
+</I>
+The reference to putting .py files under htdocs pertained more to any
+shared set of modules used by your application. The idea being to make
+what code is in a handler module file as minimal as possible with
+callouts to separate application modules which do the bulk of the work.
+
+There are a number of reasons for doing this. The first is that in the
+event that an Apache configuration is stuffed up and .py files exposed,
+that you aren't exposing the bulk of the code of your application. Ie.,
+the important stuff where you might hold things like any database
+login/password details or pathnames to other files which may contain
+sensitive information.
+
+The second reason is to avoid any problems with modules being loaded
+both by the standard Python import mechanism and the mod_python module
+import mechanism. Mixing the two can cause some issues and it is easier
+to avoid the problem by never using &quot;import&quot; to import modules in the
+document tree. Best way of doing that is to move shared modules
+elsewhere. If you must import a module in the document tree from another
+module in the document tree, use apache.import_module() instead.
+
+In terms of security of .py files in the document tree, the risk is
+similar as to when using .php or .cgi files. If someone screws up the
+Apache configuration in all these cases source code could be exposed.
+This sort of issue will possibly more easily occur when mod_python is
+configured from the main Apache configuration file. At least if
+mod_python is configured from a .htaccess file in the document tree, the
+file is adjacent to the source code and the association more easily
+seen. When in the main Apache configuration, too easy for someone
+to unknowingly remove/disable it, or to wipe it out when upgrading
+Apache. With a .htaccess file it will keep working unless FileInfo option
+is disabled or use of .htaccess files is disabled. If FileInfo is disabled,
+result will from memory be a 500 error so still safe. Disable .htaccess
+files though and code can still be exposed.
+
+What I would personally be more worried about is where the user that
+Apache runs as has some sort of write access to the document tree.
+If it does, then .pyc and .pyo files can be left in the document tree
+from when a module is loaded. If AddHandler is used to only map .py
+files to mod_python, then the .pyc and .pyo files can be exposed and
+downloadable. If someone had the right tools they could decompile
+the bytecode and find out something about your source code, including
+possibly sensitive details.
+
+Even if the user Apache runs as doesn't have write access to the
+document tree, I would always suggest the following be added to
+the Apache configuration.
+
+  &lt;Files *.pyc&gt;
+  deny from all
+  &lt;/Files&gt;
+  
+  &lt;Files *.pyo&gt;
+  deny from all
+  &lt;/Files&gt;
+
+This will block access to the files if they are created by mod_python
+where directories are writable, or if the files are inadvertantly copied
+there from another location.
+
+As to keeping handler modules out of the document tree, thus eliminating
+the danger they could be exposed, this is not really possible with
+mod_python as it stands now. With mod_python 3.2 though, there is
+potential for it to be done, although it means writing a special handler
+which emulates the way that Apache maps URLs to files. The change that
+has been made that makes this possible is that in 3.2, it is possible to
+modify the value of req.path_info as well as req.filename. Thus a
+handler could reevaluate a URL against a part of the filesystem which
+isn't in the document tree and then execute a handler to service the
+request against what was found.
+
+As an example, in a new system I am working on, you can write
+something like:
+
+    import mod_python.publisher
+
+    handler = handlers.MapLocationToView(
+        directory = '/tmp/htdocs',
+        resource_extension = '.py',
+        script_extension = '.py',
+        handler = mod_python.publisher.handler,
+    )
+
+The MapLocationToView handler will map a URL to a .py file like Apache
+does now when AddHandler is used and then trigger the standard
+mod_python.publisher handler. The difference is that is this example,
+the files all live outside of the document tree in '/tmp/htdocs'. The
+Apache configuration itself knows nothing about that directory and its
+contents can't be exposed in any way if the Apache configuration is
+stuffed up.
+
+Graham
+
+&gt;<i> Though
+</I>&gt;<i> &gt; In order for
+</I>&gt;<i> &gt; Apache to make this determination, the .py files must be in the public
+</I>&gt;<i> &gt; directories that Apache is managing.
+</I>&gt;<i> made it clear for me.
+</I>&gt;<i> 
+</I>&gt;<i> Is that at all a security issue. Or rather, is there a standard method
+</I>&gt;<i> of
+</I>&gt;<i> referencing code outside of the public directories?
+</I>&gt;<i> 
+</I>&gt;<i> On 10/27/05, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Brandon N wrote ..
+</I>&gt;<i> &gt; &gt; I've checked out Vampire, and it would seem to be exactly that which
+</I>&gt;<i> I
+</I>&gt;<i> &gt; &gt; desire (after only a few minutes of experimentation at least). Does
+</I>&gt;<i> one
+</I>&gt;<i> &gt; &gt; typically include their .py files with this setup in the public
+</I>&gt;<i> &gt; directory
+</I>&gt;<i> &gt; &gt; (with indexing and such disabled, naturally)? Or is there a way to
+</I>&gt;<i> &gt; reference
+</I>&gt;<i> &gt; &gt; files outside of the public system?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; What do you mean by files? Do you mean the .py files which contain the
+</I>&gt;<i> &gt; handlers or other Python helper modules, static files etc?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; In terms of how most mod_python extensions work, eg, Vampire,
+</I>&gt;<i> &gt; mod_python.publisher etc, they rely on the fact that Apache performs
+</I>&gt;<i> the
+</I>&gt;<i> &gt; mapping of URL to a physical file in the filesystem. Ie., they work out
+</I>&gt;<i> &gt; what to do based on what Apache has set req.filename to. In order for
+</I>&gt;<i> &gt; Apache to make this determination, the .py files must be in the public
+</I>&gt;<i> &gt; directories that Apache is managing. Note though that this doesn't
+</I>&gt;<i> &gt; mean they have to be physically under the main Apache document
+</I>&gt;<i> &gt; root as you can use the Alias directive or symlinks and the FollowSymLinks
+</I>&gt;<i> &gt; directive to locate them in different places but still appear under the
+</I>&gt;<i> &gt; public
+</I>&gt;<i> &gt; URL namespace.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Anyway, if you can be clearer about what you mean, can possibly give
+</I>&gt;<i> &gt; a better answer. :-)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt; Thanks to the both of you with your help. It's cleared up a great deal
+</I>&gt;<i> &gt; &gt; for
+</I>&gt;<i> &gt; &gt; me.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Cheers!
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; On 10/27/05, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Jorey Bump wrote ..
+</I>&gt;<i> &gt; &gt; &gt; &gt; Brandon N wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; A) Is it requestHandler's job to determine which file was
+</I>&gt;<i> &gt; requested
+</I>&gt;<i> &gt; &gt; &gt; and
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; respond accordingly (via the request's .filename?) with a switch
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; construct or equivalent?
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; Yes and no. Apache's already passed the file to the handler based
+</I>&gt;<i> on
+</I>&gt;<i> &gt; &gt; its
+</I>&gt;<i> &gt; &gt; &gt; &gt; extension, presence in a directory, or other criteria. The developer
+</I>&gt;<i> &gt; &gt; of
+</I>&gt;<i> &gt; &gt; &gt; &gt; the handler gets to decide what the handler does with *whatever*
+</I>&gt;<i> is
+</I>&gt;<i> &gt; &gt; &gt; &gt; passed to it. Some assume it will contain only valid Python code
+</I>&gt;<i> and
+</I>&gt;<i> &gt; &gt; &gt; &gt; process it as such (mod_python.publisher, for example). Some might
+</I>&gt;<i> &gt; &gt; want
+</I>&gt;<i> &gt; &gt; &gt; &gt; to process proprietary or other file formats using python (you
+</I>&gt;<i> might
+</I>&gt;<i> &gt; &gt; &gt; &gt; make a handler to display Word files, for example), but remain
+</I>&gt;<i> &gt; agnostic
+</I>&gt;<i> &gt; &gt; &gt; &gt; about the actual filename or extension. But there's no reason why
+</I>&gt;<i> &gt; your
+</I>&gt;<i> &gt; &gt; &gt; &gt; handler can't branch according to the file extension (which is
+</I>&gt;<i> what
+</I>&gt;<i> &gt; &gt; &gt; &gt; Graham's Vampire does, if I'm not mistaken).
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; If you are coming from a PHP background where each URL essentially
+</I>&gt;<i> &gt; &gt; &gt; maps to a distinct file, Vampire may well be a good starting point
+</I>&gt;<i> as
+</I>&gt;<i> &gt; &gt; it
+</I>&gt;<i> &gt; &gt; &gt; works in a similar way at it most basic level.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Thus, where in PHP you might have:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; index.php # URL -&gt; /index.php
+</I>&gt;<i> &gt; &gt; &gt; search.php # URL -&gt; /search.php
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Vampire would similarly have separate files for each resource,
+</I>&gt;<i> &gt; although
+</I>&gt;<i> &gt; &gt; &gt; in Vampire it is the name of the handler within the file which
+</I>&gt;<i> &gt; dictates
+</I>&gt;<i> &gt; &gt; &gt; what extension the URL needs to have:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; index.py
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; def handler(req): ... # /index
+</I>&gt;<i> &gt; &gt; &gt; def handler_html(req): ... # /index.html
+</I>&gt;<i> &gt; &gt; &gt; def handler_php(req): ... # /index.php (Yes, pretend we are PHP when
+</I>&gt;<i> &gt; &gt; we
+</I>&gt;<i> &gt; &gt; &gt; aren't).
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; search.py
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; def handler(req): ... # /search
+</I>&gt;<i> &gt; &gt; &gt; def handler_html(req): ... # /search.html
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Thus, if you want to write your code in the form of basic handlers
+</I>&gt;<i> but
+</I>&gt;<i> &gt; &gt; a
+</I>&gt;<i> &gt; &gt; &gt; distinct handler for each resource, the basic dispatch mechanism
+</I>&gt;<i> of
+</I>&gt;<i> &gt; &gt; &gt; Vampire is going to allow you to get started quicker.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Another alternative as Jorey pointed out is mod_python.publisher,
+</I>&gt;<i> &gt; &gt; &gt; however it doesn't allow you to as easily dictate use of multiple
+</I>&gt;<i> &gt; &gt; &gt; different extension types used on URLs nor is it necessarily as easy
+</I>&gt;<i> &gt; &gt; to
+</I>&gt;<i> &gt; &gt; &gt; mix static files in the same directory.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; For a further basic introduction to Vampire, see:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; <A HREF="http://www.dscpl.com.au/projects/vampire/articles/vampire-001.html">http://www.dscpl.com.au/projects/vampire/articles/vampire-001.html</A>
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Graham
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; _______________________________________________
+</I>&gt;<i> &gt; &gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt; &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt;
+</I></PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019445.html">[mod_python] Unable to import modules in subdirs
+</A></li>
+	<LI>Next message: <A HREF="019448.html">[mod_python] mod_python questions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19442">[ date ]</a>
+              <a href="thread.html#19442">[ thread ]</a>
+              <a href="subject.html#19442">[ subject ]</a>
+              <a href="author.html#19442">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

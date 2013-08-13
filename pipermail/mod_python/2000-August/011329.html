@@ -1,0 +1,198 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] A patch for mod_python-2.4.1
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20A%20patch%20for%20mod_python-2.4.1&In-Reply-To=Pine.GSO.4.21.0008112257320.29709-100000%40myrtle.ukc.ac.uk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="011324.html">
+   <LINK REL="Next"  HREF="011332.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] A patch for mod_python-2.4.1</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Gregory Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20A%20patch%20for%20mod_python-2.4.1&In-Reply-To=Pine.GSO.4.21.0008112257320.29709-100000%40myrtle.ukc.ac.uk"
+       TITLE="[mod_python] A patch for mod_python-2.4.1">grisha at ispol.com
+       </A><BR>
+    <I>Mon Aug 14 08:36:09 EST 2000</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="011324.html">[mod_python] A patch for mod_python-2.4.1
+</A></li>
+        <LI>Next message: <A HREF="011332.html">[mod_python] A patch for mod_python-2.4.1
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11329">[ date ]</a>
+              <a href="thread.html#11329">[ thread ]</a>
+              <a href="subject.html#11329">[ subject ]</a>
+              <a href="author.html#11329">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Thanks Leonid. I still have your original -OO patch in my INBOX and I'll
+make sure to apply it.
+
+Question - are you sure ap_get_client_block() doesn't take care of short
+reads?
+
+Thanks!
+
+--
+  Gregory (Grisha) Trubetskoy
+       <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grisha at ispol.com</A>
+
+On Fri, 11 Aug 2000, Dr. L.A. Timochouk wrote:
+
+&gt;<i> Hello All,
+</I>&gt;<i> 
+</I>&gt;<i> Please find attached a patch for mod_python-2.4.1. It addresses two issues:
+</I>&gt;<i> 
+</I>&gt;<i> (1) The current implementation of &quot;req_read&quot; method seems to contain a bug
+</I>&gt;<i>     (or a problematic feature?): it may return less bytes than was requested,
+</I>&gt;<i>     due to a known sockets phenomenon called &quot;short read&quot;. Namely, a single
+</I>&gt;<i>     &quot;read&quot; on a TCP socket returns data ONLY up to the end of the current
+</I>&gt;<i>     IP packet; several &quot;read&quot;s may be required to get the whole amount
+</I>&gt;<i>     requested. The current implementation did not guard against that; on the
+</I>&gt;<i>     contrary, it shrank the output buffer is less-than-expected bytes were
+</I>&gt;<i>     received. In particular, this may result in incomplete receiving of POSTed
+</I>&gt;<i>     data (the problem shows up on large submissions only). The proposed
+</I>&gt;<i>     patch fixes it.
+</I>&gt;<i> 
+</I>&gt;<i> (2) A new Apache directive,
+</I>&gt;<i> 
+</I>&gt;<i>     PythonOptimize On|Off
+</I>&gt;<i> 
+</I>&gt;<i>     is implemented. If set, it allows us to run the interpreter in the
+</I>&gt;<i>     fully-optimising mode (equivalent to -OO Python command-line argument)
+</I>&gt;<i>     which may be useful for time-critical applications.
+</I>&gt;<i> 
+</I>&gt;<i> Best regards,
+</I>&gt;<i> 
+</I>&gt;<i> Dr. Leonid Timochouk
+</I>&gt;<i> Computing Laboratory
+</I>&gt;<i> University of Kent at Canterbury
+</I>&gt;<i> England
+</I>&gt;<i> ===============================================================================
+</I>&gt;<i> 
+</I>&gt;<i> --- mod_python.c.orig	Tue Jul  4 18:49:31 2000
+</I>&gt;<i> +++ mod_python.c	Sun Jul 23 16:39:55 2000
+</I>&gt;<i> @@ -1277,7 +1277,7 @@
+</I>&gt;<i>  static PyObject * req_read(requestobject *self, PyObject *args)
+</I>&gt;<i>  {
+</I>&gt;<i>  
+</I>&gt;<i> -    int len, rc, bytes_read;
+</I>&gt;<i> +    int len, rc, bytes_read, chunk_len;
+</I>&gt;<i>      char *buffer;
+</I>&gt;<i>      PyObject *result;
+</I>&gt;<i>  
+</I>&gt;<i> @@ -1316,13 +1316,18 @@
+</I>&gt;<i>  	return NULL;
+</I>&gt;<i>  
+</I>&gt;<i>      /* read it in */
+</I>&gt;<i> +    /* BEWARE of short reads!  */
+</I>&gt;<i>      buffer = PyString_AS_STRING((PyStringObject *) result);
+</I>&gt;<i> -    bytes_read = ap_get_client_block(self-&gt;request_rec, buffer, len);
+</I>&gt;<i> -
+</I>&gt;<i> -    /* resize if necessary */
+</I>&gt;<i> -    if (bytes_read &lt; len) 
+</I>&gt;<i> -	if(_PyString_Resize(&amp;result, bytes_read))
+</I>&gt;<i> +    bytes_read = 0;
+</I>&gt;<i> +    while (bytes_read &lt; len)
+</I>&gt;<i> +    {
+</I>&gt;<i> +	chunk_len = ap_get_client_block
+</I>&gt;<i> +		    (self-&gt;request_rec, buffer+bytes_read, len-bytes_read);
+</I>&gt;<i> +	if  (chunk_len == 0)
+</I>&gt;<i> +	    /* Connection closed -- it's better not to return anything */
+</I>&gt;<i>  	    return NULL;
+</I>&gt;<i> +    	bytes_read += chunk_len;
+</I>&gt;<i> +    }
+</I>&gt;<i>  
+</I>&gt;<i>      return result;
+</I>&gt;<i>  }
+</I>&gt;<i> @@ -2087,6 +2092,19 @@
+</I>&gt;<i>  }
+</I>&gt;<i>  
+</I>&gt;<i>  /**
+</I>&gt;<i> + ** directive_PythonOptimize
+</I>&gt;<i> + **
+</I>&gt;<i> + *	This function called whenever PythonOptimize directive
+</I>&gt;<i> + *	is encountered.
+</I>&gt;<i> + */
+</I>&gt;<i> +static const char *directive_PythonOptimize(cmd_parms *cmd, void *mconfig,
+</I>&gt;<i> +					    int val) {
+</I>&gt;<i> +    if (val)
+</I>&gt;<i> +	Py_OptimizeFlag = 2; /* Optimize and remove function descr strings */
+</I>&gt;<i> +    return NULL;
+</I>&gt;<i> +}
+</I>&gt;<i> +
+</I>&gt;<i> +/**
+</I>&gt;<i>   ** directive_PythonInterpPerDirectory
+</I>&gt;<i>   **
+</I>&gt;<i>   *      This function called whenever PythonInterpPerDirectory directive
+</I>&gt;<i> @@ -2409,6 +2427,14 @@
+</I>&gt;<i>  	OR_ALL,                         
+</I>&gt;<i>  	FLAG,                               
+</I>&gt;<i>  	&quot;Send (most) Python error output to the client rather than logfile.&quot;
+</I>&gt;<i> +    },
+</I>&gt;<i> +    {
+</I>&gt;<i> +	&quot;PythonOptimize&quot;,
+</I>&gt;<i> +	directive_PythonOptimize,
+</I>&gt;<i> +	NULL,
+</I>&gt;<i> +	OR_ALL,
+</I>&gt;<i> +	FLAG,
+</I>&gt;<i> +	&quot;Set the equivalent of the -O command-line flag on the interpreter.&quot;
+</I>&gt;<i>      },
+</I>&gt;<i>      {
+</I>&gt;<i>  	&quot;PythonNoReload&quot;,                 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="011324.html">[mod_python] A patch for mod_python-2.4.1
+</A></li>
+	<LI>Next message: <A HREF="011332.html">[mod_python] A patch for mod_python-2.4.1
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11329">[ date ]</a>
+              <a href="thread.html#11329">[ thread ]</a>
+              <a href="subject.html#11329">[ subject ]</a>
+              <a href="author.html#11329">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

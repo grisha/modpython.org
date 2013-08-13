@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] External connections in mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20External%20connections%20in%20mod_python&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020801.html">
+   <LINK REL="Next"  HREF="020804.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] External connections in mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Blake Householder</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20External%20connections%20in%20mod_python&In-Reply-To="
+       TITLE="[mod_python] External connections in mod_python">blake8086 at gmail.com
+       </A><BR>
+    <I>Thu Apr  6 22:22:16 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020801.html">[mod_python] Apache + mod_python + SSLVerifyClient == broken url
+	parsing?
+</A></li>
+        <LI>Next message: <A HREF="020804.html">[mod_python] External connections in mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20803">[ date ]</a>
+              <a href="thread.html#20803">[ thread ]</a>
+              <a href="subject.html#20803">[ subject ]</a>
+              <a href="author.html#20803">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I have a bit of code that's trying to access google from a mod_python
+request handler, and it crashes Apache when it reaches the line
+
+response = opener.open(self.url)
+
+Is it possible to connect to external sites from Apache in this manner, or
+should I just give up and use PHP?
+
+import httplib, profile, pstats, re, sys, thread, threading, urllib2
+from mod_python import apache
+from BeautifulSoup import BeautifulSoup
+
+MAXCONNECTIONS = 2
+MAXRESULTS = 10
+
+class PageGrabber(threading.Thread):
+    connectionPool = threading.Semaphore(MAXCONNECTIONS)
+    outputSemaphore = threading.Semaphore()
+
+    def __init__(self, url, req):
+        self.url = url
+        self.req = req
+        threading.Thread.__init__(self)
+
+    def run(self):
+        opener = urllib2.build_opener()
+        opener.addheaders = [('User-agent', 'Mozilla/5.0')]
+        try:
+            PageGrabber.connectionPool.acquire()
+            response = opener.open(self.url)
+            PageGrabber.connectionPool.release()
+            soup = BeautifulSoup(response)
+            PageGrabber.outputSemaphore.acquire()
+            #strip google cache header stuff
+            cutPage = re.split('&lt;hr&gt;|&lt;hr /&gt;', str(soup), 1)
+            strippedPage = cutPage[1]
+            #split into words
+            wordList = re.split('\t|\n|
+|<i>&lt;.*?&gt;|\r|&lt;!--|--&gt;|&amp;nbsp;|,|&amp;quot;|&amp;lt;|&amp;gt;|\?|!|:|\*|\.|\[|\]|\(|\)|\'|\-|&quot;|=|/|&lt;|&gt;|\+|&amp;|@|#',
+</I>str(strippedPage))
+            #print only nonzero words
+            for word in wordList:
+                if len(word) &gt; 0:
+                    self.req.write(word + ' / ')
+            PageGrabber.outputSemaphore.release()
+        except Exception:
+            print 'timed out'
+        return
+
+def main(req):
+    opener = urllib2.build_opener()
+    opener.addheaders = [('User-agent', 'Mozilla/5.0')]
+    searchTerms = ['python']
+    if len(searchTerms) &gt; 1:
+        searchString = '+'.join(searchTerms)
+    else:
+        searchString = searchTerms[0]
+    response = opener.open('<A HREF="http://www.google.com/search?num='">http://www.google.com/search?num='</A> +
+str(MAXRESULTS) +'&amp;q=' + searchString)
+
+    soup = BeautifulSoup(response)
+    cachedURLs = []
+    #extract cache urls
+    for result in soup('a'):
+        if re.search('q=cache', result['href']):
+            cachedURLs.append(result['href'])
+
+    #start threads to pull down cached data
+    for cachedURL in cachedURLs:
+        #use google's image strip thingie
+        stripURL = cachedURL + '&amp;strip=1'
+        PageGrabber(stripURL, req).start()
+
+def handler(req):
+    req.content_type = 'text/plain'
+    main(req)
+    return apache.OK
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060406/9a338a17/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20060406/9a338a17/attachment.html</A>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020801.html">[mod_python] Apache + mod_python + SSLVerifyClient == broken url
+	parsing?
+</A></li>
+	<LI>Next message: <A HREF="020804.html">[mod_python] External connections in mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20803">[ date ]</a>
+              <a href="thread.html#20803">[ thread ]</a>
+              <a href="subject.html#20803">[ subject ]</a>
+              <a href="author.html#20803">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,209 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] TransHandler help?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20TransHandler%20help%3F&In-Reply-To=Pine.BSF.4.32.0201071910200.58948-100000%40localhost">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008620.html">
+   <LINK REL="Next"  HREF="008632.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] TransHandler help?</H1>
+    <B>Robert Sherwood</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20TransHandler%20help%3F&In-Reply-To=Pine.BSF.4.32.0201071910200.58948-100000%40localhost"
+       TITLE="[mod_python] TransHandler help?">foofboy at speakeasy.net
+       </A><BR>
+    <I>Tue Jan  8 11:38:23 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008620.html">[mod_python] TransHandler help?
+</A></li>
+        <LI>Next message: <A HREF="008632.html">[mod_python] TransHandler help?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8631">[ date ]</a>
+              <a href="thread.html#8631">[ thread ]</a>
+              <a href="subject.html#8631">[ subject ]</a>
+              <a href="author.html#8631">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+Transhandler translates a request from a URL to a filename. Though you
+can rewrite a URL, I found it was easier simply to use the URL that I
+had, particularly since, In my case, I could count on the argument order
+and such.
+
+This is an extremely simple example, but I wanted to set the file
+request to main.py, which handled all the URL processing itself. The
+important thing to remember is that the TransHandler figures out which
+file you're requesting based on the URL you pass in. It can obviously do
+any processing you need, but that is it's primary function.
+
+from mod_python import apache
+import string
+
+def transhandler(req):
+    #We want to use main.py
+    req.filename = &quot;main.py&quot;
+    return apache.OK
+
+Again, I didn't use mod_python to process the URL, that is done by the
+main Python Handler, as below (adapted slightly for your situation):
+
+def handler(req):
+    #remove trailing slash, if present
+    URI = req.uri
+    if URI[len(URI)-1] == '/':
+        URI = URI[:len(URI)-1]
+
+    #disassemble the URI for processing
+    components = string.split(URI,'/')[1:]
+
+    sessionID = components[0]
+
+    command = components[1]
+
+    what = components[2]
+
+    # Do stuff here
+
+There's no error checking or anything, but I found it was easier to use
+the request as it came in, rather than rewriting it and processing that.
+However, I had to use the TransHandler to set the request filename to
+the script that did the processing.
+
+Hope this helps.
+
+Rob
+
+
+
+On Mon, 2002-01-07 at 19:10, Gregory (Grisha) Trubetskoy wrote:
+&gt;<i> 
+</I>&gt;<i> I'll have look into this some day. I *think* what mod_rewrite does is
+</I>&gt;<i> create a sub-request, but sub-requests are not supported by mod_python (i
+</I>&gt;<i> don't think there is anything that makes it impossible, the code is simple
+</I>&gt;<i> not there, it's just a SMOP (&quot;simple matter of programming&quot;)...)
+</I>&gt;<i> 
+</I>&gt;<i> Grisha
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On Mon, 7 Jan 2002, Alan Kennedy wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Thanks Olly,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; It's good to know that I'm not the only who can't get it to work :-\
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I've been avoiding relying on mod_rewrite and its &quot;cool voodoo&quot;. I have the training and
+</I>&gt;<i> &gt; background to get my head around it, but members of my team unfortunately don't, whereas
+</I>&gt;<i> &gt; they are all very comfortable with python.......
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Thanks for the reply,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Cheers,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Alan.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Oliver Cope wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt; On Mon, Jan 07, 2002 at 07:32:10PM +0000, Alan Kennedy wrote:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; I'm trying to get a PythonTransHandler working.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &lt;snip&gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; *without* sending a redirect back to the client. Or a more sophisticated
+</I>&gt;<i> &gt; &gt; &gt; example, how could I turn a request for
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; /admin/abc1234/update/item4567
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; into a request for
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; /admin/doit.html?sessionID=abc1234&amp;command=update&amp;what=item4567
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; I too have spent some time trying to configure a PythonTransHandler, but
+</I>&gt;<i> &gt; &gt; couldn't get it to work :o(
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; I've had more luck using mod_rewrite for this kind of thing:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; RewriteEngine On
+</I>&gt;<i> &gt; &gt; RewriteRule /admin/(.*)/(.*)/(.*) /admin/doit.html?sessionID=$1&amp;command=$2&amp;what=$3 [PT]
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; This will rewrite requests without sending redirects back to the client.
+</I>&gt;<i> &gt; &gt; You can remove the '[PT]' if you don't need to further process the
+</I>&gt;<i> &gt; &gt; rewritten URL (e.g. through a PythonHandler).
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Obviously regular expressions are not as flexible as a Python
+</I>&gt;<i> &gt; &gt; handler can be, so this will only work for simple translations.  Also
+</I>&gt;<i> &gt; &gt; you'll need to have Apache compiled with mod_rewrite, I'm not sure if
+</I>&gt;<i> &gt; &gt; this is the default.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Regards,
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Olly.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; _______________________________________________
+</I>&gt;<i> &gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; &gt; <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008620.html">[mod_python] TransHandler help?
+</A></li>
+	<LI>Next message: <A HREF="008632.html">[mod_python] TransHandler help?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8631">[ date ]</a>
+              <a href="thread.html#8631">[ thread ]</a>
+              <a href="subject.html#8631">[ subject ]</a>
+              <a href="author.html#8631">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

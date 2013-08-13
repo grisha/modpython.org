@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Getting Hostname
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Getting%20Hostname&In-Reply-To=13283.82.56.77.83.1163613945.squirrel%40webmail.pharaondev.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022611.html">
+   <LINK REL="Next"  HREF="022623.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Getting Hostname</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Getting%20Hostname&In-Reply-To=13283.82.56.77.83.1163613945.squirrel%40webmail.pharaondev.com"
+       TITLE="[mod_python] Getting Hostname">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Nov 15 16:12:12 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022611.html">[mod_python] Getting Hostname
+</A></li>
+        <LI>Next message: <A HREF="022623.html">[mod_python] Getting Hostname
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22617">[ date ]</a>
+              <a href="thread.html#22617">[ thread ]</a>
+              <a href="subject.html#22617">[ subject ]</a>
+              <a href="author.html#22617">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 16/11/2006, at 5:05 AM, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">g.farina at pharaondev.com</A> wrote:
+
+&gt;<i> Hi,
+</I>&gt;<i>
+</I>&gt;<i> in my simple MVC framework I'd like to use a different directory  
+</I>&gt;<i> root for
+</I>&gt;<i> controllers based on the website requested by the user.
+</I>&gt;<i> For instance if someone connects to www.test.it/first I'd like to use
+</I>&gt;<i> /var/www/test as controllers root, and if someone connects to
+</I>&gt;<i> www.test2.it/first use /var/www/test2.
+</I>&gt;<i>
+</I>&gt;<i> I didn't have enought knowledge of how Apache works, so I don't  
+</I>&gt;<i> know if
+</I>&gt;<i> the value of req.server.server_hostname is reliable to do the  
+</I>&gt;<i> switch of
+</I>&gt;<i> the root.
+</I>&gt;<i> The solution used should work indipendently from Apache  
+</I>&gt;<i> configuration, and
+</I>&gt;<i> I don't want to rely on headers sent by the client.
+</I>&gt;<i>
+</I>&gt;<i> The directory switching should be configured from the application,  
+</I>&gt;<i> so I
+</I>&gt;<i> can't use Virtual Hosting or Apache configuration directly.
+</I>
+Why can't you use virtual hosting, this is what it is designed for?  
+If it is because
+your site is already running within a virtual host and you don't want  
+to pay some
+ISP extra money for running an extra virtual host, then it will be  
+pretty well
+impossible to do what you want.
+
+The reason it would be impossible if you are already running within a  
+virtual
+host is that the way virtual hosting works is that HTTP/1.1 compliant  
+browsers
+will set a 'Host' header in the HTTP request to identify the actual  
+name of the
+site it wants to connect to. The web server uses the value of this  
+header to
+determine which of many virtual hosts it may be hosting to direct the  
+request to.
+This is done by looking in the Apache configuration for VirtualHost  
+directive
+which lists that site:
+
+   &lt;VirtualHost www.test.it&gt;
+   ...
+   &lt;/VirtualHost&gt;
+
+A second independent virtual host could be setup listing the second  
+site, thus:
+
+   &lt;VirtualHost www.test.it&gt;
+   ...
+   &lt;/VirtualHost&gt;
+
+   &lt;VirtualHost www.test2.it&gt;
+   ...
+   &lt;/VirtualHost&gt;
+
+If they need to share some but not all content, you'll need to use  
+Alias directives
+as well as setting the DocumentRoot to the main content.
+
+Alternatively, if you want everything to be the same but do certain  
+things differently
+based on host connected to, you can also use:
+
+   &lt;VirtualHost www.test.it www.test2.it&gt;
+   ...
+   &lt;/VirtualHost&gt;
+
+In either case, it is going to require a change to the Apache  
+configuration. If you
+can't get one of these done, you can't do it, as the request to the  
+additional site
+will not even be able to be routed to you.
+
+If the second virtual hosting arrangement is used, or virtual hosting  
+isn't used at
+all, then you still have to use some trickery to have different parts  
+of the filesystem
+mapped if the desired host is different.
+
+The cleanest way of doing this is to use a PythonTransHandler.  
+Because it is
+called prior to any URL mapping, it must be at the level of  
+VirtualHost or in
+main Apache configuration if virtual hosting is not used. It cannot  
+be a Directory,
+Location or .htaccess context as mapping is already done at that point.
+
+The transhandler you use would need to use (untested) something like:
+
+   from mod_python import apache
+
+   def transhandler(req):
+     if req.hostname == 'www.test2.it':
+       req.filename = '/var/www/test2' + req.uri
+       return apache.OK
+     return apache.DECLINED
+
+This assumes that default DocumentRoot is 'var/www/test'. It then  
+sees if the target
+host is 'www.test2.it' and overrides req.filename to cause mapping of  
+requests
+against the alternate document root.
+
+A problem with this is that it will potentially override any other  
+Alias/Location
+mappings you might have defined, thus to accommodate that the trans  
+handler
+may have to only do it for certain values of req.uri.
+
+NOTE, the above code may have to cleanup req.uri and normalise it  
+before it
+uses it to avoid attacks whereby people use '..' in a URI to try and  
+get access to
+files outside of the document tree. It might also normalise the path  
+after creating
+the combined path and ensuring the result still resides within the  
+document
+tree. If Apache has cleaned up req.uri already, this will not be  
+needed. I need
+to check for myself what Apache has already done at that point as not  
+sure.
+
+In terms of other ways of doing it, you might be able to use  
+mod_rewrite, but for
+this to work, the additional document tree would need to be available  
+as a subtree
+of the first. You would then be essentially using a internal redirect  
+to get the
+request applied against the subtree. This though can cause lots of  
+base url
+rewriting issues for pages. The subtree would also be directly  
+accessible as
+well unless you protect it by a handler in some way to ensure that is  
+only
+accessed as part of a subrequest.
+
+In summary, you can't probably do it cleanly without modifying the  
+main Apache
+configuration, as you either have to setup a virtual host, or a trans  
+handler, both
+of which have to be done in the main configuration.
+
+Can you now explain why you can't modify the main Apache configuration.
+
+Graham
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022611.html">[mod_python] Getting Hostname
+</A></li>
+	<LI>Next message: <A HREF="022623.html">[mod_python] Getting Hostname
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22617">[ date ]</a>
+              <a href="thread.html#22617">[ thread ]</a>
+              <a href="subject.html#22617">[ subject ]</a>
+              <a href="author.html#22617">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

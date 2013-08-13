@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] importing from a PSP file
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20importing%20from%20a%20PSP%20file&In-Reply-To=4e4a11f80501052230297c516d%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017031.html">
+   <LINK REL="Next"  HREF="017033.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] importing from a PSP file</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20importing%20from%20a%20PSP%20file&In-Reply-To=4e4a11f80501052230297c516d%40mail.gmail.com"
+       TITLE="[mod_python] importing from a PSP file">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Jan  6 04:08:29 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017031.html">[mod_python] importing from a PSP file
+</A></li>
+        <LI>Next message: <A HREF="017033.html">[mod_python] importing from a PSP file
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17032">[ date ]</a>
+              <a href="thread.html#17032">[ thread ]</a>
+              <a href="subject.html#17032">[ subject ]</a>
+              <a href="author.html#17032">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 06/01/2005, at 5:30 PM, Simon Wittber wrote:
+
+&gt;<i> We've just started using mod-python PSP, so please excuse my ignorance.
+</I>&gt;<i>
+</I>&gt;<i> I found that I cannot import modules which exist in the same folder as
+</I>&gt;<i> the psp file being served by apache.
+</I>&gt;<i>
+</I>&gt;<i> eg:
+</I>&gt;<i> The file:
+</I>&gt;<i>
+</I>&gt;<i> /home/simon/public_html/test.psp
+</I>&gt;<i>
+</I>&gt;<i> cannot import:
+</I>&gt;<i>
+</I>&gt;<i> /home/simon/public_html/package/module.py
+</I>&gt;<i>
+</I>&gt;<i> unless the path '/home/simon/public_html' is sys.path.appended at the
+</I>&gt;<i> top of the psp page.
+</I>&gt;<i>
+</I>&gt;<i> To get around this problem, I added the following lines:
+</I>&gt;<i>
+</I>&gt;<i> cwd = str(os.path.split(self.filename)[0])
+</I>&gt;<i> sys.path.append(cwd)
+</I>
+You would need to be very careful with doing this as every request
+against that resource would extend sys.path. You should at least
+check it isn't in sys.path already. Extending sys.path can also
+be problematic in a threaded environment as would exist in Apache
+on Windows and if worker MPM is used on UNIX.
+
+BTW, why the str() conversion? It should already be a string unless
+there is something I am missing about Unicode strings.
+
+&gt;<i> under line 207 in '/usr/lib/python2.3/site-packages/mod_python/psp.py'
+</I>&gt;<i> which cleared up the problem.
+</I>&gt;<i>
+</I>&gt;<i> Has anyone else come up against this problem? Does another (better)
+</I>&gt;<i> solution already exist somewhere else in mod-python?
+</I>
+Both the standard Python &quot;import&quot; directive and the mod_python
+import_module() method use the &quot;imp&quot; module which will only look
+for modules in sys.path. Thus the problem as you understand it.
+Another problem with this, especially if you put your directory
+last is that it may pick up a module of the same name from a
+place elsewhere on the search path before it even gets to your
+directory. Ie., not your module, but something else. This is a
+source of various problems in mod_python.
+
+If you want to look at other alternatives, you might look at the
+module loading and caching system in the Vampire extension
+package for mod_python. In Vampire things work a bit differently
+and you must actually specify the specific directory that the
+module of interest is in. Ie., sys.path is ignored. This is done
+specifically to avoid the problems of having to set sys.path and
+of potentially finding the wrong module.
+
+Thus your code would be written as:
+
+   import vampire
+
+   directory = os.path.join(os.path.split(self.filename)[0],&quot;package&quot;)
+   module = vampire.importModule(directory,&quot;module&quot;)
+
+   module.dosomething()
+
+Note that this requires you to be loading a specific module file,
+it can't load a module laid out as a package.
+
+Vampire can be found at:
+
+   <A HREF="http://www.dscpl.com.au/projects/vampire">http://www.dscpl.com.au/projects/vampire</A>
+
+Note that I haven't done anything proper in PSP, so don't know how
+practical it is to try and make use of the Vampire module loading
+system. :-)
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017031.html">[mod_python] importing from a PSP file
+</A></li>
+	<LI>Next message: <A HREF="017033.html">[mod_python] importing from a PSP file
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17032">[ date ]</a>
+              <a href="thread.html#17032">[ thread ]</a>
+              <a href="subject.html#17032">[ subject ]</a>
+              <a href="author.html#17032">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

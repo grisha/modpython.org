@@ -1,0 +1,354 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python or apache scalability?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20or%20apache%20scalability%3F&In-Reply-To=88e286470710010412w690e365erc4c7ae1df6dc923d%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024269.html">
+   <LINK REL="Next"  HREF="024271.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python or apache scalability?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Alec Matusis</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20or%20apache%20scalability%3F&In-Reply-To=88e286470710010412w690e365erc4c7ae1df6dc923d%40mail.gmail.com"
+       TITLE="[mod_python] mod_python or apache scalability?">matusis at matusis.com
+       </A><BR>
+    <I>Mon Oct  1 18:34:43 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024269.html">[mod_python] mod_python or apache scalability?
+</A></li>
+        <LI>Next message: <A HREF="024271.html">[mod_python] mod_python or apache scalability?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24274">[ date ]</a>
+              <a href="thread.html#24274">[ thread ]</a>
+              <a href="subject.html#24274">[ subject ]</a>
+              <a href="author.html#24274">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Graham,
+
+&gt;<i> 1. Please explain what application you are running on top of
+</I>&gt;<i> mod_python. Show the Apache configuration applying to the application
+</I>&gt;<i> you are running on top of mod_python.
+</I>
+    &lt;Directory &quot;/ourpath/scripts&quot;&gt;
+            SetHandler mod_python
+            PythonPath &quot;sys.path+['/ourpath/scripts', '/ourpath/publisher',
+'/ourpath']&quot;
+            PythonHandler publisher
+            PythonOption init _our_init
+            PythonOption default _main
+            PythonInputFilter flashfilter FLASHFILTER
+            SetInputFilter FLASHFILTER
+    &lt;/Directory&gt;
+
+Flashfilter is used very infrequently (for user image uploads from legacy
+clients), it's not a major load factor.
+
+&gt;<i> 2. Explain why you are running prefork and not worker MPM. Are you
+</I>&gt;<i> also running some PHP application that will not work with worker MPM?
+</I>
+We are not using any PHP, it's all python. I do not have any rational reason
+for using prefork over worker, except that once I ran a python script on
+this machine that spawned multiple threads. I believe it gave me an error
+(something like &quot;cannot spawn any more threads&quot;) at about 305 threads. That
+made me apprehensive about using worker MPM.  
+
+&gt;<i> 3. Explain what the relationship is between your mod_python
+</I>&gt;<i> application and your memory hogging twisted back end processes, ie.,
+</I>&gt;<i> do they communicate with each other and how.
+</I>
+We have two twisted processes, they take about 110MB and 75MB of RSS
+respectively, and run for months without restarting.
+Python web scripts periodically communicate with one of the twisted
+processes like this:
+
+socket.setdefaulttimeout(10)
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect(('127.0.0.1', twisted_listening_port))
+r = s.send(command)
+if r &gt; 0:    data = s.recv(10)
+else:
+    data = -1
+s.close()
+
+&gt;<i> 4. Indicate how big your Apache and twisted processes are growing.
+</I>
+Apache can have up to 275 processes, each taking between 11-18MB
+Twisted is 105MB and 75MB 
+(all figures are RSS)
+Apache is restarted nightly by a cron script (graceful restart)
+
+&gt;<i> 5. Indicate whether you have used the netstat program to try and
+</I>&gt;<i> determine how many socket connections are being held open by Apache
+</I>&gt;<i> and twisted processes.
+</I> 
+Under normal operation:
+# netstat -n | grep :80  | wc -l
+11704
+
+# netstat -n | grep :80 | grep ESTABLISHED | wc -l 
+151
+
+When apache crashed (was &quot;slow&quot;):
+# netstat -n | grep :80  | wc -l
+6067
+This is half of the normal. I do not know how many of these were in
+TIME_WAIT.
+
+2 Twisted processes have about 3500 and 1000 connection respectively, all in
+the ESTABLISHED state.
+
+&gt;<i> 6. Indicate whether you have tried changing the Apache configuration
+</I>&gt;<i> for how many keep alive connections are maintained and how long keep
+</I>&gt;<i> alive connections are kept open. 
+</I>
+We have always had 
+
+KeepAlive Off
+
+&gt;<i> 7. Indicate what range of values you have experimented with for
+</I>&gt;<i> MaxRequestsPerChild.
+</I>
+I upped to from 1000 to 10000, but at that time our bandwidth was much
+lower, so not recently- since I did not see any memory leaks in apache
+children.
+
+&gt;<i> At the moment the description of your problem is a bit vague so all
+</I>&gt;<i> the above detail would help immensely as far as us being able to given
+</I>&gt;<i> any ideas.
+</I>
+I managed to take a screenshot of /server-status page when apache was in the
+&quot;slow&quot; state again today.
+It showed 0 idle workers, all 300 MaxClients busy, and most of them (90%) in
+the R state, 8% in the W state and the rest in the C state. Despite this,
+apache did not log &quot;[error] server reached MaxClients setting, consider
+raising the MaxClients setting&quot; at any time during the crash. It did log
+this message immediately after I restarted the server, when it was
+operational.
+Overall load average drops form 16-20 to 3-5 when apache crashes, and
+`procinfo -d` shows that the CPUs are 60% idle (drop from normal 15-30% idle
+during peak load).
+
+After today's crash I removed MaxMemFree 2500 altogether. 
+It crashed again after that, with nothing in the error log.
+Apachectl stop/start recovers it.
+
+Our apache access logs are disabled for most common requests.
+I noticed that when apache is operating normally, there's a lot of
+connections to our DB server machine in the TIME_WAIT state. 
+It turns out that the DB server is under a medium-high load as well, but I
+did not manage to look at that machine during the apache crash. This is how
+our db machine looks like under normal operation
+
+db0 ~&gt; procinfo -d
+Bootup: Tue Jul 24 15:17:47 2007    Load average: 4.70 5.52 4.76 1/157 24936
+
+user  :       0:00:08.51  42.5%  page in :     1188  disk 1:       92r
+277w9w
+nice  :       0:00:00.00   0.0%  page out:     2396  disk 2:       68r
+280ww
+system:       0:00:02.05  10.2%  swap in :        0  disk 3:       80r
+369ww
+idle  :       0:00:09.44  47.2%  swap out:        0  disk 4:      297r
+599w7w
+uptime:  69d  0:16:17.61         context :    414234
+
+I will send /server-status page when apache is crashing as an html
+attachment in a separate email, since I am afraid this email will be
+delivered to junk if it has an attachement.
+
+Thank You
+
+Alec Matusis.
+
+
+
+&gt;<i> -----Original Message-----
+</I>&gt;<i> From: Graham Dumpleton [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>]
+</I>&gt;<i> Sent: Monday, October 01, 2007 4:12 AM
+</I>&gt;<i> To: Alec Matusis
+</I>&gt;<i> Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Subject: Re: [mod_python] mod_python or apache scalability?
+</I>&gt;<i> 
+</I>&gt;<i> In order so we can understand things better ...
+</I>&gt;<i> 
+</I>&gt;<i> 1. Please explain what application you are running on top of
+</I>&gt;<i> mod_python. Show the Apache configuration applying to the application
+</I>&gt;<i> you are running on top of mod_python.
+</I>&gt;<i> 
+</I>&gt;<i> 2. Explain why you are running prefork and not worker MPM. Are you
+</I>&gt;<i> also running some PHP application that will not work with worker MPM?
+</I>&gt;<i> 
+</I>&gt;<i> 3. Explain what the relationship is between your mod_python
+</I>&gt;<i> application and your memory hogging twisted back end processes, ie.,
+</I>&gt;<i> do they communicate with each other and how.
+</I>&gt;<i> 
+</I>&gt;<i> 4. Indicate how big your Apache and twisted processes are growing.
+</I>&gt;<i> 
+</I>&gt;<i> 5. Indicate whether you have used the netstat program to try and
+</I>&gt;<i> determine how many socket connections are being held open by Apache
+</I>&gt;<i> and twisted processes.
+</I>&gt;<i> 
+</I>&gt;<i> 6. Indicate whether you have tried changing the Apache configuration
+</I>&gt;<i> for how many keep alive connections are maintained and how long keep
+</I>&gt;<i> alive connections are kept open. For some guidance on these see recent
+</I>&gt;<i> blog post at:
+</I>&gt;<i> 
+</I>&gt;<i>   <A HREF="http://lucumr.pocoo.org/cogitations/2007/09/30/pushing-apache-">http://lucumr.pocoo.org/cogitations/2007/09/30/pushing-apache-</A>
+</I>&gt;<i> performance
+</I>&gt;<i> 
+</I>&gt;<i> 7. Indicate what range of values you have experimented with for
+</I>&gt;<i> MaxRequestsPerChild.
+</I>&gt;<i> 
+</I>&gt;<i> At the moment the description of your problem is a bit vague so all
+</I>&gt;<i> the above detail would help immensely as far as us being able to given
+</I>&gt;<i> any ideas.
+</I>&gt;<i> 
+</I>&gt;<i> Please try not to gloss over details, the more details you give the
+</I>&gt;<i> more helpful we might be able to be. For example, you don't even
+</I>&gt;<i> mention that your system is shared with some very large twisted
+</I>&gt;<i> processes. I only know that this might be the case from a short
+</I>&gt;<i> followup you made to HTTPD dev list. When you say twisted, I presume
+</I>&gt;<i> though you mean Python Twisted framework.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> 
+</I>&gt;<i> On 01/10/2007, Alec Matusis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">matusis at matusis.com</A>&gt; wrote:
+</I>&gt;<i> &gt; I am sorry in advance if this turns out to be an apache-related
+</I>&gt;<i> issue, but
+</I>&gt;<i> &gt; when I posted this on apache list, it has been suggested that it
+</I>&gt;<i> might be an
+</I>&gt;<i> &gt; application issue, so I am reposting it here.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; We are running a busy mod_python/3.1.4 Python/2.4.1 server on 2.6.9
+</I>&gt;<i> kernel,
+</I>&gt;<i> &gt; that suddenly becomes very slow- requests either time out, or it
+</I>&gt;<i> takes
+</I>&gt;<i> &gt; 10-20sec to serve a 1K thumbnail.
+</I>&gt;<i> &gt; It is somewhat correlated with load spikes, but not perfectly (by
+</I>&gt;<i> looking at
+</I>&gt;<i> &gt; the bandwidth graph, it never happens during the low bandwidth
+</I>&gt;<i> periods at
+</I>&gt;<i> &gt; night, but it does not coincide with peaks of b/w)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; When we initially encountered an apache overload, it was always
+</I>&gt;<i> accompanied
+</I>&gt;<i> &gt; with
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; [error] server reached MaxClients setting, consider raising the
+</I>&gt;<i> MaxClients
+</I>&gt;<i> &gt; setting
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; in the apache error log. We also got
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; kernel: possible SYN flooding on port 80. Sending cookies.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; in /var/log/messages system log.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; After that I raised MaxClients from 200 to 300. The problem initially
+</I>&gt;<i> &gt; disappeared, but after our bandwidth grew a bit more, we got this
+</I>&gt;<i> behavior
+</I>&gt;<i> &gt; again.
+</I>&gt;<i> &gt; Now apache crashes (becomes very slow) silently, with no warning in
+</I>&gt;<i> apache
+</I>&gt;<i> &gt; error logs at all (although we still get SYN flood message in the
+</I>&gt;<i> system
+</I>&gt;<i> &gt; log)
+</I>&gt;<i> &gt; When apache is this 'slow' regime, /server-status still shows
+</I>&gt;<i> available
+</I>&gt;<i> &gt; slots, i.e. MaxClients is not reached.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; This is the relevant part of httpd.conf:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ServerLimit 300
+</I>&gt;<i> &gt; # we are using prefork MPM
+</I>&gt;<i> &gt; StartServers 10
+</I>&gt;<i> &gt; MinSpareServers 5
+</I>&gt;<i> &gt; MaxSpareServers 20
+</I>&gt;<i> &gt; MaxClients 300
+</I>&gt;<i> &gt; MaxRequestsPerChild 10000
+</I>&gt;<i> &gt; MaxMemFree 2500
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The server has 4GB of physical RAM and 4GB of swap. During these
+</I>&gt;<i> apache
+</I>&gt;<i> &gt; &quot;slowdowns&quot;, the swap size is still 0 and vmstat shows no swapping at
+</I>&gt;<i> all.
+</I>&gt;<i> &gt; I suspect the problem may be in
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; MaxMemFree 2500
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; but then I would expect some kind of&quot;out of memory&quot; errors in the
+</I>&gt;<i> logs?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I am posting it on this list since I have not gotten a response in
+</I>&gt;<i> the users
+</I>&gt;<i> &gt; list, and I think it's a bug for two reasons:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 1) When apache is in this slow &quot;degraded&quot; regime, I would expect a
+</I>&gt;<i> log
+</I>&gt;<i> &gt; message in the apache error log, with an explanation why.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 3) If this is related to resource exhaustion, I would expect the
+</I>&gt;<i> server to
+</I>&gt;<i> &gt; recover from this regime by itself when the load subsides, but this
+</I>&gt;<i> is not
+</I>&gt;<i> &gt; the case. Only apachectl start/stop recovers the server.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; _______________________________________________
+</I>&gt;<i> &gt; Mod_python mailing list
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt;
+</I>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024269.html">[mod_python] mod_python or apache scalability?
+</A></li>
+	<LI>Next message: <A HREF="024271.html">[mod_python] mod_python or apache scalability?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24274">[ date ]</a>
+              <a href="thread.html#24274">[ thread ]</a>
+              <a href="subject.html#24274">[ subject ]</a>
+              <a href="author.html#24274">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

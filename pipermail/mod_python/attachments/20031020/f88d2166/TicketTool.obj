@@ -1,0 +1,153 @@
+import md5
+import Cookie
+import time
+from mod_python import apache
+
+defaults = {
+	'TicketExpires':60000,
+	'TicketSecret':'/home/webadmin/.secretkey',
+	'TicketDomain':'.cv.usat'
+}
+
+
+class TicketTool(dict):
+	serverName = ''
+
+	def __init__(self, req):
+		"""
+		args: self
+			  req: mod_python request object
+		"""
+
+		# set up the config items
+		opts = req.get_options()
+		for key,value in defaults.items():
+			try:
+				avalue = opts[key]
+			except KeyError:
+				avalue = value
+			self[key] = avalue
+
+		
+	def authenticate(self,user,passwd):
+		# since this is going to run behind SSL client
+		# cert authtication, just return true	
+		return 1
+
+
+
+	def fetch_secret(self):
+		secret = ""
+		try:
+			secret = self['SECRET_KEY']
+		except KeyError:
+			secret = open(self['TicketSecret']).read()
+			self['SECRET_KEY'] = secret
+
+		return secret
+
+
+
+	def invalidate_secret(self):
+		del(self['SECRET_KEY'])
+
+
+	def make_ticket(self, req, username):
+		"""
+		usage: cookie = ticketTool.make_ticket(req, username)
+		Creates a cookie containing the secure user information
+		"""	
+	
+		ip_address = req.connection.remote_ip
+		expires = str(self['TicketExpires'])
+		now = str(time.time())
+		secret = self.fetch_secret()
+		m = md5.new()
+		m.update(secret+ip_address+now+expires+username)
+		hash = m.hexdigest()
+
+		cookie = Cookie.SimpleCookie()
+		cookie["Ticket"] = ip_address+","+expires+","+username+","+now+","+hash
+		cookie["Ticket"]['path'] = '/'
+		cookie["Ticket"]['domain'] = self['TicketDomain']
+		cookie["Ticket"]['max-age'] = self['TicketExpires'] * 3600 
+		# TODO - is the expires in seconds?  If so, jack this up!
+		
+		return cookie
+
+	
+
+	def verify_ticket(self,req):
+		"""
+		usage: result, msg, user = ticketTool.verify_ticket(req)
+		"""
+
+		ticket = None 
+		cookie = Cookie.SimpleCookie()
+
+		# could get KeyError in two places.
+		# 1. if there are no cookies
+		# 2. if there isn't a cookie named 'Ticket'
+		try:
+			cookie.load(req.headers_in['Cookie'])
+		except KeyError:
+			return 0, "user has no cookies", 'noone'
+
+		try:
+			ticket = cookie['Ticket'].value
+			apache.log_error("Ticket Cookie value:" + str(ticket))
+		except KeyError:
+			return 0, "user has no ticket cookie", 'noone'
+
+
+		ip, expires_s, user, timestamp_s, hash = ticket.split(",")
+	
+		apache.log_error("[Ticket Cookie] hash:" + hash)
+		apache.log_error("[Ticket Cookie] user:" + user)
+		apache.log_error("[Ticket Cookie] time:" + timestamp_s)
+		apache.log_error("[Ticket Cookie] expires:" + expires_s)
+		apache.log_error("[Ticket Cookie] ip:" + ip)
+
+		timestamp = float(timestamp_s)
+		expires = int(expires_s)
+
+		if ip != req.connection.remote_ip:
+			return 0, "IP address mismatch in ticket", 'noone'
+
+		if time.time() - timestamp / 60 < expires:
+			return 0, "ticket has expired", 'noone'
+
+		secret = self.fetch_secret()
+
+			 
+		m = md5.new()
+		m.update(secret+ip+timestamp_s+expires_s+user)
+		new_hash = m.hexdigest()
+
+		if hash != new_hash:
+			self.invalidate_secret()
+			return 0, 'ticket mismatch', 'noone'
+
+
+		req.user = user
+		return 1, 'ok', user
+		
+	
+
+	def make_return_address(self, req):
+		"""
+		usage: cookie = ticketTool.make_return_address(req)
+		"""
+
+		protocol = 'http://'
+		if req.get_options().has_key('is_ssl'):
+			protocol = 'https://'
+		
+		request_uri = protocol + req.server.server_hostname + ':' + str(req.server.port) + req.unparsed_uri
+
+		cookie = Cookie.SimpleCookie()
+		cookie['request_uri'] = request_uri
+		cookie['request_uri']['domain'] = self['TicketDomain']
+		cookie['request_uri']['path'] = '/'
+
+		return cookie

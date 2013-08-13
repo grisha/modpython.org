@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Multiple Interpreters mod_python optimization
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%3D%3FUTF-8%3FQ%3F%3D5Bmod%3D5Fpython%3D5D%3D20Multiple%3D20Interpreters%3D20mod%3D5Fpython%3F%3D%0A%09%3D%3FUTF-8%3FQ%3F%3D20optimization%3F%3D&In-Reply-To=88e286470905150440t7bb8926dj388535975cd11d80%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026221.html">
+   <LINK REL="Next"  HREF="026223.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Multiple Interpreters mod_python optimization</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>zsi</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%3D%3FUTF-8%3FQ%3F%3D5Bmod%3D5Fpython%3D5D%3D20Multiple%3D20Interpreters%3D20mod%3D5Fpython%3F%3D%0A%09%3D%3FUTF-8%3FQ%3F%3D20optimization%3F%3D&In-Reply-To=88e286470905150440t7bb8926dj388535975cd11d80%40mail.gmail.com"
+       TITLE="[mod_python] Multiple Interpreters mod_python optimization">zsi at skolesys.dk
+       </A><BR>
+    <I>Fri May 15 08:24:40 EDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026221.html">[mod_python] Multiple Interpreters mod_python optimization
+</A></li>
+        <LI>Next message: <A HREF="026223.html">[mod_python] Multiple Interpreters mod_python optimization
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26222">[ date ]</a>
+              <a href="thread.html#26222">[ thread ]</a>
+              <a href="subject.html#26222">[ subject ]</a>
+              <a href="author.html#26222">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+
+On Fri, 15 May 2009 21:40:46 +1000, Graham Dumpleton
+&lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+&gt;<i> 2009/5/15 zsi &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">zsi at skolesys.dk</A>&gt;:
+</I>&gt;&gt;<i> On Fri, 15 May 2009 20:35:59 +1000, Graham Dumpleton
+</I>&gt;&gt;<i> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;&gt;&gt;<i> BTW, the process IDs in your 'ps' output don't even match what your
+</I>&gt;&gt;&gt;&gt;&gt;<i> Python code is producing. Looks like you aren't even talking to the
+</I>&gt;&gt;&gt;&gt;&gt;<i> same Apache instance.
+</I>&gt;&gt;&gt;&gt;<i> I wasn't expecting them to match. The process id's from the python
+</I>code
+&gt;&gt;&gt;&gt;<i> are the interpreter's pid not the apaches. What I wanted to show by
+</I>&gt;&gt;&gt;&gt;<i> that was that it is stille the same apache processes (8 of them) but
+</I>&gt;&gt;&gt;&gt;<i> I have 18 different interpreter process ID's. So it is not because I
+</I>&gt;&gt;&gt;&gt;<i> hit a new apache process every time.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Did you read the document I told you to read about process/interpreter
+</I>&gt;&gt;&gt;<i> model of Apache/mod_python? As well as the blog entry?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> The Python sub interpreters run in the Apache child processes. Thus
+</I>&gt;&gt;&gt;<i> the process IDs from your Python code must have some overlap with the
+</I>&gt;&gt;&gt;<i> Apache processes you listed.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Apache/mod_python does not create special Python interpreter processes.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Yes, I read it and it makes it even more odd that I get a new pid
+</I>&gt;<i> everytime
+</I>&gt;&gt;<i> I call os.getpid(), that doesn't match the apache processes.
+</I>&gt;<i> 
+</I>&gt;<i> Have you run 'ps' to find out what processes are using those pids and
+</I>&gt;<i> whether they exist after the requests are done.
+</I>&gt;<i> 
+</I>&gt;<i> If need be, put a time.sleep() call after you log the pid to give you
+</I>&gt;<i> time to do the 'ps', just in case they are transient as a result of
+</I>&gt;<i> Apache configuration, or because they are crashing at end of request.
+</I>&gt;<i> 
+</I>&gt;<i> Also ensure you have set:
+</I>&gt;<i> 
+</I>&gt;<i>   PythonDebug On
+</I>&gt;<i> 
+</I>&gt;<i> to enabled stuff in Apache error logs about mod_python loading of files.
+</I>
+That was a very good idea, and you are right it is apache processes, just
+not the ones started initially by the main apache process. So I guess the
+question is what I did wrong in the apache configuration since new apache
+servers are spawned each time a request comes in - and terminated right
+away. Of course I know this will happen as the load increases (if I don't
+change the Min/MaxSpareServers) but why doesn't it use the ones already
+there before starting new ones?
+
+May 15 14:08:55 capa-server capa: REQUESTINFO: ps aux|grep pid   = capa
+8981  0.0  2.3  20288 11972 ? S 14:08 0:00 /usr/sbin/apache2 -k start 
+May 15 14:08:55 capa-server capa: REQUESTINFO: Interpreter Name  =
+/srv/capa/www/0.9/sessionservice/
+May 15 14:08:55 capa-server capa: REQUESTINFO: os.getpid()       = 8982
+May 15 14:08:55 capa-server capa: REQUESTINFO: ps aux|grep pid   = capa
+8982 66.0  2.2  20288 11844 ? S 14:08 0:00 /usr/sbin/apache2 -k start 
+May 15 14:08:56 capa-server capa: REQUESTINFO: Interpreter Name  =
+/srv/capa/www/0.9/sessionservice/
+May 15 14:08:56 capa-server capa: REQUESTINFO: os.getpid()       = 8987
+May 15 14:08:56 capa-server capa: REQUESTINFO: ps aux|grep pid   = capa
+8987 78.0  2.5  20808 13028 ? S 14:08 0:00 /usr/sbin/apache2 -k start 
+May 15 14:08:57 capa-server capa: REQUESTINFO: Interpreter Name  =
+/srv/capa/www/0.9/sessionservice/
+May 15 14:08:57 capa-server capa: REQUESTINFO: os.getpid()       = 8997
+May 15 14:08:57 capa-server capa: REQUESTINFO: ps aux|grep pid   = capa
+8997 74.0  2.3  20288 11972 ? S 14:08 0:00 /usr/sbin/apache2 -k start
+
+Best regards
+Jakob Simon-Gaarde
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026221.html">[mod_python] Multiple Interpreters mod_python optimization
+</A></li>
+	<LI>Next message: <A HREF="026223.html">[mod_python] Multiple Interpreters mod_python optimization
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26222">[ date ]</a>
+              <a href="thread.html#26222">[ thread ]</a>
+              <a href="subject.html#26222">[ subject ]</a>
+              <a href="author.html#26222">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

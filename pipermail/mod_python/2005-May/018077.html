@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] (more) Cookies trouble
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%28more%29%20Cookies%20trouble&In-Reply-To=1115954693.25469%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018076.html">
+   <LINK REL="Next"  HREF="018090.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] (more) Cookies trouble</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Wouter van Marle</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20%28more%29%20Cookies%20trouble&In-Reply-To=1115954693.25469%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] (more) Cookies trouble">wouter at squirrel-systems.com
+       </A><BR>
+    <I>Thu May 12 23:45:26 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018076.html">[mod_python] Cookies and sessions trouble
+</A></li>
+        <LI>Next message: <A HREF="018090.html">[mod_python] (more) Cookies trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18077">[ date ]</a>
+              <a href="thread.html#18077">[ thread ]</a>
+              <a href="subject.html#18077">[ subject ]</a>
+              <a href="author.html#18077">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi all,
+
+Now the following issue, see the scripts below for demonstration of how
+it &quot;works&quot; here.
+test.py/home serves a simple home page, with two hyperlinks (linking
+back to modules within test.py) and a button linking to
+&quot;testuser.py/register&quot;. Here also something goes wrong: the language
+session does not persist.
+testuser.register finds there is no session present (no attribute
+'session' in req present), so calls back to main.get_session(req) to get
+it's session. There the session should be opened, and if not found,
+defaults read from the &quot;basic&quot; cookie that is set previously, it is set
+with path &quot;/python/test.py&quot; according to Mozilla's cookie manager.
+get_session(req) however now appears to be unable to read the &quot;basic&quot;
+cookie, and returns the default value to testuser.register, instead of
+the value read in the cookie.
+
+------------------ BEGIN test.py
+from mod_python import Cookie
+from mod_python import Session
+
+import time
+
+def home (req):
+    req.content_type = &quot;text/html; charset=utf-8&quot;
+    username = &quot;&quot;
+    if not hasattr(req, &quot;session&quot;):
+        req.session = get_session(req)
+    language = req.session[&quot;language&quot;]
+    # update the cookie on the user's side
+    value = {&quot;language&quot;: language, &quot;username&quot;: username}
+    Cookie.add_cookie(req,
+                      Cookie.MarshalCookie(&quot;basic&quot;, value, &quot;gezellig&quot;,
+                                           expires = time.time() + 7776000 # 90 days
+                                           ))
+    cookies = Cookie.get_cookies(req, Cookie.MarshalCookie,
+                                 secret = &quot;gezellig&quot;)
+    req.write(&quot;found cookies: &quot;+str(cookies)+&quot;&lt;br&gt;&quot;)
+    req.write(&quot;home got language: &quot;+language+&quot;&lt;br&gt;&quot;)
+    req.write(&quot;Language switcher: &lt;a href=./en&gt;en&lt;/a&gt;  &lt;a href=./cn&gt;cn&lt;/a&gt;&lt;br&gt;&quot;)
+    req.write(&quot;&quot;&quot;register: &lt;form action=&quot;../../python/testuser.py/register&quot; method=&quot;post&quot;&gt;&lt;input value=&quot;Register&quot; name=&quot;Register&quot; type=&quot;submit&quot;&gt;&quot;&quot;&quot;)
+
+def en(req):
+    if not hasattr(req, &quot;session&quot;):
+        req.session = get_session(req)
+    req.session[&quot;language&quot;] = &quot;en&quot;
+    req.session.save()
+    home(req)
+    return 
+
+def cn(req):
+    if not hasattr(req, &quot;session&quot;):
+        req.session = get_session(req)
+    req.session[&quot;language&quot;] = &quot;cn&quot;
+    req.session.save()
+    home(req)
+    return 
+
+def get_session(req):
+    # gets the current session, checks if complete, if not reads defaults from
+    # the cookies.
+    sess = Session.Session(req)
+    req.content_type = &quot;text/html; charset=utf-8&quot;
+    # read user's settings from their cookies
+    language = &quot;default&quot; # system default
+    cookies = Cookie.get_cookies(req, Cookie.MarshalCookie,
+                                 secret = &quot;gezellig&quot;)
+    if cookies.has_key(&quot;basic&quot;):
+        # the basic info is stored in a cookie named &quot;basic&quot;
+        basiccookie = cookies[&quot;basic&quot;]
+        if type(basiccookie) is Cookie.MarshalCookie:
+            try:
+                language = basiccookie.value[&quot;language&quot;]
+            except:
+                pass
+    sess[&quot;language&quot;] = language
+    return sess
+
+------------------ END test.py
+
+------------------ BEGIN usertest.py
+from mod_python import apache
+from mod_python import Cookie
+
+test = apache.import_module(&quot;test&quot;)
+
+def register (req):
+    req.content_type = &quot;text/html; charset=utf-8&quot;
+    if not hasattr(req, &quot;session&quot;):
+        req.session = test.get_session(req)
+    req.write(&quot;got cookies: %s &lt;br&gt;&quot;% str(Cookie.get_cookies(req, Cookie.MarshalCookie, secret = &quot;gezellig&quot;)))
+    req.write(&quot;got language: %s &lt;br&gt;&quot;% req.session[&quot;language&quot;])
+
+------------------ END usertest.py
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018076.html">[mod_python] Cookies and sessions trouble
+</A></li>
+	<LI>Next message: <A HREF="018090.html">[mod_python] (more) Cookies trouble
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18077">[ date ]</a>
+              <a href="thread.html#18077">[ thread ]</a>
+              <a href="subject.html#18077">[ subject ]</a>
+              <a href="author.html#18077">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

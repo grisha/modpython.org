@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Using mod_python to customise subversion repository
+	access.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20mod_python%20to%20customise%20subversion%20repository%0A%09access.&In-Reply-To=1157083476.17522%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021974.html">
+   <LINK REL="Next"  HREF="021976.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Using mod_python to customise subversion repository
+	access.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Deron Meranda</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20mod_python%20to%20customise%20subversion%20repository%0A%09access.&In-Reply-To=1157083476.17522%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] Using mod_python to customise subversion repository
+	access.">deron.meranda at gmail.com
+       </A><BR>
+    <I>Fri Sep  1 01:39:56 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021974.html">[mod_python] Using mod_python to customise subversion repository
+	access.
+</A></li>
+        <LI>Next message: <A HREF="021976.html">[mod_python] Using mod_python to customise subversion repository
+	access.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21975">[ date ]</a>
+              <a href="thread.html#21975">[ thread ]</a>
+              <a href="subject.html#21975">[ subject ]</a>
+              <a href="author.html#21975">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 9/1/06, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>&gt; wrote:
+&gt;<i> In my real job, we are finally converting to using subversion. Now
+</I>&gt;<i> although subversion when used through Apache still supports a
+</I>&gt;<i> level of user authorisation,
+</I>&gt;<i>  ... you can't use its authorisation mechanism to implement
+</I>&gt;<i>  a fine grained level of authorisation.
+</I>&gt;<i> ...
+</I>&gt;<i> So, mod_python to the rescue.
+</I>
+Its nice to see somebody else's approach to this too.  I've
+done something similar for my subversion respository about
+three weeks ago.  Only I'm driving the whole thing through
+a set of MySQL tables which contain all the access rules.
+
+&gt;<i>   from mod_python import apache
+</I>&gt;<i>   import fnmatch
+</I>
+The fnmatch module is a neat shortcut; I always keep
+forgetting about that one.  I tend to do the regexes
+the hard(er) way.
+
+&gt;<i>   BLOCK_URI = '/svn/drives/!svn/*/*/packages/tags/*/*/*'
+</I>&gt;<i>
+</I>&gt;<i>   BLOCK_METHOD = [ 'MKCOL', 'PUT', 'PROPPATCH', 'CHECKOUT',
+</I>&gt;<i>           'MERGE', 'MKACTIVITY', 'LOCK', 'UNLOCK' ]
+</I>&gt;<i>
+</I>&gt;<i>   def authzhandler(req):
+</I>&gt;<i>       if fnmatch.fnmatch(req.uri, BLOCK_URI):
+</I>&gt;<i>           if req.method in BLOCK_METHOD:
+</I>&gt;<i>               return apache.HTTP_FORBIDDEN
+</I>&gt;<i>       return apache.OK
+</I>
+I like to reverse this logic and list those methods I want
+to allow instead of those to block.  There are so many
+different methods (and more being invented by the
+DAV working groups all the time), that I don't want
+to leave one out.
+
+The methods needed for complete read-only access are:
+   ['GET','HEAD','OPTIONS','PROPFIND','REPORT']
+
+As Graham noticed you can also choose to allow some others,
+such as COPY, to give something in between a read-only and
+full access.  It can get complicated though.
+
+Another trick I use is setting the username which gets
+written into the subversion changelogs (when doing
+writes/commits).  I need to do this first off because I'm
+using mod_python for full authentication and authorization,
+instead of any of the Apache auth* modules.  Also I wanted
+to be able to have subversion record the user's permanent
+id number in addition to the username (which could in
+theory change someday).  Well, the trick is really simple;
+just assign into the req-&gt;user member whatever string
+you want to appear in the subversion change logs.
+
+Oh, another subversion+mod_python issue.  I actually
+have my website itself stored in subversion, including
+all my mod_python module files and so forth.  For
+most of the website I use the http:... style URL for the
+subversion client (svn) when keeping those files
+up to date.
+
+However for the smaller core set of files, including
+my authentication module, I have it using the more
+direct file:... URLs.  This is important in case your head
+revision gets broken.  If you were using the http: urls,
+then your subversion access woild also be broken
+and you couldn't easily revert back your changes.
+  --- And also, obviously, you should implement
+careful access control on those parts of the subversion
+repository which contain the security-critical portions
+of your website.
+-- 
+Deron Meranda
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021974.html">[mod_python] Using mod_python to customise subversion repository
+	access.
+</A></li>
+	<LI>Next message: <A HREF="021976.html">[mod_python] Using mod_python to customise subversion repository
+	access.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21975">[ date ]</a>
+              <a href="thread.html#21975">[ thread ]</a>
+              <a href="subject.html#21975">[ subject ]</a>
+              <a href="author.html#21975">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

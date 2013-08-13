@@ -1,0 +1,425 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] some questions about using mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20some%20questions%20about%20using%20mod_python&In-Reply-To=d1iver%247eq%241%40sea.gmane.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017728.html">
+   <LINK REL="Next"  HREF="017730.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] some questions about using mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20some%20questions%20about%20using%20mod_python&In-Reply-To=d1iver%247eq%241%40sea.gmane.org"
+       TITLE="[mod_python] some questions about using mod_python">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Mar 20 05:55:40 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017728.html">[mod_python] some questions about using mod_python
+</A></li>
+        <LI>Next message: <A HREF="017730.html">[mod_python] some questions about using mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17729">[ date ]</a>
+              <a href="thread.html#17729">[ thread ]</a>
+              <a href="subject.html#17729">[ subject ]</a>
+              <a href="author.html#17729">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Another one of my long rambles. Making up for not reading email for
+a few days at a time at the moment. :-)
+
+On 20/03/2005, at 3:52 PM, vegetax wrote:
+
+&gt;<i> hi, i just finished reading the docs and i have some obstacles to start
+</I>&gt;<i> implementing a web system using mod_python.
+</I>&gt;<i>
+</I>&gt;<i> First 2 observations in the docs:
+</I>&gt;<i> -please correct the docs in the hello world example,it doesnt work!
+</I>&gt;<i> req.content_type = '/text/html' is needed,i spended an hour trying to  
+</I>&gt;<i> find
+</I>&gt;<i> the problem in the hello world??
+</I>
+Are you talking about the example in:
+
+   <A HREF="http://www.modpython.org/live/current/doc-html/inst-testing.html">http://www.modpython.org/live/current/doc-html/inst-testing.html</A>
+
+The example will work without req.content_type being set, at least
+mod_python will work correctly.
+
+The problem is that if your Apache configuration does not set:
+
+   DefaultType text/plain
+
+and return that with a response if the handler doesn't, then your  
+browser
+will not necessarily know what do with a file with an extension of &quot;.py&quot;
+and may ask you to save the response to a file instead of showing it in
+the browser itself.
+
+It is always thus a good idea to set content type regardless as a matter
+of best practice, but the outcome if not set is an issue to do with the
+Apache configuration and not mod_python.
+
+BTW, for that part example, it should be &quot;text/plain&quot; for the content
+type and not &quot;text/html&quot;.
+
+&gt;<i> -Please remark that in order to send any kind of output  
+</I>&gt;<i> headers,including
+</I>&gt;<i> cookies and sessions,the code should be before any req.write()
+</I>
+This one is fair enough. The only veiled reference on the request object
+members page seems to be:
+
+   set_content_length(len)
+      Sets the value of req.clength and the &quot;Content-Length&quot; header to  
+len.
+      Note that after the headers have been sent out (which  happens just
+      before the first byte of the body is written,  i.e. first call to
+      req.write()), calling the method is meaningless.
+
+I would suggest you log a report for an improvement to mod_python at:
+
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON">http://issues.apache.org/jira/browse/MODPYTHON</A>
+
+You should probably reference this email as it appears in the mailing
+list archive for reference.
+
+This is the only place where such requests will over time be noticed. If
+only the mailing list they well be lost and forgotten.
+
+&gt;<i> My doubts:
+</I>&gt;<i>
+</I>&gt;<i> - PythonPath directive doesnt work at all,when i set it at any config  
+</I>&gt;<i> level
+</I>&gt;<i> i get a NOT FOUND error,from apache when i try to access anything that  
+</I>&gt;<i> uses
+</I>&gt;<i> mod_python, the definition is : PythonPath &quot;sys.path +  
+</I>&gt;<i> ['/devel/classes']&quot;
+</I>
+Hmmmm, PythonPath does generally work okay from what I have seen. Only  
+issue
+I have with it is that if a high up within the directory hierarchy you  
+set
+it to:
+
+   PythonPath: 'sys.path'
+
+then there is no going back. That is, regardless of the fact that in a
+subdirectory you might use SetHandler/PythonHandler to enable mod_python
+use a second time, PythonPath will be inherited from the mod_python  
+scope
+higher up and no extension of the Python path will occur in the new
+mod_python scope which is introduced. :-(
+
+Anyway, you might like to be a bit more specific and give some working
+examples which demonstrate the problem. Is this somehow tied up with you
+redirections from publisher to PSP? I can see them potentially screwing
+each other up if there requirements for setting the Python path are
+different.
+
+Are your PSP pages nested at a lower scope than the publisher handlers
+that redirect to them? Maybe you are running up against a similar issue
+to what I was having with nesting of different methods for using  
+mod_python.
+
+&gt;<i> - Where do i set a database connection pool to load at server
+</I>&gt;<i> initialization ,so that all request can access it? is the pythonImport
+</I>&gt;<i> directive the best place? where do i set a clean up function for the  
+</I>&gt;<i> pool
+</I>&gt;<i> at server finalization ?
+</I>
+Cleanup function registration for stuff that should be done at time of  
+child
+termination can only be done with req.server.register_cleanup(). There
+probably should be an apache.register_cleanup() method which would be
+available from a module imported using PythonImport. This would then be  
+the
+best way of doing it.
+
+It seems that the best one could do now is import the module when  
+required
+but don't do anything at the time of import which would require a  
+cleanup
+function to be registered. Then, when the first handler calls in to the
+actual module, require that the &quot;req&quot; object be passed into the pool,  
+with
+those resources which need to be cleaned up later being created then  
+with a
+cleanup function being registered through req.server.register_cleanup().
+
+I have added a bug report suggesting that apache.register_cleanup() be
+added to allow it to be used from module imported using PythonImport.
+
+FWIW, in Vampire, when Vampire's module importing mechanism is used a
+stripped down request object is available in the set of global variables
+during import as __req__. Thus in Vampire one could actually register
+a cleanup function during import by using:
+
+   __req__.server.register_cleanup(....)
+
+This would save each handler having to pass the req object into a pool  
+and
+means one wouldn't have to delay creation of resources which needed the
+cleanup function to be registered.
+
+&gt;<i> - Is it ok to configure apache to just use one process and several  
+</I>&gt;<i> threads
+</I>&gt;<i> like in windows? what other implications it has? besides losing some  
+</I>&gt;<i> of the
+</I>&gt;<i> stability and safety that apache provides, is just that too many  
+</I>&gt;<i> things go
+</I>&gt;<i> wrong in the dynamic applications when mixing using both process and
+</I>&gt;<i> threads.
+</I>
+No reason why you can't use &quot;worker&quot; MPM with one process and many  
+threads
+just like on Win32. You just have to deal with the same multithreading
+issues as you do on Win32.
+
+First thing to is to patch mod_python to fix the multithreading  
+problems.
+The patches can be found at:
+
+   <A HREF="http://www.dscpl.com.au/projects/vampire/PATCHES">http://www.dscpl.com.au/projects/vampire/PATCHES</A>
+
+This address will change after easter to:
+
+   <A HREF="http://www.dscpl.com.au/projects/vampire/patches.txt">http://www.dscpl.com.au/projects/vampire/patches.txt</A>
+
+In terms of other multithreading issues, there are a few problems you  
+need
+to be aware of and code for if you want a robust application. One of my
+prior posts on this topic in relation to module importing is:
+
+   <A HREF="http://www.modpython.org/pipermail/mod_python/2004-October/016605.html">http://www.modpython.org/pipermail/mod_python/2004-October/016605.html</A>
+
+You should go back and forth within that particular thread for other  
+stuff
+related to threading.
+
+&gt;<i> - I want to use a MVC approach,the publisher's methods are the  
+</I>&gt;<i> controlers
+</I>&gt;<i> that do the processing and send internal redirects to psps to show the
+</I>&gt;<i> results,so i need to pass objects to the psps from the pub methods,i  
+</I>&gt;<i> need
+</I>&gt;<i> those objects to be in the request object of the handler and available  
+</I>&gt;<i> to
+</I>&gt;<i> the target psp.
+</I>
+Why do you need to redirect the request to PSP? Why couldn't you simply
+write a common method of your own which triggered PSP page rendering
+directly within your publisher method with the desired environment?
+
+At its simplest, you could use:
+
+     template = psp.PSP(req,filename=path,vars=settings)
+     template.run()
+
+Where &quot;path&quot; is the name of the PSP file and &quot;settings&quot; is a dictionary
+populated with data that your controller has obtained from the model.
+Using redirection seems to me to be drawing too much of an artificial
+separation between your controller and view.
+
+&gt;<i> this code doesnt work,it shows an error saying req object has no
+</I>&gt;<i> attribute,data:
+</I>&gt;<i>
+</I>&gt;<i> def regHandler(req):
+</I>&gt;<i>     data = [1,2,'a']
+</I>&gt;<i>     req.data = data
+</I>&gt;<i>     req.internal_redirect('/var/www/myapp/psp/showReg.psp')
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> showReq.psp:
+</I>&gt;<i>
+</I>&gt;<i> the data :
+</I>&gt;<i> &lt;%= req.prev.data %&gt;
+</I>&gt;<i>
+</I>&gt;<i> I also tried to load the data in a session object retrieved or created  
+</I>&gt;<i> in
+</I>&gt;<i> reqHandler,but same results,the session object in the psp always  
+</I>&gt;<i> creates a
+</I>&gt;<i> new session and the gives : Key error, session object has no key 'data'
+</I>
+The documentation does say:
+
+   The httpd server handles internal redirection by creating a new   
+request object
+   and processing all request phases. Within an internal  redirect,  
+req.prev will
+   contain a reference to a request  object from which it was redirected.
+
+However, this doesn't explicitly say that &quot;req.prev&quot; will be the same  
+req object
+as was used in the handler from which redirection occurred. All it says  
+is that
+it &quot;will contain a reference to a request object from which it was  
+redirected&quot;.
+
+I read this as saying that &quot;req.prev&quot; will hold valid data pertaining  
+to the
+original request as passed in by Apache, but I don't see it  
+guaranteeing that any
+data you might cache in the original request object will be available.
+
+But then, I back this up by looking at the source code to see that  
+internal
+redirection is handled by a call back into Apache.
+
+   ap_internal_redirect(new_uri, self-&gt;request_rec);
+
+Here &quot;request_rec&quot; is the original Apache request object and not the  
+Python one
+that wraps it, thus anything that you stash in the Python part of the  
+object
+cannot possibly be available to the handler to which redirection occurs  
+as
+the Apache code which does the redirection doesn't have access to it.
+
+All that could be said is that the documentation could explicitly say  
+that any
+user data stashed in the req object is not available. That would clear  
+things
+up.
+
+&gt;<i> Also, the post in site
+</I>&gt;<i> (<A HREF="http://dotnot.org/blog/archives/2004/06/27/nasty-deadlock-in-">http://dotnot.org/blog/archives/2004/06/27/nasty-deadlock-in-</A> 
+</I>&gt;<i> modpython-when-using-sessions/)
+</I>&gt;<i> ,describing that some rare things happens to session locks,when  
+</I>&gt;<i> internal
+</I>&gt;<i> redirecting between python handlers,in my case the pspHandler and the
+</I>&gt;<i> pythonHandler or publisher? how can i overcome those issues?
+</I>&gt;<i>
+</I>&gt;<i> What exactly happens between internal redirects that affect mod_python
+</I>&gt;<i> behavior,sessions,etc, when used like i want to use it? And is it fast  
+</I>&gt;<i> to
+</I>&gt;<i> internal redirect a lot? since all request phases are processed every  
+</I>&gt;<i> time.
+</I>
+That one has to unlock sessions explicitly before an internal redirect  
+has been
+covered on the mailing list a number of times. The documentation could  
+mention
+it and there probably should be a FAQ entry for it.
+
+It all comes about because an internal redirect effectively appears  
+like a
+nested function call from the original handler. Ie., after the  
+redirection,
+the original handler continues to execute. Since sessions use a non  
+reentrant
+lock, a second attempt to lock it from the same thread will cause a  
+deadlock.
+
+At this point I don't know enough about the internals of Apache runtime
+library to know whether it is possible to have reentrant locks, but if  
+it
+did, it might be reasonable to have sessions use a reentrant lock  
+instead and
+this whole problem might be avoided.
+
+Note however that if in your own handler code you used non reentrant  
+locks
+you would potentially end up with the same sort of problems and would
+either have to unlock them before the internal redirect, or change to a
+reentrant lock. Ie., threading.RLock instead of threading.Lock.
+
+Thus, one could possibly improve mod_python by using a reentrant lock  
+for
+a session object if no reasonable reason could be found not to. The only
+danger in doing that is that the same code will no longer work on older  
+versions
+of mod_python. It might be sensible to wait until a point where a major
+version of mod_python was brought out which wasn't backwards compatible
+in other ways as well.
+
+Hope this is all interesting.
+
+BTW, have you considered other page templating solutions besides PSP?  
+In terms
+of best separation between model, view and controller, or at least  
+between the
+HTML that represents a page and the code that populates it, I would  
+recommend
+using HTMLTemplate.
+
+   <A HREF="http://freespace.virgin.net/hamish.sanderson/htmltemplate.html">http://freespace.virgin.net/hamish.sanderson/htmltemplate.html</A>
+
+Why I prefer it over PSP is that in PSP you are effectively still  
+embedding
+Python code in the template itself and to render the template you are  
+actually
+executing it, with there being call outs from the template to collect  
+data.
+
+In HTMLTemplate, the template object is distinct, with your controller  
+code
+making calls into the template object when desired to set fields within  
+it.
+Ie., DOM like but not having the overhead of a DOM because only  
+fillable parts
+of the template are indexed.
+
+What this means is that with HTMLTemplate you aren't forced to prepare  
+all your
+data up front before filling in the template, instead you can fill it  
+in bit
+by bit.
+
+I can supply references to example of using HTMLTemplate from Vampire  
+later if
+you are interested.
+
+Graham
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017728.html">[mod_python] some questions about using mod_python
+</A></li>
+	<LI>Next message: <A HREF="017730.html">[mod_python] some questions about using mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17729">[ date ]</a>
+              <a href="thread.html#17729">[ thread ]</a>
+              <a href="subject.html#17729">[ subject ]</a>
+              <a href="author.html#17729">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

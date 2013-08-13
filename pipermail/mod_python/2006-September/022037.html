@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Mod-Python Help
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod-Python%20Help&In-Reply-To=BB46BF13-E6E5-49AA-9CF6-71EBE8D53937%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022036.html">
+   <LINK REL="Next"  HREF="022038.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Mod-Python Help</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Ethan Toan Ton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Mod-Python%20Help&In-Reply-To=BB46BF13-E6E5-49AA-9CF6-71EBE8D53937%40dscpl.com.au"
+       TITLE="[mod_python] Mod-Python Help">ethanton at ethanton.com
+       </A><BR>
+    <I>Thu Sep  7 01:55:34 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022036.html">[mod_python] Mod-Python Help
+</A></li>
+        <LI>Next message: <A HREF="022038.html">[mod_python] Mod-Python Help
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22037">[ date ]</a>
+              <a href="thread.html#22037">[ thread ]</a>
+              <a href="subject.html#22037">[ subject ]</a>
+              <a href="author.html#22037">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham/David,
+
+Thanks for the help. My packet sniffer is looking at the packets, and instead
+of a new packet header, all these req.flush() calls are keeping the
+connection
+alive. Unfortunately, the javascript xmlhttprequest will only process the
+packet once, instead of during every call to req.flush().
+
+Is there a way to close the connection and open it again afterwards? I'm
+trying to get the xmlhttprequest.onreadystatechange to process after each
+call
+to req.flush().
+
+Ethan
+
+
+&gt;<i> On 07/09/2006, at 10:39 AM, David Beal wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Ethan,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Thanks for your help.  It turns out the problem was the &quot;return
+</I>&gt;&gt;&gt;<i> apache.OK&quot;.  I was getting that extra 0 at the end and could not
+</I>&gt;&gt;&gt;<i> figure
+</I>&gt;&gt;&gt;<i> out why.  Thanks for the prompt replies.  I appreciate all the help.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The problem is probably not with return apache.OK, but maybe with the
+</I>&gt;&gt;<i> client's XmlHttpRequest handler not understanding chunked encoding
+</I>&gt;&gt;<i> markers.  The 0 is for HTTP chunked encoding.  Look for the header:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Transfer-Encoding: chunked
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> and the first line of the content will be a hexadecimal number of the
+</I>&gt;&gt;<i> content-length for the first chunk.  Each subsequent chunk comes
+</I>&gt;&gt;<i> with a
+</I>&gt;&gt;<i> chunk length marker.  The 0 at the end of the file indicates that
+</I>&gt;&gt;<i> there
+</I>&gt;&gt;<i> are no more chunks.  Chunk length markers will also appear whenever an
+</I>&gt;&gt;<i> output flush occurs.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> To disable chunked encoding, you should specify a content length:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> req.headers_out['Content-Length']=str(len(code))
+</I>&gt;<i>
+</I>&gt;<i> I'd suggest it isn't anything to do with chunked encoding and the
+</I>&gt;<i> original
+</I>&gt;<i> suggestion about apache.OK is going to be correct.
+</I>&gt;<i>
+</I>&gt;<i> It is an occasional problem we have to correct whereby people who move
+</I>&gt;<i> from a mod_python basic handler to mod_python.publisher keep returning
+</I>&gt;<i> apache.OK as a status when they shouldn't with result of an extra '0'
+</I>&gt;<i> appearing in response.
+</I>&gt;<i>
+</I>&gt;<i> Ie., a mod_python basic handler of:
+</I>&gt;<i>
+</I>&gt;<i>    def handler(req):
+</I>&gt;<i>      req.content_type = 'text/plain'
+</I>&gt;<i>      req.write(&quot;content&quot;)
+</I>&gt;<i>      return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> can not simply be taken and then used as mod_python.publisher
+</I>&gt;<i> function as:
+</I>&gt;<i>
+</I>&gt;<i>    def index(req):
+</I>&gt;<i>      req.content_type = 'text/plain'
+</I>&gt;<i>      req.write(&quot;content&quot;)
+</I>&gt;<i>      return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> This is because mod_python.publisher will always take the result of
+</I>&gt;<i> the function
+</I>&gt;<i> and convert it to a string and append it to the response, even if
+</I>&gt;<i> req.write() were
+</I>&gt;<i> used. Thus, must be written as:
+</I>&gt;<i>
+</I>&gt;<i>    def index(req):
+</I>&gt;<i>      req.content_type = 'text/plain'
+</I>&gt;<i>      req.write(&quot;content&quot;)
+</I>&gt;<i>
+</I>&gt;<i> or for older versions of mod_python where returning None or an empty
+</I>&gt;<i> string is
+</I>&gt;<i> a problem, written as:
+</I>&gt;<i>
+</I>&gt;<i>    def index(req):
+</I>&gt;<i>      req.content_type = 'text/plain'
+</I>&gt;<i>      req.write(&quot;content&quot;)
+</I>&gt;<i>      return ' '
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>&gt;<i>
+</I>
+
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022036.html">[mod_python] Mod-Python Help
+</A></li>
+	<LI>Next message: <A HREF="022038.html">[mod_python] Mod-Python Help
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22037">[ date ]</a>
+              <a href="thread.html#22037">[ thread ]</a>
+              <a href="subject.html#22037">[ subject ]</a>
+              <a href="author.html#22037">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

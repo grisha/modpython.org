@@ -1,0 +1,213 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Stopping Reimports
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Stopping%20Reimports&In-Reply-To=529860.1092138421114.JavaMail.root%40mail1.one.lv">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016025.html">
+   <LINK REL="Next"  HREF="016027.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Stopping Reimports</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Stopping%20Reimports&In-Reply-To=529860.1092138421114.JavaMail.root%40mail1.one.lv"
+       TITLE="[mod_python] Stopping Reimports">nicolas at lehuen.com
+       </A><BR>
+    <I>Tue Aug 10 16:27:58 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016025.html">[mod_python] Stopping Reimports
+</A></li>
+        <LI>Next message: <A HREF="016027.html">[mod_python] Stopping Reimports
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16024">[ date ]</a>
+              <a href="thread.html#16024">[ thread ]</a>
+              <a href="subject.html#16024">[ subject ]</a>
+              <a href="author.html#16024">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I don't think your solution is so ugly... A few weeks ago I wrote about a
+similar problem on this list, though my solution was to alter publisher.py
+to change the way it builds module names (publisher.py version 1.36, line 67
+in mod_python 3.1.3)... Or, as Daniel Popowich wrote, you could use
+mod_servlet (<A HREF="http://home.comcast.net/~d.popowich/mpservlets/">http://home.comcast.net/~d.popowich/mpservlets/</A>) which does
+correctly load modules.
+
+Note that you were in fact quite lucky to experience reimports, since some
+people (including me, running mp 3.1.3 on Apache2 multithreaded on Windows)
+experience a much worse behaviour : no reimport at all, e.g. /foo/index.py
+would return the same page as /bar/index.py if /bar/index.py was touched
+after /foo/index.py !
+
+Regards,
+
+Nicolas Lehuen
+
+&gt;<i> -----Message d'origine-----
+</I>&gt;<i> De : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A> 
+</I>&gt;<i> [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] De la part de Cu _
+</I>&gt;<i> Envoy&#233; : mardi 10 ao&#251;t 2004 13:47
+</I>&gt;<i> &#192; : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> Objet : [mod_python] Stopping Reimports
+</I>&gt;<i> 
+</I>&gt;<i> mpy
+</I>&gt;<i> Hello, 
+</I>&gt;<i> 
+</I>&gt;<i> I'd like to know if there is some elegant way to deal with 
+</I>&gt;<i> the [notice] mod_python: (Re)importing module 'index' with 
+</I>&gt;<i> path set to [...]
+</I>&gt;<i> 
+</I>&gt;<i> The mod_python.apache importing mechanism works correctly, 
+</I>&gt;<i> the problem is, it keeps reimporting the same files.
+</I>&gt;<i> 
+</I>&gt;<i> I don't think reimporting is the best solution for modules 
+</I>&gt;<i> with same names but in different directories.
+</I>&gt;<i> 
+</I>&gt;<i> It degrades performance with unneeded imports. 
+</I>&gt;<i> 
+</I>&gt;<i> Then,
+</I>&gt;<i> I try to use mod_python's sideeffect of not discarding 
+</I>&gt;<i> variables when importing already loaded modules to cache 
+</I>&gt;<i> frequently used data (If the module doesn't get reimported 
+</I>&gt;<i> all the time, it's variables keep their values between 
+</I>&gt;<i> subsequent requests). 
+</I>&gt;<i> Every reimport causes the cached data to be reloaded.
+</I>&gt;<i> 
+</I>&gt;<i> Also, it pollutes error_log :)
+</I>&gt;<i> 
+</I>&gt;<i> My current &quot;solution&quot; is ugly, that's why I post here, maybe 
+</I>&gt;<i> somebody will come up with something better.
+</I>&gt;<i> The idea is - if i have to load a module &quot;my_module&quot;, which 
+</I>&gt;<i> is at /path/to/my_files, don't load it as my_module, but as 
+</I>&gt;<i> path_to_my_files_my_module That way, modules with same names 
+</I>&gt;<i> will be assigned different names in sys.modules and won't get 
+</I>&gt;<i> reloaded all the time.
+</I>&gt;<i> 
+</I>&gt;<i> It's as using
+</I>&gt;<i> from path.to.my.files imort my_module as 
+</I>&gt;<i> path_to_my_files_my_module instead of from path.to.my.files 
+</I>&gt;<i> imort my_module
+</I>&gt;<i> 
+</I>&gt;<i> Modules loaded with import_module are usually used by 
+</I>&gt;<i> pointers, not by symbolic names so, as for me, it's ok to 
+</I>&gt;<i> load it with a different name.
+</I>&gt;<i> 
+</I>&gt;<i> my mod_python/apache.py import_module() now looks like this:
+</I>&gt;<i> 
+</I>&gt;<i> def import_module(module_name, autoreload=1, log=0, path=None):
+</I>&gt;<i>     &quot;&quot;&quot;
+</I>&gt;<i>     Get the module to handle the request. If
+</I>&gt;<i>     autoreload is on, then the module will be reloaded
+</I>&gt;<i>     if it has changed since the last import.
+</I>&gt;<i>     &quot;&quot;&quot;
+</I>&gt;<i>     
+</I>&gt;<i>     parts = module_name.split('.')    
+</I>&gt;<i>     if path:
+</I>&gt;<i>       path2 = 
+</I>&gt;<i> '_'.join(path).replace('/','_').replace('.','_').replace('-','
+</I>&gt;<i> _')[1:] + '_'
+</I>&gt;<i>       mn = path2 + module_name
+</I>&gt;<i>     else:
+</I>&gt;<i>       mn = module_name
+</I>&gt;<i> 
+</I>&gt;<i>     # (Re)import
+</I>&gt;<i>     import sys
+</I>&gt;<i>     if sys.modules.has_key(mn):
+</I>&gt;<i>         module = sys.modules[mn]
+</I>&gt;<i>     else:
+</I>&gt;<i>         
+</I>&gt;<i>         _apache.log_error('Has to load: '+str(mn)+ 
+</I>&gt;<i> '('+str(module_name)+')', APLOG_NOERRNO|APLOG_NOTICE)
+</I>&gt;<i>        
+</I>&gt;<i>         for i in range(len(parts)):
+</I>&gt;<i>             mname = &quot;.&quot;.join(parts[:i+1])
+</I>&gt;<i>             f, p, d = imp.find_module(parts[i], path)
+</I>&gt;<i>             try:
+</I>&gt;<i>                 _apache.log_error('Loading: '+mname, 
+</I>&gt;<i> APLOG_NOERRNO|APLOG_NOTICE)
+</I>&gt;<i>                 module = imp.load_module(mname, f, p, d)
+</I>&gt;<i>         
+</I>&gt;<i>             finally:
+</I>&gt;<i>                 if f: f.close()
+</I>&gt;<i>             if hasattr(module, &quot;__path__&quot;):
+</I>&gt;<i>                 path = module.__path__
+</I>&gt;<i> 
+</I>&gt;<i>         # dark magic
+</I>&gt;<i>         if mn:
+</I>&gt;<i>           if mn != mname:
+</I>&gt;<i>             t = sys.modules.keys()
+</I>&gt;<i>             t.sort()
+</I>&gt;<i>             _apache.log_error('Current load: '+str(t), 
+</I>&gt;<i> APLOG_NOERRNO|APLOG_NOTICE)
+</I>&gt;<i>             _apache.log_error('Switching: '+mname+' &lt;-&gt; '+mn, 
+</I>&gt;<i> APLOG_NOERRNO|APLOG_NOTICE)
+</I>&gt;<i>             sys.modules[mn] = sys.modules[mname]
+</I>&gt;<i>             del(sys.modules[mname])
+</I>&gt;<i>   
+</I>&gt;<i>             t = sys.modules.keys()
+</I>&gt;<i>             t.sort()
+</I>&gt;<i>             _apache.log_error('After switch: '+str(t), 
+</I>&gt;<i> APLOG_NOERRNO|APLOG_NOTICE)
+</I>&gt;<i> 
+</I>&gt;<i>     return module
+</I>&gt;<i> 
+</I>&gt;<i> --------------------------------------------------------------
+</I>&gt;<i> -----------------
+</I>&gt;<i> <A HREF="http://www.one.lv">http://www.one.lv</A> - Tavs mobilais e-pasts!
+</I>&gt;<i> 
+</I>&gt;<i> Tagad lasi savu e-pastu ar mobilo telefonu - wap.one.lv!
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016025.html">[mod_python] Stopping Reimports
+</A></li>
+	<LI>Next message: <A HREF="016027.html">[mod_python] Stopping Reimports
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16024">[ date ]</a>
+              <a href="thread.html#16024">[ thread ]</a>
+              <a href="subject.html#16024">[ subject ]</a>
+              <a href="author.html#16024">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,122 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] psp.parsestring() hangs httpd
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp.parsestring%28%29%20hangs%20httpd&In-Reply-To=20041227135725.R7848%40grisha.dyndns.org">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017019.html">
+   <LINK REL="Next"  HREF="017021.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] psp.parsestring() hangs httpd</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jason Pratt</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp.parsestring%28%29%20hangs%20httpd&In-Reply-To=20041227135725.R7848%40grisha.dyndns.org"
+       TITLE="[mod_python] psp.parsestring() hangs httpd">jason at jasonpratt.org
+       </A><BR>
+    <I>Mon Dec 27 16:59:41 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017019.html">[mod_python] psp.parsestring() hangs httpd
+</A></li>
+        <LI>Next message: <A HREF="017021.html">[mod_python] Newbie Publisher Handler questions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17020">[ date ]</a>
+              <a href="thread.html#17020">[ thread ]</a>
+              <a href="subject.html#17020">[ subject ]</a>
+              <a href="author.html#17020">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>At 12/27/2004 01:58 PM, Gregory (Grisha) Trubetskoy wrote:
+
+&gt;<i>On Sun, 26 Dec 2004, Jason Pratt wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i>def handler( req=None ):
+</I>&gt;&gt;<i>        req.content_type = &quot;text/html&quot;
+</I>&gt;&gt;<i>        exec psp.parsestring( &quot;Hello World&quot; )
+</I>&gt;&gt;<i>        return apache.OK
+</I>&gt;<i>
+</I>&gt;<i>I wonder if it insists on a newline at the end. That'd still make it a 
+</I>&gt;<i>bug, of course.
+</I>
+
+Good thought, but that doesn't seem to be it.  I tried a bunch of crazy 
+stuff like \n, \r\n, \000, and full length documents.  None of it works.
+
+I learned some more, though.  The process is not actually hanging in 
+parsestring().  parsestring() actually returns the correct code (and 
+identical to what parse() returns).  The process hangs when exec is 
+called.  The one exception is if you pass an empty string to parsestring(), 
+in which case the httpd process dies immediately rather than hanging.  And 
+that actually does happen in parsestring().
+
+You can put additional code before the exec and that code will run 
+(including a time.sleep(), so it's not a time-delayed reaction).  You can 
+omit the exec and the process still hangs, so it's not as if the generated 
+code is bad.  At first I thought it was dying as soon as control was 
+getting back to apache (i.e. it died in exec because req.write() was being 
+called).  Remarkably, though, it dies whenever any code is execed.  It 
+hangs on exec &quot;x = 1 + 1&quot;.  This doesn't make any sense to me.
+
+
+I've got to believe that something in _psp_module_parsestring() is writing 
+to memory it shouldn't, or leaving something behind that it shouldn't, but 
+the code looks correct.  I'm guessing the empty string problem may be 
+because the &quot;code = PyString_FromString(parser-&gt;pycode.blob);&quot; line isn't 
+wrapped in a check as it is in _psp_module_parse().  But that doesn't 
+explain the hanging problem.
+
+
+
+___________________________
+Jason Pratt
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jason at jasonpratt.org</A>
+
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017019.html">[mod_python] psp.parsestring() hangs httpd
+</A></li>
+	<LI>Next message: <A HREF="017021.html">[mod_python] Newbie Publisher Handler questions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17020">[ date ]</a>
+              <a href="thread.html#17020">[ thread ]</a>
+              <a href="subject.html#17020">[ subject ]</a>
+              <a href="author.html#17020">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

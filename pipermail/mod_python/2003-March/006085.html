@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] MySQL DB connection sharing solution
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20MySQL%20DB%20connection%20sharing%20solution&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006090.html">
+   <LINK REL="Next"  HREF="006091.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] MySQL DB connection sharing solution</H1>
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20MySQL%20DB%20connection%20sharing%20solution&In-Reply-To="
+       TITLE="[mod_python] MySQL DB connection sharing solution">mike.looijmans at asml.com
+       </A><BR>
+    <I>Fri Mar 21 09:05:01 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006090.html">[mod_python] PythonImport - an example?
+</A></li>
+        <LI>Next message: <A HREF="006091.html">[mod_python] Dynamic virtualhost configuration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6085">[ date ]</a>
+              <a href="thread.html#6085">[ thread ]</a>
+              <a href="subject.html#6085">[ subject ]</a>
+              <a href="author.html#6085">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>The trouble with most MySQL connection &quot;sharing&quot; methods is that they use the
+same connection for multiple threads. This will not work when using scrolling
+cursors, you can have only one of those open per connection. If you allow
+users to run arbitrary queries, you don't want them to allocate 100 megabytes
+of buffer space on the server when doing a &quot;SELECT * FROM customer, orders&quot;
+(forgetting to join them...) so they are a must have.
+
+Solution I came up with is to &quot;give&quot; a Connection object to each thread, and
+when done, return it to the pool. If a connection is not in the pool, a new
+one is made. With a bit of locking, you can have as many threads as you like,
+and they won't interfere. The connections are stored in a dictionary, using
+the usr, password, host and database as entry 'hash' (which I made a string
+for easy debugging).
+The entries are a list, when connecting the first object is taken from the
+list, and appended again when the handler is done with it. It checks if the
+connection is still valid when returning it (so a handler CAN do a db.close()
+to dispose of a connection if that is neccesary).
+
+### Connection sharing code ###
+
+dblist = {}
+_lock = threading.Lock()
+
+def connectdb(req):
+    environ = req.subprocess_env
+    dbentry = '%s:%s@%s/%s' % (environ['DBUSER'],
+                               environ['DBPWD'],
+                               environ['DBHOST'],
+                               environ['DBNAME'])
+    req.dbentry = dbentry
+    _lock.acquire()
+    try:
+        list = dblist.get(dbentry, [])
+        if len(list):
+            result = list[0]
+            del list[0]
+        else:
+            import ops_sql
+            dblist[dbentry] = list
+            result = ops_sql.db_connect(environ)
+    finally:
+        _lock.release()
+    return result
+
+def donedb(req, db):
+    if db and (not db._db.closed):
+        _lock.acquire()
+        try:
+            dblist[req.dbentry].append(db)
+        finally:
+            _lock.release()
+
+### In the handler(req) routine ###
+
+           db = None
+            if 'form' in expected:
+                form = util.FieldStorage(req)
+                kwargs['form'] = form
+                req.form = form
+            if 'db' in expected:
+                db = connectdb(req)
+                kwargs['db'] = db
+            try:
+                apply(module.main, (), kwargs)
+            finally:
+                donedb(req, db)
+
+
+
+--
+Mike Looijmans
+ASML: <A HREF="http://www5nl.asml.nl/~mlooijma">http://www5nl.asml.nl/~mlooijma</A>
+Private: <A HREF="http://www.milosoftware.com">http://www.milosoftware.com</A>
+
+
+
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006090.html">[mod_python] PythonImport - an example?
+</A></li>
+	<LI>Next message: <A HREF="006091.html">[mod_python] Dynamic virtualhost configuration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6085">[ date ]</a>
+              <a href="thread.html#6085">[ thread ]</a>
+              <a href="subject.html#6085">[ subject ]</a>
+              <a href="author.html#6085">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

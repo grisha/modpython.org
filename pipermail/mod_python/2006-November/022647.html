@@ -1,0 +1,247 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Accesshandler and normal handler... how they working
+	?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Accesshandler%20and%20normal%20handler...%20how%20they%20working%0A%09%3F&In-Reply-To=4559E47C.9030604%40jgassociates.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022605.html">
+   <LINK REL="Next"  HREF="022652.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Accesshandler and normal handler... how they working
+	?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>durumdara</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Accesshandler%20and%20normal%20handler...%20how%20they%20working%0A%09%3F&In-Reply-To=4559E47C.9030604%40jgassociates.ca"
+       TITLE="[mod_python] Accesshandler and normal handler... how they working
+	?">durumdara at gmail.com
+       </A><BR>
+    <I>Mon Nov 20 09:31:25 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022605.html">[mod_python] Accesshandler and normal handler... how they working
+	?
+</A></li>
+        <LI>Next message: <A HREF="022652.html">[mod_python] Accesshandler and normal handler... how they working
+	?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22647">[ date ]</a>
+              <a href="thread.html#22647">[ thread ]</a>
+              <a href="subject.html#22647">[ subject ]</a>
+              <a href="author.html#22647">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi !
+
+Interesting. Your example about Request Data Sharing sometimes working, 
+and sometimes not.
+I don't understand why !
+In my little test site it is working good.
+But when I put these sharing technics in the main site, then Apache said 
+that Object member does not exists on mp_request.
+
+Traceback (most recent call last):
+
+  File &quot;C:\Python24\lib\site-packages\mod_python\apache.py&quot;, line 299, in HandlerDispatch
+    result = object(req)
+
+  File &quot;c:/web/zeusweb/htdocs\__handler.py&quot;, line 6, in handler
+    RequestObject = req.Object
+
+AttributeError: 'mp_request' object has no attribute 'Object'
+
+It is very interesting, because I set this variable on the access handler.
+
+def accesshandler(Request):
+    hmod = apache.import_module(&quot;CustomHandler&quot;)
+    siteroot = os.path.dirname(__file__)
+    return hmod.CommonAccessHandler(Request, &quot;ZeusWebHandler&quot;, siteroot)
+...
+
+def CommonAccessHandler(Request, HandlerModuleName, SiteRoot):
+    zhmod = apache.import_module(HandlerModuleName)
+    try:
+        ROClass = zhmod.GetRequestObjectClass()
+        RequestObject = ROClass(Request, SiteRoot)
+        Request.Object = RequestObject # &lt;===== here I set it !
+        RequestObject.CheckLogin()
+        valid = RequestObject.HaveUserRightTo(Request.filename)
+        if valid:
+            return apache.OK
+        else:
+            return apache.HTTP_FORBIDDEN
+    except:
+        dwtools = apache.import_module(&quot;dwtools&quot;)
+        excmsg = dwtools.GetLastExcText()
+        Request.log_error(excmsg, apache.APLOG_ERR)
+    return apache.HTTP_INTERNAL_SERVER_ERROR
+
+Interesting, because it's working recently ! In same site !
+Possible it's caused by virtual hosting and more site handlers ??? I 
+don't know.
+
+But I need solution.
+
+Please help me !
+
+I thinking about that I not used direct filenames on protectable content 
+(anydata.pdf).
+If I use &quot;aliases&quot;, I can check them in the handler, and I can rewrite 
+them as stream, if use have enough rights to it.
+In this time I can use accesshandler to deny accesses without rights. If 
+rights are enough, I simply send apache.OK, and apache get back the 
+content, handle the file types (PDF, XLS, etc.).
+
+But if accesshandler cannot share data with handler safely, I need to 
+drop accesshandler, and I need to handle all request with my handler.
+This is not too hard with simple content, but problematic with big, 
+protected, special files, example _*private*_ PDF-s, Pictures, other 
+contents.
+(I remember that in zope I must rename the dynamic image retreiver 
+script to &quot;.jpg&quot; to Windows client handle the data correctly what the 
+script provided.)
+
+How to you do this ? How can I protect some areas ? How to I support the 
+file downloading with protection ?
+
+Thanks for your help:
+    dd
+
+
+
+
+
+Jim Gallacher wrote:
+&gt;<i> durumdara wrote:
+</I>&gt;&gt;<i> Hi !
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I have an access handler, and a normal python handler in my site.
+</I>&gt;&gt;<i> I use directories, and some of them are need protection. I use my login
+</I>&gt;&gt;<i> method to enable user access.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The access handler is check the needed rights to any object. It get user
+</I>&gt;&gt;<i> data from Session.
+</I>&gt;&gt;<i> When access granted, it finished it's working.
+</I>&gt;&gt;<i> When access denied, it send http403 error, and I catch this with custom
+</I>&gt;&gt;<i> error documents (ssi).
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> But I want to know something - the background of access handler.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 1.)
+</I>&gt;&gt;<i> The access handler is existing in same Thread as Handler ?
+</I>&gt;<i>
+</I>&gt;<i> Yes.
+</I>&gt;<i>
+</I>&gt;&gt;<i> So I want to know. Is modpy do this:
+</I>&gt;&gt;<i> get url, server info, etc.
+</I>&gt;&gt;<i> build request + other objects
+</I>&gt;&gt;<i> get thread
+</I>&gt;&gt;<i> result = thread.startaccesshandler(req)
+</I>&gt;&gt;<i> if not result:
+</I>&gt;&gt;<i>  gotoerrorhandler
+</I>&gt;&gt;<i> else:
+</I>&gt;&gt;<i>  result = thread.handler(req)
+</I>&gt;&gt;<i> ....
+</I>&gt;&gt;<i> or it use another technology ?
+</I>&gt;<i>
+</I>&gt;<i> Unless I'm misunderstanding your question, you don't need to mess with 
+</I>&gt;<i> threads. You are always dealing with the same request object, 
+</I>&gt;<i> regardless of which phase, and there is one process or thread per 
+</I>&gt;<i> request.
+</I>&gt;<i>
+</I>&gt;<i> Take a look at the mod_python documentation for PythonAuthenHandler, 
+</I>&gt;<i> as well as my reply to Richard Lewis today on a similar question.
+</I>&gt;<i>
+</I>&gt;&gt;<i> 2.)
+</I>&gt;&gt;<i> Can I exchange some data across them ?
+</I>&gt;<i>
+</I>&gt;<i> Yes.
+</I>&gt;<i>
+</I>&gt;<i> def authenhandler(req):
+</I>&gt;<i>     req.foo = 'something for later'
+</I>&gt;<i>     ...
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> def handler(req):
+</I>&gt;<i>     req.write(req.foo)
+</I>&gt;<i>     ...
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> In this time I use file based right table(s).
+</I>&gt;&gt;<i> Every file in this table has right property.
+</I>&gt;&gt;<i> I need to load this table in the accesshandler to check grants.
+</I>&gt;&gt;<i> And later, in the menu building I also need to load this table to check
+</I>&gt;&gt;<i> grants (the menus are not accessable by user are hided).
+</I>&gt;&gt;<i> Can I share these infos ? Can I write to the request object, and this
+</I>&gt;&gt;<i> object is hold these infos to get them in normal handler ?
+</I>&gt;<i>
+</I>&gt;<i> Yes.
+</I>&gt;<i>
+</I>&gt;&gt;<i> 3.)
+</I>&gt;&gt;<i> Can I force the access handler to redirect request ?
+</I>&gt;<i>
+</I>&gt;<i> Yes.
+</I>&gt;<i>
+</I>&gt;&gt;<i> Example: the user click on menu that preserved for special users. I
+</I>&gt;&gt;<i> don't want to redirect to error pages. Can I redirect to my special
+</I>&gt;&gt;<i> page, 
+</I>&gt;<i>
+</I>&gt;<i> Yes.
+</I>&gt;<i>
+</I>&gt;<i> Jim
+</I>&gt;<i>
+</I>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20061120/dc82ff61/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20061120/dc82ff61/attachment.html</A>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022605.html">[mod_python] Accesshandler and normal handler... how they working
+	?
+</A></li>
+	<LI>Next message: <A HREF="022652.html">[mod_python] Accesshandler and normal handler... how they working
+	?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22647">[ date ]</a>
+              <a href="thread.html#22647">[ thread ]</a>
+              <a href="subject.html#22647">[ subject ]</a>
+              <a href="author.html#22647">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

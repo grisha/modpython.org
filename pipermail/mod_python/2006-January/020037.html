@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Sessions again...
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20again...&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020035.html">
+   <LINK REL="Next"  HREF="020039.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Sessions again...</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Sessions%20again...&In-Reply-To="
+       TITLE="[mod_python] Sessions again...">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Thu Jan 19 18:01:33 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020035.html">[mod_python] Sessions again...
+</A></li>
+        <LI>Next message: <A HREF="020039.html">[mod_python] script works, but I need to understand the difference
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20037">[ date ]</a>
+              <a href="thread.html#20037">[ thread ]</a>
+              <a href="subject.html#20037">[ subject ]</a>
+              <a href="author.html#20037">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Luis M. Gonzalez wrote ..
+&gt;<i> Ok, Jim, I'll clarify the problem:
+</I>&gt;<i> Both scripts initiate their sessions the same way and with the same name:
+</I>&gt;<i> 
+</I>&gt;<i> Script nr.1:
+</I>&gt;<i> 
+</I>&gt;<i>     s= Session.Session(req)
+</I>&gt;<i>     if s.is_new():
+</I>&gt;<i>        s['items'] = {}
+</I>&gt;<i> 
+</I>&gt;<i> Script nr.2:
+</I>&gt;<i> 
+</I>&gt;<i>     s= Session.Session(req)
+</I>&gt;<i>     if s.is_new():
+</I>&gt;<i>        s['counter'] = 0
+</I>&gt;<i> 
+</I>&gt;<i> I did it this way because I asume that for using both scripts in the same
+</I>&gt;<i> site, I should have only one session started.
+</I>&gt;<i> (Note that I also tried starting different sessions for each script, with
+</I>&gt;<i> different names, but the problem persists).
+</I>&gt;<i> 
+</I>&gt;<i> Actually, I already fixed this problem (with a wacky work-around though...).
+</I>&gt;<i> In each script, I created the session variable corresponding to the other
+</I>&gt;<i> script, as follows:
+</I>
+That is not a wacky work around, it is what must be done. For any
+scripts which are located under the same PythonHandler directive, the
+session object initialisation, ie., what is done when s.is_new() is
+true, must be the same for all scripts. If not done like this, as you
+are finding, when the other script is run it will be missing what it
+needs as it hasn't has the opportunity to do its initialisation. The
+other option as Jim pointed out is to effectively ignore s.is_new() and
+simply add a default for the value if the attribute isn't present.
+
+In general it is a good idea to separate out initialisation for a new
+session object into a separate common routine which all scripts call, if
+there are special attributes which need to be set up.
+
+Graham
+
+&gt;<i> Script nr.1:
+</I>&gt;<i> 
+</I>&gt;<i>     s = Session.Session(req)
+</I>&gt;<i>     if s.is_new():
+</I>&gt;<i>         s['counter'] = 0
+</I>&gt;<i>         s['items']= {} # workaround to avoid trouble with cart script
+</I>&gt;<i> 
+</I>&gt;<i> Script nr.2:
+</I>&gt;<i> 
+</I>&gt;<i>     s = Session.Session(req)
+</I>&gt;<i>     if s.is_new():
+</I>&gt;<i>         s['items']= {}
+</I>&gt;<i>         s['counter'] = 0 # workaround to avoid trouble with recset script
+</I>&gt;<i> 
+</I>&gt;<i> Well, this fixed the problem in this case, but i don't think this woraround
+</I>&gt;<i> fits into mod_python's best practices...
+</I>&gt;<i> 
+</I>&gt;<i> Luis
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> &gt; You'll need to clarify your problem a little, but I think you may be
+</I>&gt;<i> &gt; assuming that you get a different session object for each script. That
+</I>&gt;<i> is 
+</I>&gt;<i> &gt; not the case, at least by default. You get one session object per browser
+</I>&gt;<i> &gt; so if you want to use it in independent scripts, each script will need
+</I>&gt;<i> to 
+</I>&gt;<i> &gt; catch the KeyError exception or do some other test to see if you need
+</I>&gt;<i> to 
+</I>&gt;<i> &gt; initialize your session data.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; You can also do some thing like this:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; r.counter = sess.get('counter', 0)
+</I>&gt;<i> &gt; ...
+</I>&gt;<i> &gt; ...
+</I>&gt;<i> &gt; r.counter += 1
+</I>&gt;<i> &gt; sess['counter'] = r.counter
+</I>&gt;<i> &gt; sess.save()
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Jim
+</I>&gt;<i> &gt; 
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020035.html">[mod_python] Sessions again...
+</A></li>
+	<LI>Next message: <A HREF="020039.html">[mod_python] script works, but I need to understand the difference
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20037">[ date ]</a>
+              <a href="thread.html#20037">[ thread ]</a>
+              <a href="subject.html#20037">[ subject ]</a>
+              <a href="author.html#20037">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

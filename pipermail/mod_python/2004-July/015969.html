@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] win32com and session issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20win32com%20and%20session%20issues&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015966.html">
+   <LINK REL="Next"  HREF="015970.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] win32com and session issues</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>gmilas at sunstoneinc.com</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20win32com%20and%20session%20issues&In-Reply-To="
+       TITLE="[mod_python] win32com and session issues">gmilas at sunstoneinc.com
+       </A><BR>
+    <I>Thu Jul 29 14:20:12 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015966.html">[mod_python] mod_python.publisher and PSP on Apache 2.0.49
+ (MPM_Prefork) with mod_python 3.1.3
+</A></li>
+        <LI>Next message: <A HREF="015970.html">[mod_python] the dreaded python_handler: make_obcallback returned
+	no obCallBack!
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15969">[ date ]</a>
+              <a href="thread.html#15969">[ thread ]</a>
+              <a href="subject.html#15969">[ subject ]</a>
+              <a href="author.html#15969">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+
+
+
+Hi everyone,
+
+My environment is Apache/2.0.50 (Win32) mod_python/3.1.3 Python/2.3 with a
+PSP handler and Windows is 2000 professional.
+Apache service runs under my user name which has administrator privileges.
+
+I would like to keep a database connection open during a period of time and
+I am trying to do it using the session mechanism. I'm trying this because I
+have a bunch of code I had written before for IIS/ASP/Python and I have a
+few helper classes to help me abstract away the environment, so I'm trying
+to get my code as it is out of IIS to Apache.
+Almost everything is fine except because I've used session to persist
+database connection in my IIS, I am trying now the same thing but the
+object that is being stored in the session does not come out &quot;clean&quot;.
+
+Anyway, is there a way to keep an ADODB.Connection object in a session
+field reliably?
+It seems like it is but when I try to use the connection from a session
+field it gives me all sorts of errors. To what  I can say it looks like the
+object stays around but it is closed and I can not reuse it actually. And
+to reopen it defeats the purpose.
+
+The code is basically something like this only hidden away in my helper
+classes
+
+import win32com.client
+con=session.get(&quot;adocon&quot;,None)
+if con is None:
+      con = win32com.client.Dispatch('ADODB.Connection')
+      con.Open(constr)
+      session[&quot;adocon&quot;]=con
+
+cmd = win32com.client.Dispatch(&quot;ADODB.Command&quot;)
+cmd.ActiveConnection = con
+cmd.CommandText = &quot;select * from MyUsers&quot;
+cmd.Execute()
+...
+Now if I run the code like above and work with con and cmd inside the PSP
+file it always work.
+
+Now if I create con and/or cmd inside some modules that I import in my PSP
+file it works the first time, but when using con from the session it will
+give me cmd.ActiveConnection can not be set .
+
+ File &quot;C:\Python23\lib\site-packages\win32com\client\dynamic.py&quot;, line 504,
+in __setattr__
+    raise AttributeError, &quot;Property '%s.%s' can not be set.&quot; %
+(self._username_, attr)
+AttributeError: Property 'ADODB.Command.ActiveConnection' can not be set.
+
+I also tried creating the &quot;command&quot; objects in my PSP file and pass it to
+my classes and that does not work neither, I will have the same error.
+
+I've also tried a &quot;PythonImport win32com.client&quot; because I hoped that if
+there is some module global stuff in win32com.client.dynamic (which seems
+that there is as I looked in the code) then it would stay around but I
+could not make this work, I mean it gives me an error like &quot;PythonImport
+not allowed here&quot; or otherwise it gives me no error, at least not in apache
+log files, but just simply won't start the server.
+httpd.conf looks like the following:
+&lt;VirtualHost *:80&gt;
+ServerName mysite.gheorghe.com
+  &lt;Directory ...&gt;
+    AddHandler mod_python .asp .asp_ .psp .psp_
+    PythonHandler mod_python.psp
+    #PythonImport win32com.client mysite.gheorghe.com #the server won't
+start using this (python interpreter is that according to req.interpreter)
+    PythonAutoReload On
+    PythonDebug On
+...
+
+I've read that if I was to use a different handler, that I write myself, I
+could set the connection as a global variable and it would stay there for
+successive requests, but I'm trying to use psp and move the code as I have
+it already working on IIS/ASP where I used session successfully. The
+session seems to be memory session (session.__class__.__name__ is
+MemorySession) so fields are in a global dictionary (aren't they), so is
+the same as if I was using a different handler and my own global variables,
+isn't it?
+
+Please forgive my bad English, and I would really, really appreciate some
+help as this is very frustrating not understanding what is going on.
+Gheorghe Milas
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">gmilas at sunstoneinc.com</A>
+
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015966.html">[mod_python] mod_python.publisher and PSP on Apache 2.0.49
+ (MPM_Prefork) with mod_python 3.1.3
+</A></li>
+	<LI>Next message: <A HREF="015970.html">[mod_python] the dreaded python_handler: make_obcallback returned
+	no obCallBack!
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15969">[ date ]</a>
+              <a href="thread.html#15969">[ thread ]</a>
+              <a href="subject.html#15969">[ subject ]</a>
+              <a href="author.html#15969">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

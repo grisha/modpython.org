@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Using Templates
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20Templates&In-Reply-To=1184161821.26232.21.camel%40localhost.localdomain">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023996.html">
+   <LINK REL="Next"  HREF="023999.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Using Templates</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Using%20Templates&In-Reply-To=1184161821.26232.21.camel%40localhost.localdomain"
+       TITLE="[mod_python] Using Templates">jpg at jgassociates.ca
+       </A><BR>
+    <I>Wed Jul 11 11:36:55 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023996.html">[mod_python] Using Templates
+</A></li>
+        <LI>Next message: <A HREF="023999.html">[mod_python] Using Templates
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23997">[ date ]</a>
+              <a href="thread.html#23997">[ thread ]</a>
+              <a href="subject.html#23997">[ subject ]</a>
+              <a href="author.html#23997">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Ron,
+
+I'll have some additional comments later, but I just noticed that you 
+have a name collision in your month.tmpl. Whatever loadCalendar.strDate 
+is will override the value of strDate you set in the line tmpl.run(vars 
+= {'strDate': strDate})
+
+
+----------------loadCalendar/setStrDate----------------
+def setStrDate(req):
+	if not hasattr(req, 'session'):
+		session = initSession(req)
+		strDate = &quot;&quot;
+	else:
+		session = Session.Session(req)
+		strDate = getSessionVariable(session, 'currDate')
+	req.content_type = 'text/html'
+	tmpl = psp.PSP(req, filename='Month.tmpl')
+	tmpl.run(vars = {'strDate': strDate})
+                           ^^^^^^^
+	return &quot;&quot;
+
+
+
+------------------------Month.tmpl-------------------------
+&lt;%
+from mod_python import apache, psp
+from loadCalendar import loadMonth, strDate
+                                     ^^^^^^^^^^^
+                                     What's this?
+
+%&gt;
+
+&lt;%=loadPan()%&gt;
+&lt;%=loadMonth(req, =strDate)%&gt;
+
+
+Jim
+
+ron banks wrote:
+&gt;<i> Jim,
+</I>&gt;<i> 
+</I>&gt;<i> Thanks for the quick reply. I must yield to pretty much anyone on how it
+</I>&gt;<i> should be done due to previously mentioned newbie status but I have
+</I>&gt;<i> tried putting the code all in one block and I don't think that is right.
+</I>&gt;<i> It doesn't error but it just hangs. I'm probably missing the concept
+</I>&gt;<i> here but the &lt;%=statement%&gt; is like php and is just a placeholder. I get
+</I>&gt;<i> that. All I want to do is get the variable strDate to the loadMonth
+</I>&gt;<i> function with the new date string (e.g., &quot;2007,7,11&quot;). What method would
+</I>&gt;<i> be best for doing that? Here is the complete traceback from the original
+</I>&gt;<i> code:
+</I>&gt;<i> 
+</I>&gt;<i> Mod_python error: &quot;PythonHandler mod_python.psp&quot;
+</I>&gt;<i> 
+</I>&gt;<i> ------------------Traceback------------------
+</I>&gt;<i> Traceback (most recent call last):
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/apache.py&quot;, line 299, in HandlerDispatch
+</I>&gt;<i>     result = object(req)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/psp.py&quot;, line 302, in handler
+</I>&gt;<i>     p.run()
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/psp.py&quot;, line 213, in run
+</I>&gt;<i>     exec code in global_scope
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/var/www/html/TaskMaster/Month.psp&quot;, line 4, in ?
+</I>&gt;<i>     %&gt;
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/var/www/html/loadCalendar.py&quot;, line 56, in setStrDate
+</I>&gt;<i>     tmpl = psp.PSP(req, filename='Month.tmpl')
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/psp.py&quot;, line 111, in __init__
+</I>&gt;<i>     self.load_from_file()
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/usr/lib/python2.4/site-packages/mod_python/psp.py&quot;, line 179, in load_from_file
+</I>&gt;<i>     code = compile(source, filename, &quot;exec&quot;)
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/var/www/html/TaskMaster/Month.tmpl&quot;, line 22
+</I>&gt;<i> 
+</I>&gt;<i>     req.write(&quot;&quot;&quot;
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> &quot;&quot;&quot;,0); req.write(str(loadPan()),0); req.write(&quot;&quot;&quot;
+</I>&gt;<i> &quot;&quot;&quot;,0); req.write(str(loadMonth(req, =strDate)),0); req.write(&quot;&quot;&quot;
+</I>&gt;<i> ------------------end------------------
+</I>&gt;<i> 
+</I>&gt;<i> It might be that I can't or shouldn't use templates for what I am trying to accomplish.
+</I>&gt;<i> Prior to testing templates I pretty much had figured out everything else and probably
+</I>&gt;<i> just need advise on doing it another way. I have the session being updated with the user
+</I>&gt;<i> selected date through ajax. What I need is a method to download the same page again with
+</I>&gt;<i> the loadMonth function using the new date. I was hoping to use a template where I could
+</I>&gt;<i> set the strDate variable and load the page. Obviously, I'm doing that wrong.
+</I>&gt;<i> 
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> 
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023996.html">[mod_python] Using Templates
+</A></li>
+	<LI>Next message: <A HREF="023999.html">[mod_python] Using Templates
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23997">[ date ]</a>
+              <a href="thread.html#23997">[ thread ]</a>
+              <a href="subject.html#23997">[ subject ]</a>
+              <a href="author.html#23997">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

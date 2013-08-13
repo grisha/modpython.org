@@ -1,0 +1,267 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache directory listing
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%20directory%20listing&In-Reply-To=5D9FEA5B-107F-4535-B9A9-99FFB5F28D93%40gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023741.html">
+   <LINK REL="Next"  HREF="023743.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache directory listing</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%20directory%20listing&In-Reply-To=5D9FEA5B-107F-4535-B9A9-99FFB5F28D93%40gmail.com"
+       TITLE="[mod_python] Apache directory listing">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Wed May 30 00:18:35 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023741.html">[mod_python] Apache directory listing
+</A></li>
+        <LI>Next message: <A HREF="023743.html">[mod_python] Apache directory listing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23742">[ date ]</a>
+              <a href="thread.html#23742">[ thread ]</a>
+              <a href="subject.html#23742">[ subject ]</a>
+              <a href="author.html#23742">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Experiment 1.
+
+Using Apache configuration of:
+
+Alias / /Users/grahamd/mod_python/handlers/
+
+&lt;Directory /Users/grahamd/mod_python/handlers&gt;
+Order deny,allow
+Allow from all
+PythonFixupHandler ~/_handler.py
+PythonDebug On
+Options +Indexes
+&lt;/Directory&gt;
+
+Note that I am NOT setting SetHandler as only needed for PythonHandler.
+
+Then have _handler.py file in that directory containing:
+
+from mod_python import apache
+
+def fixuphandler(req):
+  apache.log_error('fixuphandler %s' % req.uri)
+  return apache.OK
+
+when I access the directory, and it runs autoindex, the log file contains:
+
+[Wed May 30 13:45:38 2007] [error] fixuphandler /
+[Wed May 30 13:45:38 2007] [error] fixuphandler /index.html
+[Wed May 30 13:45:39 2007] [error] fixuphandler /_handler.py
+[Wed May 30 13:45:39 2007] [error] fixuphandler /hello.txt
+
+The web browser contains:
+
+Index of /
+
+    * _handler.py
+    * hello.txt
+
+This shows what I mean about how it runs handlers through to
+fixuphandler() in a subrequest on each item in the directory. The
+reason it does this is to determine if it has access rights to items
+it might list. It has asked for /index.html because of DirectoryIndex
+being set to that in global Apache scope.
+
+I now change my fixuphandler to:
+
+def fixuphandler(req):
+  apache.log_error('fixuphandler %s' % req.uri)
+  if req.uri == '/_handler.py':
+    return apache.HTTP_FORBIDDEN
+  return apache.OK
+
+The extra check is making _handler.py forbidden. As a result, web page
+now only shows:
+
+Index of /
+
+    * hello.txt
+
+One can tell that one is in this sort of subrequest because req.main
+will be set. One could also query the req.main.handler value. For
+example:
+
+def fixuphandler(req):
+  apache.log_error('fixuphandler %s' % req.uri)
+  if req.main and req.main.handler == 'httpd/unix-directory':
+    apache.log_error('in autoindex sub request')
+  if req.uri == '/_handler.py':
+    return apache.HTTP_FORBIDDEN
+  return apache.OK
+
+In the log file I then get:
+
+[Wed May 30 13:56:43 2007] [error] fixuphandler /
+[Wed May 30 13:56:43 2007] [error] fixuphandler /index.html
+[Wed May 30 13:56:43 2007] [error] in autoindex sub request
+[Wed May 30 13:56:43 2007] [error] fixuphandler /_handler.py
+[Wed May 30 13:56:43 2007] [error] in autoindex sub request
+[Wed May 30 13:56:43 2007] [error] fixuphandler /hello.txt
+[Wed May 30 13:56:43 2007] [error] in autoindex sub request
+
+You may want to know it is a sub request to autoindex so as to avoid
+sending back your own custom content for the forbidden response. If
+you are using ErrorDocument, you wouldn't be sending back your own
+content though and so it wouldn't have potential for mucking up a
+autoindex generated directory listing.
+
+To have custom error details for a error page produced by
+ErrorDocument, set error-notes in req.notes:
+
+def fixuphandler(req):
+  apache.log_error('fixuphandler %s' % req.uri)
+  if req.main and req.main.handler == 'httpd/unix-directory':
+    apache.log_error('in autoindex sub request')
+  if req.uri == '/_handler.py':
+    req.notes['error-notes'] = 'Sorry, you can't access %s' % req.uri
+    return apache.HTTP_FORBIDDEN
+  return apache.OK
+
+That value will then come through in variable in req.subprocess_env of
+ErrorDocument handler.
+
+Experiment 2
+
+Now change Apache configuration to:
+
+Alias / /Users/grahamd/mod_python/handlers/
+
+&lt;Directory /Users/grahamd/mod_python/handlers&gt;
+Order deny,allow
+Allow from all
+SetHandler mod_python
+PythonFixupHandler ~/_handler.py
+PythonHandler ~/_handler.py
+PythonDebug On
+Options +Indexes
+&lt;/Directory&gt;
+
+Thus, am now using SetHandler.
+
+Also change _handler.py to add:
+
+def handler(req):
+  req.content_type = 'text/plain'
+  print &gt;&gt; req, req.uri
+  print &gt;&gt; req, req.filename
+  print &gt;&gt; req, req.path_info
+  print &gt;&gt; req, req.args
+  return apache.OK
+
+If now access the directory, get in the web browser:
+
+/
+/Users/grahamd/mod_python/handlers/
+
+None
+
+Thus, the SetHandler is overriding the directory indexing.
+
+To allow directory indexing to work, but all requests to resources
+within directory, change configuration to:
+
+Alias / /Users/grahamd/mod_python/handlers/
+
+&lt;Directory /Users/grahamd/mod_python/handlers&gt;
+Order deny,allow
+Allow from all
+&lt;Files ~ .+&gt;
+SetHandler mod_python
+&lt;/Files&gt;
+PythonFixupHandler ~/_handler.py
+PythonHandler ~/_handler.py
+PythonDebug On
+Options +Indexes
+&lt;/Directory&gt;
+
+Now get a autoindex listing from root directory access, but otherwise
+handler is called.
+
+If you have subdirectories though and you wanted directory indexes for
+those, this will not work. Thus, put back configuration to:
+
+Alias / /Users/grahamd/mod_python/handlers/
+
+&lt;Directory /Users/grahamd/mod_python/handlers&gt;
+Order deny,allow
+Allow from all
+SetHandler mod_python
+PythonFixupHandler ~/_handler.py
+PythonHandler ~/_handler.py
+PythonDebug On
+Options +Indexes
+&lt;/Directory&gt;
+
+Also now change fixuphandler() to be:
+
+def fixuphandler(req):
+  apache.log_error('fixuphandler %s' % req.uri)
+  if req.finfo.filetype == apache.APR_DIR:
+    req.handler = 'httpd/unix-directory'
+  return apache.OK
+
+You can now browse through subdirectories okay using autoindex
+generated directory listing.
+
+Anyway, experiment with this slowly adding your extra stuff to it. If
+you have problems or don't understand something, post the complete
+code file so can see what is happening.
+
+Graham
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023741.html">[mod_python] Apache directory listing
+</A></li>
+	<LI>Next message: <A HREF="023743.html">[mod_python] Apache directory listing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23742">[ date ]</a>
+              <a href="thread.html#23742">[ thread ]</a>
+              <a href="subject.html#23742">[ subject ]</a>
+              <a href="author.html#23742">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

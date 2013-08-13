@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How do I use PythonTransHandler?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20do%20I%20use%20PythonTransHandler%3F&In-Reply-To=20020817074409.GJ11141%40fullfactor.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001769.html">
+   <LINK REL="Next"  HREF="001772.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How do I use PythonTransHandler?</H1>
+    <B>Alex King</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20do%20I%20use%20PythonTransHandler%3F&In-Reply-To=20020817074409.GJ11141%40fullfactor.com"
+       TITLE="[mod_python] How do I use PythonTransHandler?">alex at morrison.king.net.nz
+       </A><BR>
+    <I>Sat Aug 17 20:37:43 EST 2002</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001769.html">[mod_python] How do I use PythonTransHandler?
+</A></li>
+        <LI>Next message: <A HREF="001772.html">[mod_python] How do I use PythonTransHandler?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1770">[ date ]</a>
+              <a href="thread.html#1770">[ thread ]</a>
+              <a href="subject.html#1770">[ subject ]</a>
+              <a href="author.html#1770">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Sat, Aug 17, 2002 at 12:44:09AM -0700, Ian Clelland wrote:
+&gt;<i> On Sat, Aug 17, 2002 at 04:29:15PM +1200, Alex King wrote:
+</I>&gt;<i> &gt; Quoting a previos post, by Ian Clelland:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; &gt;PythonTransHandler, which will receive all requests, and has the chance 
+</I>&gt;<i> &gt; &gt;to modify the URL before Apache passes the request to your main
+</I>&gt;<i> &gt; &gt;handler.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; How do I use this?
+</I>&gt;<i>  
+</I>&gt;<i> The same way you would set a regular PythonHandler, you can set up 
+</I>&gt;<i> Apache to use a PythonTransHandler:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;VirtualHost *:80&gt;
+</I>&gt;<i>   ServerName pytest.zoostation
+</I>&gt;<i>   DocumentRoot /var/local/apache/htdocs/pytest
+</I>&gt;<i>   PythonPath &quot;sys.path+['/home/ian/src/pytest']&quot;
+</I>
+ahh - that's how you do it.  I expected the DocumentRoot to be added to
+the sys.path by mod_python, but it wasn't  I ended up putting my script
+in /usr/local/lib/python2.1/site-packages/ to get it in the path.  I
+overlooked PythonPath for some reason...
+
+&gt;<i>   PythonTransHandler translate_test
+</I>&gt;<i> &lt;/VirtualHost&gt;
+</I>&gt;<i> 
+</I>&gt;<i> And then just write the python module to set the filename attribute:
+</I>&gt;<i> 
+</I>&gt;<i> def transhandler(req):
+</I>&gt;<i>     req.filename = '/var/local/apache/htdocs/pytest/test2.html'
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> &gt; My problem is that the request object members such as filename and the
+</I>&gt;<i> &gt; like are read-only, so how do I pass the new filename back to apache?
+</I>&gt;<i> 
+</I>&gt;<i> Well, req.filename is definitely _not_ read-only. This may be another
+</I>&gt;<i> bug in the documentation, but the code is there in requestobject.c to
+</I>&gt;<i> set that attribute. I just ran a couple of tests, and I can set the
+</I>&gt;<i> filename for a request, and Apache will return that file.
+</I>&gt;<i> 
+</I>OK, cool that's how I expected it to work.  The read-only note beside
+the req.filename in the docs put me off though and I didn't actually try
+it.  Perhaps the request filename is read-only by the time it get to the
+main request handler?  In the docs I have, all the members of the rquest
+structure are noted to be read-only except for content_type, headers_in,
+headers_out, and err_headers_out.  Perhaps those read-only notes in the
+docs are all in relation to the main request handler, not to all
+handlers in general.
+
+Anyway this makes me much happier :)
+
+&gt;<i> The problem I can see right now is that there appears to be no way to
+</I>&gt;<i> get the DocumentRoot for the current request. You shouldn't have a 
+</I>&gt;<i> problem if your cached files are completly outside of your DocumentRoot 
+</I>&gt;<i> (and you have the absolute path available to your handler,) but you 
+</I>&gt;<i> might have a hard time if you want to translate a URL to another file 
+</I>&gt;<i> within your DocumentRoot, and don't want to put the full path inside 
+</I>&gt;<i> your source files.
+</I>
+Yeah, I discovered that.  I was looking at req.get_config() to see what
+it returned, it only seems to return module specific configs.  If it
+returned all the configs I would have picked DocumentRoot out of that.
+Instead I'm going to ignore DocumentRoot and set various directories to
+be used for the cache etc. with PythonOption directives in the apache
+config.
+
+Another problem I'm having is not understanding req.add_handler().  I
+thought I'd have code to determince whether to take special action in
+the PythonTransHandler (ie. download a file not in cache).  If a
+download is needed, the transhandler runs
+req.add_handler(&quot;PythonHandler&quot;,&quot;padcache&quot;) where padcache.py is my
+script in /usr/local/lib/python2.1/site-packages/.
+
+I'm probably not understanding the second argument to the function, or
+perhaps it's a path problem again, but I keep getting a traceback:
+[Sat Aug 17 20:29:48 2002] [error] PythonHandler padcache: Traceback (most recent call last):
+[Sat Aug 17 20:29:48 2002] [error] PythonHandler padcache:   File &quot;/usr/lib/python2.1/site-packages/mod_python/apache.py&quot;, line 176, in Dispatch
+    dir = _req.get_all_dirs()[htype]
+[Sat Aug 17 20:29:48 2002] [error] PythonHandler padcache: KeyError: PythonHandler
+
+What I am wanting to achieve is to normally not have a python handler
+run for the main handler, so no PythonHandler is specified in the
+config, but in cases when transhandler determines that it does need to
+be run, it is added with add_handler()
+
+&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Ian Clelland
+</I>
+Thanks for your quick response :)
+
+Alex
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001769.html">[mod_python] How do I use PythonTransHandler?
+</A></li>
+	<LI>Next message: <A HREF="001772.html">[mod_python] How do I use PythonTransHandler?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1770">[ date ]</a>
+              <a href="thread.html#1770">[ thread ]</a>
+              <a href="subject.html#1770">[ subject ]</a>
+              <a href="author.html#1770">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

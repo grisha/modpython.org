@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] This is just friggin' weird...
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20This%20is%20just%20friggin%27%20weird...&In-Reply-To=717e3515dcafa1b6f464580115f29488%40dscpl.com.au">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018489.html">
+   <LINK REL="Next"  HREF="018492.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] This is just friggin' weird...</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20This%20is%20just%20friggin%27%20weird...&In-Reply-To=717e3515dcafa1b6f464580115f29488%40dscpl.com.au"
+       TITLE="[mod_python] This is just friggin' weird...">jg.lists at sympatico.ca
+       </A><BR>
+    <I>Fri Jun 24 08:36:45 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018489.html">[mod_python] This is just friggin' weird...
+</A></li>
+        <LI>Next message: <A HREF="018492.html">[mod_python] This is just friggin' weird...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18490">[ date ]</a>
+              <a href="thread.html#18490">[ thread ]</a>
+              <a href="subject.html#18490">[ subject ]</a>
+              <a href="author.html#18490">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Graham Dumpleton wrote:
+&gt;<i> 
+</I>&gt;<i> On 24/06/2005, at 9:14 AM, Jim Gallacher wrote:
+</I>&gt;<i> 
+</I>&gt;&gt;&gt;<i> Are you accessing the &quot;session&quot; object in the error page?
+</I>&gt;&gt;&gt;<i> I have no access to mod_python source code right now to check,
+</I>&gt;&gt;&gt;<i> but vaguely remember that if error page tries to access &quot;session&quot;
+</I>&gt;&gt;&gt;<i> object it will deadlock. This is part of the reasons for having the
+</I>&gt;&gt;&gt;<i> PSP object check if req.session exists and use it instead of creating
+</I>&gt;&gt;&gt;<i> a new one each time, as proposed in one of the JIRA bug reports
+</I>&gt;&gt;&gt;<i> I have posted. I'll post the JIRA link later.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This is solved with the req.get_session() code that I've checked
+</I>&gt;&gt;<i> into svn trunk. See <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-59">http://issues.apache.org/jira/browse/MODPYTHON-59</A>
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> I can't refer to the JIRA bug report at the moment as JIRA is broken,
+</I>&gt;<i> but you might want to look at some of my comments if you can find the
+</I>&gt;<i> bug report related to psp and form objects. It talks about the session
+</I>&gt;<i> object in there as well and one of the issues I pointed out is whether
+</I>&gt;<i> when the PSP object doesn't create the session in the first place,
+</I>&gt;<i> should it assume that it should save the session. With the way you
+</I>&gt;<i> have made the change, the PSP object will save the session even if
+</I>&gt;<i> it didn't create it in the first place. Am not sure if this is the
+</I>&gt;<i> appropriate thing to do or not.
+</I>&gt;<i> 
+</I>
+I'm familiar with the issue you mention. The only change I've made in 
+the PSP class is to replace &quot;session = Session.Session()&quot; with &quot;session 
+= req.get_session()&quot;. Other than that the behaviour is identical to 3.1.4.
+
+So the question is really whether the current behaviour of psp pages 
+should change. I totally get what you are saying about auto-saving. The 
+problem is if we change it now we'll likely break existing code. I can 
+see the &quot;Hey, I upgraded to 3.2 and now my sessions don't work&quot; messages 
+already.
+
+Using req.get_sessions() addresses 2 issues:
+
+1. Gets the current session instance if it exists, thus avoiding 
+deadlock problems. The user is no longer forced to call sess.save() 
+before calling PSP.run(), which makes their code simpler, as well as 
+improving performance for any session class that uses the disk for 
+persistence.
+
+2. Creates a new session instance of *the correct type*, assuming a 
+session class has be defined with PythonOption. This is bug in the 
+current code, where a user could create a session in their code with 
+something other than the default session class for their platform, for 
+example &quot;sess = Session.FileSession(req)&quot;. If psp needs to create a 
+session it will be DbmSession on some platforms, and so the session data 
+will be lost. Although now that I think about it, I wonder why I didn't 
+just modify Session.Session to handle this part...  Hmm, I'll have to 
+look at my notes.
+
+And misses these issues:
+3. Should the session automatically be saved in psp run()?
+    Yes: - it's the current behavoiur
+         - using sessions with psp pages is transparent
+         - the user does not need to remember to do this
+    No:  - the code monkey has less control over their application
+         - ?
+    Maybe we just need a attribute in the session to enable/disable 
+saving? Default would be to save the session.
+
+4. Should the session be unlocked in psp run()?
+    Yes: - it's the current behavoiur
+    No:  - since we are now passing around the session instance with the 
+request, the session will be unlocked when the request is completed.
+
+Regards,
+Jim
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018489.html">[mod_python] This is just friggin' weird...
+</A></li>
+	<LI>Next message: <A HREF="018492.html">[mod_python] This is just friggin' weird...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18490">[ date ]</a>
+              <a href="thread.html#18490">[ thread ]</a>
+              <a href="subject.html#18490">[ subject ]</a>
+              <a href="author.html#18490">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

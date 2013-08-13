@@ -1,0 +1,462 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How do you use mod_python?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20do%20you%20use%20mod_python%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020015.html">
+   <LINK REL="Next"  HREF="020020.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How do you use mod_python?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20do%20you%20use%20mod_python%3F&In-Reply-To="
+       TITLE="[mod_python] How do you use mod_python?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Jan 18 20:14:44 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020015.html">[mod_python] reg forward page
+</A></li>
+        <LI>Next message: <A HREF="020020.html">[mod_python] openbsd mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20016">[ date ]</a>
+              <a href="thread.html#20016">[ thread ]</a>
+              <a href="subject.html#20016">[ subject ]</a>
+              <a href="author.html#20016">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Daniel Nogradi wrote ..
+&gt;<i> Some time ago there was a post (I think by Grisha) asking &quot;why are you
+</I>&gt;<i> using mod_python?&quot;. It would be interesting to see answers from many
+</I>&gt;<i> users to a related question, _how_ do you use mod_python?
+</I>&gt;<i> 
+</I>&gt;<i> A little more specifically, the various ways of using mod_python that
+</I>&gt;<i> I have in mind (which list is very much limited by my knowledge)
+</I>&gt;<i> include
+</I>&gt;<i> 
+</I>&gt;<i> (1) writing custom handlers for every new project
+</I>&gt;<i> (2) writing a universal handler which serves various unrelated projects
+</I>&gt;<i> (3) using the publisher handler for every project
+</I>&gt;<i> (4) tweaking the publisher handler for every new project in different ways
+</I>&gt;<i> (5) using the publisher for some of the projects but writing new
+</I>&gt;<i> handlers for others
+</I>&gt;<i> 
+</I>&gt;<i> And of course there could be many more ways of using mod_python that
+</I>&gt;<i> just didn't come into my mind at the moment or don't even know about
+</I>&gt;<i> it.
+</I>&gt;<i> 
+</I>&gt;<i> So, after all, how do you use mod_python?
+</I>
+I don't. Well, that isn't totally true, but it is true that I never seem
+to actually end up using mod_python to produce any actual applications
+or web sites. I got into mod_python to try and clean up how I did my own
+web site and as I always seem to do, I got so caught up in working out
+how to do the infrastructure, I never get onto the real task at hand.
+
+People who have seen how much I post on the mailing list and rant in
+general about mod_python may find this surprising. Truth is, I simply
+find working on the lower level architectural stuff and the development
+of reusable components that others could use to be of much more
+interest. I might even suggest that because my development of these
+components is not strictly tied to the goal of a particular end user web
+application, that I am able to look more widely at what is required in
+general and provide a better library of components than may come out of
+a project whose primary goal was a specific web application.
+
+That said, I have been working now for over six months on a new package
+as a successor to Vampire. This doesn't build on Vampire though, instead
+I threw out Vampire and started over again, only really keeping what I
+learnt from it. If people can handle another of my long rants, I'll go
+into what I am up to with this new package and how it uses mod_python.
+This may or may not be of interest in respect of the question of the
+original poster. I promise that I am in the process of looking at
+setting up my own blog and when that is done I'll take my rants there
+instead and leave the mailing list alone .... :-)
+
+Some background first. A lot of people who come to use mod_python seem
+to like the great deal of flexibility it provides you as far as being
+able to make a handler do what ever you want. At the same time, the
+desire for this level of control usually means these same people will
+not consider using a higher level package written by someone else for
+mod_python. This can be understandable, as these higher level packages
+usually impose one specific way of doing things and that may actually be
+quite different to how a basic handler in mod_python works. Thus, one
+has to buy into that way of doing things and it isn't typically possible
+to combine use of such a package with other handlers written for
+mod_python.
+
+For myself, looking at how people often outright refuse to use third
+party packages is really frustrating. You see people constantly
+reinventing the wheel, but not necessarily doing a good job of it
+because they don't always have a full understanding of how mod_python
+works. Well, what I am working on now is intended to provide one with
+some of the benefits of having what a higher level package can provide,
+but in a componentised way that is compatible with how basic handlers
+work so that you can still mix in use of existing handlers. Towards the
+end of Vampire, it started to introduce some of these ideas, but it had
+already been built on a more monolithic lower layer so was ultimately
+doomed. Thus the need to create a new package, which I am calling Lamia.
+
+Now, in Lamia nearly everything is a component, but where every
+component respects the calling semantics of a basic mod_python handler.
+Lamia does not though act as a top level dispatcher, thus, when you
+specify the PythonHandler directive, you are still referring to a module
+file which you create and write, how you then use the components that
+Lamia provides is up to you. Thus, for the examples I provide below,
+assume that you have set the Apache configuration to be:
+
+  &lt;Directory /some/path/root&gt;
+  SetHandler mod_python
+  PythonHandler _myapp::root
+  &lt;/Directory&gt;
+
+The directory '/some/path/root' would contain your Python module file
+called '_myapp.py'. Rather than use the default entry point of &quot;handler()&quot;,
+I have explicitly specified that it be called 'root()' instead for reasons I
+will not go into here.
+
+To illustrate what I mean by &quot;componentised&quot;, consider the most basic
+task that one has to solve with mod_python. That is, how do you get URLs
+mapped to a specific handler. If you specify your own handler with the
+PythonHandler directive, it is basically all up to you to work this out.
+One instead could use mod_python.publisher, with it providing two levels
+of mapping, first to files and second to objects within files. In using
+mod_python.publisher however, you have already departed from the
+standard calling semantics of a basic handler and have to write your
+code differently as a result. It also locks you into that particular model
+though and so you have lost some measure of control.
+
+In Lamia, the intent is that if you want to map the location from the URL
+to a specific Python module file, you would use the component called
+'MapLocationToModule'. The '_myapp.py' module file would then contain:
+
+  import os
+  from lamia.handlers import *
+
+  __here__ = os.path.dirname(__file__)
+
+  root = HandlerRoot(
+    handler = MapLocationToModule(
+        root_directory = __here__,
+    ),
+  )
+
+Note that 'HandlerRoot' can in the main be ignored, it only needs to be
+used for the root level entry point which PythonHandler calls. Its job
+is to undo the URL mapping that Apache itself has done so that any
+handler can reinterpret the URL itself properly.
+
+I'll mention other issues with this file in a moment, but the end result
+is that the location specified by the URL is processed and a search made
+for a Python module code file below the specified root directory which
+matches the request. If found, the module is automatically loaded and an
+appropriate handler called.
+
+Thus if the location within the URL rooted at this directory specifies
+'index.html' and an 'index.py' file exists, if it contains a handler
+function called 'handler()' then that will be called. That handler is
+specified like any other basic mod_python handler function and you can
+do what ever you want in it. You could from that point totally ignore
+Lamia and what other components it provide. The 'index.py' file might
+therefore simply contain:
+
+  from mod_python import apache
+
+  def handler(req):
+    req.content_type = 'text/plain'
+    req.write('hello world\n')
+    return apache.OK
+
+Returning to the 'root' handler in '_myapp.py'. Some may be thinking
+that that isn't actually a handler function. Well, truth be known,
+mod_python doesn't care if it isn't a function, it just has to be a
+callable Python object. In this case it is an instance of the
+'HandlerRoot' object and that object has overloaded the '__call__()'
+method so it is callable. Ie., the same as saying:
+
+  class Handler:
+    def __init__(self,**args):
+        ...
+    def __call__(self,req):
+        ...
+
+All the components in Lamia use this technique. That is, they are
+actually instances of objects, whereby keyword arguments can be supplied
+to the constructor which then later customise how the component behaves
+when it is actually called to handle a request. In the case of
+'HandlerRoot', all it does is reset some of the attributes of the
+request object and then calls the handler supplied as argument to the
+constructor. That handler then being an instance of
+'MapLocationToModule' which does the dispatching of the request to
+another module based on the URL.
+
+To quickly delve into how a couple of other components may be used in
+the Python module file mapped to by 'MapLocationToModule', consider
+the following for 'index.py'.
+
+  from mod_python import apache
+
+  from lama.handlers import *
+
+  def handler_txt(req):
+    req.content_type = 'text/plain'
+    req.write('hello world\n')
+    return apache.OK
+
+  def handler_html(req):
+    req.content_type = 'text/html'
+    req.write('&lt;html&gt;&lt;body&gt;&lt;p&gt;hello world&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;')
+    return apache.OK
+
+  handler = Handlers(
+    MapExtension(
+      txt = handler_txt,
+      html = handler_html,
+    ),
+    NotFound(),
+  )
+
+When 'MapLocationToModule' dispatches the request to the module, it
+actually ignores any extension present on the URL. Thus, requests for
+both 'index.html' and 'index.txt' would be sent to 'index.py' to be
+handled.
+
+In order to make it easier to handle responses for different extensions,
+Lamia provides other components which can look at the extension and
+map requests based on different extensions to different handlers. For
+this example, 'MapExtension' is used. The definition of what extensions
+map to what handlers is performed using keyword parameters. Again,
+the target handler is a standard mod_python basic handler and you can
+write it however you want.
+
+Wrapped around 'MapExtension' you will note the 'Handlers' component.
+This is a special component whose purpose is to apply each handler it
+is provided in turn until one is able to fulfil the request. Thus, if a request
+comes in for 'index.jpg', because there is no mapping for that extension,
+the 'NotFound' component is triggered and a HTTP 404 response is
+generated instead.
+
+Note that 'MapExtension' isn't the only component that could have been
+used to perform this specific task. Usually there are a few different
+options depending on your tastes. Thus, you might instead have used:
+
+  handler = Handlers(
+    MapExtensionToDictionary(
+      handlers = {
+        '.txt': handler_txt,
+        '.html': handler_html,
+      }
+    ),
+    NotFound(),
+  )
+
+or something like:
+
+  handler = Handlers(
+    IfExtensionEquals(
+      value = '.txt',
+      handler = handler_txt,
+    ),
+    IfExtensionEquals(
+      value = '.html',
+      handler = handler_html,
+    ),
+    NotFound(),
+  )
+
+Take the case of no extension at all now, you might want to instead map that
+to member functions of an object. Well you can do that as well. As a quick
+example:
+
+  class _Handlers:
+    def form(req):
+       ...
+
+  object = _Handlers()
+
+  handler = Handlers(
+    MapExtensionToDictionary(
+      handlers = {
+        '': MapLocationToObject(
+          handlers = object,
+        ),
+        '.txt': handler_txt,
+        '.html': handler_html,
+      }
+    ),
+    NotFound(),
+  )
+
+Now if you get a request with no extension on 'index' in the URL, the
+part of that URL after that point will be mapped where possible to the
+member functions of the instance of '_Handlers' class defined in that
+file. So, ignoring issue of extensions on the next component of the URL
+for the moment, a request of the form 'index/form' will map to the
+member function called 'form'. Thus with the 'MapLocationToModule' and
+'MapLocationToObject' components you are effectively doing what
+mod_python.publisher is doing, but you have a lot better control over
+when it is being done.
+
+You might now start to see what I am up to. In some respect the intent
+is not to change how you write the most basic handler which performs the
+real work. It is to provide components which do all the hard work of
+dealing with URL processing and working out which handler is called in
+the first place. These components can be used selectively where required
+and avoids the creation of some monolithic upper layer through which all
+requests are processed and which may therefore irrevocably dictate how
+your application has to be structured. The way the components are
+constructed and used means you keep all the control and it is not lost to
+some monolithic layer.
+
+At the moment I have implemented over 100 components. These range from
+components for mapping parts of a URL to handlers, components for
+performing conditionals, components for returning error responses,
+components for interogating or setting attributes in the request object,
+to components for implementing basic authentication and session based
+form authentication. There are even handlers which simply defer to other
+higher level layers such as mod_python.publisher and mod_python.psp, or
+which triggers precompiled code for such things as Cheetah templates.
+
+The beauty of all this is that because every component is actually a
+handler, there is no problem with you creating your own componentised
+handlers which can be used in conjunction with what is in Lamia. For
+example, I do not yet provide a component to map to WSGI, but it would
+be easy for some one to do that if they wanted. You could even write
+components to map to other monolithic systems such as CherryPy or
+mpservlets.
+
+In some respects, one could say that Lamia is like WSGI, except that it
+is tailored specifically to how mod_python works and does not throw away
+all the good stuff that mod_python has to offer.
+
+Anyway, sorry for the long rant. In respect of the question of how are
+people using mod_python, this is probably no quite the answer you had
+in mind, but hope it is of interest.
+
+In parting, I will just provide one extended example which I have been
+playing with, but not yet finalised. But then, I probably shouldn't as
+people will then start to think that it is all to complicated after all
+and think I am loony. The example implements form/session based login
+mechanism for a set of pages implemented using Cheetah, where it all
+simply draws on predefined components.
+
+
+    from lamia.handlers import *
+    from lamia.handlers_Cheetah import *
+
+    import _users
+    import os
+
+    _userDatabase = _users.UserDatabase()
+    __here__ = os.path.dirname(__file__)
+
+    handler = Handlers(
+
+        IfLocationEquals(
+            value = '/',
+            handler = RedirectToLocation(
+                location = 'index.html',
+            ),
+        ),
+
+        SetHandler(
+            handler_name = 'cheetah',
+            handler = MapLocationToCheetah(
+                directory = __here__,
+                resource_extension = '.html',
+                allow_path_info = False,
+            ),
+        ),
+
+        CacheControl(
+            directive = 'no-cache',
+        ),
+
+        CreateUserSession(),
+
+        IfLocationMatches(
+            pattern = '/_*',
+            handler = NotFound(),
+        ),
+
+        IfResourceEquals(
+            value = 'login.html',
+            handler = MapToHandler(
+                handler_name = 'cheetah',
+            ),
+        ),
+
+        FormAuthentication(
+            database = _userDatabase,
+            login = 'login.html'
+        ),
+
+        MapToHandler(
+            handler_name = 'cheetah',
+        ),
+
+        NotFound(),
+
+    )
+
+
+I should go do some real work now. ;-)
+
+Graham
+
+
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020015.html">[mod_python] reg forward page
+</A></li>
+	<LI>Next message: <A HREF="020020.html">[mod_python] openbsd mod_python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20016">[ date ]</a>
+              <a href="thread.html#20016">[ thread ]</a>
+              <a href="subject.html#20016">[ subject ]</a>
+              <a href="author.html#20016">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

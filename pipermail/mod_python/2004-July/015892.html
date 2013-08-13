@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Apache on Windows and concurrency
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%20on%20Windows%20and%20concurrency&In-Reply-To=000701c4638d%24f0d4e840%24e50bc8c2%40Ness">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015888.html">
+   <LINK REL="Next"  HREF="015893.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Apache on Windows and concurrency</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Nicolas Lehuen</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Apache%20on%20Windows%20and%20concurrency&In-Reply-To=000701c4638d%24f0d4e840%24e50bc8c2%40Ness"
+       TITLE="[mod_python] Apache on Windows and concurrency">nicolas at lehuen.com
+       </A><BR>
+    <I>Wed Jul  7 12:12:45 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015888.html">[mod_python] Apache on Windows and concurrency
+</A></li>
+        <LI>Next message: <A HREF="015893.html">[mod_python] What is a directory?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15892">[ date ]</a>
+              <a href="thread.html#15892">[ thread ]</a>
+              <a href="subject.html#15892">[ subject ]</a>
+              <a href="author.html#15892">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Ian,
+
+You can also use the standard &quot;thread&quot; or &quot;threading&quot; Python modules, so
+that you don't depend on _apache.
+
+The approach you have is secure but it has the downside of denying any
+concurrent access to the database (if I understand your code correctly). I
+don't know SQLite very much, but it seems that it can handle multithreaded
+access to the database (see  &lt;<A HREF="http://www.sqlite.org/lockingv3.html">http://www.sqlite.org/lockingv3.html</A>&gt;
+<A HREF="http://www.sqlite.org/lockingv3.html">http://www.sqlite.org/lockingv3.html</A>), so it would be better to leverage
+this. The solution is a connection pool.
+
+You can write a connection pool using the threading.RLock and
+threading.Condition to protect the critical sections, namely the acquisition
+of database connections. The end result is that each thread is guaranteed to
+have a connection of its own, which can be reused as soon the thread release
+it to the pool. It usually speeds things up, and I guess it would be
+especially useful with SQLite. I've been using such a connection pool for a
+few months now and have never looked back since. In your case, it seems that
+you wrap the SQLite connection with an UserDatabase object, so maybe you
+should pool UserDatabase instances instead of SQLite connections.
+
+Best regards,
+
+Nicolas Lehuen
+
+
+  _____  
+
+De : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>
+[mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python-bounces at modpython.org</A>] De la part de Iain Mackay
+Envoy&#233; : mardi 6 juillet 2004 21:18
+&#192; : <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Objet : [mod_python] Apache on Windows and concurrency
+
+
+
+Thanks Grisha for being so quickly on the case.
+
+Session.py also includes the solution to my problem, using the Apache global
+locks.
+
+I now have the following code to protect a section of  script that is using
+the database connection (it uses SQLite but would apply mutatis mutandis to
+another database). I have restored multi-threading and all works smoothly. 
+
+If this is the best way to do this, it might be worth a mention in the next
+release of the documentation. I suppose ideally application code shouldn&#146;t
+use _apache.
+
+from mod_python import apache
+
+import _apache
+
+import re
+
+import sqlite
+
+import userdatabase
+
+import sys
+
+ 
+
+users = None
+
+apache.log_error (&quot;userHandler initialising&quot;, apache.APLOG_INFO)
+
+ 
+
+def beginDB (req):
+
+        _apache._global_lock(req.server, None, 0)
+
+            global users
+
+            if not users:
+
+                        try:
+
+                                    try:
+
+                                                defaultUser =
+req.get_options ()[&quot;defaultUser&quot;]
+
+                                    except:
+
+                                                defaultUser = &quot;guest&quot;
+
+                                    users = userdatabase.UserDatabase\
+
+                                                (sqlite.connect
+(req.get_options ()[&quot;dbFile&quot;],
+
+                                                077, autocommit=1),
+defaultUser)
+
+                        except:
+
+                                    (type, value, tb) = sys.exc_info()
+
+                                    apache.log_error (&quot;Cannot access user
+database: %s (%s)&quot; % (type, value),
+
+                                                apache.APLOG_ERR)
+
+        
+
+def endDB (req):
+
+        _apache._global_unlock(req.server, None, 0)
+
+ 
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://modpython.org/pipermail/mod_python/attachments/20040707/de7dd43f/attachment-0001.html">http://modpython.org/pipermail/mod_python/attachments/20040707/de7dd43f/attachment-0001.html</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015888.html">[mod_python] Apache on Windows and concurrency
+</A></li>
+	<LI>Next message: <A HREF="015893.html">[mod_python] What is a directory?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15892">[ date ]</a>
+              <a href="thread.html#15892">[ thread ]</a>
+              <a href="subject.html#15892">[ subject ]</a>
+              <a href="author.html#15892">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

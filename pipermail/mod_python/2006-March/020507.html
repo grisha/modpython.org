@@ -1,0 +1,224 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] changing req.proxyreq on the fly
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20changing%20req.proxyreq%20on%20the%20fly&In-Reply-To=b1befe630603022253m628c8e47pdcbaa40b6b9283a5%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020503.html">
+   <LINK REL="Next"  HREF="020509.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] changing req.proxyreq on the fly</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20changing%20req.proxyreq%20on%20the%20fly&In-Reply-To=b1befe630603022253m628c8e47pdcbaa40b6b9283a5%40mail.gmail.com"
+       TITLE="[mod_python] changing req.proxyreq on the fly">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Mar  3 04:41:23 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020503.html">[mod_python] changing req.proxyreq on the fly
+</A></li>
+        <LI>Next message: <A HREF="020509.html">[mod_python] 411 Length Required for POST
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20507">[ date ]</a>
+              <a href="thread.html#20507">[ thread ]</a>
+              <a href="subject.html#20507">[ subject ]</a>
+              <a href="author.html#20507">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+&gt;&gt;<i> FWIW, if req.proxyreq is made writable, it would be good at the same
+</I>&gt;&gt;<i> time to make req.uri writable as well. This would allow for example a
+</I>&gt;&gt;<i> PythonTransHandler which did something like the following:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> def transhandler(req):
+</I>&gt;&gt;<i>     if req.proxyreq:
+</I>&gt;&gt;<i>         return apache.DECLINED
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     if req.uri.find('/search/') == 0:
+</I>&gt;&gt;<i>         req.proxyreq = apache.PROXYREQ_PROXY
+</I>&gt;&gt;<i>         req.uri = '<A HREF="http://www.google.com/'">http://www.google.com/'</A> + req.uri[len('/search/'):]
+</I>&gt;&gt;<i>         req.filename= &quot;proxy:%s' % req.uri
+</I>&gt;&gt;<i>         req.handler= 'proxy-server'
+</I>&gt;&gt;<i>         return apache.OK
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>     return apache.DECLINED
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> That is, you could from within a mod_python handler when detecting
+</I>&gt;&gt;<i> a certain URL prefix, dynamically cause Apache to proxy the request to
+</I>&gt;&gt;<i> another location.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This example is based on a mod_perl example which does something
+</I>&gt;&gt;<i> similar. See:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   <A HREF="http://162.105.203.19/apache-doc/88.htm#BIN194">http://162.105.203.19/apache-doc/88.htm#BIN194</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I'll definitely create a JIRA issue for this, as can see a use for 
+</I>&gt;&gt;<i> this
+</I>&gt;&gt;<i> in some stuff I have to do. I was going to create a static snippet of
+</I>&gt;&gt;<i> Apache configuration with lots of proxy stuff, but this would be more
+</I>&gt;&gt;<i> interesting.
+</I>&gt;<i>
+</I>&gt;<i> Hmm, interesting idea. It would be great to see something like that. I
+</I>&gt;<i> can think of all kinds of stuff I've done with mod_rewrite and
+</I>&gt;<i> horrible PHP hackery that would have been a lot better and simpler
+</I>&gt;<i> with mod_python and something similar to what you mentioned.
+</I>
+Well, if you want to play further, patch for making both req.proxyreq
+and req.uri modifiable is at end of this email. An example to play with
+is as follows. Doesn't even need to be a transhandler. This example
+does it as a fixuphandler which is possibly easier as it can be in
+.htaccess file for a specific directory. The example will take any part
+of the URL mapping below the directory and map it onto the remote site
+instead. Of course, the site has to be proxy friendly and relocatable
+within the URL namespace in as much as always using relative URLs and
+not absolute URLs.
+
+# ProxyPassReverse equivalent.
+
+import posixpath
+
+from mod_python import apache
+
+def fixuphandler(req):
+
+   if req.proxyreq:
+     return apache.DECLINED
+
+   normalised_uri = posixpath.normpath(req.uri)
+
+   if normalised_uri:
+     if normalised_uri != '/' and req.uri[-1] == '/':
+       normalised_uri += '/'
+
+   length = len(req.filename)
+   length -= len(req.hlist.directory) - 1
+   length += len(req.path_info or '')
+
+   baseurl = normalised_uri[:-length]
+   path = normalised_uri[len(baseurl):]
+
+   req.proxyreq = apache.PROXYREQ_REVERSE
+   req.uri = '<A HREF="http://www.dscpl.com.au'">http://www.dscpl.com.au'</A> + path
+   req.filename = 'proxy:%s' % req.uri
+   req.handler = 'proxy-server'
+
+   return apache.OK
+
+# Actual patches.
+
+Index: src/requestobject.c
+===================================================================
+--- src/requestobject.c (revision 382636)
++++ src/requestobject.c (working copy)
+@@ -1515,6 +1515,15 @@
+              apr_pstrdup(self-&gt;request_rec-&gt;pool, 
+PyString_AsString(val));
+          return 0;
+      }
++    else if (strcmp(name, &quot;uri&quot;) == 0) {
++        if (! PyString_Check(val)) {
++            PyErr_SetString(PyExc_TypeError, &quot;uri must be a string&quot;);
++            return -1;
++        }
++        self-&gt;request_rec-&gt;uri =
++            apr_pstrdup(self-&gt;request_rec-&gt;pool, 
+PyString_AsString(val));
++        return 0;
++    }
+
+      return PyMember_SetOne((char*)self-&gt;request_rec,
+                             find_memberdef(request_rec_mbrs, 
+(char*)name),
+@@ -1675,7 +1684,7 @@
+      {&quot;main&quot;,       (getter)getmakeobj, NULL, &quot;If subrequest, pointer 
+to the main request&quot;, &quot;main&quot;},
+      {&quot;the_request&quot;, (getter)getreq_recmbr, NULL, &quot;First line of 
+request&quot;, &quot;the_request&quot;},
+      {&quot;assbackwards&quot;, (getter)getreq_recmbr, (setter)setreq_recmbr, 
+&quot;HTTP/0.9 \&quot;simple\&quot; request&quot;, &quot;assbackwards&quot;},
+-    {&quot;proxyreq&quot;,     (getter)getreq_recmbr, NULL, &quot;A proxy request: 
+one of apache.PROXYREQ_* values&quot;, &quot;proxyreq&quot;},
++    {&quot;proxyreq&quot;,     (getter)getreq_recmbr, (setter)setreq_recmbr, &quot;A 
+proxy request: one of apache.PROXYREQ_* values&quot;, &quot;proxyreq&quot;},
+      {&quot;header_only&quot;,  (getter)getreq_recmbr, NULL, &quot;HEAD request, as 
+oppsed to GET&quot;, &quot;header_only&quot;},
+      {&quot;protocol&quot;,     (getter)getreq_recmbr, NULL, &quot;Protocol as given 
+to us, or HTTP/0.9&quot;, &quot;protocol&quot;},
+      {&quot;proto_num&quot;,    (getter)getreq_recmbr, NULL, &quot;Protocol version. 
+1.1 = 1001&quot;, &quot;proto_num&quot;},
+@@ -1709,7 +1718,7 @@
+      {&quot;no_cache&quot;,      (getter)getreq_recmbr, NULL, &quot;This response in 
+non-cacheable&quot;, &quot;no_cache&quot;},
+      {&quot;no_local_copy&quot;, (getter)getreq_recmbr, NULL, &quot;There is no local 
+copy of the response&quot;, &quot;no_local_copy&quot;},
+      {&quot;unparsed_uri&quot;,  (getter)getreq_recmbr, NULL, &quot;The URI without 
+any parsing performed&quot;, &quot;unparsed_uri&quot;},
+-    {&quot;uri&quot;,           (getter)getreq_recmbr, NULL, &quot;The path portion 
+of URI&quot;, &quot;uri&quot;},
++    {&quot;uri&quot;,           (getter)getreq_recmbr, (setter)setreq_recmbr, 
+&quot;The path portion of URI&quot;, &quot;uri&quot;},
+      {&quot;filename&quot;,      (getter)getreq_recmbr, (setter)setreq_recmbr, 
+&quot;The file name on disk that this request corresponds to&quot;, &quot;filename&quot;},
+      {&quot;canonical_filename&quot;, (getter)getreq_recmbr, NULL, &quot;The true 
+filename (req.filename is canonicalized if they dont match)&quot;, 
+&quot;canonical_filename&quot;},
+      {&quot;path_info&quot;,     (getter)getreq_recmbr, (setter)setreq_recmbr, 
+&quot;Path_info, if any&quot;, &quot;path_info&quot;},
+
+
+Graham
+
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020503.html">[mod_python] changing req.proxyreq on the fly
+</A></li>
+	<LI>Next message: <A HREF="020509.html">[mod_python] 411 Length Required for POST
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20507">[ date ]</a>
+              <a href="thread.html#20507">[ thread ]</a>
+              <a href="subject.html#20507">[ subject ]</a>
+              <a href="author.html#20507">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

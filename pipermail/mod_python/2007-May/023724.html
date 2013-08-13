@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Some observations after writing my own modpython
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Some%20observations%20after%20writing%20my%20own%20modpython&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023718.html">
+   <LINK REL="Next"  HREF="023725.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Some observations after writing my own modpython</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Roger Binns</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Some%20observations%20after%20writing%20my%20own%20modpython&In-Reply-To="
+       TITLE="[mod_python] Some observations after writing my own modpython">rogerb at rogerbinns.com
+       </A><BR>
+    <I>Mon May 28 23:42:49 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023718.html">[mod_python] Installing mod_python on Vista
+</A></li>
+        <LI>Next message: <A HREF="023725.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23724">[ date ]</a>
+              <a href="thread.html#23724">[ thread ]</a>
+              <a href="subject.html#23724">[ subject ]</a>
+              <a href="author.html#23724">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+So I wrote my own Apache module because I needed some things that
+weren't present in modpython (covered in previous messages in this
+group).  Here are some observations based on the experience.
+
+I have a new respect for anyone who has written an Apache module.
+Ultimately the internal structure and processing is simple.  Everything
+just &quot;plugs in&quot; at the appropriate points.  However the documentation
+about the plugging in, which apis to call and when, etc is pretty much
+non-existent.  (There are a few hello world examples but that is it).
+Doxygen generated references are very good, but the gotcha is that you
+have to know which methods to call.  It is kind of like learning a new
+language by being handed a dictionary but with no idea of grammar.
+
+For my module I chose to use the same names as the Apache apis.  For
+example I used &quot;ap_get_remote_host&quot; as the method name.  This means that
+it can be looked up in the Apache documentation for semantics, side
+effects and errors.  It does result in un-pythonic names but makes life
+easier for me anyway.
+
+My main goal of being able to use subrequests in order to apply
+authentication and authorization directives from some uris to code in
+another uri has so far worked perfectly although I haven't explored all
+corner cases yet.  Note that I can actually do it from the request phase
+just fine and don't have to do it in the authentication phase.  (The
+request phase is when I have all the information necessary to know
+exactly what I want to do.)
+
+These are various issues I found in the modpython code while comparing
+my approach with modpython:
+
+Modpython code for setting errors could be using PyErr_SetString  or
+PyErr_Format in several places.  In some places it actually leaks, for
+example line 111 in connobject.c:
+
+  if (rc != APR_SUCCESS) {
+      PyErr_SetObject(PyExc_IOError,
+                      PyString_FromString(&quot;Connection read error&quot;));
+      return NULL;
+  }
+
+The PyString_FromString results in a leaked object since it isn't
+decrefed.  It would be worthwhile checking out all usages of PyErr_*
+which should result in less code and definitely fewer memory leaks.
+
+While on the subject of errors, apr_strerror is never used so you'll not
+actually know what an error was.  For example see req_sendfile in
+requestobject.c.
+
+  status=apr_file_open(&amp;fd, fname,
+                         APR_READ, APR_OS_DEFAULT,
+                         self-&gt;request_rec-&gt;pool);
+  if (status != APR_SUCCESS) {
+        PyErr_SetString(PyExc_IOError, &quot;Could not open file for reading&quot;);
+        return NULL;
+    }
+
+Using apr_strerror will give the actual error string which could be any
+number of things in this example (eg permission denied, file doesn't exist).
+
+The Apache documentation says you are supposed to do this sequence of
+calls in order to read a request body:
+
+  ap_setup_client_block()
+  if (ap_should_client_block()):
+         ap_get_client_block()
+
+modpython does the setup implicitly saying that chunked uploads should
+be rejected.  The mp doc doesn't mention that it is always safe to call
+read() since it calls should_client_block behind the scenes so as a user
+of mp you can always use it without wondering about transfer encodings,
+content length headers etc.  In my own module I exposed
+ap_setup_client_block and ap_should_client_block which means that from
+my Python code I have control over chunked (happy to accept it) and I
+can tell if a body was actually supplied or not.  (In HTTP/1.1 any
+request can have a body including GET).
+
+I found that mp request write method accepts unicode strings providing
+they can be converted to string objects using the default encoding
+(this conversion happens due to using PyArg_ParseTuple with a format of
+&quot;s&quot;).  Personally I think it is a really bad idea to accept unicode
+strings and have &quot;magic&quot; (the default encoding) convert them.  With this
+kind of thing I believe it is far better to require the user to convert
+to bytes explicitly choosing an encoding.
+
+modpython appears to make no effort to ensure that things don't crash if
+the python object representing a request outlives the request_rec that
+it is wrapping, although I do recall some part of the doc saying &quot;don't
+do that&quot;.  However I think it is fair for python users to expect not to
+be able to coredump the process no matter what they do.  In my own
+module I solved this fairly trivially.  When wrapping a request_rec, do
+an extra incref.  Then use apr_pool_cleanup_register.  In that callback,
+set the wrapped pointer to NULL and do a decref.  That will cause the
+python object to live at least as long as the request_rec.  But if the
+python object is still alive after the request_rec has gone away, then
+the wrapped pointer will be NULL.  In all my methods, I check that for
+NULL first and raise an objectdead exception if it is NULL.
+Consequently no matter what happens, it is impossible to crash things.
+The same principle can be applied to other objects since by definition
+they only live as long as their pool.
+
+mp doesn't do OOR - original object return.  ie each time you get a new
+request/header/etc python level object that is wrapping an underlying
+Apache object, you get a different Python object.  This shouldn't really
+matter that much, but it would be nice if you got the same object back
+(ie with the same id).  It took wxPython a while to figure out how to do
+it, since you'd need to have some way of mapping from the C level object
+to a Python level object.  I think you can use pools again to do this
+such as by using apr_pool_userdata_set with appropriate keys.
+
+Finally (and this is &quot;cosmetic&quot;) the code for setting members of
+requestobject has a lot of duplication.  For example there are data
+structures defining the names and types and then the code has additional
+ type checking and names.  I used PyGetSetDef's and tp_getset and it
+results in no duplication :-)
+
+Roger
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.6 (GNU/Linux)
+
+iD8DBQFGW6E5mOOfHg372QQRAh32AJ9jZX1EOt0bk+uDLSIUWlQ04f2MKQCeLP/a
+OZ7VRrM7y5fa7TMtdZL2LWc=
+=ybbK
+-----END PGP SIGNATURE-----
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023718.html">[mod_python] Installing mod_python on Vista
+</A></li>
+	<LI>Next message: <A HREF="023725.html">[mod_python] Some observations after writing my own modpython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23724">[ date ]</a>
+              <a href="thread.html#23724">[ thread ]</a>
+              <a href="subject.html#23724">[ subject ]</a>
+              <a href="author.html#23724">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

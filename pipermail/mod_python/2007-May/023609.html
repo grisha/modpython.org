@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] lookup_uri
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20lookup_uri&In-Reply-To=88e286470705112109v3747493excb483e1b3c77144d%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023607.html">
+   <LINK REL="Next"  HREF="023603.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] lookup_uri</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Roger Binns</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20lookup_uri&In-Reply-To=88e286470705112109v3747493excb483e1b3c77144d%40mail.gmail.com"
+       TITLE="[mod_python] lookup_uri">rogerb at rogerbinns.com
+       </A><BR>
+    <I>Sat May 12 02:13:13 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023607.html">[mod_python] lookup_uri
+</A></li>
+        <LI>Next message: <A HREF="023603.html">[mod_python] import_module is case sensitive even if the OS isn't
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23609">[ date ]</a>
+              <a href="thread.html#23609">[ thread ]</a>
+              <a href="subject.html#23609">[ subject ]</a>
+              <a href="author.html#23609">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+Graham Dumpleton wrote:
+&gt;<i> &gt; You basically didn't want to agree and said:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &quot;&quot;&quot;That is the easy bit  :-)   Just copying the authentication response
+</I>&gt;<i> &gt; headers from /api will do the trick.&quot;&quot;&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I still believe that you don't quite understand what would happen. Let
+</I>&gt;<i> &gt; me see if I can explain it again in a way you can understand.
+</I>
+I really do understand what I am talking about  :-)   How about some
+config and code.
+
+&lt;Location /api/v1/widget/&gt;
+  &lt;Limit GET&gt;
+  Require group reader
+  &lt;/Limit&gt;
+&lt;/Location&gt;
+
+That ensures that Apache requires authentication for the rest service.
+Now this is my code in the handler for /admin which has no directive
+such as the above requiring authentication.
+
+def handler(req):
+   name=&quot;foo&quot;
+   # Before generating this page, check they can get info widget
+   sub=req.lookup_method_uri(&quot;GET&quot;, &quot;/api/v1/widget/&quot;+name)
+   # Copy any authentication to subrequest
+   sub.headers_in[&quot;Authorization&quot;]=req.headers_in[&quot;Authorization&quot;]
+   # Run the subrequest
+   sub.run()
+   # Was authentication required?
+   if sub.status==401:
+      req.status=401
+
+req.headers_out[&quot;WWW-Authenticate&quot;]=sub.headers_out[&quot;WWW-Authenticate&quot;]
+      return apache.OK
+   if sub.status!=200:
+      req.status=sub.status
+      ... copy error message or something similar ...
+      return apache.OK
+   # At this point we know that there is permission to read widget
+   ... generate page etc ...
+
+&gt;<i> &gt; First off, you said that /admin would have no AuthType/AuthName
+</I>&gt;<i> &gt; directives covering that URL in the Apache configuration. Because of
+</I>&gt;<i> &gt; this fact, the browser isn't going to be sending any authentication
+</I>&gt;<i> &gt; information for that URL. Ie., there will be no Authorization header
+</I>&gt;<i> &gt; available to the request handler for the /admin URL.
+</I>
+That is correct.  But the subrequest would return 401 if authentication
+was required and that can be copied into the response for the request so
+the browser will then retry with credentials.
+
+&gt;<i> &gt; Your problem as you see it how to check those credentials. The real
+</I>&gt;<i> &gt; problem at this point is where are you getting the credentials from if
+</I>&gt;<i> &gt; the browser isn't going to send them.
+</I>
+Well it would since I'd send them back from the subrequest as shown above.
+
+&gt;<i> &gt; You are skipping this important challenge step by
+</I>&gt;<i> &gt; assuming the credentials will be there and simply moving to try and
+</I>&gt;<i> &gt; validate them.
+</I>
+Err no, the challenge step is there due to sending 401 and
+WWW-Authenticate header back to the original request.
+
+&gt;<i> &gt; Where web applications, such as Trac, use a /login URL as a single
+</I>&gt;<i> &gt; login point, once they have successfully logged in the user they then
+</I>&gt;<i> &gt; use cookies to track the fact that the user is logged in.
+</I>
+Yes.  But those applications also have to implement their own
+authorization system.  I intend to let apache do all that.  For example
+the administrator can do this in the configuration:
+
+&lt;Location /api/v1/widget/&gt;
+  &lt;Limit GET&gt;
+  Require group anyone
+  &lt;/Limit&gt;
+&lt;/Location&gt;
+
+&lt;Location /api/v1/widget/&gt;
+  &lt;Limit DELETE&gt;
+  Require group admins
+  &lt;/Limit&gt;
+&lt;/Location&gt;
+
+But then they can be more specific as well:
+
+&lt;Location /api/v1/widget/thelab&gt;
+  &lt;Limit DELETE&gt;
+  Require group labadmins
+  &lt;/Limit&gt;
+&lt;/Location&gt;
+
+&gt;<i> &gt; If you still disagree, and maybe I am missing something, by what
+</I>&gt;<i> &gt; mechanism do you think the credentials will be available in the first
+</I>&gt;<i> &gt; place?
+</I>
+The bit you missed is that it is one line of code to copy a status and
+another to copy an Authorization or WWW-Authenticate header  :-)
+
+&gt;<i> &gt; and dictates various approaches to how one might go about extending
+</I>&gt;<i> &gt; mod_python features without actually modifying mod_python.
+</I>
+I guess this looks the closest:
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-165">http://issues.apache.org/jira/browse/MODPYTHON-165</A>
+
+However if I am having to go to the trouble of writing an Apache module
+I may as well just write one that meets my needs exactly and ignore
+mod_python  :-(
+
+Roger
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.6 (GNU/Linux)
+
+iD8DBQFGRVr5mOOfHg372QQRAn6lAKDCnl4bR7eTgXLXKec/+pn6UC6xKACfRp6K
+rqrz4heiawED4cRAQZOIqRk=
+=qoF7
+-----END PGP SIGNATURE-----
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023607.html">[mod_python] lookup_uri
+</A></li>
+	<LI>Next message: <A HREF="023603.html">[mod_python] import_module is case sensitive even if the OS isn't
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23609">[ date ]</a>
+              <a href="thread.html#23609">[ thread ]</a>
+              <a href="subject.html#23609">[ subject ]</a>
+              <a href="author.html#23609">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

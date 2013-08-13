@@ -1,0 +1,255 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] For what session locking is? Do i need it while
+	using MySQL?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20For%20what%20session%20locking%20is%3F%20Do%20i%20need%20it%20while%0A%09using%20MySQL%3F&In-Reply-To=44DB375D.3080008%40jgassociates.ca">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021786.html">
+   <LINK REL="Next"  HREF="021810.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] For what session locking is? Do i need it while
+	using MySQL?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Norman Tindall</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20For%20what%20session%20locking%20is%3F%20Do%20i%20need%20it%20while%0A%09using%20MySQL%3F&In-Reply-To=44DB375D.3080008%40jgassociates.ca"
+       TITLE="[mod_python] For what session locking is? Do i need it while
+	using MySQL?">NormanTindall at zdisk.net
+       </A><BR>
+    <I>Thu Aug 10 14:26:38 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021786.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+        <LI>Next message: <A HREF="021810.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21787">[ date ]</a>
+              <a href="thread.html#21787">[ thread ]</a>
+              <a href="subject.html#21787">[ subject ]</a>
+              <a href="author.html#21787">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello Jim,
+   So far by now i already wrote raw working code,
+   I know that it can invalidate a valid session, i have read this
+   about 2 thread A and B.. for now i can stand with this..
+   Will make something like transactions in future..
+
+   The question is: Is Session based on this class realy locked?
+
+##############################################
+class MySQLSession(object):
+
+    def __init__(self, req, sid=0, secret=None, timeout=0, create_new = 0 ):
+        self._lock = 1
+        self._locked = 0
+        self.cursors = req.cursors
+        self._req, self._sid  = req, sid
+        if self._sid: 
+            self._create_new = 1
+        else:
+            self._create_new = create_new
+        self._new = 0
+        self._created = 0
+        self._accessed = 0
+        self._timeout = 1000000
+        self._invalid = 0
+
+        self.data = {}
+
+        if secret: self._secret = secret
+        else: self._secret = &quot;secret007&quot;
+        self.session_cookie_name = &quot;OxSess&quot;
+
+
+        if not self._sid:
+            cookies = Cookie.get_cookies(req, Class=Cookie.SignedCookie, secret=self._secret)
+            if cookies.has_key(self.session_cookie_name):
+                self._sid = cookies[ self.session_cookie_name ].value
+        
+        if self._sid:
+            if not _check_sid(self._sid):
+                self._req.log_error(&quot;mod_python.Session warning: The session id contains invalid characters&quot;,
+                        apache.APLOG_WARNING)
+                raise apache.SERVER_RETURN, apache.HTTP_INTERNAL_SERVER_ERROR
+
+        ############ CLEANUP ##############
+        if random.randint(1, CLEANUP_CHANCE) == 1:
+            self.cleanup()
+        ###################################
+
+        if self._create_new:
+            if self._sid:
+                self.delete() # del old one
+                self.unlock() # unlock old one
+                self.create_new_sess()
+            else:
+                self.create_new_sess()
+
+        else:
+            if self._sid:
+                # attempt to load ourselves
+                self.lock()
+                if self.load():
+                    self._new = 0
+            else:
+                # no sid no session
+                return None
+                
+        
+
+    def create_new_sess(self):
+        self._sid = _new_sid(self._req)
+        self.lock()  # lock new sid
+        Cookie.add_cookie(self._req, self.make_cookie())
+        self._created = time.time()
+        self._accessed = self._created
+        self._new = 1
+
+# LOCK
+
+    def lock(self):
+        if self._lock:
+            _apache._global_lock(self._req.server, self._sid)
+            self._locked = 1
+            self._req.register_cleanup(unlock_session_cleanup, self)
+
+# UNLOCK
+
+    def unlock(self):
+        if self._lock and self._locked:
+            _apache._global_unlock(self._req.server, self._sid)
+            self._locked = 0
+
+
+    def load(self):
+        # selecting only alive sessions
+        self.cursors['c'].execute(
+        &quot;&quot;&quot;select UNIX_TIMESTAMP() as ACCESS_TIME,TIMEOUT,CREATE_DATE,DATA from sessions where SESS_MD = %s and 
+        DATE_ADD(ACCESS_TIME, INTERVAL TIMEOUT SECOND) &gt; CURRENT_TIMESTAMP()&quot;&quot;&quot;, (self._sid,) )
+        row = self.cursors['c'].fetchone()
+
+        if row is not None:
+            # assigning attributes    
+            self._accessed = row[0]
+            self._timeout = row[1]
+            self._created = row[2]
+            self.data = cPickle.loads(row[3])
+            return 1
+        else:
+            return 0
+
+    def save(self):
+        if not self._invalid:
+
+            self.cursors['c'].execute(&quot;&quot;&quot;replace into sessions 
+            (SESS_MD,ACCESS_TIME,TIMEOUT,CREATE_DATE,DATA) values (%s,NULL,%s,FROM_UNIXTIME(%s),%s)&quot;&quot;&quot;,
+            (self._sid,self._timeout,self._created, cPickle.dumps(self.data) ))
+
+
+    def invalidate(self):
+        c = self.make_cookie()
+        c.expires = 0
+        Cookie.add_cookie(self._req, c)
+        self.delete()
+        self._invalid = 1
+
+    def make_cookie(self):
+        c = Cookie.SignedCookie(self.session_cookie_name, self._sid, secret=self._secret)
+        c.path = '/'
+        return c
+
+    def cleanup(self):
+        self.cursors['c'].execute(&quot;delete from sessions where DATE_ADD(ACCESS_TIME, INTERVAL TIMEOUT SECOND) &lt; CURRENT_TIMESTAMP()&quot;)
+
+    def delete(self):
+        self.cursors['c'].execute(&quot;delete from sessions where SESS_MD=%s&quot;, (self._sid,))
+        # erasing attributes !
+
+#######
+    def is_new(self):
+        return not not self._new
+
+    def id(self):
+        return self._sid
+
+    def created(self):
+        return self._created
+
+    def last_accessed(self):
+        return self._accessed
+
+    def timeout(self):
+        return self._timeout
+
+    def set_timeout(self, secs):
+        self._timeout = secs
+
+    def __del__(self):
+        self.unlock()
+
+
+def unlock_session_cleanup(sess):
+    sess.unlock()
+
+
+
+
+
+-- 
+Best regards,
+ Norman                            mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">NormanTindall at zdisk.net</A>
+
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021786.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+	<LI>Next message: <A HREF="021810.html">[mod_python] For what session locking is? Do i need it while
+	using MySQL?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21787">[ date ]</a>
+              <a href="thread.html#21787">[ thread ]</a>
+              <a href="subject.html#21787">[ subject ]</a>
+              <a href="author.html#21787">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] __import__ error
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20__import__%20error&In-Reply-To=200606121215.43337.richardlewis%40fastmail.co.uk">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021365.html">
+   <LINK REL="Next"  HREF="021373.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] __import__ error</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20__import__%20error&In-Reply-To=200606121215.43337.richardlewis%40fastmail.co.uk"
+       TITLE="[mod_python] __import__ error">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Jun 12 19:39:10 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021365.html">[mod_python] __import__ error
+</A></li>
+        <LI>Next message: <A HREF="021373.html">[mod_python] __import__ error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21371">[ date ]</a>
+              <a href="thread.html#21371">[ thread ]</a>
+              <a href="subject.html#21371">[ subject ]</a>
+              <a href="author.html#21371">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 12/06/2006, at 9:15 PM, Richard Lewis wrote:
+
+&gt;<i> Hello mod_pythoners,
+</I>&gt;<i>
+</I>&gt;<i> I'm still working on that code to write a little Cocoon replacement  
+</I>&gt;<i> which I
+</I>&gt;<i> posted regarding the other week. Its going quite well, but I've  
+</I>&gt;<i> come up
+</I>&gt;<i> against another problem that I can't seem to find the answer to:
+</I>&gt;<i>
+</I>&gt;<i> OK, this works:
+</I>&gt;<i> _&gt;&gt;&gt; module = &quot;transforms.search_filter&quot;
+</I>&gt;<i> _&gt;&gt;&gt; handler = &quot;search_filter&quot;
+</I>&gt;<i> _&gt;&gt;&gt; import os
+</I>&gt;<i> _&gt;&gt;&gt; os.chdir(&quot;/var/www-studio/&quot;)
+</I>
+Don't use os.chdir() in mod_python or rely on what the current working
+directory may be as there can be threaded MPMs for Apache and thus
+each request thread can fight each other wanting to change the current
+working directory thereby screwing each other up.
+
+&gt;<i> _&gt;&gt;&gt; sf = __import__(module.replace(&quot;.&quot;, os.sep)).__dict__[handler]()
+</I>
+Note that using 'os.sep' in module naming hierarchy only works on some
+platforms when using __import__ and thus is not portable. It may work
+on Linux, but doesn't work on Mac OS X. Don't know if it works on Win32
+or not.
+
+&gt;<i> _&gt;&gt;&gt; dir(sf)
+</I>&gt;<i> [..expected output...]
+</I>&gt;<i>
+</I>&gt;<i> it corretly imports the module &quot;/var/www-studio/transforms/ 
+</I>&gt;<i> search_filter.py&quot;
+</I>&gt;<i> and creates an instance of its &quot;search_filter&quot; class.
+</I>&gt;<i>
+</I>&gt;<i> However, the same code used in my application throws the following  
+</I>&gt;<i> ImportError
+</I>&gt;<i> exception:
+</I>&gt;<i>
+</I>&gt;<i> File &quot;/usr/local/lib/python2.3/site-packages/pycoon/transformers/ 
+</I>&gt;<i> sax_handler_transformer.py&quot;,
+</I>&gt;<i> line 30, in __init__
+</I>&gt;<i>     self.handler = __import__(module.replace(&quot;.&quot;, os.sep)).__dict__ 
+</I>&gt;<i> [handler]()
+</I>&gt;<i> ImportError: No module named transforms/search_filter
+</I>&gt;<i>
+</I>&gt;<i> I've tried giving it absolute paths, mixing various combinations of  
+</I>&gt;<i> &quot;.&quot; and
+</I>&gt;<i> os.sep and also using the imp.find_module and imp.load_module  
+</I>&gt;<i> functions but I
+</I>&gt;<i> still get the same problem. (Actually, the imp.* functions tell me  
+</I>&gt;<i> that there
+</I>&gt;<i> is no frozen module or some such bizarre error...)
+</I>
+When import in mod_python is done, it will not necessarily look in  
+current
+working directory anyway. You need to add directory to Python PATH
+explicitly using the directive:
+
+  PythonPath 'sys.path+[&quot;/var/www-studio/&quot;]'
+
+in your Apache configuration for where you are using mod_python.
+
+Graham
+
+&gt;<i> As it works from the interpreter, I can only assume that it must be  
+</I>&gt;<i> something
+</I>&gt;<i> to do with my application. However, I've been constantly re- 
+</I>&gt;<i> designing as I
+</I>&gt;<i> work (one of the joys of Python!) and this also used to work in my
+</I>&gt;<i> application when I was using one *big* script file which lived in  
+</I>&gt;<i> the same
+</I>&gt;<i> directory as &quot;transforms/search_filter.py&quot;. I've now separated most  
+</I>&gt;<i> of the
+</I>&gt;<i> classes out into their own files and split the &quot;library&quot;-like code  
+</I>&gt;<i> away from
+</I>&gt;<i> the &quot;program&quot;-like code like this:
+</I>&gt;<i>
+</I>&gt;<i> The &quot;library&quot;-like code:
+</I>&gt;<i> /usr/local/lib/python2.3/site-packages/pycoon/
+</I>&gt;<i>   __init__.py    # the handler(req) function is implemented here
+</I>&gt;<i>   /sources/
+</I>&gt;<i>     __init__.py
+</I>&gt;<i>     xml_source.py
+</I>&gt;<i>     ...
+</I>&gt;<i>   /transformers/
+</I>&gt;<i>     __init__.py
+</I>&gt;<i>     xslt_transformer.py
+</I>&gt;<i>     sax_handler_transformer.py   # this is where the problem is
+</I>&gt;<i>     ...
+</I>&gt;<i>
+</I>&gt;<i> the sax_handler_transformer.py module contains a  
+</I>&gt;<i> sax_handler_transformer class
+</I>&gt;<i> whose __init__ method tries to import a variable named
+</I>&gt;<i> xml.sax.handler.ContentHandler class like this:
+</I>&gt;<i>
+</I>&gt;<i> def __init__(self, module, handler):
+</I>&gt;<i>   self.handler = __import__(module.replace(&quot;.&quot;, os.sep)).__dict__ 
+</I>&gt;<i> [handler]()
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Then the website which is using the modules (the &quot;program&quot;-like  
+</I>&gt;<i> code) is like
+</I>&gt;<i> this:
+</I>&gt;<i>
+</I>&gt;<i> /var/www-studio/
+</I>&gt;<i>   sitemap.xml # Specialised config file
+</I>&gt;<i>   studio.conf   # Apache config: PythonHandler pycoon
+</I>&gt;<i>   transforms/
+</I>&gt;<i>     site2html.xslt
+</I>&gt;<i>     search_filter.py   # this is where the problem is,
+</I>&gt;<i>                               # contains search_filer class
+</I>&gt;<i>                               # derived from  
+</I>&gt;<i> xml.sax.handler.ContentHandler
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I'm using mod_python, but I also get the same error when I use my  
+</I>&gt;<i> command line
+</I>&gt;<i> testing script. Its Python 2.3.5 as supplied by Debian &quot;unstable&quot;.
+</I>&gt;<i>
+</I>&gt;<i> Um, I hope that makes sense. Any thoughts on why this isn't working  
+</I>&gt;<i> would be
+</I>&gt;<i> very much appreciated.
+</I>&gt;<i>
+</I>&gt;<i> Cheers,
+</I>&gt;<i> Richard
+</I>&gt;<i> -- 
+</I>&gt;<i> -=-=-=-=-=-=-=-=-=-=-=-=-=-
+</I>&gt;<i> Richard Lewis
+</I>&gt;<i> Sonic Arts Research Archive
+</I>&gt;<i> <A HREF="http://www.sara.uea.ac.uk/">http://www.sara.uea.ac.uk/</A>
+</I>&gt;<i> -=-=-=-=-=-=-=-=-=-=-=-=-=-
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021365.html">[mod_python] __import__ error
+</A></li>
+	<LI>Next message: <A HREF="021373.html">[mod_python] __import__ error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21371">[ date ]</a>
+              <a href="thread.html#21371">[ thread ]</a>
+              <a href="subject.html#21371">[ subject ]</a>
+              <a href="author.html#21371">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

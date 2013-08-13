@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] lookup_uri
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20lookup_uri&In-Reply-To=88e286470705112347i9ce5b8eoa6e01339a45b630%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023612.html">
+   <LINK REL="Next"  HREF="023627.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] lookup_uri</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Roger Binns</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20lookup_uri&In-Reply-To=88e286470705112347i9ce5b8eoa6e01339a45b630%40mail.gmail.com"
+       TITLE="[mod_python] lookup_uri">rogerb at rogerbinns.com
+       </A><BR>
+    <I>Mon May 14 14:05:42 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023612.html">[mod_python] lookup_uri
+</A></li>
+        <LI>Next message: <A HREF="023627.html">[mod_python] lookup_uri
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23619">[ date ]</a>
+              <a href="thread.html#23619">[ thread ]</a>
+              <a href="subject.html#23619">[ subject ]</a>
+              <a href="author.html#23619">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+Graham Dumpleton wrote:
+&gt;<i> Note though that if using Apache properly, none of the above should be
+</I>&gt;<i> in handler() in the first place and should be in the authenhandler or
+</I>&gt;<i> authzhandlers phases instead.
+</I>
+Thank you for the reminder!
+
+&gt;<i> And I did appreciate you might be doing that, but for the most obvious
+</I>&gt;<i> cases, at that time I couldn't see the point. If you are going to do
+</I>&gt;<i> that why not let Apache do all the authentication without this fiddle
+</I>&gt;<i> and have the AuthType/AuthName/Require directives on /admin in the
+</I>&gt;<i> first place since it is achieving exactly the same thing.
+</I>
+The rest api looks like this:
+
+&lt;Location /api/v1/widget&gt;&lt;Limit GET&gt; ... require stuff
+&lt;Location /api/v1/widget&gt;&lt;Limit PUT DELETE POST&gt; ... require stuff
+&lt;Location /api/v1/foo&gt;&lt;Limit GET&gt; ... require stuff
+&lt;Location /api/v1/foo&gt;&lt;Limit PUT DELETE POST&gt; ... require stuff
+&lt;Location /api/v1/bar&gt;&lt;Limit GET&gt; ... require stuff
+&lt;Location /api/v1/bar&gt;&lt;Limit PUT DELETE POST&gt; ... require stuff
+
+ie the administrator can decide who can do what to which object.  They
+have all the relevant apache modules at their disposal including things
+like IP address based control.
+
+For /admin I have a web based admin interface and want to generate a
+page.  For the sake of argument, lets say that to generate a page I need
+to GET a widget and DELETE a foo.  Using subrequests I can actually do
+that and relevant requests get denied base on the access control rules
+above.
+
+It it is pretty much impossible to duplicate that fine grained access
+control on the /admin location.  Instead I'd have to settle for access
+or no access.
+
+&gt;<i> This is where what you were doing seemed to be getting messy for my
+</I>&gt;<i> personal tastes in what simply appeared to be an attempt to avoid
+</I>&gt;<i> duplicating some auth configuration in the Apache configuration files.
+</I>
+I'd be happy duplicating if that were even possible!  Because the /admin
+performs composite actions, it can't be done.
+
+&gt;<i> If your /admin page needs to
+</I>&gt;<i> check more than one then you are simply probably getting beyond what
+</I>&gt;<i> the authorization directives of Apache are good for. 
+</I>
+As far as I can tell subrequests would do the job perfectly.  This link
+even describes exactly what I want to use them for!
+
+<A HREF="http://perl.apache.org/docs/1.0/api/Apache.html#Sub_Requests">http://perl.apache.org/docs/1.0/api/Apache.html#Sub_Requests</A>
+
+&quot;Apache provides a sub-request mechanism to lookup a uri or filename,
+performing all access checks, etc., without actually running the
+response phase of the given request.&quot;
+
+&gt;<i> You can only go
+</I>&gt;<i> so far with what Apache directives give you. You may be better off
+</I>&gt;<i> just doing it all in your own authenhandler and authzhandlers for
+</I>&gt;<i> mod_python, you certainly shouldn't be trying to put authentication
+</I>&gt;<i> and authorisation into the response handler phase as you are.
+</I>
+Yes, you are right that authentication stuff should be generated and
+processed in the appropriate phase :-)
+
+&gt;<i> And I'd probably agree on that last point as mod_python falls quite
+</I>&gt;<i> short of being a true way of writing Apache modules but using Python
+</I>&gt;<i> instead of C code
+</I>
+Fortunately I am using such a trivial amount of mod_python that my own C
+code apache module to call my own Python code isn't too onerous.
+
+&gt;<i> The only practical way of getting a complete Python binding for Apache
+</I>&gt;<i> and APR C interfaces is to completely start over and use SWIG. 
+</I>
+It looked like modperl used SWIG so in theory their .i file could be
+swiped as a starting point.
+
+&gt;<i> Even then it is mostly useless in the context of mod_python
+</I>&gt;<i> anyway and a whole new base level module for doing Python in Apache is
+</I>&gt;<i> needed to support it. At this point there hasn't really been anyone
+</I>&gt;<i> else seriously interested in going that path, at least not to extent
+</I>&gt;<i> they appeared to be prepared to spend a great deal of time themselves
+</I>&gt;<i> working on it.
+</I>
+Have you tried asking the Perl folks since they are already maintaining
+a swig'ed interface.  It may not be that much incremental work to add
+python.
+
+Roger
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.6 (GNU/Linux)
+
+iD8DBQFGSKT2mOOfHg372QQRAkF8AJ4j9dqlgH5vvqdDBcvz1sgPy0JdSQCg4yAq
+vdezCavW6WqceBlUKs8URzk=
+=PIhM
+-----END PGP SIGNATURE-----
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023612.html">[mod_python] lookup_uri
+</A></li>
+	<LI>Next message: <A HREF="023627.html">[mod_python] lookup_uri
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23619">[ date ]</a>
+              <a href="thread.html#23619">[ thread ]</a>
+              <a href="subject.html#23619">[ subject ]</a>
+              <a href="author.html#23619">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

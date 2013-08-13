@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Safety of using __builtins__ for per-request
+	information?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Safety%20of%20using%20__builtins__%20for%20per-request%0A%09information%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006743.html">
+   <LINK REL="Next"  HREF="006745.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Safety of using __builtins__ for per-request
+	information?</H1>
+    <B>Mike Looijmans</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Safety%20of%20using%20__builtins__%20for%20per-request%0A%09information%3F&In-Reply-To="
+       TITLE="[mod_python] Safety of using __builtins__ for per-request
+	information?">mike.looijmans at asml.com
+       </A><BR>
+    <I>Wed Sep  3 07:21:15 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006743.html">[mod_python] Apache startup error using mod_python under Windows
+ 2000 (have msvcr70.dll)
+</A></li>
+        <LI>Next message: <A HREF="006745.html">[mod_python] relocation error with Apache 1.3 on solaris 8
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6744">[ date ]</a>
+              <a href="thread.html#6744">[ thread ]</a>
+              <a href="subject.html#6744">[ subject ]</a>
+              <a href="author.html#6744">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<table border=0 width="100%"><tr><td>
+<!--beginarticle-->
+<PRE>It's not risky in this particular case, but it isn't good practice either...
+
+Using cgi_handler will effectively make your system single-threaded,
+regardless of the Apache version used. cgi_handler already shares the
+&quot;sys.stdout&quot; and sys.stderr globals, and uses a lock to prevent two requests
+to interfere. So within the request, using globals is safe.
+I wonder why you use __builtins__, why not just use globals in your own
+module? Just create a globals.py or so and import that from each script.
+
+I saw performance _degrade_ because of this when I moved from 'plain' CGI to
+mod_python cgihandler (apache 2.0 with worker mpm). Some long requests would
+stall the server completely. My solution was to replace all &quot;print&quot;
+statements with &quot;output.write(...)&quot; calls, and use the Request object for
+output in mod_python scripts and sys.stdout when the server is using plain
+CGI. Basically, I turned it around and made a CGI interface that emulates
+mod_python (cgihandler does the opposite). The overhead for emulating CGI in
+mod_python is huge, while the overhead of emulating mod_python in CGI is
+neglectable compared to the interpreter load-and-start.
+
+Mike.
+
+
+-----Original Message-----
+From: Guy Davis &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">davis at guydavis.ca</A>&gt;
+To: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A> &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>&gt;
+Date: Tuesday, September 02, 2003 7:13 PM
+Subject: [mod_python] Safety of using __builtins__ for per-request
+information?
+
+
+&gt;<i>Hi all,
+</I>&gt;<i>
+</I>&gt;<i>I'm writing a custom handler using the mod_python.cgi_handler as a guide
+</I>&gt;<i>on Apache 1.3 with mod_python 2.7.  Unfortunately, our old CGI makes use
+</I>&gt;<i>of certain super-global variables that are not easily done away with.
+</I>&gt;<i>I've been able to get this to work by having the handler set the global
+</I>&gt;<i>vars into the __builtins__ dictionary.  Then various CGI scripts can
+</I>&gt;<i>pull them from __builtins__ when needed. I know using __builtins__ in
+</I>&gt;<i>this fashion is not recommended as it's a bit of a hack.
+</I>&gt;<i>
+</I>&gt;<i>My question is whether storing per-request information in __builtins__
+</I>&gt;<i>is risky due to concurrency reasons.   Put another way, is __builtins__
+</I>&gt;<i>shared between concurrent requests?  For example, person A hits a page
+</I>&gt;<i>and the handler stores __builtins__['foo'] = 'bar'.  At nearly the same
+</I>&gt;<i>time person B hits a page and the handler stores __builtins__['foo'] =
+</I>&gt;<i>'bar2'.  After this occurs, the CGI for person A retrieves
+</I>&gt;<i>__builtins__['foo'].  Will the result always be 'bar' or will 'bar2'
+</I>&gt;<i>sometimes be returned depending on the timing?
+</I>&gt;<i>
+</I>&gt;<i>Will the behaviour be any different under Apache 2 and mod_python 3?
+</I>&gt;<i>
+</I>&gt;<i>Thanks in advance for any responses.
+</I>&gt;<i>
+</I>&gt;<i>Guy Davis                 <A HREF="http://www.guydavis.ca">http://www.guydavis.ca</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>_______________________________________________
+</I>&gt;<i>Mod_python mailing list
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i><A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+
+
+-- 
+The information contained in this communication and any attachments is confidential and may be privileged, and is for the sole use of the intended recipient(s). Any unauthorized review, use, disclosure or distribution is prohibited. If you are not the intended recipient, please notify the sender immediately by replying to this message and destroy all copies of this message and any attachments. ASML is neither liable for the proper and complete transmission of the information contained in this communication, nor for any delay in its receipt.
+
+
+</PRE>
+<!--endarticle-->
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006743.html">[mod_python] Apache startup error using mod_python under Windows
+ 2000 (have msvcr70.dll)
+</A></li>
+	<LI>Next message: <A HREF="006745.html">[mod_python] relocation error with Apache 1.3 on solaris 8
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6744">[ date ]</a>
+              <a href="thread.html#6744">[ thread ]</a>
+              <a href="subject.html#6744">[ subject ]</a>
+              <a href="author.html#6744">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

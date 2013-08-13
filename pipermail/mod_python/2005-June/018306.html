@@ -1,0 +1,256 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Source code displayed by Mozilla/Firefox
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Source%20code%20displayed%20by%20Mozilla/Firefox&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018320.html">
+   <LINK REL="Next"  HREF="018307.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Source code displayed by Mozilla/Firefox</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Source%20code%20displayed%20by%20Mozilla/Firefox&In-Reply-To="
+       TITLE="[mod_python] Source code displayed by Mozilla/Firefox">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Mon Jun  6 20:46:24 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018320.html">[mod_python] framework agnostics
+</A></li>
+        <LI>Next message: <A HREF="018307.html">[mod_python] How to terminate responce?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18306">[ date ]</a>
+              <a href="thread.html#18306">[ thread ]</a>
+              <a href="subject.html#18306">[ subject ]</a>
+              <a href="author.html#18306">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Warning, long rambling response ...  :-)
+
+Daniel J. Popowich wrote ..
+&gt;<i> &gt; BTW, why specifically are you using mpservlets as when using PSP you
+</I>&gt;<i> may
+</I>&gt;<i> &gt; find they don't mesh very well? For example, one of the points of using
+</I>&gt;<i> &gt; mpservlets is that by supplying its own write/writeln methods in the
+</I>&gt;<i> &gt; servlet it does its own buffering of output. Because PSP is going to
+</I>&gt;<i> &gt; write direct to the request object using req.write(), the buffering in
+</I>&gt;<i> &gt; mpservlets is bypassed. Another reason people use mpservlets is that
+</I>&gt;<i> it
+</I>&gt;<i> &gt; has some session support, but then so does PSP.
+</I>&gt;<i> 
+</I>&gt;<i> &lt;soapbox&gt;
+</I>&gt;<i> While output buffering and session handling are bonuses, the main
+</I>&gt;<i> reason I wrote mps was to have an OO view of the web.  Writing an
+</I>&gt;<i> abstract base class that manages the overall layout of a site and
+</I>&gt;<i> then writing subclasses for specific pages is, imho, very powerful.
+</I>&gt;<i> Also, being able to re-use base class features in every servlet
+</I>&gt;<i> (particularly form/query variable processing) saves hours of
+</I>&gt;<i> programming.
+</I>&gt;<i> &lt;/soapbox&gt;
+</I>
+&lt;bigger soapbox&gt; :-) :-) :-)
+I agree that an OO approach to writing response handlers is a good idea
+and your HTMLPage servlet is great for people who want to hand craft the
+HTML using code rather than using full blown templating systems, but the
+original poster wasn't making use of that, nor the other inbuilt features
+of the base class servlet. It may be that he just hasn't got to that point
+yet, but for the code he was showing, it could equally be served by creating
+a simple class which provides a &quot;__call__()&quot; method. Ie., the handler itself
+is a callable object. 
+&lt;/bigger soapbox&gt;
+
+To illustrate, I have included below some code which can be used in
+combination with mod_python.publisher and which gives you the OO
+type infrastructure. It is relatively straight forward and makes use of the
+form processing and dispatch to handlers in seperate files features
+that the mod_python.publisher package provides.
+
+The only downside of using mod_python.publisher is that if you want
+to mix static files in the same directory, you must use AddHandler and
+a specific extension, usually &quot;.py&quot;. Thus your Apache config for the code
+given would look like:
+
+  AddHandler python-program .py
+  PythonHandler mod_python.publisher
+  PythonDebug On 
+    
+  &lt;Files *.psp&gt;
+  deny from all
+  &lt;/Files&gt;
+
+I don't personally like having &quot;.py&quot; in a URL. One step better would be to
+use:
+
+  AddHandler python-program .psp
+  PythonHandler mod_python.publisher
+  PythonDebug On 
+    
+  &lt;Files *.py&gt;
+  deny from all
+  &lt;/Files&gt;
+
+This means you use a &quot;.psp&quot; extension, but mod_python.psp isn't used
+as the actual handler. Instead, mod_python.publisher is used and you
+would need a corresponding handler for each PSP file.
+
+If all HTML files in the directory are going to be generated in this way,
+ie., no static &quot;.html&quot; files, you could also use:
+
+  AddHandler python-program .html
+  PythonHandler mod_python.publisher
+  PythonDebug On 
+    
+  &lt;Files *.psp&gt;
+  deny from all
+  &lt;/Files&gt;
+    
+  &lt;Files *.py&gt;
+  deny from all
+  &lt;/Files&gt;
+
+Anyway, the idea of the code is that alongside each &quot;.psp&quot; file you have a
+corresponding &quot;.py&quot; file which triggers the rendering of it. The servlet like
+object would be named as &quot;index&quot; so that just the base name of the file
+need be used in the URL with appropriate extension attached.
+
+Thus, I might have a &quot;example.psp&quot; file containing:
+
+  &lt;html&gt;
+  &lt;body&gt;
+  &lt;p&gt;&lt;%=message%&gt;&lt;/p&gt;
+  &lt;/body&gt;
+  &lt;/html&gt;
+
+Next to that I would have &quot;example.py&quot;. With the very last config above, I
+could access the rendered result as &quot;example.html&quot;.
+
+Anyway, here is the code. For starters it should be thrown into the &quot;example.py&quot;,
+but obviously the reusable classes should be separated out into a distinct
+module so they can be access by more than one handler.
+
+from mod_python import apache, util
+psp = apache.import_module(&quot;mod_python.psp&quot;)
+
+import os
+import types
+
+
+class Instance:
+
+  def __init__(self,target,**args):
+    self.__target = target
+    self.__args = args
+
+  def __call__(self,req):
+
+    if not type(self.__target) in [types.ClassType,types.TypeType]:
+      raise apache.SERVER_RETURN, apache.HTTP_INTERNAL_SERVER_ERROR
+
+    instance = self.__target(req,**self.__args)
+
+    if not callable(instance):
+      raise apache.SERVER_RETURN, apache.HTTP_INTERNAL_SERVER_ERROR
+
+    return util.apply_fs_data(instance,req.form)
+
+
+class PSPServlet:
+
+  content_type = &quot;text/html&quot;
+
+  def __init__(self,req):
+    self.req = req
+    self.vars = {}
+
+  def render(self):
+
+    path = os.path.splitext(self.req.filename)[0] + &quot;.psp&quot;
+
+    self.req.content_type = self.content_type
+    self.req.send_http_header()
+
+    template = psp.PSP(self.req,filename=path,vars=self.vars)
+    template.run()
+
+  def __call__(self):
+    raise apache.SERVER_RETURN, apache.HTTP_INTERNAL_SERVER_ERROR
+
+
+class MyServlet(PSPServlet):
+
+  def __call__(self,message=&quot;&quot;):
+    if not message:
+      message = &quot;Give Blood!&quot;
+
+    self.vars[&quot;message&quot;] = message
+
+    self.render()
+
+
+index = Instance(MyServlet)
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018320.html">[mod_python] framework agnostics
+</A></li>
+	<LI>Next message: <A HREF="018307.html">[mod_python] How to terminate responce?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18306">[ date ]</a>
+              <a href="thread.html#18306">[ thread ]</a>
+              <a href="subject.html#18306">[ subject ]</a>
+              <a href="author.html#18306">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

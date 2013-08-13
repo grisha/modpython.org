@@ -1,0 +1,126 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Multiple loading of same module with winnt MPM
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20loading%20of%20same%20module%20with%20winnt%20MPM&In-Reply-To=b26b30150705110222m5164c6e6udd70b2f406f4000e%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023600.html">
+   <LINK REL="Next"  HREF="023602.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Multiple loading of same module with winnt MPM</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20loading%20of%20same%20module%20with%20winnt%20MPM&In-Reply-To=b26b30150705110222m5164c6e6udd70b2f406f4000e%40mail.gmail.com"
+       TITLE="[mod_python] Multiple loading of same module with winnt MPM">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Fri May 11 06:54:35 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023600.html">[mod_python] Multiple loading of same module with winnt MPM
+</A></li>
+        <LI>Next message: <A HREF="023602.html">[mod_python] lookup_uri
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23601">[ date ]</a>
+              <a href="thread.html#23601">[ thread ]</a>
+              <a href="subject.html#23601">[ subject ]</a>
+              <a href="author.html#23601">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 11/05/07, simon holness &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">simon.holness at gmail.com</A>&gt; wrote:
+&gt;<i> Hi, I'm the guy who knocked up the quick fix. Yes, I think you're
+</I>&gt;<i> quite right and the fix is also not correct.
+</I>&gt;<i>
+</I>&gt;<i> The problem appears to essentially be that a whole load of processing
+</I>&gt;<i> is happening on the 'cache' object while it isn't locked.
+</I>
+It is okay as it is dealing with only read only data at that point.
+When a reload is being done it accumulates the new data in temporary
+data structure and replaces original later in one atomic operation in
+such a way as not to cause problems.
+
+&gt;<i> Do you know if there's a reason that &quot;_lock1&quot; is used to lock out the
+</I>&gt;<i> entire of _reload_required(), rather than swapping to the use of
+</I>&gt;<i> cache.lock ? Is it to do with the processing of the cache's children?
+</I>&gt;<i> or the call to _check_module() ?
+</I>
+The reload check is protected to stop two threads deciding at the same
+time that something needs reloading. Where the code went wrong is that
+cache.reload is set to 1 part way through cache entry locked code and
+depending on whether reload check sees this or not is causing the
+problem. I only added this reload flag late in the peace so I could
+get some nice debug information but it has screwed things up in this
+particular instance.
+
+&gt;<i> The correct solution looks, to me, like all of the processing of the
+</I>&gt;<i> cache object should be guarded by its lock,  and not by the
+</I>&gt;<i> _ModuleCache's _lock1.
+</I>
+Can't be the cache entry lock as you are actually traversing many
+cache entries and not just one.
+
+I already have so changes which should work, but need to sit down and
+think it through a bit more first and look back at some older versions
+of this code I had if I can find them. I am sure I used to overlap the
+reload lock with cache entry lock for a brief time to avoid certain
+problems and not sure why the code isn't doing it anymore so have to
+look at the way I was avoiding that is actually okay.
+
+I have created an issue for this in the tracking system and any patch
+will be put up against it to try.
+
+  <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-219">http://issues.apache.org/jira/browse/MODPYTHON-219</A>
+
+If I can get to it, will put up something over the weekend.
+
+Graham
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023600.html">[mod_python] Multiple loading of same module with winnt MPM
+</A></li>
+	<LI>Next message: <A HREF="023602.html">[mod_python] lookup_uri
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23601">[ date ]</a>
+              <a href="thread.html#23601">[ thread ]</a>
+              <a href="subject.html#23601">[ subject ]</a>
+              <a href="author.html#23601">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

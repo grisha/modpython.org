@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Session Management for the beginner
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Management%20for%20the%20beginner&In-Reply-To=43BC552B.8030801%40qlf.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019874.html">
+   <LINK REL="Next"  HREF="019878.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Session Management for the beginner</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jim Gallacher</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Session%20Management%20for%20the%20beginner&In-Reply-To=43BC552B.8030801%40qlf.com"
+       TITLE="[mod_python] Session Management for the beginner">jpg at jgassociates.ca
+       </A><BR>
+    <I>Wed Jan  4 18:58:43 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019874.html">[mod_python] Session Management for the beginner
+</A></li>
+        <LI>Next message: <A HREF="019878.html">[mod_python] Session Management for the beginner
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19875">[ date ]</a>
+              <a href="thread.html#19875">[ thread ]</a>
+              <a href="subject.html#19875">[ subject ]</a>
+              <a href="author.html#19875">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Jim Steil wrote:
+&gt;<i> Jim:
+</I>&gt;<i> 
+</I>&gt;<i> Thanks for the info.  However, I'm still having trouble.  I don't know 
+</I>&gt;<i> if this is the problem, but this code does NOT exist in a handler that I 
+</I>&gt;<i> wrote.  I didn't write a handler, I'm just using the publisher handler.  
+</I>&gt;<i> I have written an authentication handler and that is working correctly 
+</I>&gt;<i> but I don't know what I need to do to make my own handler and have it 
+</I>&gt;<i> work like the publisher handler.  Again, I'm probably trying too hard 
+</I>&gt;<i> and not seeing the obvious.  I have been looking all over the web and 
+</I>&gt;<i> can't seem to find a good custom handler example.
+</I>&gt;<i> 
+</I>&gt;<i> Thanks again, I'll keep plugging away to try to understand what's going on.
+</I>&gt;<i> 
+</I>&gt;<i>    -Jim
+</I>
+
+I tend to use the term &quot;handler&quot; to refer to anything that handles a 
+request, which is just plain wrong. ;) If you want to use the publisher 
+handler just drop a script in the appropriate directory and either call 
+it (which will used the index method by default) or one of it's other 
+methods.
+
+Plop the following in your motion folder and try calling it with 
+<A HREF="http://example.com/motion/mptest">http://example.com/motion/mptest</A> or 
+<A HREF="http://example.com/motion/mptest/secUserList.">http://example.com/motion/mptest/secUserList.</A> (Note that the indentation 
+may have been messed up when I did the copy and paste from your original 
+code). Also note that I forgot the req parameter in my previous Session 
+example. :(
+
+You can modify your secUserList.html to make use of the count paramater 
+passed to your psp template and see the effect of the session.
+
+Jim
+
+mptest.py
+---------
+
+# uses the mod_python.publisher handler
+
+import time
+import mx.ODBC
+import mx.ODBC.Windows
+
+from mod_python import Session
+
+
+# url is <A HREF="http://example.com/motion/mptest">http://example.com/motion/mptest</A>
+def index(req):
+     sess = Session.Session(req)
+     if sess.is_new():
+         sess['count'] = 0
+     sess['count'] += 1
+     req.content_type = 'text/plain'
+     req.write('This is the index page\nVisits: %d\n' % sess['count'])
+     sess.save()
+
+
+# url is <A HREF="http://example.com/motion/mptest/secUserList">http://example.com/motion/mptest/secUserList</A>
+def secUserList(req, page='', sortSeq=''):
+     sess = Session.Session(req)
+     if sess.is_new():
+         sess['count'] = 0
+     sess['count'] += 1
+     sess.save()
+
+     if page:
+         startPage = int(page)
+     else:
+         startPage = 1
+     pageLength = 20
+     sql = 'call secUser_list(\'' + sortSeq + '\', ' + repr(startPage) + 
+', ' + repr(pageLength) + ')'
+     db = 
+mx.ODBC.Windows.DriverConnect('DSN=motion;UID=userid;PWD=password')
+     c = db.cursor()
+     c.execute(sql)
+     htmlText = ''
+     for secUserId, firstName, lastName, logonName, email in c.fetchall():
+         htmlText = htmlText + '&lt;tr 
+onmouseover=&quot;style.backgroundColor=\'#FFF0AF\'; style.cursor=\'hand\';&quot; 
+onclick=&quot;location.href=\'secUserProfile?secUserId=' + &quot;%i&quot; % secUserId + 
+'\'&quot; onmouseout=&quot;style.backgroundColor=\'#ffffff\';&quot;&gt;&lt;td&gt;' + firstName + 
+'&lt;/td&gt;&lt;td&gt;' + lastName + '&lt;/td&gt;&lt;td&gt;' + logonName + '&lt;/td&gt;&lt;td&gt;' + email + 
+'&lt;/td&gt;&lt;/tr&gt;\n'
+         previousPage = 1
+     if startPage &gt; 1:
+         previousPage = startPage - 1
+         nextPage = startPage + 1
+     c.close()
+     db.close()
+     parmDict = {'count':sess['count'], 'title':'User List', 
+'rowHtml':htmlText, 'previousPage':previousPage, 'nextPage':nextPage, 
+'startPage':startPage}
+     template = psp.PSP(req, filename='secUserList.html')
+     template.run(vars = parmDict)
+
+
+
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019874.html">[mod_python] Session Management for the beginner
+</A></li>
+	<LI>Next message: <A HREF="019878.html">[mod_python] Session Management for the beginner
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19875">[ date ]</a>
+              <a href="thread.html#19875">[ thread ]</a>
+              <a href="subject.html#19875">[ subject ]</a>
+              <a href="author.html#19875">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

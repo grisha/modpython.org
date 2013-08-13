@@ -1,0 +1,364 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Is external redirect supposed to send a cookie
+	(mpservlets)?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Is%20external%20redirect%20supposed%20to%20send%20a%20cookie%0A%09%28mpservlets%29%3F&In-Reply-To=42B7141B.2050800%40mischko.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018440.html">
+   <LINK REL="Next"  HREF="018442.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Is external redirect supposed to send a cookie
+	(mpservlets)?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Scott Sanders</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Is%20external%20redirect%20supposed%20to%20send%20a%20cookie%0A%09%28mpservlets%29%3F&In-Reply-To=42B7141B.2050800%40mischko.com"
+       TITLE="[mod_python] Is external redirect supposed to send a cookie
+	(mpservlets)?">sanders at apache.org
+       </A><BR>
+    <I>Mon Jun 20 16:08:10 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018440.html">[mod_python] Is external redirect supposed to send a cookie
+	(mpservlets)?
+</A></li>
+        <LI>Next message: <A HREF="018442.html">[mod_python] Is external redirect supposed to send a cookie
+	(mpservlets)?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18441">[ date ]</a>
+              <a href="thread.html#18441">[ thread ]</a>
+              <a href="subject.html#18441">[ subject ]</a>
+              <a href="author.html#18441">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>The session cookie is not in the error headers, which are the only  
+headers sent on redirect.  My workaround was to write a redirect  
+function that wrote out the session cookie in the error headers.  I  
+will try and look for the source code.
+
+Scott
+
+On Jun 20, 2005, at 12:08 PM, Scott Chapman wrote:
+
+&gt;<i> Hi!
+</I>&gt;<i>
+</I>&gt;<i> I'm having problems with session cookies and redirects.  Can this be
+</I>&gt;<i> resolved or is this the way things work?
+</I>&gt;<i>
+</I>&gt;<i> If a user requests a page that requires a login login and they are not
+</I>&gt;<i> logged in (and they have no cookies), I automatically redirect
+</I>&gt;<i> (external) them to the login screen, after setting a &quot;returnto&quot;  
+</I>&gt;<i> session
+</I>&gt;<i> entry.  The returnto is lost because the cookie is not sent with  
+</I>&gt;<i> the 302
+</I>&gt;<i> response.
+</I>&gt;<i>
+</I>&gt;<i> Here's code in my auth method that sets the session returnto value and
+</I>&gt;<i> redirects them:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> if requiresLogin:
+</I>&gt;&gt;<i>     self.req.log_error('AUTH - page: %s requires login' % methodName)
+</I>&gt;&gt;<i>     userID = self.session.get('userid', None)
+</I>&gt;&gt;<i>     # Check to see if the user is logged in
+</I>&gt;&gt;<i>     if not userID:
+</I>&gt;&gt;<i>         self.req.log_error('AUTH - user not logged in')
+</I>&gt;&gt;<i>         self.session['returnto'] = self.req.unparsed_uri
+</I>&gt;&gt;<i>         self.req.log_error('AUTH - sid when returnto set: ' + str 
+</I>&gt;&gt;<i> (self.session.id()))
+</I>&gt;&gt;<i>         self.req.log_error('AUTH - returnto: ' + self.session 
+</I>&gt;&gt;<i> ['returnto'])
+</I>&gt;&gt;<i>         self.req.log_error('AUTH - external redirect to login')
+</I>&gt;&gt;<i>         self.external_redirect('/login')
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Here's the code in my /login screen which is supposed to catch the
+</I>&gt;<i> returnto and send them on their way:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> user_id = data_object.checkLoginAndPassword(login, password)
+</I>&gt;&gt;<i> if user_id:
+</I>&gt;&gt;<i>     # The login information is valid.
+</I>&gt;&gt;<i>     uberServlet.session['userid'] = user_id
+</I>&gt;&gt;<i>     uberServlet.req.log_error('LOGIN - username and password  
+</I>&gt;&gt;<i> confirmed')
+</I>&gt;&gt;<i>     uberServlet.req.log_error('LOGIN - userid,email: %s, %s' %  
+</I>&gt;&gt;<i> (user_id,login))
+</I>&gt;&gt;<i>     uberServlet.req.log_error('LOGIN - session id: ' + str 
+</I>&gt;&gt;<i> (uberServlet.session.id()))
+</I>&gt;&gt;<i>     return_to = uberServlet.session.pop('returnto: ','/index')
+</I>&gt;&gt;<i>     uberServlet.req.log_error('LOGIN - return_to' + return_to)
+</I>&gt;&gt;<i>     util.redirect(uberServlet.req,return_to)
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Here's the log:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> HANDLER-calling prep
+</I>&gt;&gt;<i> HANDLER-calling auth
+</I>&gt;&gt;<i> AUTH - methodName: change_password
+</I>&gt;&gt;<i> AUTH - method found
+</I>&gt;&gt;<i> AUTH - page: change_password requires login
+</I>&gt;&gt;<i> AUTH - user not logged in
+</I>&gt;&gt;<i> AUTH - sid when returnto set: 82d588854c0a23ac67c7f986ab86ad79
+</I>&gt;&gt;<i> AUTH - returnto: /change_password
+</I>&gt;&gt;<i> AUTH - external redirect to login
+</I>&gt;&gt;<i> HANDLER-calling prep
+</I>&gt;&gt;<i> HANDLER-calling auth
+</I>&gt;&gt;<i> AUTH - methodName: login
+</I>&gt;&gt;<i> HANDLER-calling respond
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - method name: login
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - calling method
+</I>&gt;&gt;<i> HANDLER-calling wrapup
+</I>&gt;&gt;<i> =========== login screen ===========
+</I>&gt;&gt;<i> HANDLER-calling prep, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> HANDLER-calling auth, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> AUTH - methodName: login, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> HANDLER-calling respond, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - Converting form to dict, referer: http:// 
+</I>&gt;&gt;<i> nsnserver/login
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - Form Entry Type: &lt;class  
+</I>&gt;&gt;<i> 'mod_python.util.StringField'&gt;, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - key: login, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - Single Item, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - Form Entry Type: &lt;class  
+</I>&gt;&gt;<i> 'mod_python.util.StringField'&gt;, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - key: password, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - Single Item, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - form dict: {'login': '<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">scott at mischko.com</A>',  
+</I>&gt;&gt;<i> 'password': 'letmein'}, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - method name: login, referer: http:// 
+</I>&gt;&gt;<i> nsnserver/login
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - calling method, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> LOGIN - username and password confirmed, referer: <A HREF="http://nsnserver/">http://nsnserver/</A> 
+</I>&gt;&gt;<i> login
+</I>&gt;&gt;<i> LOGIN - userid,email: 1, <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">scott at mischko.com</A>, referer: http:// 
+</I>&gt;&gt;<i> nsnserver/login
+</I>&gt;&gt;<i> LOGIN - session id: e17247d6be677abadf19748044acb0bf, referer:  
+</I>&gt;&gt;<i> <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> LOGIN - return_to/index, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> HANDLER-calling prep, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> HANDLER-calling auth, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> AUTH - methodName: index, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> AUTH - method found, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> AUTH - page: index does not require login, referer: http:// 
+</I>&gt;&gt;<i> nsnserver/login
+</I>&gt;&gt;<i> HANDLER-calling respond, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - method name: index, referer: http:// 
+</I>&gt;&gt;<i> nsnserver/login
+</I>&gt;&gt;<i> UBERSERVLET RESPOND - calling method, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> HANDLER-calling wrapup, referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> And here's the HTTP live capture of headers:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> <A HREF="http://nsnserver/">http://nsnserver/</A> 
+</I>&gt;&gt;<i> change_password                                                       
+</I>&gt;&gt;<i>                                                                       
+</I>&gt;&gt;<i>                                                            GET / 
+</I>&gt;&gt;<i> change_password HTTP/ 
+</I>&gt;&gt;<i> 1.1                                                                   
+</I>&gt;&gt;<i>             Host:  
+</I>&gt;&gt;<i> nsnserver                                                             
+</I>&gt;&gt;<i>                                 User-Agent: Mozilla/5.0 (Windows;  
+</I>&gt;&gt;<i> U; Windows NT 5.1; en-US; rv:1.7.8) Gecko/20050511 Firefox/ 
+</I>&gt;&gt;<i> 1.0.4         Accept: text/xml,application/xml,application/xhtml 
+</I>&gt;&gt;<i> +xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+</I>&gt;&gt;<i> Accept-Language: en- 
+</I>&gt;&gt;<i> us,en;q=0.5                                                           
+</I>&gt;&gt;<i>                   Accept-Encoding:  
+</I>&gt;&gt;<i> gzip,deflate                                                          
+</I>&gt;&gt;<i>                      Accept-Charset:  
+</I>&gt;&gt;<i> ISO-8859-1,utf-8;q=0.7,*;q=0.7                                        
+</I>&gt;&gt;<i>                       Keep-Alive:  
+</I>&gt;&gt;<i> 300                                                                   
+</I>&gt;&gt;<i>                           Connection: keep- 
+</I>&gt;&gt;<i> alive                                                                 
+</I>&gt;&gt;<i>                                                                       
+</I>&gt;&gt;<i>                                                            HTTP/ 
+</I>&gt;&gt;<i> 1.x 302  
+</I>&gt;&gt;<i> Found                                                                 
+</I>&gt;&gt;<i>                          Date: Fri, 17 Jun 2005 21:50:24  
+</I>&gt;&gt;<i> GMT                                                                   
+</I>&gt;&gt;<i>       Server: Apache/2.0.53 (Unix) mod_ssl/2.0.53 OpenSSL/0.9.7d  
+</I>&gt;&gt;<i> mod_python/3.1.4 Python/2.4.1c2 PHP/4.3.10      Location: / 
+</I>&gt;&gt;<i> login                                                                 
+</I>&gt;&gt;<i>                            Content-Length:  
+</I>&gt;&gt;<i> 336                                                                   
+</I>&gt;&gt;<i>                       Keep-Alive: timeout=15,  
+</I>&gt;&gt;<i> max=100                                                               
+</I>&gt;&gt;<i>               Connection: Keep- 
+</I>&gt;&gt;<i> Alive                                                                 
+</I>&gt;&gt;<i>                      Content-Type: text/html;  
+</I>&gt;&gt;<i> charset=iso-8859-1                                                    
+</I>&gt;&gt;<i>               
+</I>&gt;&gt;<i> ----------------------------------------------------------            
+</I>&gt;&gt;<i>                                       <A HREF="http://nsnserver/">http://nsnserver/</A> 
+</I>&gt;&gt;<i> login                                                                 
+</I>&gt;&gt;<i>                                                                       
+</I>&gt;&gt;<i>                                                            GET / 
+</I>&gt;&gt;<i> login HTTP/ 
+</I>&gt;&gt;<i> 1.1                                                                   
+</I>&gt;&gt;<i>                       Host:  
+</I>&gt;&gt;<i> nsnserver                                                             
+</I>&gt;&gt;<i>                                 User-Agent: Mozilla/5.0 (Windows;  
+</I>&gt;&gt;<i> U; Windows NT 5.1; en-US; rv:1.7.8) Gecko/20050511 Firefox/ 
+</I>&gt;&gt;<i> 1.0.4         Accept: text/xml,application/xml,application/xhtml 
+</I>&gt;&gt;<i> +xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+</I>&gt;&gt;<i> Accept-Language: en- 
+</I>&gt;&gt;<i> us,en;q=0.5                                                           
+</I>&gt;&gt;<i>                   Accept-Encoding:  
+</I>&gt;&gt;<i> gzip,deflate                                                          
+</I>&gt;&gt;<i>                      Accept-Charset:  
+</I>&gt;&gt;<i> ISO-8859-1,utf-8;q=0.7,*;q=0.7                                        
+</I>&gt;&gt;<i>                       Keep-Alive:  
+</I>&gt;&gt;<i> 300                                                                   
+</I>&gt;&gt;<i>                           Connection: keep- 
+</I>&gt;&gt;<i> alive                                                                 
+</I>&gt;&gt;<i>                                                                       
+</I>&gt;&gt;<i>                                                            HTTP/ 
+</I>&gt;&gt;<i> 1.x 200  
+</I>&gt;&gt;<i> OK                                                                    
+</I>&gt;&gt;<i>                          Date: Fri, 17 Jun 2005 21:50:25  
+</I>&gt;&gt;<i> GMT                                                                   
+</I>&gt;&gt;<i>       Server: Apache/2.0.53 (Unix) mod_ssl/2.0.53 OpenSSL/0.9.7d  
+</I>&gt;&gt;<i> mod_python/3.1.4 Python/2.4.1c2 PHP/4.3.10      Cache-Control: no- 
+</I>&gt;&gt;<i> cache=&quot;set- 
+</I>&gt;&gt;<i> cookie&quot;                                                               
+</I>&gt;&gt;<i>          Set-Cookie: pysid=e17247d6be677abadf19748044acb0bf;  
+</I>&gt;&gt;<i> path=/                                                 Keep-Alive:  
+</I>&gt;&gt;<i> timeout=15,  
+</I>&gt;&gt;<i> max=99                                                                
+</I>&gt;&gt;<i>               Connection: Keep- 
+</I>&gt;&gt;<i> Alive                                                                 
+</I>&gt;&gt;<i>                      Transfer-Encoding:  
+</I>&gt;&gt;<i> chunked                                                               
+</I>&gt;&gt;<i>                    Content-Type: text/ 
+</I>&gt;&gt;<i> html                                                                  
+</I>&gt;&gt;<i>                     
+</I>&gt;&gt;<i> ----------------------------------------------------------            
+</I>&gt;&gt;<i>                                       ==========login screen in  
+</I>&gt;&gt;<i> web browser here=====================
+</I>&gt;&gt;<i> <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> POST /login HTTP/1.1
+</I>&gt;&gt;<i> Host: nsnserver
+</I>&gt;&gt;<i> User-Agent: Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv: 
+</I>&gt;&gt;<i> 1.7.8) Gecko/20050511 Firefox/1.0.4
+</I>&gt;&gt;<i> Accept: text/xml,application/xml,application/xhtml+xml,text/ 
+</I>&gt;&gt;<i> html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+</I>&gt;&gt;<i> Accept-Language: en-us,en;q=0.5
+</I>&gt;&gt;<i> Accept-Encoding: gzip,deflate
+</I>&gt;&gt;<i> Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+</I>&gt;&gt;<i> Keep-Alive: 300
+</I>&gt;&gt;<i> Connection: keep-alive
+</I>&gt;&gt;<i> Referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> Cookie: pysid=e17247d6be677abadf19748044acb0bf;  
+</I>&gt;&gt;<i> testSessionCookie=Enabled
+</I>&gt;&gt;<i> Content-Type: application/x-www-form-urlencoded
+</I>&gt;&gt;<i> Content-Length: 42
+</I>&gt;&gt;<i> login=scott%40mischko.com&amp;password=letmein
+</I>&gt;&gt;<i> HTTP/1.x 302 Found
+</I>&gt;&gt;<i> Date: Fri, 17 Jun 2005 21:51:12 GMT
+</I>&gt;&gt;<i> Server: Apache/2.0.53 (Unix) mod_ssl/2.0.53 OpenSSL/0.9.7d  
+</I>&gt;&gt;<i> mod_python/3.1.4 Python/2.4.1c2 PHP/4.3.10
+</I>&gt;&gt;<i> Location: /index
+</I>&gt;&gt;<i> Keep-Alive: timeout=15, max=100
+</I>&gt;&gt;<i> Connection: Keep-Alive
+</I>&gt;&gt;<i> Transfer-Encoding: chunked
+</I>&gt;&gt;<i> Content-Type: text/plain
+</I>&gt;&gt;<i> ----------------------------------------------------------
+</I>&gt;&gt;<i> <A HREF="http://nsnserver/index">http://nsnserver/index</A>
+</I>&gt;&gt;<i> GET /index HTTP/1.1
+</I>&gt;&gt;<i> Host: nsnserver
+</I>&gt;&gt;<i> User-Agent: Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv: 
+</I>&gt;&gt;<i> 1.7.8) Gecko/20050511 Firefox/1.0.4
+</I>&gt;&gt;<i> Accept: text/xml,application/xml,application/xhtml+xml,text/ 
+</I>&gt;&gt;<i> html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+</I>&gt;&gt;<i> Accept-Language: en-us,en;q=0.5
+</I>&gt;&gt;<i> Accept-Encoding: gzip,deflate
+</I>&gt;&gt;<i> Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+</I>&gt;&gt;<i> Keep-Alive: 300
+</I>&gt;&gt;<i> Connection: keep-alive
+</I>&gt;&gt;<i> Referer: <A HREF="http://nsnserver/login">http://nsnserver/login</A>
+</I>&gt;&gt;<i> Cookie: pysid=e17247d6be677abadf19748044acb0bf;  
+</I>&gt;&gt;<i> testSessionCookie=Enabled
+</I>&gt;&gt;<i> HTTP/1.x 200 OK
+</I>&gt;&gt;<i> Date: Fri, 17 Jun 2005 21:51:14 GMT
+</I>&gt;&gt;<i> Server: Apache/2.0.53 (Unix) mod_ssl/2.0.53 OpenSSL/0.9.7d  
+</I>&gt;&gt;<i> mod_python/3.1.4 Python/2.4.1c2 PHP/4.3.10
+</I>&gt;&gt;<i> Keep-Alive: timeout=15, max=100
+</I>&gt;&gt;<i> Connection: Keep-Alive
+</I>&gt;&gt;<i> Transfer-Encoding: chunked
+</I>&gt;&gt;<i> Content-Type: text/html
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018440.html">[mod_python] Is external redirect supposed to send a cookie
+	(mpservlets)?
+</A></li>
+	<LI>Next message: <A HREF="018442.html">[mod_python] Is external redirect supposed to send a cookie
+	(mpservlets)?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18441">[ date ]</a>
+              <a href="thread.html#18441">[ thread ]</a>
+              <a href="subject.html#18441">[ subject ]</a>
+              <a href="author.html#18441">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

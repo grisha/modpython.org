@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] The right way to handle sessions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20right%20way%20to%20handle%20sessions&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016048.html">
+   <LINK REL="Next"  HREF="016036.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] The right way to handle sessions</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Amir Salihefendic</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20right%20way%20to%20handle%20sessions&In-Reply-To="
+       TITLE="[mod_python] The right way to handle sessions">amix at amix.dk
+       </A><BR>
+    <I>Thu Aug 12 15:13:01 EDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016048.html">[mod_python] Re: Anyone using Cheetah for templating?
+</A></li>
+        <LI>Next message: <A HREF="016036.html">[mod_python] The right way to handle sessions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16035">[ date ]</a>
+              <a href="thread.html#16035">[ thread ]</a>
+              <a href="subject.html#16035">[ subject ]</a>
+              <a href="author.html#16035">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello.
+I welcome myself to this list ;-)
+
+I have a question about how to handle sessions correctly.
+I am creating a simple login system (just messing around with 
+mod_python).
+Let's say that we have a page called index.py and we are using the 
+publisher handler.
+
+Example one:
+def createSession(req):
+     new_session = Session.Session(req)
+     return new_session.id()
+
+def getSameSession(req):
+     same_session = Session.Session(req)
+     return same_session.id()
+
+This works ok! They have the same sid. I.e. you first call 
+index.py/createSession and then  index.py/getSameSession
+
+
+Example two:
+def createSession(req):
+     new_session = Session.Session(req)
+     return getSameSession(req)
+
+def getSameSession(req):
+     same_session = Session.Session(req)
+     return same_session.id()
+
+This does not work - it makes an infinitive loop..!  Now to fix this 
+you need to unlock the session in createSession (.. I have no clue why 
+you have to do this..?). And then you need to restart apache...  i.e.:
+def createSession(req):
+     new_session = Session.Session(req)
+     new_session.unlock()
+     return getSameSession(req)
+
+But this does not work quite well.. If you delete the Session:
+def deleteSession(req):
+     same_session = Session.Session(req)
+     same_session.invalidate()
+     return &quot;Deleted&quot;
+
+And then you do this:
+def createSession(req):
+     new_session = Session.Session(req)
+     new_session.save()
+     new_session.unlock()
+
+     req.write(new_session.id())
+     return getSameSession(req)
+
+def getSameSession(req):
+     same_session = Session.Session(req)
+
+     return &quot;\n%s&quot; % same_session.id()
+
+First time the id's aren't same - after that they are the same.
+
+
+Now, I could solve this by doing internal redirects i.e. instead of 
+calling &quot;return getSameSession&quot; I could go util.redirect... But that 
+isn't smart...
+
+I could also store some variables in the request object. I.e. 
+req.login[&quot;Logged_in&quot;] = True. i.e.:
+createSession:
+- Create session
+- Create req.login[&quot;Logged_in&quot;]
+
+getSameSession:
+- Check if  req.login[&quot;Logged_in&quot;] is set.
+- If  req.login[&quot;Logged_in&quot;] isn't set (we aren't doing an &quot;internal&quot; 
+call), then try to load the variables from our session.
+
+But how secure is this? And is there another way to handle this?
+I could also store the whole session object in the req  - - but ..  it 
+isn't very smart.
+
+And why does it happen (quite often!) that the session handling make 
+Apache server spin in an infinitive loop!?
+
+Kind regards
+Amir Salihefendic
+-----
+What we do in life echoes in eternity
+
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016048.html">[mod_python] Re: Anyone using Cheetah for templating?
+</A></li>
+	<LI>Next message: <A HREF="016036.html">[mod_python] The right way to handle sessions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16035">[ date ]</a>
+              <a href="thread.html#16035">[ thread ]</a>
+              <a href="subject.html#16035">[ subject ]</a>
+              <a href="author.html#16035">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,138 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Execute python code while having generated page
+	content already sent to browser - possible ?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Execute%20python%20code%20while%20having%20generated%20page%0A%09content%20already%20sent%20to%20browser%20-%20possible%20%3F&In-Reply-To=200802051209.03447.mateusz%40ant.gliwice.pl">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024814.html">
+   <LINK REL="Next"  HREF="024819.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Execute python code while having generated page
+	content already sent to browser - possible ?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Execute%20python%20code%20while%20having%20generated%20page%0A%09content%20already%20sent%20to%20browser%20-%20possible%20%3F&In-Reply-To=200802051209.03447.mateusz%40ant.gliwice.pl"
+       TITLE="[mod_python] Execute python code while having generated page
+	content already sent to browser - possible ?">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Tue Feb  5 17:35:25 EST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024814.html">[mod_python] Execute python code while having generated page
+	content already sent to browser - possible ?
+</A></li>
+        <LI>Next message: <A HREF="024819.html">[mod_python] compile mod_python on iSeries (AS/400)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24818">[ date ]</a>
+              <a href="thread.html#24818">[ thread ]</a>
+              <a href="subject.html#24818">[ subject ]</a>
+              <a href="author.html#24818">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 05/02/2008, Mateusz Korniak &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mateusz at ant.gliwice.pl</A>&gt; wrote:
+&gt;<i> Hi !
+</I>&gt;<i> Is there any way to continue execute python code while having generated page
+</I>&gt;<i> content already sent to browser ?
+</I>&gt;<i>
+</I>&gt;<i> What I would like to implement is:
+</I>&gt;<i>
+</I>&gt;<i> content = generate_page_content() # It takes 0.02[s]
+</I>&gt;<i> sent_to_browser(content) # We are not going to send anything more to browser
+</I>&gt;<i> lazy_processing_of_request() # May take serveral seconds.
+</I>&gt;<i>
+</I>&gt;<i> I do not want make browser to wait util lazy_processing_of_request() finishes
+</I>&gt;<i> to start receiving page contents.
+</I>&gt;<i>
+</I>&gt;<i> Is it possible ?
+</I>
+You can use:
+
+    req.status = apache.HTTP_OK
+    req.content_type = &quot;...&quot;
+    ....
+    req.write(&quot;....&quot;)
+
+    # do processing
+
+    return apache.OK
+
+The problem with doing this is that although the browser gets the
+response and can display it while you do your processing, Apache will
+not close the socket connection or be able to reuse it if keep alive
+is enabled, until the processing is complete. This could result in
+Apache holding lots of connections open longer than it needs to.
+
+Other option is to create a background thread to do the processing, so
+long as you give it data which is independent of the request object.
+In other words, if you try and access the request object after having
+returned from the request, Apache will most likely crash. This is
+because mod_python doesn't adequate protect against this happening.
+Problem with threads is controlling how many there are, as such you
+might need to implement a thread pool and job queuing systems for
+processing data so the number of threads doesn't blow out in number.
+
+What is probably the preferred way, is to run a long running back end
+process and communicate to it using XML-RPC, passing any data across
+which can then be processed by that back end process. Once the handler
+has handed off the data, it can just return immediately. Using a back
+end process also has the benefit that when Apache is running as a
+multiple process server, then subsequent requests could ask about the
+status of something by supplying some unique value returned by the
+original request. To do this though, the back end process would have
+to have some concurrency mechanism to allow processing in parallel
+with incoming requests to get status etc.
+
+Graham
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024814.html">[mod_python] Execute python code while having generated page
+	content already sent to browser - possible ?
+</A></li>
+	<LI>Next message: <A HREF="024819.html">[mod_python] compile mod_python on iSeries (AS/400)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24818">[ date ]</a>
+              <a href="thread.html#24818">[ thread ]</a>
+              <a href="subject.html#24818">[ subject ]</a>
+              <a href="author.html#24818">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

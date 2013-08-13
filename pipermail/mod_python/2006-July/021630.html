@@ -1,0 +1,320 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] modpython, mysqldb best paractice
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20modpython%2C%20mysqldb%20best%20paractice&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021628.html">
+   <LINK REL="Next"  HREF="021631.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] modpython, mysqldb best paractice</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Martijn Moeling</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20modpython%2C%20mysqldb%20best%20paractice&In-Reply-To="
+       TITLE="[mod_python] modpython, mysqldb best paractice">martijn at xs4us.nu
+       </A><BR>
+    <I>Wed Jul 19 09:53:29 EDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021628.html">[mod_python] Difference between run the web service standalone
+	and via mod_python
+</A></li>
+        <LI>Next message: <A HREF="021631.html">[mod_python] modpython, mysqldb best paractice
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21630">[ date ]</a>
+              <a href="thread.html#21630">[ thread ]</a>
+              <a href="subject.html#21630">[ subject ]</a>
+              <a href="author.html#21630">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Ok, some answers came in, but nobody seems to understand the first part.
+
+I guess you guys understand that I am trying to optimize for
+performance,
+
+Since I configured apache in such a manner that every request ends up in
+the same handler, so I have one python module and one handler for a
+number of different websites/domains.
+
+I have more but I'll limit to two:
+
+zoekveilig.nl
+mkbok.nl
+
+what id do (not real code)
+
+def handler(req)
+	if req.host.find(&quot;mkbok.nl&quot;)&gt; -1: 
+	#  the host part could be XXX.mkbok.nl
+	#  the host part could be xxx.yyy.mkbok.nl
+		import mkbOK as mkbOK
+		x = mkbOK.init() # create the class instance
+		page=x.start(req)
+	if req.host==&quot;www.zoekveilig.nl&quot;
+		import zoekveilig as zoekveilig
+		x = zoekveilig.init) # create class instance
+		page=x.start(req)
+
+	.....
+
+	req.write(page)		
+	return apache.OK
+
+in my real world it is a bit more complicated since I do not configure
+the sites in code but the above does indicate the workings, it is
+&quot;Functional description&quot; code.
+
+Next, all content other than the default page (index.html alike) for
+that website (bit confusing on mkbOK since the hostpart is dynamic) and
+as I said before it is derived from the host part for further
+processing.
+
+If mod python is running in Interpreter per directory mode, one
+interpreter is created since all my content for mkbOK resides in / in
+total over 1 in total over 14.000 different pages, and since we have
+over 10.000 pageviews per day and aim for 100.000+ per day at the end of
+the year I am preparing for a second server (which my system can handle)
+
+If mod python is running in Interpreter per directive mode I can and up
+with god knows how many interpreters.
+
+Both of the above seem wrong for best performance, but I'm puzzled how
+to optimize, Basically that is the question...
+
+The register cleanup is clear now, since my system creates the database
+connection in the class module (the init call creates the class) I might
+have to alter that but.
+
+The system goes from normal cpu utilization to 100% within a few
+microseconds, and it happens now and then, sometimes within a few hours
+after a reboot, sometimes it runs for weeks without trouble
+
+The number of pages does not seem to matter, and it mostly happens when
+it is NOT busy.
+
+I tried multiple cron thingies to investigate, but even cron slows down
+so mutch that a &quot;service httpd restart, and/or a service mysql restart&quot;
+take hours to complete, 
+
+I did something like this as a shell script: (runs every 5 minutes)
+
+
+Find mysqlpid
+
+top -n 1 -p mysqlpid  (run top once and look for mysql)
+if sed (to see wether it runs with more than 50% cpu)
+    write timestamp to log file
+    service httpd stop 
+    write timestamp to log file
+    service mysqld restart
+    write timestamp to log file
+    service httpd start
+    write timestamp to log file
+
+	
+in fact (but keep in mind I have had no interactive access) I think
+mysql stops responding at all even to signals. I even tried &quot;nice&quot; in
+the hope that mysql could not take 100% but that was not the case and it
+slowed down the page building process (not surprised haha). Even
+installing a second CPU did not help.
+
+The even more stupid thing is that this behavior does not happen on a
+PIII 1 Ghz with a excact copy of the HDD (dd if=/dev/hd1 of=/dev/hd2)
+
+Since the cpu in our production machine is 64 bit I suspected that, and
+build apache, and mod_python and python all from scratch,.. no luck.
+
+Different mysql versions did not matter too.
+
+The oddest thing is that after an update of my python code on the server
+(new release of my system) is takes 1 or 2 days before it happens, than
+it takes say 4 or 5 days, next it runs ok for weeks.
+
+And YES we even replaced the entire machine with a different one (our
+server is a Dell 1U rack server, don't know the excact type, sorry)
+
+Any ideas, I am a experienced systems manager and programmer but just
+hoped I am not the only one with this oddity
+
+Martijn
+
+
+
+-----Oorspronkelijk bericht-----
+Van: Jim Gallacher [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">jpg at jgassociates.ca</A>] 
+Verzonden: Wednesday, July 19, 2006 14:53
+Aan: Martijn Moeling
+CC: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Onderwerp: Re: [mod_python] modpython, mysqldb best paractice
+
+Martijn Moeling wrote:
+&gt;<i> Hi all,
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> I started the development of a specific kind of CMS over 2 years ago,
+</I>&gt;<i> and due to sparse documentation I am still puzzled about a few things.
+</I>&gt;<i> 
+</I>&gt;<i> Basically it consist of one .py and a mysqldatabase with all the data
+</I>&gt;<i> and templates, ALL pages are generated on the fly.
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> First of all I am confused about PythonInterPerDirectory and
+</I>&gt;<i> PythonInterpPerDirectory
+</I>&gt;<i> 
+</I>&gt;<i> In the way I use modpython.
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> My apache has no configured virtual hosts since my CMS can handle this
+</I>&gt;<i> on its own by looking at req.host
+</I>&gt;<i> 
+</I>&gt;<i> On one site which is running on my system ( <A HREF="http://www.mkbok.nl">http://www.mkbok.nl</A>
+</I>&gt;<i> &lt;<A HREF="http://www.mkbok.nl/">http://www.mkbok.nl/</A>&gt;  ) we use different subdomains, so basically 
+</I>&gt;<i> 
+</I>&gt;<i> the page to be build is derived from the req.host (e.g.
+</I>&gt;<i> xxx.yyy.mkbok.nl) where xxx and yyy are variable. 
+</I>&gt;<i> 
+</I>&gt;<i> This is done by DNS records like   *     A      ip1.ip2.ip3.ip4
+</I>
+You don't actually state what problem here. ;)
+
+&gt;<i> My next problem seems mysql and mysqldb.
+</I>&gt;<i> 
+</I>&gt;<i> Since I do not know which website is requested (multiple are running
+</I>on
+&gt;<i> that server) I open a database connection, do my stuff and close the
+</I>&gt;<i> connection, 
+</I>&gt;<i> 
+</I>&gt;<i> Again the database selection comes from req.host, and here the
+</I>&gt;<i> domainname is used for database selection.
+</I>&gt;<i> 
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> The system runs extremely well, but once in a while the webserver
+</I>&gt;<i> becomes so busy that it does not respond to page request anymore. 
+</I>&gt;<i> 
+</I>&gt;<i> We suspect that mysql is the problem here since the only thing we can
+</I>&gt;<i> see is mysql is consuming more and more swapspace and at some point it
+</I>&gt;<i> runs out of resources and starts looping. At that point the system
+</I>&gt;<i> (Linux) keeps running but with a 100% cpu utilization and we are
+</I>unable
+&gt;<i> to login and investigate. 
+</I>&gt;<i> 
+</I>&gt;<i> So logging in to the UPS remotely and power down the system by
+</I>virtually
+&gt;<i> unplugging the cable is the only (and BAD) solution.
+</I>
+Ouch. Maybe you can run a cron job every 5 minutes to check the load and
+try to catch the problem before you hit 100%? I'm not suggesting this is
+a permanent solution, just do it until you can track down the cause.
+
+Is there a chance that mysql is hitting its connection limit? (although
+I'm not sure if that would cause the behaviour you describe).
+
+&gt;<i> 
+</I>&gt;<i> So what is best practice when you have to connect to mysql with
+</I>mysqldb
+&gt;<i> in a mod_python environment keeping in mind that the database
+</I>connection
+&gt;<i> has to be build every time a visitor requests a page? Think in terms
+</I>of
+&gt;<i> a &quot;globally&quot; available db or db.cursor connection.
+</I>
+I don't think the performance penalty for creating a connection to mysql
+is too great - at least compared to some other databases. You might want
+to google for more information.
+
+&gt;<i> Since global variables are troublesome in the .py contaning the
+</I>handler
+&gt;<i> I use a class from which an instance is created every time a client
+</I>&gt;<i> connects and the DB connection is global to that class, ist that
+</I>wrong?
+
+This looks OK.
+
+&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i> What happenens if mod_python finds an error before my mysqldb
+</I>connection
+&gt;<i> is closed (not that this happenes a lot, but it does happen, sorry)
+</I>
+It depends on how you handle the exception. This is why you should close
+the connection in a registered cleanup function, which will always run.
+
+&gt;<i> 
+</I>&gt;<i> Also I do not understand the req.register_cleanup() method, what is
+</I>&gt;<i> cleaned up and what not?
+</I>
+Whatever function you register is run during the cleanup phase (unless
+mod_python segfaults - but then you've got other problems). The cleanup
+phase occurs after the response has been sent and anything registered is
+guaranteed to run, regardless of what happens in prior phases. Typical
+usage looks like this:
+
+def handler(req):
+    conn = MySQLdb.connect(db='blah', user='blah', passwd='blah')
+    req.register_cleanup(db_cleanup, conn)
+
+    ... do your request handling ...
+
+    return apache.OK
+
+
+def db_cleanup(connection):
+    connection.close()
+
+Jim
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021628.html">[mod_python] Difference between run the web service standalone
+	and via mod_python
+</A></li>
+	<LI>Next message: <A HREF="021631.html">[mod_python] modpython, mysqldb best paractice
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21630">[ date ]</a>
+              <a href="thread.html#21630">[ thread ]</a>
+              <a href="subject.html#21630">[ subject ]</a>
+              <a href="author.html#21630">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

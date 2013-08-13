@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Fancy Shmancy Exception Output
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Fancy%20Shmancy%20Exception%20Output&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008116.html">
+   <LINK REL="Next"  HREF="008118.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+<table border=0 width="100%"><tr><td valign="top">
+   <H1>[mod_python] Fancy Shmancy Exception Output</H1>
+    <B>Chris Hagner</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Fancy%20Shmancy%20Exception%20Output&In-Reply-To="
+       TITLE="[mod_python] Fancy Shmancy Exception Output">CHagner at fool.com
+       </A><BR>
+    <I>Tue Apr 24 09:41:38 EST 2001</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008116.html">[mod_python] Fancy Shmancy Exception Output
+</A></li>
+        <LI>Next message: <A HREF="008118.html">[mod_python] Apache settings wrong?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8117">[ date ]</a>
+              <a href="thread.html#8117">[ thread ]</a>
+              <a href="subject.html#8117">[ subject ]</a>
+              <a href="author.html#8117">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Yeah, the colors are pretty nasty... I'm thinking Yee (the author) is
+color-blind...
+
+FYI, cgitb does not have any 2.1 dependencies... I have it wired into my
+handler and it works great (running 2.0).  As I said, this is less ideal,
+since it should really be wired into apache.py so that the handler isn't
+bothered with catching EVERY error...
+
+I've gotten some pretty good feedback from our developers.  We're so used to
+getting an error and then having to go to our tail of the error log (and
+then to the code to see what line it is)... it's very nice to shorten that
+cycle.
+
+Here's the code snippet I used to integrate it (Prepare to be wowed...)
+
+import cgitb
+
+# Within the handler module's handler method...
+
+    try:
+        # all of the stuff that happens in my handler's primary method
+    except:
+       # NOTE: I use my own request object to wrap the apache-provided one, 
+       # so these calls are not the standard apache API calls
+       req.setContentType(&quot;text/html&quot;)
+       req.sendHTTPHeader()
+       # Calling the handle method of cgitb just prints the output of 
+       # breaker() and html() to standard out.
+       # Thus, I skip that and do it myself.
+       errHtml = str(cgitb.breaker()) + str(cgitb.html())
+       req.write(errHtml)
+
+    return apache.OK
+
+Grisha, I'm more than happy to make the mod to apache.py if you don't have
+the time... All I'd need is a new directive that is accessible from within
+mod_python.apahce.ReportError().  I don't think it would require any other
+changes.  
+
+Okay, thinking about it more, I'd add a parameter to ReportError called
+error_handler (just like how the debug parameter is passed in)...
+
+Thus, something like this would be added to mod_python.apache.Dispatch()
+
+        config = _req.get_config()
+        if config.has_key(&quot;PythonErrorHandler&quot;):
+            error_handler = config[&quot;PythonErrorHandler&quot;]
+        else:
+            error_handler = None
+
+and all ReportError() calls would have error_handler passed in...
+
+        result = ReportError(etype, value, traceback, htype=htype,
+hname=handler, debug=debug, error_handler=error_handler)
+
+Then, ReportError would have something like this...
+
+         if not debug:
+                return HTTP_INTERNAL_SERVER_ERROR
+         else:
+                # write to client
+                if error_handler:
+                        req.content_type = 'text/html'
+                        s = str(cgitb.breaker()) + str(cgitb.html())
+                else:
+                        req.content_type = 'text/plain'
+                        s = '\nMod_python error: &quot;%s %s&quot;\n\n' % (htype,
+hname)
+                        for e in traceback.format_exception(etype, evalue,
+etb):
+                             s = s + e + '\n'
+
+                req.send_http_header()
+                req.write(s)
+
+                return DONE
+
+This code is a bit of a brain dump on my part, so don't even think that I've
+run/tested it yet... :-)  Let me know if I'm missing something... 
+
+Chris
+
+-----Original Message-----
+From: Gregory (Grisha) Trubetskoy [mailto:<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grisha at modpython.org</A>]
+Sent: Monday, April 23, 2001 11:54 PM
+To: Chris Hagner
+Cc: <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+Subject: Re: [mod_python] Fancy Shmancy Exception Output
+
+
+
+I propose a new directive:
+
+PythonPinkError On
+
+seriosly speaking - this looks neat. I wonder if it has anything specific
+to python 2.1 in it, since mod_python has to be compatible with 1.5.2 I
+think, at least for a while...
+
+On Mon, 23 Apr 2001, Chris Hagner wrote:
+
+&gt;<i> Hey gang,
+</I>&gt;<i>
+</I>&gt;<i> There's a utility called pydoc that's in the new python 2.1 release...
+</I>&gt;<i> anyway, the author of it wrote a really snazzy error handling page for cgi
+</I>&gt;<i> scripts (called cgitb)... check out the output and see if you find it
+</I>&gt;<i> useful.
+</I>&gt;<i>
+</I>&gt;<i> Here's a sample cgitb output page...
+</I>&gt;<i> <A HREF="http://www.lfw.org/python/test4.html">http://www.lfw.org/python/test4.html</A>
+</I>&gt;<i>
+</I>&gt;<i> Here's where you can get the module for it...
+</I>&gt;<i> <A HREF="http://www.lfw.org/python/">http://www.lfw.org/python/</A>
+</I>&gt;<i>
+</I>&gt;<i> Okay, except for the nasty colors, I'd love to see something closer to
+</I>this
+&gt;<i> in the standard mod_python error handler(apache.py).  I guess the most
+</I>&gt;<i> flexible way would be to have a PythonErrorModule directive and allow each
+</I>&gt;<i> person to override the default error display with their own module (in
+</I>this
+&gt;<i> case, the cgitb module).  The key is that this functionality would only
+</I>&gt;<i> really be appropriate for a development environment...
+</I>&gt;<i>
+</I>&gt;<i> Thoughts?
+</I>&gt;<i>
+</I>&gt;<i> Chris
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://www.modpython.org/mailman/listinfo/mod_python">http://www.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008116.html">[mod_python] Fancy Shmancy Exception Output
+</A></li>
+	<LI>Next message: <A HREF="008118.html">[mod_python] Apache settings wrong?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8117">[ date ]</a>
+              <a href="thread.html#8117">[ thread ]</a>
+              <a href="subject.html#8117">[ subject ]</a>
+              <a href="author.html#8117">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

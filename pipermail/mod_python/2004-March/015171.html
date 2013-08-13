@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Re: persistent, reliable globals
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20persistent%2C%20reliable%20globals&In-Reply-To=20040308183456.J41550-100000%40inman.medianstrip.net">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015170.html">
+   <LINK REL="Next"  HREF="015174.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Re: persistent, reliable globals</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Ben</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Re%3A%20persistent%2C%20reliable%20globals&In-Reply-To=20040308183456.J41550-100000%40inman.medianstrip.net"
+       TITLE="[mod_python] Re: persistent, reliable globals">ben at medianstrip.net
+       </A><BR>
+    <I>Tue Mar  9 04:18:09 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015170.html">[mod_python] Re: persistent, reliable globals
+</A></li>
+        <LI>Next message: <A HREF="015174.html">[mod_python]  Supporting legacy PHP pages while still
+	givingmod_python the root
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15171">[ date ]</a>
+              <a href="thread.html#15171">[ thread ]</a>
+              <a href="subject.html#15171">[ subject ]</a>
+              <a href="author.html#15171">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Whoops!  I forgot to mention, PythonImport is a server directive, so
+it's only valid at server-scope.  E.g. not in Location or Directories.
+
+B
+
+On Mon, 8 Mar 2004, Ben wrote:
+
+&gt;<i> Hello all,
+</I>&gt;<i>
+</I>&gt;<i> After grovelling mod_python, mod_perl, and Apache API docs, what i've
+</I>&gt;<i> discovered is this:
+</I>&gt;<i>
+</I>&gt;<i> If you just want to initialize a global variable, you can probably do
+</I>&gt;<i> that using the &quot;PythonImport&quot; directive.  in short:
+</I>&gt;<i>
+</I>&gt;<i> ServerName foo.com
+</I>&gt;<i> PythonPath &quot;sys.path+['/path/to/MyGlobals']&quot;
+</I>&gt;<i> PythonImport MyGlobals foo.com
+</I>&gt;<i>
+</I>&gt;<i> or something like this, depending on how you set the
+</I>&gt;<i> PythonInterpPerDirective/Directory settings.  PythonImport happens
+</I>&gt;<i> per-subinterpreter (not for the main interpreter, nor per-thread),
+</I>&gt;<i> inside of the apache per-child hook.  This of course will only be
+</I>&gt;<i> shared within a child process, within a named subinterpreter.  There
+</I>&gt;<i> are good docs on how it is used in the mod_python manuals.
+</I>&gt;<i>
+</I>&gt;<i> More examples:
+</I>&gt;<i>
+</I>&gt;<i> PythonInterpPerDirective
+</I>&gt;<i> &lt;Directory /mydir&gt;
+</I>&gt;<i> 	AddHandler mod_python .py
+</I>&gt;<i> 	PythonHandler mod_python.publisher
+</I>&gt;<i> 	PythonPath &quot;sys.path+['/path/to/MyGlobals']&quot;
+</I>&gt;<i> 	PythonImport MyGlobals /mydir
+</I>&gt;<i> &lt;/Directory&gt;
+</I>&gt;<i>
+</I>&gt;<i> OR
+</I>&gt;<i>
+</I>&gt;<i> # Creates a subinterpreter &quot;MyInterpreter&quot; which handles the
+</I>&gt;<i> # requests in this scope to be run there
+</I>&gt;<i> PythonInterpreter MyInterpreter
+</I>&gt;<i> PythonPath &quot;sys.path+['/path/to/MyGlobals']&quot;
+</I>&gt;<i> PythonImport MyGlobals MyInterpreter
+</I>&gt;<i>
+</I>&gt;<i> There are some caveats, however:
+</I>&gt;<i>
+</I>&gt;<i> 1) The imports happen at child initialization time, when a lot of the
+</I>&gt;<i> configuration hasn't been merged in yet.  This includes:
+</I>&gt;<i> PythonInterpreter (!!!), PythonOptions, ....
+</I>&gt;<i>
+</I>&gt;<i> 2) PythonImport is not really subinterpreter-scoped: it is a global
+</I>&gt;<i> directive that specifies the interpreter name.  Plus PythonInterpreter
+</I>&gt;<i> isn't in effect at the time of import, either.  It would be nice to
+</I>&gt;<i> have a directive like
+</I>&gt;<i>
+</I>&gt;<i> PythonInterpInit Foo
+</I>&gt;<i>
+</I>&gt;<i> which would affect the interpreter &quot;in the current scope&quot; in the
+</I>&gt;<i> apache configuration -- i.e. at the virtual server level by default,
+</I>&gt;<i> or per directive / directory if those options are used.
+</I>&gt;<i>
+</I>&gt;<i> 3) This is not entirely specific to PythonImport, but it is difficult
+</I>&gt;<i> in general to get your hands on configuration variables
+</I>&gt;<i> (PythonOption-s, in particular) not in the context of a request.  It
+</I>&gt;<i> would be nice if each subinterpreter had access to the Apache
+</I>&gt;<i> configuration variables (e.g. PythonOptions) scope-local to it.
+</I>&gt;<i>
+</I>&gt;<i> As a workaround, I'm using named interpreters and moving all
+</I>&gt;<i> sub-interpreter-specific configuration into importable files.
+</I>&gt;<i>
+</I>&gt;<i> 4) Running with PythonAutoReload may still kill global variables if
+</I>&gt;<i> you're not careful.
+</I>&gt;<i>
+</I>&gt;<i> B
+</I>&gt;<i>
+</I>&gt;<i> ps put this into the FAQ?
+</I>&gt;<i>
+</I>&gt;<i> On Mon, 8 Mar 2004, Ben wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; Hello,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; it seems like this is a question that is asked enough to be worth
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; a) putting into the FAQ (for now), and
+</I>&gt;<i> &gt; b) eventually trying to solve.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; i used to do some apache API coding so i'd be willing to look into
+</I>&gt;<i> &gt; trying to support per-child (and possibly per-thread) initialization
+</I>&gt;<i> &gt; code.  i remember this used to be possible, and looking at mod_perl i
+</I>&gt;<i> &gt; see it has a PerlChildExitHandler.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; <A HREF="http://perl.apache.org/docs/2.0/user/handlers/server.html">http://perl.apache.org/docs/2.0/user/handlers/server.html</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; i'll start code-diving today, and let people know what i find.  (oh
+</I>&gt;<i> &gt; woe to the python programmer who has to read C!)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; take care, B
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ps i happen to want this for my project, which is an object / aspect
+</I>&gt;<i> &gt; oriented servlet framework, that supports mixin-style functionality
+</I>&gt;<i> &gt; for session-based authentication, caching, etc.  i plan on releasing
+</I>&gt;<i> &gt; that too, after some bugfixes and documentation.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015170.html">[mod_python] Re: persistent, reliable globals
+</A></li>
+	<LI>Next message: <A HREF="015174.html">[mod_python]  Supporting legacy PHP pages while still
+	givingmod_python the root
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15171">[ date ]</a>
+              <a href="thread.html#15171">[ thread ]</a>
+              <a href="subject.html#15171">[ subject ]</a>
+              <a href="author.html#15171">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

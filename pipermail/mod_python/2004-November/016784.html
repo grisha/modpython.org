@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Bug in setting up of config_dir from Handler
+	directives.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Bug%20in%20setting%20up%20of%20config_dir%20from%20Handler%0A%09directives.&In-Reply-To=41923474.1070403%40sjsoft.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016782.html">
+   <LINK REL="Next"  HREF="016788.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Bug in setting up of config_dir from Handler
+	directives.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Bug%20in%20setting%20up%20of%20config_dir%20from%20Handler%0A%09directives.&In-Reply-To=41923474.1070403%40sjsoft.com"
+       TITLE="[mod_python] Bug in setting up of config_dir from Handler
+	directives.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Wed Nov 10 17:18:59 EST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016782.html">[mod_python] Directory separator in uri/filename on Win32.
+</A></li>
+        <LI>Next message: <A HREF="016788.html">[mod_python] Bug in setting interpreter name with
+	PythonInterpPerDirectory.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16784">[ date ]</a>
+              <a href="thread.html#16784">[ thread ]</a>
+              <a href="subject.html#16784">[ subject ]</a>
+              <a href="author.html#16784">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Nov 10 17:32, David Fraser &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">davidf at sjsoft.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Subject: Re: [mod_python] Directory separator in uri/filename on Win32.
+</I>&gt;<i>
+</I>&gt;<i> Graham Dumpleton wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt;&gt; One more question though. Does the use of POSIX path conventions 
+</I>&gt;<i> &gt;&gt; extend to
+</I>&gt;<i> &gt;&gt; other areas where a path might be defined internally by mod_python?
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; For example, I use the following code to effectively determine the 
+</I>&gt;<i> &gt;&gt; directory
+</I>&gt;<i> &gt;&gt; where the PythonHandler which applies to the request being serviced 
+</I>&gt;<i> &gt;&gt; was set.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;     if hasattr(req,&quot;hlist&quot;):
+</I>&gt;<i> &gt;&gt;       # In mod_python 3.X have the req.hlist member.
+</I>&gt;<i> &gt;&gt;       root = req.hlist.directory
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt;     elif hasattr(req,&quot;get_dirs&quot;):
+</I>&gt;<i> &gt;&gt;       # In mod_python 2.X have the req.get_dirs() method.
+</I>&gt;<i> &gt;&gt;       root = req.get_dirs()[&quot;PythonHandler&quot;]
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Is &quot;root&quot; going to also use POSIX path convention. This may depend 
+</I>&gt;<i> &gt;&gt; more on how
+</I>&gt;<i> &gt;&gt; mod_python is implemented than Apache depending on how mod_python 
+</I>&gt;<i> &gt;&gt; determines
+</I>&gt;<i> &gt;&gt; what value is used for this.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Is anyone able to run the check for me to answer my extra question about
+</I>&gt;<i> &gt; what the handler directory is set to on Win32 platform? Ie., confirmation
+</I>&gt;<i> &gt; that it also still uses POSIX directory separate convention and not 
+</I>&gt;<i> &gt; Win32.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The required publisher code is:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; def index(req):
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   root = &quot;???&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   if hasattr(req,&quot;hlist&quot;):
+</I>&gt;<i> &gt;     # In mod_python 3.X have the req.hlist member.
+</I>&gt;<i> &gt;     root = req.hlist.directory
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   elif hasattr(req,&quot;get_dirs&quot;):
+</I>&gt;<i> &gt;     # In mod_python 2.X have the req.get_dirs() method.
+</I>&gt;<i> &gt;     root = req.get_dirs()[&quot;PythonHandler&quot;]
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   return root
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Thanks in advance.
+</I>&gt;<i> 
+</I>&gt;<i> Ran this on my Windows machine: displayed the following in my browser:
+</I>&gt;<i> 
+</I>&gt;<i> C:/Temp/jSuite.py/jLogbook/html/pubtest/\
+</I>&gt;<i> 
+</I>&gt;<i> Not sure what the extra \ is for
+</I>
+The trailing '\' is there because mod_python has a bug in it.
+
+The problem is that mod_python doesn't seem to take into account that the
+directory is given to it by Apache in POSIX directory naming convention.
+Instead, because mod_python knows it is on Win32, it looks for a trailing '\'
+and since it doesn't see one, because it is actually '/', it goes and adds a '\'.
+
+The code in mod_python.c is:
+
+static void *python_create_dir_config(apr_pool_t *p, char *dir)  
+{
+ 
+    py_config *conf = python_create_config(p);
+ 
+    /* make sure directory ends with a slash */
+    if (dir &amp;&amp; (dir[strlen(dir) - 1] != SLASH)) 
+        conf-&gt;config_dir = apr_pstrcat(p, dir, SLASH_S, NULL);
+    else
+        conf-&gt;config_dir = apr_pstrdup(p, dir);
+ 
+    return conf;
+}
+
+It should in this case ignore whether it is on Win32 and instead use:
+
+static void *python_create_dir_config(apr_pool_t *p, char *dir)  
+{
+ 
+    py_config *conf = python_create_config(p);
+ 
+    /* make sure directory ends with a slash */
+    if (dir &amp;&amp; (dir[strlen(dir) - 1] != '/')) 
+        conf-&gt;config_dir = apr_pstrcat(p, dir, &quot;/&quot;, NULL);
+    else
+        conf-&gt;config_dir = apr_pstrdup(p, dir);
+ 
+    return conf;
+}
+
+BTW, the definitions of SLASH and SLASH_S are in mod_python.h.
+
+#ifdef WIN32
+#define SLASH '\\'
+#define SLASH_S &quot;\\&quot;
+#else
+#define SLASH '/'
+#define SLASH_S &quot;/&quot;
+#endif
+
+I wander where else there are little mistakes like this in mod_python
+where it doesn't take into consideration that Apache passed it POSIX
+style pathnames and not Win32 ones.
+
+Anyway, possibly another one for the TODO list of things to fix. Someone
+want to confirm this analysis or make the change and see what happens
+then.
+
+--
+Graham Dumpleton (<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">grahamd at dscpl.com.au</A>)
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016782.html">[mod_python] Directory separator in uri/filename on Win32.
+</A></li>
+	<LI>Next message: <A HREF="016788.html">[mod_python] Bug in setting interpreter name with
+	PythonInterpPerDirectory.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16784">[ date ]</a>
+              <a href="thread.html#16784">[ thread ]</a>
+              <a href="subject.html#16784">[ subject ]</a>
+              <a href="author.html#16784">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

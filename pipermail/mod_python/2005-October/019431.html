@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Unable to import modules in subdirs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Unable%20to%20import%20modules%20in%20subdirs&In-Reply-To=e3a291250510271210n47546b3cnb977122d74ca13d%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019430.html">
+   <LINK REL="Next"  HREF="019432.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Unable to import modules in subdirs</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Jorey Bump</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Unable%20to%20import%20modules%20in%20subdirs&In-Reply-To=e3a291250510271210n47546b3cnb977122d74ca13d%40mail.gmail.com"
+       TITLE="[mod_python] Unable to import modules in subdirs">list at joreybump.com
+       </A><BR>
+    <I>Thu Oct 27 15:35:33 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019430.html">[mod_python] Unable to import modules in subdirs
+</A></li>
+        <LI>Next message: <A HREF="019432.html">[mod_python] Unable to import modules in subdirs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19431">[ date ]</a>
+              <a href="thread.html#19431">[ thread ]</a>
+              <a href="subject.html#19431">[ subject ]</a>
+              <a href="author.html#19431">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Brandon N wrote:
+&gt;<i> Hello all,
+</I>&gt;<i>    I am new to mod_python and would like to switch some existing code of 
+</I>&gt;<i> mine away from php. I'd be very happy to get up and running with python.
+</I>&gt;<i> 
+</I>&gt;<i> Unfortunately, I've run into a snag or two. I currently have an apache 
+</I>&gt;<i> httpd.conf of the following:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;Directory /var/www/localhost/htdocs/py&gt;
+</I>&gt;<i>         SetHandler mod_python .py
+</I>&gt;<i>         PythonPath &quot;['/var/www/localhost/htdocs/py', 
+</I>&gt;<i> '/var/www/localhost/htdocs/py/Admin']+sys.path&quot;
+</I>
+Don't do that. Create a directory outside of the DocumentRoot for your 
+own module repository.
+
+&gt;<i>         PythonHandler mptest
+</I>&gt;<i>         PythonDebug On
+</I>&gt;<i> &lt;/Directory&gt;
+</I>&gt;<i> 
+</I>&gt;<i> And a directory of:
+</I>&gt;<i> 
+</I>&gt;<i> /var/www/localhost/htdocs/py/
+</I>&gt;<i> Admin/  LocalAdmin.py  __init__.py  mptest.py
+</I>&gt;<i> 
+</I>&gt;<i> __init__.py's contents:
+</I>&gt;<i> __all__ = [ &quot;Admin&quot; ]
+</I>&gt;<i> 
+</I>&gt;<i> /var/www/localhost/htdocs/py/Admin/
+</I>&gt;<i> Admin.py  __init__.py
+</I>
+You've turned this directory into a package, so when you import Admin, 
+it is actually importing /var/www/localhost/htdocs/py/Admin/__init__.py, 
+not /var/www/localhost/htdocs/py/Admin/Admin.py.
+
+&gt;<i> __init__.py's contents:
+</I>&gt;<i> import sys
+</I>&gt;<i> sys.path.insert( 0, '../' )
+</I>
+?
+
+&gt;<i> both Admin and LocalAdmin have similar code of:
+</I>&gt;<i> class LocalAdmin( object ):
+</I>&gt;<i>     def __init__( self ):
+</I>&gt;<i>         self._var = -1
+</I>&gt;<i> 
+</I>&gt;<i>     def var( self ):
+</I>&gt;<i>         return self._var
+</I>&gt;<i> 
+</I>&gt;<i> Though Admin defines the class as RemoteAdmin
+</I>&gt;<i> 
+</I>&gt;<i> mptest.py is:
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i> import LocalAdmin
+</I>&gt;<i> import Admin
+</I>
+With your current scheme, you'd have to import Admin.Admin to get an 
+Admin.Admin.RemoteAdmin object.
+
+&gt;<i> def handler(req):
+</I>&gt;<i>     req.content_type = 'text/plain'
+</I>&gt;<i>     req.send_http_header()
+</I>&gt;<i> 
+</I>&gt;<i>     LA = LocalAdmin.LocalAdmin( )
+</I>&gt;<i>     #A = Admin.RemoteAdmin( )
+</I>&gt;<i> 
+</I>&gt;<i>     req.write( &quot;%s\n&quot; % LA.var())
+</I>&gt;<i>     for l in dir( Admin ):
+</I>&gt;<i>         req.write( &quot;%s\n&quot; % l )
+</I>&gt;<i>     return apache.OK
+</I>&gt;<i> 
+</I>&gt;<i> This code works, with the output of
+</I>&gt;<i> ---
+</I>&gt;<i> 
+</I>&gt;<i> -1
+</I>&gt;<i> __all__
+</I>&gt;<i> __builtins__
+</I>&gt;<i> __doc__
+</I>&gt;<i> __file__
+</I>&gt;<i> __name__
+</I>&gt;<i> __path__
+</I>&gt;<i> sys
+</I>&gt;<i> 
+</I>&gt;<i> ---
+</I>&gt;<i> So RemoteAdmin is not seen, though I can in fact import Admin...
+</I>&gt;<i> 
+</I>&gt;<i> Uncommenting the A = ... line throws an expected exception given the dir 
+</I>&gt;<i> results:
+</I>&gt;<i> 
+</I>&gt;<i>   File &quot;/var/www/localhost/htdocs/py/mptest.py&quot;, line 17, in handler
+</I>&gt;<i>     A = Admin.RemoteAdmin( )
+</I>&gt;<i> 
+</I>&gt;<i> AttributeError: 'module' object has no attribute 'RemoteAdmin'
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Everything in the py and py/Admin have permissions:
+</I>&gt;<i> rwxr-xr-x
+</I>&gt;<i> 
+</I>&gt;<i> Any clues as to what I'm missing?
+</I>&gt;<i> 
+</I>&gt;<i> Thanks in advance for any insight!
+</I>
+Do this instead:
+
+create /var/www/localhost/python
+
+Then:
+
+  /var/www/localhost/python/LocalAdmin.py
+  /var/www/localhost/python/Admin/__init__.py
+
+You want Admin/__init__.py to resemble LocalAdmin.py (but with your 
+RemoteAdmin class, etc.). Of course, you could just create Admin.py at 
+the same level as LocalAdmin.py, but this primitively demonstrates how 
+to make a package.
+
+Change your PythonPath to:
+
+  PythonPath &quot;['/var/www/localhost/python'] + sys.path&quot;
+
+Now your mptest.py should work without modification.
+
+HTH, YMMV, untested, exchanges only, NO REFUNDS. :)
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019430.html">[mod_python] Unable to import modules in subdirs
+</A></li>
+	<LI>Next message: <A HREF="019432.html">[mod_python] Unable to import modules in subdirs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19431">[ date ]</a>
+              <a href="thread.html#19431">[ thread ]</a>
+              <a href="subject.html#19431">[ subject ]</a>
+              <a href="author.html#19431">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python.publisher and req.path_info.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python.publisher%20and%20req.path_info.&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017559.html">
+   <LINK REL="Next"  HREF="017561.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python.publisher and req.path_info.</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python.publisher%20and%20req.path_info.&In-Reply-To="
+       TITLE="[mod_python] mod_python.publisher and req.path_info.">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Tue Mar  1 18:05:11 EST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017559.html">[mod_python] Session example and problems.
+</A></li>
+        <LI>Next message: <A HREF="017561.html">[mod_python] mod_python.publisher and req.path_info.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17560">[ date ]</a>
+              <a href="thread.html#17560">[ thread ]</a>
+              <a href="subject.html#17560">[ subject ]</a>
+              <a href="author.html#17560">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>One of the issues in using mod_python.publisher is that the
+req.path_info data is used in performing traversal to work out
+which Python method is to be called or which object to be
+accessed. The contents of req.path_info must match exactly
+what object structure is available. There is no ability for
+mod_python.publisher to match as far as it can and then
+supply what is left as additional path_info for use by the called
+method. There were however ways of doing it if you constructed
+your own handler and didn't use mod_python.publisher.
+
+Now others may see the following solution to not being able
+to process additional path_info in mod_python.publisher as
+obvious, and I admit I have toyed with the idea in my mind for
+a while but hadn't actually tried it. Now that I have, thought I
+would post it here along with some more thoughts on what
+could be done in the future if/when mod_python.publisher is
+updated to support new style classes.
+
+The code I have been playing with is:
+
+###
+
+class _extra_path_info:
+  def __init__(self,callback,path=&quot;&quot;):
+    self.__callback = callback
+    self.__path = path
+  def __call__(self,req):
+    req.extra_path_info = self.__path
+    return self.__callback(req)
+  def __getattr__(self,name):
+    if name[0] != '_':
+      return _extra_path_info(self.__callback,'/'.join([self.__path,name]))
+    raise AttributeError()
+
+class A: 
+  def __init__(self):
+    self.method = _extra_path_info(self.method)
+  def method(self,req):
+    return req.path_info,req.extra_path_info
+
+a = A()
+
+def method(req):
+  return req.path_info,req.extra_path_info
+
+method = _extra_path_info(method)
+
+###
+
+The intent with the code is that the _extra_path_info class is used
+to wrap a function or method. By doing this, as a URL is now resolved
+against the object structure, a transient instance of _extra_path_info
+is created for each element of the path that extends beyond that
+which would have matched the function or method in the first place.
+When the end of the URL is reached and a call is made against the
+object, the original wrapped method is called, with req.extra_path_info
+being set to be the part of the URL beyond that which matched the
+original method.
+
+The result of all this for various URLs is as follows:
+
+  '/method' --&gt; ('/method', '')
+  '/method/a/b/c' --&gt; ('/method/a/b/c', '/a/b/c')
+
+  '/a/method' --&gt; ('/a/method', '')
+  '/a/method/a/b/c' --&gt; ('/a/method/a/b/c/', '/a/b/c')
+
+Now I don't recollect ever seeing anything on the mailing list or in any
+other documentation talking about such a technique, but it could be
+quite useful in certain type of circumstances.
+
+The only issue with it is that _extra_path_info has to be customised
+for each method being wrapped if the method also accepts form
+parameters. In this case, any form parameters that are accepted by
+the wrapped method have to exist in the __call__() method and it has
+to forward them to the wrapped method.
+
+Now I haven't looked too deeply into new style classes, but from some
+where I have got it in my head that one should be able to using new
+style classes create new methods and dynamically setup the parameters
+they accept. If this is true then _extra_path_info could be replaced
+with a magic method which would create a wrapper around a function
+and automatically fill into the __call__() method all the parameters
+which the wrapped method was expecting. Used in conjunction with
+decorators in Python 2.4, I am speculating that one could simple write:
+
+@extra_path_info
+def method(req):
+  return req.path_info,req.extra_path_info
+
+The only problem with this even if it can be done, is that the object which
+wraps the function most likely is an instance of a new style class and
+presently, mod_python.publisher cannot traverse into new style classes.
+Luckily the vampire::publisher code I have and will release at some point
+will, so I can try it out and see how it goes.
+
+Anyway, thought this all might be of interest to someone so though I
+would post it here. I wander if there is a place for stuff like this at the
+Python cookbook site. There are a few examples there which mention
+mod_python, but they seem to be more general recipes also applicable
+in other situations.
+
+Would be interested to hear any comments on this and whether anyone
+is already doing something like it.
+
+
+Graham
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017559.html">[mod_python] Session example and problems.
+</A></li>
+	<LI>Next message: <A HREF="017561.html">[mod_python] mod_python.publisher and req.path_info.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17560">[ date ]</a>
+              <a href="thread.html#17560">[ thread ]</a>
+              <a href="subject.html#17560">[ subject ]</a>
+              <a href="author.html#17560">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

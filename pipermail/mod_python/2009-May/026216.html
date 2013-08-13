@@ -1,0 +1,267 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Multiple Interpreters mod_python optimization
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20Interpreters%20mod_python%20optimization&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026215.html">
+   <LINK REL="Next"  HREF="026217.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Multiple Interpreters mod_python optimization</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>zsi</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Multiple%20Interpreters%20mod_python%20optimization&In-Reply-To="
+       TITLE="[mod_python] Multiple Interpreters mod_python optimization">zsi at skolesys.dk
+       </A><BR>
+    <I>Fri May 15 06:03:14 EDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026215.html">[mod_python] Installing mod_python 3.3.1 on MAC 10.4.11
+</A></li>
+        <LI>Next message: <A HREF="026217.html">[mod_python] Multiple Interpreters mod_python optimization
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26216">[ date ]</a>
+              <a href="thread.html#26216">[ thread ]</a>
+              <a href="subject.html#26216">[ subject ]</a>
+              <a href="author.html#26216">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hey *
+
+I am creating a SOAP service that is based on ZSI and mod_python. I have
+the service running and it works, but it's not performing well, so I made
+did some output to the syslog from inside the handler:
+
+reloadchecker.py:
+----------------
+testvar=1
+----------------
+
+My handler:
+----------------
+import capa0_9.soap.sessionservice as sessionservice
+import capa0_9.soap.zsi_handler as zsi_handler
+from mod_python import apache
+import capa0_9.tools.log as log
+import os,reloadchecker
+
+mod = __import__('encodings.utf_8', globals(), locals(), '*')
+mod = __import__('encodings.utf_16_be', globals(), locals(), '*')
+
+def handler(req):
+
+        &quot;&quot;&quot;
+        The PythonHandler entry-point. This function must be present in
+order to have mod_apache dispatch a python operation.
+        &quot;&quot;&quot;
+        zsi_handler.AsHandler(modules=(sessionservice,), request=req)
+        log.debug(&quot;REQUESTINFO: Interpreter Name = %s&quot; %
+str(req.interpreter))
+        log.debug(&quot;REQUESTINFO: os.getpid()      = %s&quot; % str(os.getpid()))
+        log.debug(&quot;REQUESTINFO: reloadchecker    = %s&quot; %
+str(reloadchecker.testvar))
+        reloadchecker.testvar += 1
+        return apache.OK
+-----------------
+
+I log the interpreter name, which according to section 4.1 should make
+mod_python boost performance by keeping the interpreter alive as long as
+the apache server processes. And I log the pid of the interpreter. As it is
+clear to see in the output below a new pid is spawned each time, it does
+not reuse the interpreter and therefore, I guess, it has to reload
+everything for each request. Note that i also list the apache2 processes
+before and after I bombard the server with requests, it shows that the same
+processes are running before and after. I also made a dummy module
+&quot;reloadchecker&quot; that contains one variable &quot;testvar&quot;. If it is reloaded the
+variable is initialized to 1, if it was already loaded it should be
+increased by 1 for each request.
+
+Am I missing something, shouldn't mod_python optimize performance by
+reusing previously loaded modules from earlier requests?
+
+
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mikrov at capa-server</A>:/srv/capa/www/0.9$ sudo ps aux | grep apache2
+mikrov    7396  0.0  0.1   3004   764 pts/2    S+   11:11   0:00 grep
+apache2
+root     22343  0.0  1.0  13728  5336 ?        Ss   May14   0:26
+/usr/sbin/apache2 -k start
+root     22346  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22347  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22348  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22349  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22350  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22383  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22392  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22407  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22716  0.0  0.6  13728  3136 ?        S    May14   0:03
+/usr/sbin/apache2 -k start
+root     23356  0.0  0.6  13728  3136 ?        S    May14   0:03
+/usr/sbin/apache2 -k start
+
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mikrov at capa-server</A>:/srv/capa/www/0.9/sessionservice$ sudo tail -f
+/var/log/syslog | grep REQUESTINFO
+May 15 11:52:03 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/ 
+May 15 11:52:03 capa-server capa: REQUESTINFO: os.getpid()      = 7953     
+                        
+May 15 11:52:03 capa-server capa: REQUESTINFO: reloadchecker    = 1        
+                        
+May 15 11:52:03 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/ 
+May 15 11:52:03 capa-server capa: REQUESTINFO: os.getpid()      = 7954     
+                        
+May 15 11:52:03 capa-server capa: REQUESTINFO: reloadchecker    = 1        
+                        
+May 15 11:52:04 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/ 
+May 15 11:52:04 capa-server capa: REQUESTINFO: os.getpid()      = 7955     
+                        
+May 15 11:52:04 capa-server capa: REQUESTINFO: reloadchecker    = 1        
+                        
+May 15 11:52:05 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/ 
+May 15 11:52:05 capa-server capa: REQUESTINFO: os.getpid()      = 7959     
+                        
+May 15 11:52:05 capa-server capa: REQUESTINFO: reloadchecker    = 1        
+                        
+May 15 11:52:06 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/ 
+May 15 11:52:06 capa-server capa: REQUESTINFO: os.getpid()      = 7960     
+                        
+May 15 11:52:06 capa-server capa: REQUESTINFO: reloadchecker    = 1        
+                        
+May 15 11:52:07 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/ 
+May 15 11:52:07 capa-server capa: REQUESTINFO: os.getpid()      = 7961     
+                        
+May 15 11:52:07 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:08 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:08 capa-server capa: REQUESTINFO: os.getpid()      = 7963
+May 15 11:52:08 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:08 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:08 capa-server capa: REQUESTINFO: os.getpid()      = 7964
+May 15 11:52:08 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:09 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:09 capa-server capa: REQUESTINFO: os.getpid()      = 7966
+May 15 11:52:09 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:10 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:10 capa-server capa: REQUESTINFO: os.getpid()      = 7968
+May 15 11:52:10 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:11 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:11 capa-server capa: REQUESTINFO: os.getpid()      = 7969
+May 15 11:52:11 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:12 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:12 capa-server capa: REQUESTINFO: os.getpid()      = 7970
+May 15 11:52:12 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:13 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:13 capa-server capa: REQUESTINFO: os.getpid()      = 7972
+May 15 11:52:13 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:13 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:13 capa-server capa: REQUESTINFO: os.getpid()      = 7973
+May 15 11:52:13 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:14 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:14 capa-server capa: REQUESTINFO: os.getpid()      = 7974
+May 15 11:52:14 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:15 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:15 capa-server capa: REQUESTINFO: os.getpid()      = 7976
+May 15 11:52:15 capa-server capa: REQUESTINFO: reloadchecker    = 1
+May 15 11:52:16 capa-server capa: REQUESTINFO: Interpreter Name =
+/srv/capa/www/0.9/sessionservice/
+May 15 11:52:16 capa-server capa: REQUESTINFO: os.getpid()      = 7977
+May 15 11:52:16 capa-server capa: REQUESTINFO: reloadchecker    = 1
+
+<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mikrov at capa-server</A>:/srv/capa/www/0.9$ sudo ps aux | grep apache2
+mikrov    7457  0.0  0.1   3004   764 pts/2    S+   11:12   0:00 grep
+apache2
+root     22343  0.0  1.0  13728  5336 ?        Ss   May14   0:26
+/usr/sbin/apache2 -k start
+root     22346  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22347  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22348  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22349  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22350  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22383  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22392  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22407  0.0  0.6  13728  3136 ?        S    May14   0:04
+/usr/sbin/apache2 -k start
+root     22716  0.0  0.6  13728  3136 ?        S    May14   0:03
+/usr/sbin/apache2 -k start
+root     23356  0.0  0.6  13728  3136 ?        S    May14   0:03
+/usr/sbin/apache2 -k start
+
+Best regards
+Jakob Simon-Gaarde
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026215.html">[mod_python] Installing mod_python 3.3.1 on MAC 10.4.11
+</A></li>
+	<LI>Next message: <A HREF="026217.html">[mod_python] Multiple Interpreters mod_python optimization
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26216">[ date ]</a>
+              <a href="thread.html#26216">[ thread ]</a>
+              <a href="subject.html#26216">[ subject ]</a>
+              <a href="author.html#26216">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

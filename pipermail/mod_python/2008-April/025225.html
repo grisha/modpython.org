@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Best way to have an unique_id per request
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Best%20way%20to%20have%20an%20unique_id%20per%20request&In-Reply-To=480F5596.9030705%40teamsystem.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025224.html">
+   <LINK REL="Next"  HREF="025227.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Best way to have an unique_id per request</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20Best%20way%20to%20have%20an%20unique_id%20per%20request&In-Reply-To=480F5596.9030705%40teamsystem.com"
+       TITLE="[mod_python] Best way to have an unique_id per request">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Wed Apr 23 17:55:00 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025224.html">[mod_python] Best way to have an unique_id per request
+</A></li>
+        <LI>Next message: <A HREF="025227.html">[mod_python] Best way to have an unique_id per request
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25225">[ date ]</a>
+              <a href="thread.html#25225">[ thread ]</a>
+              <a href="subject.html#25225">[ subject ]</a>
+              <a href="author.html#25225">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>You could try also mixing in:
+
+  req.connection.id
+
+This is unique for a request at any particular point in time for that
+Apache process. Apache may reuse connection IDs though, so good to
+also make use of current time and process ID.
+
+Other things you could factor in to it are:
+
+  req.connection.remote_ip
+
+although if coming in through a proxy, this may not be true remote
+client so not enough to uniquely identify client.
+
+Graham
+
+2008/4/24 Luca Montecchiani &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">l.montecchiani at teamsystem.com</A>&gt;:
+&gt;<i> Hi all,
+</I>&gt;<i>  I'm in the process to improve the function we use to get an unique id each
+</I>&gt;<i> time we call it.
+</I>&gt;<i>  This is the current implementation, initially it was based only on
+</I>&gt;<i> req.request_time,
+</I>&gt;<i>  bad assumption because different request could have the same request_time
+</I>&gt;<i> value
+</I>&gt;<i>  and so I've added a random value that should limit this side effect.
+</I>&gt;<i>  I've also added a counter (req.uniqidprog) to support multiple calls inside
+</I>&gt;<i> the
+</I>&gt;<i>  same request.
+</I>&gt;<i>
+</I>&gt;<i>  def getuniqid(req,prefix=''):
+</I>&gt;<i>    from random import random
+</I>&gt;<i>    req.uniqidprog = req.uniqidprog + 1
+</I>&gt;<i>    _tmpid = &quot;%s%s%d%s&quot; % ( prefix ,str(req.request_time), req.uniqidprog,
+</I>&gt;<i> str(random()) )
+</I>&gt;<i>    return _tmpid.replace('.','')
+</I>&gt;<i>
+</I>&gt;<i>  Our production environment is :
+</I>&gt;<i>  Windows 32bit / Linux 32bit
+</I>&gt;<i>  Apache 2.2.8
+</I>&gt;<i>  Python 2.5.2
+</I>&gt;<i>  Modpython 3.3.1
+</I>&gt;<i>  Postgresql 8.2.7
+</I>&gt;<i>  Psycopg 2.0.7
+</I>&gt;<i>
+</I>&gt;<i>  This seem to works fine but I'm worried about its correctness and possible
+</I>&gt;<i>  collisions under heavy loads.
+</I>&gt;<i>
+</I>&gt;<i>  Can I use the Session._new_sid() function without worrying about
+</I>&gt;<i> lock/unlock
+</I>&gt;<i>  and other issues ? Something very simple like that :
+</I>&gt;<i>
+</I>&gt;<i>  def getuniqid(req,prefix=''):
+</I>&gt;<i>    from mod_python import Session
+</I>&gt;<i>    return &quot;%s%s&quot; % ( prefix ,  Session._new_sid(req) )
+</I>&gt;<i>
+</I>&gt;<i>  Googling a bit I've found a &quot;mod_unique_id&quot; apache module that could do the
+</I>&gt;<i>  job unfortunately it states that is not reliable on Windows environment :(
+</I>&gt;<i> and I
+</I>&gt;<i>  don't know how could impact on performance...
+</I>&gt;<i>
+</I>&gt;<i>  Thanks in advance,
+</I>&gt;<i>  luca
+</I>&gt;<i>
+</I>&gt;<i>  --
+</I>&gt;<i>  Luca Montecchiani
+</I>&gt;<i>  Software Di Base
+</I>&gt;<i>  TeamSystem S.p.a.
+</I>&gt;<i>
+</I>&gt;<i> ------------------------------------------------------------------------------------------
+</I>&gt;<i>  Informativa ai sensi del D. Lgs. 196-30/06/2003.
+</I>&gt;<i>  Il contenuto di questa e.mail e degli eventuali allegati, deve essere nella
+</I>&gt;<i> disponibilit&#224;
+</I>&gt;<i>  del solo destinatario.  Se ricevete per errore questa e-mail siete pregati
+</I>&gt;<i> di informarci
+</I>&gt;<i>  (rispedendola al mittente) e di provvedere alla sua rimozione.
+</I>&gt;<i>  Possono essere presenti informazioni riservate e non corrette (parzialmente
+</I>&gt;<i> o totalmente).
+</I>&gt;<i>  Le e-mail in partenza e in arrivo possono essere oggetto di monitoraggio
+</I>&gt;<i>  da parte di Teamsystem spa.  Del contenuto &#232; responsabile il mittente della
+</I>&gt;<i> presente.
+</I>&gt;<i>  Chiunque venga in possesso non autorizzato di questa e-mail &#232; vincolato
+</I>&gt;<i>  dalla Legge a non leggerne il contenuto, a non copiarla, a non diffonderla
+</I>&gt;<i> e a non usarla.
+</I>&gt;<i>  Informiamo che per l' esercizio dei diritti di cui all'art. 7 del
+</I>&gt;<i> d.lgs.196/2003 ci si pu&#242;
+</I>&gt;<i>  rivolgere al Titolare del trattamento Teamsystem S.r.l. via Gagarin 205
+</I>&gt;<i> 61100 PESARO
+</I>&gt;<i>  per posta o fax, indicando sulla busta o sul foglio la dicitura &quot;Inerente
+</I>&gt;<i> alla Privacy&quot;,
+</I>&gt;<i>  o inviando una e-mail all' indirizzo <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">privacy at teamsystem.com</A> .
+</I>&gt;<i>
+</I>&gt;<i> ------------------------------------------------------------------------------------------
+</I>&gt;<i>
+</I>&gt;<i>  _______________________________________________
+</I>&gt;<i>  Mod_python mailing list
+</I>&gt;<i>  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i>  <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025224.html">[mod_python] Best way to have an unique_id per request
+</A></li>
+	<LI>Next message: <A HREF="025227.html">[mod_python] Best way to have an unique_id per request
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25225">[ date ]</a>
+              <a href="thread.html#25225">[ thread ]</a>
+              <a href="subject.html#25225">[ subject ]</a>
+              <a href="author.html#25225">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

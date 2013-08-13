@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] The DOs and DONTs of mod_python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20DOs%20and%20DONTs%20of%20mod_python&In-Reply-To=1129678400.29880%40dscpl.user.openhosting.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019331.html">
+   <LINK REL="Next"  HREF="019333.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] The DOs and DONTs of mod_python</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Philippe C. Martin</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20The%20DOs%20and%20DONTs%20of%20mod_python&In-Reply-To=1129678400.29880%40dscpl.user.openhosting.com"
+       TITLE="[mod_python] The DOs and DONTs of mod_python">pmartin at snakecard.com
+       </A><BR>
+    <I>Tue Oct 18 19:40:17 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019331.html">[mod_python] The DOs and DONTs of mod_python
+</A></li>
+        <LI>Next message: <A HREF="019333.html">[mod_python] The DOs and DONTs of mod_python: one problem found
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19332">[ date ]</a>
+              <a href="thread.html#19332">[ thread ]</a>
+              <a href="subject.html#19332">[ subject ]</a>
+              <a href="author.html#19332">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Tuesday 18 October 2005 11:33 pm, Graham Dumpleton wrote:
+
+Thanks,
+
+The one good thing is that I cannot afford all of these threads to attack the 
+only hardware resource (the smart card) at the same time: ISO7816 simply is 
+not ready for it.
+
+So I will have to find a way to keep the people waiting and avoid concurent 
+access.
+
+Regards,
+
+Philippe
+
+
+&gt;<i> A few additional comments on top of what Jorey has already said.
+</I>&gt;<i>
+</I>&gt;<i> Philippe C. Martin wrote ..
+</I>&gt;<i>
+</I>&gt;<i> &gt; Please note that, although I must have bugs, the code I'm calling _seems_
+</I>&gt;<i> &gt; to
+</I>&gt;<i> &gt; work flawlessly under Linux and Windows.
+</I>&gt;<i>
+</I>&gt;<i> Besides issues with multiple interpreters, if using a multithread Apache
+</I>&gt;<i> MPM, such as is the case for Win32 systems and &quot;worker&quot; MPM on UNIX, you
+</I>&gt;<i> have to contend with multithreading. Your system may work quite happily
+</I>&gt;<i> if you trickle requests in serially, but get requests come in at the
+</I>&gt;<i> same time and they can trample all over each other if your module isn't
+</I>&gt;<i> multithread safe.
+</I>&gt;<i>
+</I>&gt;<i> There are also various issues because of mod_python's module reloading
+</I>&gt;<i> system. Problems can also arise if you use a module which has a C code
+</I>&gt;<i> component and it uses the simplified threading C APIs in Python.
+</I>&gt;<i>
+</I>&gt;<i> There are a lot of gotchas.
+</I>&gt;<i>
+</I>&gt;<i> &gt; from mod_python import apache
+</I>&gt;<i> &gt; import os
+</I>&gt;<i> &gt; import sys
+</I>&gt;<i> &gt; if os.name == 'nt':
+</I>&gt;<i> &gt;      sys.path.append(&quot;Z:\\dev&quot;)
+</I>&gt;<i> &gt; else:
+</I>&gt;<i> &gt;      sys.path.append('/home/philippe/dev')
+</I>&gt;<i>
+</I>&gt;<i> You shouldn't extend sys.path in Python code when mod_python is used.
+</I>&gt;<i> The main reason is that if mod_python reloads the module, everytime that
+</I>&gt;<i> occurs then sys.path will be extended even if the directory is already in
+</I>&gt;<i> there. Thus, sys.path could grow and grow. This is made worse by bugs
+</I>&gt;<i> in mod_python.publisher in versions of mod_python &lt; 3.2.
+</I>&gt;<i>
+</I>&gt;<i> &gt; from SC.pilot.SC_Script_Processor import *
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; def world(req):
+</I>&gt;<i> &gt;      ls = SC_Script_Processor() #INSTANTIATE A _BIG_ OBJECT ==&gt; *** THIS
+</I>&gt;<i> &gt; IS
+</I>&gt;<i> &gt; THE KILLER THAT CRASHES APACHE ***
+</I>&gt;<i> &gt;      ll = ls.Reader_List() # get the reader list
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;      #Grab ATR from card - assume first reader
+</I>&gt;<i> &gt;      l_appli_conn = ls.Get_Connection(r1)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;      req.send_http_header()
+</I>&gt;<i>
+</I>&gt;<i> You don't set req.content_type. How is the browser mean't to know what
+</I>&gt;<i> to do with the response. You perhaps want:
+</I>&gt;<i>
+</I>&gt;<i>   req.content_type = 'text/plain'
+</I>&gt;<i>   req.send_http_header()
+</I>&gt;<i>
+</I>&gt;<i> Although, in 3.X the call to 'req.send_http_header()' is actually
+</I>&gt;<i> redundant. It was only required in 2.7.X.
+</I>&gt;<i>
+</I>&gt;<i> &gt;      req.write(&quot;RETURN CARD ATR= &quot; +  l_appli_conn.Get_Connection_ATR()
+</I>&gt;<i> &gt; )
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;      return apache.OK
+</I>&gt;<i>
+</I>&gt;<i> I have presumed that mod_python.publisher was being used because
+</I>&gt;<i> you weren't using &quot;handler()&quot; for the function, but &quot;world()&quot;. If this is
+</I>&gt;<i> the case, you shouldn't be returning &quot;apache.OK&quot; as it will result in the
+</I>&gt;<i> string &quot;0&quot; being appended to the response sent back to the browser.
+</I>&gt;<i>
+</I>&gt;<i> Overall, better off perhaps saying:
+</I>&gt;<i>
+</I>&gt;<i>   req.content_type = 'text/plain'
+</I>&gt;<i>   return &quot;RETURN CARD ATR= &quot; +  l_appli_conn.Get_Connection_ATR()
+</I>&gt;<i>
+</I>&gt;<i> Graham
+</I>
+-- 
+*************************************
+Philippe C. Martin
+SnakeCard, LLC
+www.snakecard.com
++1 405 694 8098
+*************************************
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019331.html">[mod_python] The DOs and DONTs of mod_python
+</A></li>
+	<LI>Next message: <A HREF="019333.html">[mod_python] The DOs and DONTs of mod_python: one problem found
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19332">[ date ]</a>
+              <a href="thread.html#19332">[ thread ]</a>
+              <a href="subject.html#19332">[ subject ]</a>
+              <a href="author.html#19332">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

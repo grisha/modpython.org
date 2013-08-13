@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python 3.3 importer with &quot;import&quot; statement
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%203.3%20importer%20with%20%22import%22%20statement&In-Reply-To=7c93bf1e0705310242ia9e991dh26bc831d6151e291%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023753.html">
+   <LINK REL="Next"  HREF="023755.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python 3.3 importer with &quot;import&quot; statement</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Ben Hoyt</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%203.3%20importer%20with%20%22import%22%20statement&In-Reply-To=7c93bf1e0705310242ia9e991dh26bc831d6151e291%40mail.gmail.com"
+       TITLE="[mod_python] mod_python 3.3 importer with &quot;import&quot; statement">ben at micropledge.com
+       </A><BR>
+    <I>Thu May 31 05:46:45 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023753.html">[mod_python] mod_python 3.3 importer with &quot;import&quot; statement
+</A></li>
+        <LI>Next message: <A HREF="023755.html">[mod_python] mod_python 3.3 importer with &quot;import&quot; statement
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23754">[ date ]</a>
+              <a href="thread.html#23754">[ thread ]</a>
+              <a href="subject.html#23754">[ subject ]</a>
+              <a href="author.html#23754">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>OOPS -- I wasn't supposed to attach that file to that post. I'll try again.
+:<i>-)
+</I>
+Hi guys,
+
+We're starting a web site running on mod_python, and we've run into import
+problems, specifically using
+
+from DIR import FILE
+
+apache.import_modulewhere DIR is a directory (not a module or package) and
+file is a FILE.py file. It works with standard Python importing, but now
+that we have multiple virtual servers, we need to use, but we can't quite.
+
+Here's the long gory story:
+---------------------
+
+Up till now we've just been using the standard import statement, and it's
+worked fine. But now we're running two copies of our Python code-base on two
+virtual servers. So there are two files called &quot; code.py&quot; and suchlike in
+two different directories, and the imports get confused if the two are out
+of sync. All as the docs explain ... because of how sys.modules is stored
+without full paths.
+
+So I've just been trying to use the new apache.import_module(), but I'm
+running into various problems because we have multiple directories in our
+code structure, which looks something like this:
+
+code/
+code/code.py  # main file for mod_python usage, imports everything
+code/cli.py  # command line &quot;test harness&quot; loader
+code/logic/dbase.py
+code/logic/errors.py
+code/handlers/home.py
+code/handlers/users.py
+...  # and heaps more files in each of the subdirs
+
+&quot;logic&quot; and &quot;handlers&quot; aren't actual packages, so we thought we'd be okay
+using apache.import_module() on code.py, and all the import statements
+scattered throughout the code would just work (am I correct in this? if the
+top-level import uses import_module, the rest will automatically?).
+code.pyis actually run by modpython_gateway.py, a WSGI wrapper for
+mod_python that
+we modified to use import_module instead of __import__.
+
+But the problem is that it bombs out on statements like:
+
+from logic import errors
+
+with &quot;ImportError: No module named logic&quot;
+
+I guess this is because logic isn't a file/module, it's a directory. Is this
+correct? (In .htaccess, I have PythonOption mod_python.importer.path
+&quot;['c:/www/mpledge/code']&quot; so it definitely knows where to go, but the import
+statement fallback probably doesn't. It won't help if we set sys.path,
+because then we're back to the old import problems.)
+
+In short, we're wondering the best way forward using mod_python. The options
+we see are:
+
+1) Only ever run one code base. Non-ideal.
+
+2) Override __builtin__.__import__ with our own one that checks if it's a
+directory and calls your import_module on the result, e.g.,
+import_module('logic/errors'). Would this work?
+
+3) Write a patch to modpython's import_module that adds that functionality.
+But I'm guessing there's some good reason it doesn't support this -- is that
+correct?
+
+4) Change all our import statements to import_module calls. We have a lot of
+them in different forms, so this would be messy. Particularly because we
+want it to work in test/command-line mode too. And at the moment with import
+statements it works just as well from Apache with code.py and from the
+command line with &quot;python -i cli.py&quot;. So we'd have to do if/else conditions
+around all the imports, for whether it's in cli/test mode or not.
+
+5) Look into FastCGI or something ... but we're not sure we want to go there
+at this stage.
+
+Oh, and one more thing, we're also using Cheetah, so I guess we'll have to
+change its __import__s to import_module calls too...
+
+What do you think is the best way?
+
+Thanks for your time!
+
+-Ben
+
+P. S. Feel free to check out the &quot;early page&quot; for our website (
+<A HREF="http://micropledge.com/">http://micropledge.com/</A>). Hopefully we won't be upgrading mod_python or
+something when you look. :-)
+
+-- 
+Ben Hoyt, +64 21 331 841
+<A HREF="http://www.benhoyt.com/">http://www.benhoyt.com/</A>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <A HREF="http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070531/78182dc9/attachment.html">http://mm_cfg_has_not_been_edited_to_set_host_domains/pipermail/mod_python/attachments/20070531/78182dc9/attachment.html</A>
+</PRE>
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023753.html">[mod_python] mod_python 3.3 importer with &quot;import&quot; statement
+</A></li>
+	<LI>Next message: <A HREF="023755.html">[mod_python] mod_python 3.3 importer with &quot;import&quot; statement
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23754">[ date ]</a>
+              <a href="thread.html#23754">[ thread ]</a>
+              <a href="subject.html#23754">[ subject ]</a>
+              <a href="author.html#23754">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] just authenhandler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20just%20authenhandler&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025252.html">
+   <LINK REL="Next"  HREF="025254.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] just authenhandler</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>John Calixto</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20just%20authenhandler&In-Reply-To="
+       TITLE="[mod_python] just authenhandler">John.Calixto at watchguard.com
+       </A><BR>
+    <I>Tue May  6 14:01:22 EDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025252.html">[mod_python] Post of image data
+</A></li>
+        <LI>Next message: <A HREF="025254.html">[mod_python] just authenhandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25253">[ date ]</a>
+              <a href="thread.html#25253">[ thread ]</a>
+              <a href="subject.html#25253">[ subject ]</a>
+              <a href="author.html#25253">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi folks,
+
+I'm trying to write an Apache handler just for authentication.  I have a
+Python module that basically aggregates several user databases and
+checks a username+password against the superset of users.
+
+I can't seem to get any of the standard content handlers to process
+things normally post-authentication.  Is there some example of an
+authentication-only setup?  I'm interested in both the mod_python
+handler implementation and the apache configuration.
+
+With my current configuration, my Apache log shows:
+
+... [error] [client 192.168.130.126] Attempt to serve directory:
+/var/www/
+
+If I disable my mod_python configuration from the &lt;Directory /var/www/&gt;
+stanza, then mod_dir and/or mod_autoindex act normally.
+
+Here's what I have now:
+
+
+NameVirtualHost *
+&lt;VirtualHost *&gt;
+	ServerAdmin <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">webmaster at localhost</A>
+	
+	DocumentRoot /var/www/
+	&lt;Directory /&gt;
+		Options FollowSymLinks
+		AllowOverride None
+	&lt;/Directory&gt;
+	&lt;Directory /var/www/&gt;
+		Options Indexes FollowSymLinks MultiViews
+		AllowOverride None
+		Order allow,deny
+		allow from all
+		SetHandler mod_python
+		PythonHandlerModule apacheauth
+		PythonPath &quot;sys.path+['/home/user/customauth']&quot;
+		PythonDebug On
+		AuthType apacheauth
+		Require customauth::valid-user
+	&lt;/Directory&gt;
+
+	ErrorLog /var/log/apache2/error.log
+	LogLevel debug
+	CustomLog /var/log/apache2/access.log combined
+	ServerSignature On
+
+&lt;/VirtualHost&gt;
+
+
+========================================================================
+
+from mod_python import apache
+import authenticators
+import base64
+
+AUTHTYPE = 'apacheauth'
+AUTHNAME = 'filez'
+authen = authenticators.authen_shadow
+
+def authenhandler(req):
+    req.ap_auth_type = AUTHTYPE
+    auth_header = req.headers_in.get('Authorization')
+    req.log_error(&quot;auth_header [%s]&quot; % auth_header, apache.APLOG_DEBUG)
+    if auth_header:
+        decoded = base64.b64decode(auth_header.split()[-1])
+        username, password = decoded.split(':')
+        if authen(username, password):
+            req.log_error(&quot;authenticated!&quot;, apache.APLOG_DEBUG)
+            req.user = username
+            return apache.OK
+    req.log_error(&quot;not authenticated!&quot;, apache.APLOG_DEBUG)
+    req.err_headers_out['WWW-Authenticate'] = 'Basic realm=&quot;%s&quot;' %
+AUTHNAME
+    return apache.HTTP_UNAUTHORIZED
+
+def authzhandler(req):
+    if req.user:
+        req.log_error(&quot;authz handler user %s&quot; % req.user,
+apache.APLOG_INFO)
+        return apache.OK
+    return apache.HTTP_UNAUTHORIZED
+
+
+========================================================================
+
+Any pointers would be greatly appreciated.
+
+Thanks,
+
+John
+
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025252.html">[mod_python] Post of image data
+</A></li>
+	<LI>Next message: <A HREF="025254.html">[mod_python] just authenhandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25253">[ date ]</a>
+              <a href="thread.html#25253">[ thread ]</a>
+              <a href="subject.html#25253">[ subject ]</a>
+              <a href="author.html#25253">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

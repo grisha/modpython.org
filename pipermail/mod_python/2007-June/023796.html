@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and SQLAlchemy don't mix?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20SQLAlchemy%20don%27t%20mix%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023854.html">
+   <LINK REL="Next"  HREF="023798.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python and SQLAlchemy don't mix?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Gambit</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%20and%20SQLAlchemy%20don%27t%20mix%3F&In-Reply-To="
+       TITLE="[mod_python] mod_python and SQLAlchemy don't mix?">gambit at alpenjodel.de
+       </A><BR>
+    <I>Fri Jun  8 16:25:18 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023854.html">[mod_python] SystemError: bad argument to internal function
+</A></li>
+        <LI>Next message: <A HREF="023798.html">[mod_python] mod_python and SQLAlchemy don't mix?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23796">[ date ]</a>
+              <a href="thread.html#23796">[ thread ]</a>
+              <a href="subject.html#23796">[ subject ]</a>
+              <a href="author.html#23796">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I'm trying to write a fairly simple web app using mod_python and 
+SQLAlchemy and I'm getting stability problems with the database which 
+apparently are threading issues.
+
+Basically what I do is to create a SQLAlchemy engine in a separate 
+module that is imported once at the beggining of my app:
+
+db = sa.create_engine('<A HREF="mysql://user:pass@localhost/mydb'">mysql://user:pass@localhost/mydb'</A>)
+
+And then I use this db variable freely in my code. This leads to errors 
+when multiple users are using the app.
+
+The people at the SQLAlchemy mailing list didn't saw a problem with my 
+approach and suggested this is a mod_python/mysql issue.
+
+Browsing through the archives of this list I found some possible 
+explanations in an earlier discussion:
+
+&gt;<i> multiple threads in apache get multiple copies of mod_python, each with
+</I>&gt;<i> it's own copy of the imported database module in memory and each module
+</I>&gt;<i> maintaining a different database connection
+</I>
+&gt;<i> The process which apache chooses to to handle a request is random.
+</I>
+&gt;<i> Don't be fooled into thinking that module-level attributes are global
+</I>&gt;<i> across your application as they are not. In anything other than winnt-mpm
+</I>&gt;<i> (which is a single, threaded process), you will have multiple, independent
+</I>&gt;<i> copies of that variable. 
+</I>
+So... I conclude I have multiple, independent SQLAlchemy engines created 
+and thus I cannot just use the db object I created freely in my app.
+
+Does anyone knows how to solve this? Is someone here using mod_python 
+and SQLAlchemy together successfully? Care to share some best practices?
+
+Thanks in advance
+
+
+Some sample code follows
+
+In dbinit.py:
+
+db = sa.create_engine('<A HREF="mysql://user:pass@localhost/mydb'">mysql://user:pass@localhost/mydb'</A>)
+metadata = sa.BoundMetaData(db)
+users_table = sa.Table('Users', metadata, autoload=True)
+
+class User(object):
+     pass
+
+sa.orm.clear_mappers()
+sa.mapper(User, users_table)
+
+In myapp.py
+
+import logging
+import sqlalchemy as sa
+from dbinit import *
+
+def justatest(req):
+      dbsession = sa.create_session(bind_to=db)
+      query = dbsession.query(User)
+      requested_uid = sanitize(req.form['uid'])
+      try:
+          user = query.get_by(Uid=requested_uid)
+      except sa.exceptions.SQLError, details:
+          logging.debug(&quot;got this error: %s&quot; % details)
+          dbsession.close()
+          return &quot;Yet another crash&quot;
+      else:
+          dbsession.close()
+          return show_message(req, &quot;Looks good&quot;)
+
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023854.html">[mod_python] SystemError: bad argument to internal function
+</A></li>
+	<LI>Next message: <A HREF="023798.html">[mod_python] mod_python and SQLAlchemy don't mix?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23796">[ date ]</a>
+              <a href="thread.html#23796">[ thread ]</a>
+              <a href="subject.html#23796">[ subject ]</a>
+              <a href="author.html#23796">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

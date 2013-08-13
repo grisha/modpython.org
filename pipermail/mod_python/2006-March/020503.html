@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] changing req.proxyreq on the fly
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20changing%20req.proxyreq%20on%20the%20fly&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020502.html">
+   <LINK REL="Next"  HREF="020507.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] changing req.proxyreq on the fly</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20changing%20req.proxyreq%20on%20the%20fly&In-Reply-To="
+       TITLE="[mod_python] changing req.proxyreq on the fly">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Fri Mar  3 00:39:47 EST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020502.html">[mod_python] changing req.proxyreq on the fly
+</A></li>
+        <LI>Next message: <A HREF="020507.html">[mod_python] changing req.proxyreq on the fly
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20503">[ date ]</a>
+              <a href="thread.html#20503">[ thread ]</a>
+              <a href="subject.html#20503">[ subject ]</a>
+              <a href="author.html#20503">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>FWIW, if req.proxyreq is made writable, it would be good at the same
+time to make req.uri writable as well. This would allow for example a
+PythonTransHandler which did something like the following:
+
+def transhandler(req):
+    if req.proxyreq:
+        return apache.DECLINED
+
+    if req.uri.find('/search/') == 0:
+        req.proxyreq = apache.PROXYREQ_PROXY
+        req.uri = '<A HREF="http://www.google.com/'">http://www.google.com/'</A> + req.uri[len('/search/'):]
+        req.filename= &quot;proxy:%s' % req.uri
+        req.handler= 'proxy-server'
+        return apache.OK
+
+    return apache.DECLINED
+
+That is, you could from within a mod_python handler when detecting
+a certain URL prefix, dynamically cause Apache to proxy the request to
+another location.
+
+This example is based on a mod_perl example which does something
+similar. See:
+
+  <A HREF="http://162.105.203.19/apache-doc/88.htm#BIN194">http://162.105.203.19/apache-doc/88.htm#BIN194</A>
+
+I'll definitely create a JIRA issue for this, as can see a use for this
+in some stuff I have to do. I was going to create a static snippet of
+Apache configuration with lots of proxy stuff, but this would be more
+interesting.
+
+Graham
+
+Graham Dumpleton wrote ..
+&gt;<i> Bill Fraser wrote ..
+</I>&gt;<i> &gt; Hello, this is my first post to this list, and I'm rather new to
+</I>&gt;<i> &gt; Python, so please excuse me if my question is a trivial one. :)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I'm using Apache2's mod_rewrite for a proxy system on my webserver,
+</I>&gt;<i> &gt; and I've noticed that no matter what, mod_rewrite instructs mod_proxy
+</I>&gt;<i> &gt; to add all the X-Forwarded-* headers, despite the fact that the proxy
+</I>&gt;<i> &gt; request is forward proxy and not a reverse one. Looking at the Apache2
+</I>&gt;<i> &gt; source, mod_proxy specifically mentions in the relevant comment block
+</I>&gt;<i> &gt; that this should NOT be done for forward proxy requests (and in fact
+</I>&gt;<i> &gt; they are messing up the application this is for), yet mod_rewrite will
+</I>&gt;<i> &gt; ALWAYS add them, no matter what the nature of the proxy request is.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Looking further in the source, I found that the way to change this
+</I>&gt;<i> &gt; behavior is to change the value of the r-&gt;proxyreq variable from
+</I>&gt;<i> &gt; PROXYREQ_REVERSE (what mod_rewrite sets it to) to PROXYREQ_PROXY. A
+</I>&gt;<i> &gt; nice thing about Python is its ability to attach itself to arbitrary
+</I>&gt;<i> &gt; points in the request process, so I thought I could change this value.
+</I>&gt;<i> &gt; No luck. req.proxyreq is marked as read-only.
+</I>&gt;<i> 
+</I>&gt;<i> There are various members in the req object in mod_python which are
+</I>&gt;<i> read only when they should be writable as well. I have been slowly identifying
+</I>&gt;<i> them and making them writable as appropriate.
+</I>&gt;<i> 
+</I>&gt;<i> In the case of req.proxyreq, because it is an integer value, I think only
+</I>&gt;<i> a one line change is required to make it writable.
+</I>&gt;<i> 
+</I>&gt;<i> Index: src/requestobject.c
+</I>&gt;<i> ===================================================================
+</I>&gt;<i> --- src/requestobject.c (revision 382636)
+</I>&gt;<i> +++ src/requestobject.c (working copy)
+</I>&gt;<i> @@ -1675,7 +1675,7 @@
+</I>&gt;<i>      {&quot;main&quot;,       (getter)getmakeobj, NULL, &quot;If subrequest, pointer to
+</I>&gt;<i> the main request&quot;, &quot;main&quot;},
+</I>&gt;<i>      {&quot;the_request&quot;, (getter)getreq_recmbr, NULL, &quot;First line of request&quot;,
+</I>&gt;<i> &quot;the_request&quot;},
+</I>&gt;<i>      {&quot;assbackwards&quot;, (getter)getreq_recmbr, (setter)setreq_recmbr, &quot;HTTP/0.9
+</I>&gt;<i> \&quot;simple\&quot; request&quot;, &quot;assbackwards&quot;},
+</I>&gt;<i> -    {&quot;proxyreq&quot;,     (getter)getreq_recmbr, NULL, &quot;A proxy request: one
+</I>&gt;<i> of apache.PROXYREQ_* values&quot;, &quot;proxyreq&quot;},
+</I>&gt;<i> +    {&quot;proxyreq&quot;,     (getter)getreq_recmbr, (setter)setreq_recmbr, &quot;A
+</I>&gt;<i> proxy request: one of apache.PROXYREQ_* values&quot;, &quot;proxyreq&quot;},
+</I>&gt;<i>      {&quot;header_only&quot;,  (getter)getreq_recmbr, NULL, &quot;HEAD request, as oppsed
+</I>&gt;<i> to GET&quot;, &quot;header_only&quot;},
+</I>&gt;<i>      {&quot;protocol&quot;,     (getter)getreq_recmbr, NULL, &quot;Protocol as given to
+</I>&gt;<i> us, or HTTP/0.9&quot;, &quot;protocol&quot;},
+</I>&gt;<i>      {&quot;proto_num&quot;,    (getter)getreq_recmbr, NULL, &quot;Protocol version. 1.1
+</I>&gt;<i> = 1001&quot;, &quot;proto_num&quot;},
+</I>&gt;<i> 
+</I>&gt;<i> I haven't tested this yet though.
+</I>&gt;<i> 
+</I>&gt;<i> Can you possibly add an issue for this at:
+</I>&gt;<i> 
+</I>&gt;<i>   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON">http://issues.apache.org/jira/browse/MODPYTHON</A>
+</I>&gt;<i> 
+</I>&gt;<i> If not I'll add one later and include your email.
+</I>&gt;<i> 
+</I>&gt;<i> Graham
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I></PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020502.html">[mod_python] changing req.proxyreq on the fly
+</A></li>
+	<LI>Next message: <A HREF="020507.html">[mod_python] changing req.proxyreq on the fly
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20503">[ date ]</a>
+              <a href="thread.html#20503">[ thread ]</a>
+              <a href="subject.html#20503">[ subject ]</a>
+              <a href="author.html#20503">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] getting started
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20getting%20started&In-Reply-To=BAY1-F123j6MkKKhD5B00002fc6%40hotmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003194.html">
+   <LINK REL="Next"  HREF="003200.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] getting started</H1>
+    <B>Gregory (Grisha) Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20getting%20started&In-Reply-To=BAY1-F123j6MkKKhD5B00002fc6%40hotmail.com"
+       TITLE="[mod_python] getting started">grisha at modpython.org
+       </A><BR>
+    <I>Wed Oct  8 14:10:53 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003194.html">[mod_python] getting started
+</A></li>
+        <LI>Next message: <A HREF="003200.html">[mod_python] apache.log_error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3196">[ date ]</a>
+              <a href="thread.html#3196">[ thread ]</a>
+              <a href="subject.html#3196">[ subject ]</a>
+              <a href="author.html#3196">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On Wed, 8 Oct 2003, Anthony Barker wrote:
+
+&gt;<i> I was wondering how to get started processing an html form.
+</I>&gt;<i>
+</I>&gt;<i> 1) is there something equivalent to Apache::PerlRun?
+</I>&gt;<i>
+</I>&gt;<i> &quot;This module does not cache compiled scripts between runs. A script is
+</I>&gt;<i> loaded and compiled freshly each time it is requested. However,
+</I>&gt;<i> Apache::PerlRun still avoids the overhead of starting a new Perl
+</I>&gt;<i> interpreter for each CGI script, so it's faster than traditional Perl
+</I>&gt;<i> CGI scripting but slower than Apache::Registry or vanilla Apache API
+</I>&gt;<i> modules.&quot;
+</I>
+No. (The cgi handler is as close as you will get to this). I don't know
+what the Perl folks do, but on Python side the only way to achieve this
+(including a clean namespace) is to reset the interpreter, which only
+results in marginal improvement. Not to mention that there is something
+awkward with this whole approach :-)
+
+&gt;<i> 2) How would mod_python enable this simple script?
+</I>&gt;<i>
+</I>&gt;<i> #!/usr/bin/python2
+</I>&gt;<i> import cgi, sys, string
+</I>&gt;<i> sys.stderr = sys.stdout
+</I>&gt;<i> print &quot;Content-type: text/html\r\n&quot;
+</I>&gt;<i>
+</I>&gt;<i> out1 = &quot;&quot;&quot;
+</I>&gt;<i> &lt;HTML&gt;
+</I>&gt;<i> &lt;HEAD&gt;&lt;TITLE&gt;Info Form&lt;/TITLE&gt;&lt;/HEAD&gt;
+</I>&gt;<i> &lt;BODY BGCOLOR = white&gt;
+</I>&gt;<i> &lt;H3&gt;Please, enter your name and age.&lt;/H3&gt;
+</I>&gt;<i> &lt;TABLE BORDER = 0&gt;
+</I>&gt;<i> &lt;FORM METHOD = post ACTION = &quot;t3.cgi&quot;&gt;
+</I>&gt;<i> &lt;TR&gt;&lt;TH&gt;Name:&lt;/TH&gt;&lt;TD&gt;
+</I>&gt;<i> &lt;INPUT type = text name = &quot;name&quot;&gt;&lt;/TD&gt;
+</I>&gt;<i> &lt;/TABLE&gt;
+</I>&gt;<i> &lt;INPUT TYPE = hidden NAME = &quot;action&quot; VALUE = &quot;display&quot;
+</I>&gt;<i> &lt;INPUT TYPE = submit VALUE = &quot;Enter&quot;&gt;
+</I>&gt;<i> &lt;/FORM&gt;
+</I>&gt;<i> &lt;/BODY&gt;
+</I>&gt;<i> &lt;/HTML&gt;&quot;&quot;&quot;
+</I>&gt;<i>
+</I>&gt;<i> form = cgi.FieldStorage()
+</I>&gt;<i> if form.has_key(&quot;action&quot;):
+</I>&gt;<i>     if form.has_key(&quot;name&quot;):
+</I>&gt;<i>         print &quot;hello &quot; + form[&quot;name&quot;].value
+</I>&gt;<i> else:
+</I>&gt;<i>     print out1
+</I>&gt;<i>
+</I>
+If you are using the publisher handler, then your Apache config would look
+like this (and make sure it is not a CGI ScriptAlias):
+
+AddHandler python-program .py
+PythonHandler mod_python.publisher
+PythonDebug On
+
+And the script could be something like the below. If the script was named
+form.py, you'd access the below via <A HREF="http://blah.bla.com/form.py/info.">http://blah.bla.com/form.py/info.</A>
+
+
+def info(name=None, action=None):
+
+    out1 = &quot;&quot;&quot;
+    &lt;HTML&gt;
+    &lt;HEAD&gt;&lt;TITLE&gt;Info Form&lt;/TITLE&gt;&lt;/HEAD&gt;
+    &lt;BODY BGCOLOR = white&gt;
+    &lt;H3&gt;Please, enter your name and age.&lt;/H3&gt;
+    &lt;TABLE BORDER = 0&gt;
+    &lt;FORM METHOD = post ACTION = &quot;info&quot;&gt;
+    &lt;TR&gt;&lt;TH&gt;Name:&lt;/TH&gt;&lt;TD&gt;
+    &lt;INPUT type = text name = &quot;name&quot;&gt;&lt;/TD&gt;
+    &lt;/TABLE&gt;
+    &lt;INPUT TYPE = hidden NAME = &quot;action&quot; VALUE = &quot;display&quot;
+    &lt;INPUT TYPE = submit VALUE = &quot;Enter&quot;&gt;
+    &lt;/FORM&gt;
+    &lt;/BODY&gt;
+    &lt;/HTML&gt;&quot;&quot;&quot;
+
+    if action and name:
+        return &quot;hello %s&quot; % name
+    else:
+        return out1
+
+
+
+HTH,
+
+Grisha
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003194.html">[mod_python] getting started
+</A></li>
+	<LI>Next message: <A HREF="003200.html">[mod_python] apache.log_error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3196">[ date ]</a>
+              <a href="thread.html#3196">[ thread ]</a>
+              <a href="subject.html#3196">[ subject ]</a>
+              <a href="author.html#3196">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

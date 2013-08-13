@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] SSL Socket Problem
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20SSL%20Socket%20Problem&In-Reply-To=426FE7B1.2090102%40hostway.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017954.html">
+   <LINK REL="Next"  HREF="017908.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] SSL Socket Problem</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Huzaifa Tapal</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20SSL%20Socket%20Problem&In-Reply-To=426FE7B1.2090102%40hostway.com"
+       TITLE="[mod_python] SSL Socket Problem">huzaifa at hostway.com
+       </A><BR>
+    <I>Wed Apr 27 15:43:43 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017954.html">[mod_python] SSL Socket Problem
+</A></li>
+        <LI>Next message: <A HREF="017908.html">[mod_python] vampire.importModule from module import
+	function/class? 
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17955">[ date ]</a>
+              <a href="thread.html#17955">[ thread ]</a>
+              <a href="subject.html#17955">[ subject ]</a>
+              <a href="author.html#17955">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Also, addiitional information from my research.  Here is the where the 
+error is generated:
+
+    def connect(self):
+        &quot;Connect to a host on a given (SSL) port.&quot;
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((self.host, self.port))
+        ssl = socket.ssl(sock, self.key_file, self.cert_file)
+        self.sock = FakeSocket(sock, ssl)
+
+based on the error and tcpdump, the socket is created fine, the 
+connection is using the socket is made fine, the error occurs on calling 
+ssl() method of the socket class.
+
+    def ssl(sock, keyfile=None, certfile=None):
+        if hasattr(sock, &quot;_sock&quot;):
+            sock = sock._sock
+        return _realssl(sock, keyfile, certfile)
+
+above is what the ssl method on the modular level looks like.  The funny 
+part is that the _sock attribute on the sock object has to be _sock.sock 
+in order for connect() to work.  And we know that works since I see 
+tcpdump connections being made without a problem.  Whats wierd is that 
+when the sock object is passed to the ssl() method, that is when it 
+somehow gets corrupted and the _sock attribute turns from _sock.sock 
+type to _sockobject() type.
+
+Hozi
+
+
+
+Huzaifa Tapal wrote:
+
+&gt;<i> Hello Dan,
+</I>&gt;<i>
+</I>&gt;<i> I have been doing some research and we checked tcpdump and netstats 
+</I>&gt;<i> while the error is happening and there are no socket connections 
+</I>&gt;<i> open.  Is there a thread safety issue in httplib and socket?  What 
+</I>&gt;<i> concerns me is that the ssl() method in socket.py is at the global 
+</I>&gt;<i> level meaning that the somehow the sockets are being changed by 
+</I>&gt;<i> multiple threads.
+</I>&gt;<i>
+</I>&gt;<i> hozi
+</I>&gt;<i>
+</I>&gt;<i> Dan Nelson wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> If it's working for a while and then you get an error, perhaps it has 
+</I>&gt;&gt;<i> something to do with apache reaching some limit, queueing/caching, 
+</I>&gt;&gt;<i> too many threads, too many sockets...  That might be a place to start 
+</I>&gt;&gt;<i> looking.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Dan
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> ----- Original Message ----- From: &quot;Huzaifa Tapal&quot; &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">huzaifa at hostway.com</A>&gt;
+</I>&gt;&gt;<i> To: &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>&gt;
+</I>&gt;&gt;<i> Sent: Thursday, 21 April, 2005 2:56 AM
+</I>&gt;&gt;<i> Subject: [mod_python] SSL Socket Problem
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Hello All,
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I am having a problem with making SSL socket connections in my 
+</I>&gt;&gt;&gt;<i> mod_python application running with python 2.3.5.  The error I keep 
+</I>&gt;&gt;&gt;<i> getting back is &quot;TypeError: ssl() argument 1 must be _socket.socket, 
+</I>&gt;&gt;&gt;<i> not _socketobject&quot;. What is odd is that if I restart the apache2 web 
+</I>&gt;&gt;&gt;<i> server, the error goes away and all the calls return back with a 
+</I>&gt;&gt;&gt;<i> message.  However, after about 20 or so minutes we start getting 
+</I>&gt;&gt;&gt;<i> this error almost instantaneously without any kind of message going 
+</I>&gt;&gt;&gt;<i> out at all.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Here is the full traceback:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>         con.endheaders()
+</I>&gt;&gt;&gt;<i>        File &quot;/usr/lib/python2.3/httplib.py&quot;, line 715, in endheaders
+</I>&gt;&gt;&gt;<i>         self._send_output()
+</I>&gt;&gt;&gt;<i>        File &quot;/usr/lib/python2.3/httplib.py&quot;, line 600, in _send_output
+</I>&gt;&gt;&gt;<i>         self.send(msg)
+</I>&gt;&gt;&gt;<i>        File &quot;/usr/lib/python2.3/httplib.py&quot;, line 567, in send
+</I>&gt;&gt;&gt;<i>         self.connect()
+</I>&gt;&gt;&gt;<i>        File &quot;/usr/lib/python2.3/httplib.py&quot;, line 988, in connect
+</I>&gt;&gt;&gt;<i>         ssl = socket.ssl(sock, self.key_file, self.cert_file)
+</I>&gt;&gt;&gt;<i>        File &quot;/usr/lib/python2.3/socket.py&quot;, line 73, in ssl
+</I>&gt;&gt;&gt;<i>         return _realssl(sock, keyfile, certfile)
+</I>&gt;&gt;&gt;<i>     TypeError: ssl() argument 1 must be _socket.socket, not 
+</I>&gt;&gt;&gt;<i> _socketobject
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I have the same application running on another machine with python 
+</I>&gt;&gt;&gt;<i> 2.3.4 and I can't replicate it in there.  Do you guys know of any 
+</I>&gt;&gt;&gt;<i> known issues with sockets and ssl with python 2.3.5?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Any help would be appreciated.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Hozi
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;<i> Mod_python mailing list
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017954.html">[mod_python] SSL Socket Problem
+</A></li>
+	<LI>Next message: <A HREF="017908.html">[mod_python] vampire.importModule from module import
+	function/class? 
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17955">[ date ]</a>
+              <a href="thread.html#17955">[ thread ]</a>
+              <a href="subject.html#17955">[ subject ]</a>
+              <a href="author.html#17955">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

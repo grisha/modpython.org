@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python 2.7.8 broken on python2.3?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%202.7.8%20broken%20on%20python2.3%3F&In-Reply-To=">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014327.html">
+   <LINK REL="Next"  HREF="014330.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python 2.7.8 broken on python2.3?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Alexander Neumann</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20mod_python%202.7.8%20broken%20on%20python2.3%3F&In-Reply-To="
+       TITLE="[mod_python] mod_python 2.7.8 broken on python2.3?">modpython at lists.bumpern.de
+       </A><BR>
+    <I>Thu Oct 16 23:19:52 EST 2003</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014327.html">[mod_python] RE: Testing 3.1.1b
+</A></li>
+        <LI>Next message: <A HREF="014330.html">[mod_python] New Web SIG
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14328">[ date ]</a>
+              <a href="thread.html#14328">[ thread ]</a>
+              <a href="subject.html#14328">[ subject ]</a>
+              <a href="author.html#14328">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I just started having a look at mod_python, it looks really great, but
+there are a few strange exceptions thrown at points where (IMHO) no
+exception should be raised.
+
+For example if I'm using this file (test.py):
+=======
+from mod_python import apache
+
+def test(req):
+    return &quot;just a test\n&quot;
+=======
+
+
+Calling the test-function directly works as expected:
+$ dog --no-header <A HREF="http://localhost/~fd0/test/test">http://localhost/~fd0/test/test</A>
+just a test
+
+
+Calling only the file fails and throws a 404:
+$ dog --no-header <A HREF="http://localhost/~fd0/tlis/test">http://localhost/~fd0/tlis/test</A>
+&lt;!DOCTYPE HTML PUBLIC &quot;-//IETF//DTD HTML 2.0//EN&quot;&gt;
+&lt;HTML&gt;&lt;HEAD&gt;
+&lt;TITLE&gt;404 Not Found&lt;/TITLE&gt;
+&lt;/HEAD&gt;&lt;BODY&gt;
+&lt;H1&gt;Not Found&lt;/H1&gt;
+The requested URL /~fd0/tlis/test was not found on this server.&lt;P&gt;
+&lt;HR&gt;
+&lt;ADDRESS&gt;Apache/1.3.28 Server at localhost Port 80&lt;/ADDRESS&gt;
+&lt;/BODY&gt;&lt;/HTML&gt;
+
+
+But if the URL ends with a slash (&quot;/&quot;), an exception is thrown and I
+don't know if that's the normal behaviour (I would expect a 404, just
+like the example above):
+$ dog --no-header <A HREF="http://localhost/~fd0/tlis/test/">http://localhost/~fd0/tlis/test/</A>
+Mod_python error: &quot;PythonHandler mod_python.publisher&quot;
+
+Traceback (most recent call last):
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 193, in Dispatch
+    result = object(req)
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/publisher.py&quot;, line 88, in handler
+    if func_path[-1] == &quot;.&quot;:
+
+IndexError: string index out of range
+
+
+
+
+Another problem is using the file (example.py):
+======
+__auth_realm__ = &quot;Members only&quot;
+
+
+def hello(req):
+    def __auth__(req, user, passwd):
+        if user == &quot;eggs&quot; and passwd == &quot;spam&quot; or \
+           user == &quot;joe&quot; and passwd == &quot;eoj&quot;:
+            return 1
+        else:
+            return 0
+
+    def __access__(req, user):
+        if user == &quot;joe&quot;:
+            return 1
+        else:
+            return 0
+
+    return 'hello&lt;br&gt;&lt;a href=&quot;logout?username=%s&quot;&gt; logout &lt;/a&gt;' % req.connection.user
+
+def logout(req, username=&quot;&quot;):
+    def __auth__(req, user, passwd):
+        if not username == &quot;&quot;:
+            return 0
+        else:
+            return 1
+    return '&lt;a href=&quot;hello&quot;&gt; test it! &lt;/a&gt;'
+======
+
+
+Calling the logout function throws an exception, too:
+$ dog --no-header <A HREF="http://localhost/~fd0/tlis/example/logout">http://localhost/~fd0/tlis/example/logout</A>
+Mod_python error: &quot;PythonHandler mod_python.publisher&quot;
+
+Traceback (most recent call last):
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/apache.py&quot;, line 193, in Dispatch
+    result = object(req)
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/publisher.py&quot;, line 135, in handler
+    object = resolve_object(req, module, func_path, realm, user, passwd)
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/publisher.py&quot;, line 296, in resolve_object
+    user, passwd)
+
+  File &quot;/usr/lib/python2.3/site-packages/mod_python/publisher.py&quot;, line 224, in process_auth
+    __auth__ = new.function(__auth__, globals())
+
+TypeError: arg 5 (closure) must be tuple
+
+
+
+
+Is this a bug or a feature?
+
+
+- Alexander
+
+-- 
+&quot;Good luck... The only good thing about being compromised is that it
+makes you more paranoid about being on the net.&quot;
+ - Jamie Lawrence on debian-security
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: not available
+Type: application/pgp-signature
+Size: 189 bytes
+Desc: Digital signature
+Url : <A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20031016/22b82c8e/attachment-0003.bin">http://mailman.modpython.org/pipermail/mod_python/attachments/20031016/22b82c8e/attachment-0003.bin</A>
+</PRE>
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014327.html">[mod_python] RE: Testing 3.1.1b
+</A></li>
+	<LI>Next message: <A HREF="014330.html">[mod_python] New Web SIG
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14328">[ date ]</a>
+              <a href="thread.html#14328">[ thread ]</a>
+              <a href="subject.html#14328">[ subject ]</a>
+              <a href="author.html#14328">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

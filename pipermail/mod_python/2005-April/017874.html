@@ -1,0 +1,330 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] How do you specify the order in which mod_python
+	Handlers are called?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20do%20you%20specify%20the%20order%20in%20which%20mod_python%0A%09Handlers%20are%20called%3F&In-Reply-To=2389d47305040919576b9c7b5f%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017873.html">
+   <LINK REL="Next"  HREF="017875.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] How do you specify the order in which mod_python
+	Handlers are called?</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20How%20do%20you%20specify%20the%20order%20in%20which%20mod_python%0A%09Handlers%20are%20called%3F&In-Reply-To=2389d47305040919576b9c7b5f%40mail.gmail.com"
+       TITLE="[mod_python] How do you specify the order in which mod_python
+	Handlers are called?">grahamd at dscpl.com.au
+       </A><BR>
+    <I>Sun Apr 10 03:18:00 EDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017873.html">[mod_python] How do you specify the order in which mod_python
+	Handlers are called?
+</A></li>
+        <LI>Next message: <A HREF="017875.html">[mod_python] How do you specify the order in which mod_python
+	Handlers are called?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17874">[ date ]</a>
+              <a href="thread.html#17874">[ thread ]</a>
+              <a href="subject.html#17874">[ subject ]</a>
+              <a href="author.html#17874">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On 10/04/2005, at 12:57 PM, jarrod roberson wrote:
+
+&gt;<i> I need to make sure multiple mod_python handlers are called in a 
+</I>&gt;<i> specific order.
+</I>&gt;<i> I also need to make sure they are before and/or after other &quot;built in&quot;
+</I>&gt;<i> handlers such as mod_dav.
+</I>&gt;<i>
+</I>&gt;<i> I am using Apache2 and mod_python 3.1.4, I can't find any examples or
+</I>&gt;<i> specific details on this, and as I am not an Apache2 expert ( yet )
+</I>&gt;<i> reading thru the apache docs is not going very fast.
+</I>
+In terms of specific order of processing, for any type of handler,
+the documentation says:
+
+   All request handler directives have the following syntax:
+
+      Python*Handler handler [handler ...] [ | .ext [.ext ...] ]
+
+   Where handler is a callable object that accepts a single argument -
+   request object, and .ext is a file extension.
+
+   Multiple handlers can be specified on a single line, in which case
+   they will be called sequentially, from left to right. Same handler
+   directives can be specified multiple times as well, with the same
+   result - all handlers listed will be executed sequentially, from
+   first to last. If any handler in the sequence returns a value
+   other than apache.OK, then execution of all subsequent handlers
+   is aborted.
+
+For each request, there are also different phases of processing. Taken
+from the documentation index, these are:
+
+	&#9642; 	5.1.2 PythonPostReadRequestHandler
+	&#9642; 	5.1.3 PythonTransHandler
+	&#9642; 	5.1.4 PythonHeaderParserHandler
+	&#9642; 	5.1.5 PythonInitHandler
+	&#9642; 	5.1.6 PythonAccessHandler
+	&#9642; 	5.1.7 PythonAuthenHandler
+	&#9642; 	5.1.8 PythonAuthzHandler
+	&#9642; 	5.1.9 PythonTypeHandler
+	&#9642; 	5.1.10 PythonFixupHandler
+	&#9642; 	5.1.11 PythonHandler
+	&#9642; 	5.1.12 PythonLogHandler
+	&#9642; 	5.1.13 PythonCleanupHandler
+
+They are in general supposed to be executed in that order if they are
+defined. Noting though that authenhandler and authzhandler are only
+executed if there is also appropriate configuration information in the
+Apache configuration file which triggers their use. Some of the earlier
+phases are also only triggered in certain situations.
+
+Now take as example a .htaccess file which contains:
+
+   SetHandler mod_python
+
+   PythonHeaderParserHandler mptest::headerparser
+   PythonAccessHandler mptest::accesshandler
+   PythonHandler mptest::handler
+   PythonLogHandler mptest::loghandler
+   PythonCleanupHandler mptest::cleanuphandler
+
+and &quot;mptest.py&quot; contains:
+
+   from mod_python import apache
+   import time
+
+   class _Handler:
+     def __init__(self,phase,status=apache.OK,delay=0):
+       self.__phase = phase
+       self.__status = status
+       self.__delay = delay
+     def __call__(self,req):
+       req.log_error(&quot;&lt;/%s&gt;&quot;%self.__phase)
+       time.sleep(self.__delay)
+       req.log_error(&quot;&lt;%s&gt;&quot;%self.__phase)
+       return self.__status
+
+   postreadrequesthandler = _Handler(&quot;postreadrequesthandler&quot;)
+   transhandler = _Handler(&quot;transhandler&quot;)
+   headerparserhandler = _Handler(&quot;headerparserhandler&quot;)
+   inithandler = _Handler(&quot;inithandler&quot;)
+   accesshandler = _Handler(&quot;accesshandler&quot;)
+   authenhandler = _Handler(&quot;authenhandler&quot;)
+   authzhandler = _Handler(&quot;authzhandler&quot;)
+   typehandler = _Handler(&quot;typehandler&quot;)
+   fixuphandler = _Handler(&quot;fixuphandler&quot;)
+   handler = _Handler(&quot;handler&quot;,status=apache.DECLINED)
+   loghandler = _Handler(&quot;loghandler&quot;)
+   cleanuphandler = _Handler(&quot;cleanup&quot;)
+
+If I request a plain text file residing in that directory in the log
+file I will see:
+
+   [Sun Apr 10 02:56:46 2005] [notice] mod_python: (Re)importing module 
+'mptest'
+   [Sun Apr 10 02:56:46 2005] [error] [client 128.121.126.33] 
+&lt;/accesshandler&gt;
+   [Sun Apr 10 02:56:46 2005] [error] [client 128.121.126.33] 
+&lt;accesshandler&gt;
+   [Sun Apr 10 02:56:46 2005] [error] [client 128.121.126.33] &lt;/handler&gt;
+   [Sun Apr 10 02:56:46 2005] [error] [client 128.121.126.33] &lt;handler&gt;
+   [Sun Apr 10 02:56:46 2005] [error] [client 128.121.126.33] 
+&lt;/loghandler&gt;
+   [Sun Apr 10 02:56:46 2005] [error] [client 128.121.126.33] 
+&lt;loghandler&gt;
+   [Sun Apr 10 02:56:47 2005] [error] [client 128.121.126.33] &lt;/cleanup&gt;
+   [Sun Apr 10 02:56:47 2005] [error] [client 128.121.126.33] &lt;cleanup&gt;
+
+Note that because apache.DECLINED was returned from handler(), Apache 
+will
+fall back to using the &quot;default-handler&quot; and will serve up the raw 
+contents
+of the file.
+
+Unfortunately, if the file requested was a &quot;.php&quot; file, the raw contents
+of the file will be returned and not the processed output from running
+the PHP module on the raw file.
+
+What to do to still have the &quot;.php&quot; file processed but the other handler
+phases still be executed by mod_python isn't obvious though. What you 
+need
+to know is that the &quot;SetHandler&quot; and &quot;AddHandler&quot; directives only apply 
+to
+the &quot;PythonHandler&quot; directive and not to all the others.
+
+Thus, if the following .htaccess file is instead used:
+
+   #SetHandler mod_python
+
+   PythonHeaderParserHandler mptest::headerparser
+   PythonAccessHandler mptest::accesshandler
+   PythonHandler mptest::handler
+   PythonLogHandler mptest::loghandler
+   PythonCleanupHandler mptest::cleanuphandler
+
+Ie., comment out the &quot;SetHandler&quot;, then &quot;PythonHandler&quot; directive 
+doesn't
+get applied. Make a request against a &quot;.php&quot; file in the directory and 
+one
+sees in the log file:
+
+   [Sun Apr 10 03:01:18 2005] [notice] mod_python: (Re)importing module 
+'mptest'
+   [Sun Apr 10 03:01:18 2005] [error] [client 128.121.126.33] 
+&lt;/accesshandler&gt;
+   [Sun Apr 10 03:01:18 2005] [error] [client 128.121.126.33] 
+&lt;accesshandler&gt;
+   [Sun Apr 10 03:01:18 2005] [error] [client 128.121.126.33] 
+&lt;/loghandler&gt;
+   [Sun Apr 10 03:01:18 2005] [error] [client 128.121.126.33] 
+&lt;loghandler&gt;
+   [Sun Apr 10 03:01:18 2005] [error] [client 128.121.126.33] &lt;/cleanup&gt;
+   [Sun Apr 10 03:01:18 2005] [error] [client 128.121.126.33] &lt;cleanup&gt;
+
+Note that &quot;handler()&quot; isn't called, the others still are and I get my 
+rendered
+PHP output displayed in the browser.
+
+Thus you can see that a non mod_python content handler can be mixed 
+with other
+handlers which do use mod_python. If you were to add time delays in the 
+various
+phases to slow things done, you would see that the &quot;PHP&quot; output will 
+appear on
+your browser at the point where &quot;handler()&quot; would otherwise be called. 
+This
+therefore indicates that the log handler and later phases only get 
+executed
+after the PHP module has been executed to return the page content.
+
+In terms of mod_dav, as far as I can see, if you don't set AddHandler or
+SetHandler directives, you should be able to define an access handler or
+log handler etc and mod_dav will be called where the handler would 
+otherwise.
+
+One final thing to try with the above is set the .htaccess file to 
+contain
+only:
+
+   PythonHandlerModule mptest
+
+When I know request the &quot;.php&quot; file I see:
+
+   [Sun Apr 10 03:08:47 2005] [notice] mod_python: (Re)importing module 
+'mptest'
+   [Sun Apr 10 03:08:47 2005] [error] [client 128.121.126.33] 
+&lt;/headerparserhandler&gt;
+   [Sun Apr 10 03:08:47 2005] [error] [client 128.121.126.33] 
+&lt;headerparserhandler&gt;
+   [Sun Apr 10 03:08:47 2005] [error] [client 128.121.126.33] 
+&lt;/accesshandler&gt;
+   [Sun Apr 10 03:08:47 2005] [error] [client 128.121.126.33] 
+&lt;accesshandler&gt;
+   [Sun Apr 10 03:08:47 2005] [error] [client 128.121.126.33] 
+&lt;/loghandler&gt;
+   [Sun Apr 10 03:08:47 2005] [error] [client 128.121.126.33] 
+&lt;loghandler&gt;
+   [Sun Apr 10 03:08:47 2005] [error] [client 128.121.126.33] &lt;/cleanup&gt;
+   [Sun Apr 10 03:08:47 2005] [error] [client 128.121.126.33] &lt;cleanup&gt;
+
+I don't quite understand why the header parser handler is executed when 
+the
+&quot;PythonHandlerModule&quot; directive is used, but not when 
+&quot;PythonHeaderParserHandler&quot;
+is used explicitly.
+
+BTW, &quot;PythonHandlerModule&quot; is actually broken. It works here because a 
+handler
+for every phase is defined. According to the documentation it is meant 
+to
+ignore the fact that a handler for a phase isn't there and simply just 
+call
+those which are. It doesn't do this though and raises a 500 error. 
+Problem is
+logged as:
+
+   <A HREF="http://issues.apache.org/jira/browse/MODPYTHON-46">http://issues.apache.org/jira/browse/MODPYTHON-46</A>
+
+I inadvertently fixed this in an older version of Vampire in an 
+alternate
+way I provided of defining non content handlers, but then I broke it 
+again
+in one of the more recent versions. Have fixed it again for next 
+version. :-)
+
+Anyway, the only thing I didn't explain here was when you have:
+
+   PythonHandler a b c
+
+or:
+
+   PythonHandler a
+   PythonHandler b
+   PythonHandler c
+
+I think the documentation I quote about this at the start was reasonably
+clear on that one though.
+
+Hope this explains things. If it doesn't, you should perhaps explain the
+specific problem you are having.
+
+Graham
+
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017873.html">[mod_python] How do you specify the order in which mod_python
+	Handlers are called?
+</A></li>
+	<LI>Next message: <A HREF="017875.html">[mod_python] How do you specify the order in which mod_python
+	Handlers are called?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17874">[ date ]</a>
+              <a href="thread.html#17874">[ thread ]</a>
+              <a href="subject.html#17874">[ subject ]</a>
+              <a href="author.html#17874">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>

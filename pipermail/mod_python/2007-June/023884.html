@@ -1,0 +1,269 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] psp import issue
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp%20import%20issue&In-Reply-To=227f6fed0706211729m7583e6e7y56f7db63e7cba058%40mail.gmail.com">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023883.html">
+   <LINK REL="Next"  HREF="023885.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] psp import issue</H1>
+<table border=0 width="100%"><tr><td valign="top">
+    <B>Graham Dumpleton</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=%5Bmod_python%5D%20psp%20import%20issue&In-Reply-To=227f6fed0706211729m7583e6e7y56f7db63e7cba058%40mail.gmail.com"
+       TITLE="[mod_python] psp import issue">graham.dumpleton at gmail.com
+       </A><BR>
+    <I>Thu Jun 21 20:45:53 EDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023883.html">[mod_python] psp import issue
+</A></li>
+        <LI>Next message: <A HREF="023885.html">[mod_python] psp import issue
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23884">[ date ]</a>
+              <a href="thread.html#23884">[ thread ]</a>
+              <a href="subject.html#23884">[ subject ]</a>
+              <a href="author.html#23884">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 22/06/07, maker joe &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">makerjoe at gmail.com</A>&gt; wrote:
+&gt;<i> great!!!!! your suggeted hack worked
+</I>
+There is also now a patch attached to:
+
+  <A HREF="https://issues.apache.org/jira/browse/MODPYTHON-220">https://issues.apache.org/jira/browse/MODPYTHON-220</A>
+
+which fixes the problem in mod_python if you want to apply it. Look at
+man page for 'patch' program if you don't know how to do this.
+
+&gt;<i> btw
+</I>&gt;<i> do you know how to setup publisher/psp to replace:
+</I>&gt;<i>
+</I>&gt;<i> req.write('something') by print 'something'  eg (sys.stdout=rec)
+</I>
+Use:
+
+  print &gt;&gt; req, &quot;something&quot;
+
+To be able to say just:
+
+  print &quot;something&quot;
+
+needs more elaborate techniques. The web.py package allows this but it
+requires special thread keyed version of sys.stdout.
+
+&gt;<i> and
+</I>&gt;<i> req.form['varx']  by _varx
+</I>
+Don't recommend pushing form fields in local name space as doesn't
+make it as obvious that it is a form field and there would be a
+tendency not to perform checks to make sure the field you are looking
+for actually exists. Also, it will all possibly blow up if someone
+supplied a field you weren't expecting which replaced some important
+data or clashed with a keyword.
+
+If you really must do something like that though, you might adapt the
+following code from mod_python.util.apply_fs_data(). Replace 'fs' with
+req.form and replace args with locals().
+
+    # add form data to args
+    for field in fs.list:
+        if field.filename:
+            val = field
+        else:
+            val = field.value
+        args.setdefault(field.name, []).append(val)
+
+    # replace lists with single values
+    for arg in args:
+        if ((type(args[arg]) is ListType) and
+            (len(args[arg]) == 1)):
+            args[arg] = args[arg][0]
+
+&gt;<i> like in karrigell
+</I>
+Having too much magic is not always good. Karrigell severely limits
+its deployment options because of how it is implemented. Not as bad as
+Karrigell, but web.py also pays for allowing 'print' to work to
+generate response content in that it can cause conflicts when multiple
+applications are being hosted. You can see a bit of discussion about
+the problems these packages have when used with Apache at:
+
+  <A HREF="http://code.google.com/p/modwsgi/wiki/IntegrationWithKarrigell">http://code.google.com/p/modwsgi/wiki/IntegrationWithKarrigell</A>
+  <A HREF="http://code.google.com/p/modwsgi/wiki/IntegrationWithWebPy">http://code.google.com/p/modwsgi/wiki/IntegrationWithWebPy</A>
+
+This documents are about mod_wsgi, but similar issues exist if
+mod_python were being used.
+
+PS. Can you use reply-all so messages go back to list.
+
+Graham
+
+&gt;<i> cheers
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On 6/21/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; On 22/06/07, maker joe &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">makerjoe at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; many thanks for your suggestions
+</I>&gt;<i> &gt; &gt; but let me explain myself more carefully
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; you said:
+</I>&gt;<i> &gt; &gt; and then reference via module rather than trying to do import '*' into
+</I>&gt;<i> &gt; &gt; local namespace
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; how can i avoid using the reference via module and have
+</I>&gt;<i> &gt; &gt; module.vars/defs as local varsdefs as if i use &quot;from module import * ?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; All your problems will be solved when the bug I referenced in the
+</I>&gt;<i> &gt; first place is fixed. Ie., you will be able to use 'from module import
+</I>&gt;<i> &gt; *' for a module in the same directory as your PSP page.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; If you can't wait that long, do not put your modules in the same
+</I>&gt;<i> &gt; directory as your .psp files, put them in a directory which is outside
+</I>&gt;<i> &gt; of your document tree. Then use PythonPath directive to add that
+</I>&gt;<i> &gt; external directory to the standard module search path. By doing that
+</I>&gt;<i> &gt; the mod_python module importer will be skipped and 'from module import
+</I>&gt;<i> &gt; *' will work for you.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Note, do not add the document directory itself to PythonPath as you
+</I>&gt;<i> &gt; shouldn't overlap mod_python module path and standard Python module
+</I>&gt;<i> &gt; path.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Also note though that by putting them in a directory outside of the
+</I>&gt;<i> &gt; document tree and thereby using the standard Python module importer,
+</I>&gt;<i> &gt; those modules will not be candidates for automatic module reloading.
+</I>&gt;<i> &gt; Thus, whenever you make a change to them, you will need to restart
+</I>&gt;<i> &gt; Apache for the change to be picked up.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The only other hack I can suggest is to do something like:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;  module = apache.import_module(module_name)
+</I>&gt;<i> &gt;  globals().update(module.__dict__)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Graham
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt; On 6/21/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; On 22/06/07, maker joe &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">makerjoe at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; hi graham
+</I>&gt;<i> &gt; &gt; &gt; &gt; how insecure is the following code
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; exec &quot;from %s import * &quot; % 'test'
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; if this is insecure what would be a secure alternative to get imported
+</I>&gt;<i> &gt; &gt; &gt; &gt; vars/funcs at local namespace?
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; In this case 'test' is a literal string. If it wasn't a literal string
+</I>&gt;<i> &gt; &gt; &gt; but somehow derived from user input it would be very dangerous.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Anyway, you don't need to do that. Use:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;   module = apache.import_module(module_name)
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; and then reference via module rather than trying to do import '*' into
+</I>&gt;<i> &gt; &gt; &gt; local namespace.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; See documentation for import_module() in:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;   <A HREF="http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html">http://www.modpython.org/live/current/doc-html/pyapi-apmeth.html</A>
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; BTW, never call modules 'test' as Python provides a standard module
+</I>&gt;<i> &gt; &gt; &gt; called that and thus you can get yourself in a knot when it somehow
+</I>&gt;<i> &gt; &gt; &gt; picks up the standard one and not yours.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Graham
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; thank you
+</I>&gt;<i> &gt; &gt; &gt; &gt; joseluis
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; On 6/19/07, Graham Dumpleton &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">graham.dumpleton at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; Issue noted at:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;   <A HREF="https://issues.apache.org/jira/browse/MODPYTHON-220">https://issues.apache.org/jira/browse/MODPYTHON-220</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; You should be able to use:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;   somemodule = apache.import_module(&quot;somemodule&quot;)
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; instead.
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; Graham
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; On 20/06/07, maker joe &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">makerjoe at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; hi
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; how can i import a module from the current directory on a psp file
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; eg
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; test.psp
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; &lt;%
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; import somemodule
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; %&gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; somemodule.py is at the same directory as test.psp
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; the same works importing from a file.py
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; im using publisher and psp hanlers
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; python 2.5 modputhon 3.31
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; thanks
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; joseluis
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; _______________________________________________
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; Mod_python mailing list
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">Mod_python at modpython.org</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023883.html">[mod_python] psp import issue
+</A></li>
+	<LI>Next message: <A HREF="023885.html">[mod_python] psp import issue
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23884">[ date ]</a>
+              <a href="thread.html#23884">[ thread ]</a>
+              <a href="subject.html#23884">[ subject ]</a>
+              <a href="author.html#23884">[ author ]</a>
+         </LI>
+       </UL>
+
+</td>
+<td align="right" valign="top">
+<script type="text/javascript"><!--
+google_ad_client = "pub-9718360309690383";
+google_ad_width = 120;
+google_ad_height = 600;
+google_ad_format = "120x600_as";
+google_color_border = "CCCCCC";
+google_color_bg = "FFFFFF";
+google_color_link = "000000";
+google_color_url = "666666";
+google_color_text = "333333";
+//--></script>
+<script type="text/javascript"
+  src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</td>
+</table>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the Mod_python
+mailing list</a><br>
+</body></html>
