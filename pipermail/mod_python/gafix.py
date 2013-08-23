@@ -35,5 +35,6 @@ new = """
 
 s = s.replace(old, new)
 
-print s
+open(sys.argv[1], 'w').write(s)
+
 
