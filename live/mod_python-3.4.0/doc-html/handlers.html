@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Standard Handlers &mdash; Mod_python v3.4.0-a5240d4 documentation</title>
+    <title>Standard Handlers &mdash; Mod_python v3.4.1-35f35dc documentation</title>
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '3.4.0-a5240d4',
+        VERSION:     '3.4.1-35f35dc',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -25,7 +25,7 @@
     <script type="text/javascript" src="_static/sidebar.js"></script>
     <link rel="author" title="About these documents" href="about.html" />
     <link rel="copyright" title="Copyright" href="copyright.html" />
-    <link rel="top" title="Mod_python v3.4.0-a5240d4 documentation" href="index.html" />
+    <link rel="top" title="Mod_python v3.4.1-35f35dc documentation" href="index.html" />
     <link rel="next" title="Command Line Tool - mod_python" href="commandline.html" />
     <link rel="prev" title="Apache Configuration Directives" href="directives.html" /> 
   </head>
@@ -45,7 +45,7 @@
         <li class="right" >
           <a href="directives.html" title="Apache Configuration Directives"
              accesskey="P">previous</a> |</li>
-        <li><a href="contents.html">Mod_python v3.4.0-a5240d4 documentation</a> &raquo;</li> 
+        <li><a href="contents.html">Mod_python v3.4.1-35f35dc documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -172,7 +172,7 @@ value of
 <tt class="docutils literal"><span class="pre">__auth__</span></tt> is false, then <tt class="xref py py-const docutils literal"><span class="pre">HTTP_UNAUTHORIZED</span></tt> is
 returned to the client (which will usually cause a password dialog box
 to appear).</p>
-<p>If :meth:__auth__ is a dictionary, then the user name will be
+<p>If <tt class="xref py py-meth docutils literal"><span class="pre">__auth__()</span></tt> is a dictionary, then the user name will be
 matched against the key and the password against the value associated
 with this key. If the key and password do not match,
 <tt class="xref py py-const docutils literal"><span class="pre">HTTP_UNAUTHORIZED</span></tt> is returned. Note that this requires
@@ -290,26 +290,39 @@ path to <tt class="docutils literal"><span class="pre">wsgi.py</span></tt> is <t
 <p>It can be executed using the WSGI handler by adding the following to the
 Apache configuration:</p>
 <div class="highlight-python"><pre>PythonHandler mod_python.wsgi
-PythonOption wsgi.application mysite.wsgi
+PythonOption mod_python.wsgi.application mysite.wsgi
 PythonPath "sys.path+['/path/to/mysite']"</pre>
 </div>
 <p>The above configuration will import a module named <tt class="docutils literal"><span class="pre">mysite.wsgi</span></tt> and
 will look for an <tt class="docutils literal"><span class="pre">application</span></tt> callable in the module.</p>
 <p>An alternative name for the callable can be specified by appending it
 to the module name separated by <tt class="docutils literal"><span class="pre">'::'</span></tt>, e.g.:</p>
-<div class="highlight-python"><pre>PythonOption wsgi.application mysite.wsgi::my_application</pre>
+<div class="highlight-python"><pre>PythonOption mod_python.wsgi.application mysite.wsgi::my_application</pre>
 </div>
-<p>If you would like your application to appear under a base URI, is can
-be specified via the <tt class="docutils literal"><span class="pre">wsgi.base_url</span></tt> option. <tt class="docutils literal"><span class="pre">wsgi.base_uri</span></tt>
-cannot be <tt class="docutils literal"><span class="pre">'/'</span></tt> or end with a <tt class="docutils literal"><span class="pre">'/'</span></tt>. &#8220;Root&#8221; (or no base_url) is a
-blank string, which is the default.</p>
+<p>If you would like your application to appear under a base URI, it can
+be specified by wrapping your configuration in a <tt class="docutils literal"><span class="pre">&lt;Location&gt;</span></tt>
+block. It can also be specified via the <tt class="docutils literal"><span class="pre">mod_python.wsgi.base_uri</span></tt>
+option, but the <tt class="docutils literal"><span class="pre">&lt;Location&gt;</span></tt> method is recommended, also because it
+has a side-benefit of informing mod_python to skip the map-to-storage
+processing phase and thereby improving performance.</p>
 <p>For example, if you would like the above application to appear under
 <tt class="docutils literal"><span class="pre">'/wsgiapps'</span></tt>, you could specify:</p>
-<div class="highlight-python"><pre>PythonOption wsgi.base_uri /wsgiapps</pre>
+<div class="highlight-python"><pre>&lt;Location /wsgiapps&gt;
+   PythonHandler mod_python.wsgi
+   PythonOption mod_python.wsgi.application mysite.wsgi
+   PythonPath "sys.path+['/path/to/mysite']"
+&lt;/Location&gt;</pre>
 </div>
-<p>With the above configuration, content under
-<tt class="docutils literal"><span class="pre">http://example.com/hello</span></tt> becomes under
+<p>With the above configuration, content formerly under
+<tt class="docutils literal"><span class="pre">http://example.com/hello</span></tt> becomes available under
 <tt class="docutils literal"><span class="pre">http://example.com/wsgiapps/hello</span></tt>.</p>
+<p>If both <tt class="docutils literal"><span class="pre">&lt;Location&gt;</span></tt> and <tt class="docutils literal"><span class="pre">mod_python.wsgi.base_uri</span></tt> exist, then
+<tt class="docutils literal"><span class="pre">mod_python.wsgi.base_uri</span></tt> takes precedence.
+<tt class="docutils literal"><span class="pre">mod_python.wsgi.base_uri</span></tt> cannot be <tt class="docutils literal"><span class="pre">'/'</span></tt> or end with a
+<tt class="docutils literal"><span class="pre">'/'</span></tt>. &#8220;Root&#8221; (or no base_uri) is a blank string, which is the
+default. (Note that it is allowed for <tt class="docutils literal"><span class="pre">&lt;Location&gt;</span></tt> path to be
+<tt class="docutils literal"><span class="pre">&quot;/&quot;</span></tt> or have a trailing slash, it will automatically be removed by
+mod_python before computing <tt class="docutils literal"><span class="pre">PATH_INFO</span></tt>).</p>
 <div class="admonition note" id="index-5">
 <p class="first admonition-title">Note</p>
 <p><span class="target" id="index-6"></span><a class="pep reference external" href="http://www.python.org/dev/peps/pep-0333"><strong>PEP 333</strong></a> describes <tt class="docutils literal"><span class="pre">SCRIPT_NAME</span></tt> and <tt class="docutils literal"><span class="pre">PATH_INFO</span></tt> environment
@@ -335,8 +348,9 @@ constructed on-the-fly), and their location in the filesystem has
 no relationship to the URL structure at all.</p>
 <p>The mismatch between CGI and WSGI results in an ambiguity which
 requires that the split between the two variables be explicitely
-specified, which is why <tt class="docutils literal"><span class="pre">wsgi.base_uri</span></tt> exists. Simply put,
-<tt class="docutils literal"><span class="pre">wsgi.base_uri</span></tt> is the <tt class="docutils literal"><span class="pre">SCRIPT_NAME</span></tt> portion of the URI and
+specified, which is why <tt class="docutils literal"><span class="pre">mod_python.wsgi.base_uri</span></tt> exists. In essence
+<tt class="docutils literal"><span class="pre">mod_python.wsgi.base_uri</span></tt> (or the path in surrounding
+<tt class="docutils literal"><span class="pre">&lt;Location&gt;</span></tt>) is the <tt class="docutils literal"><span class="pre">SCRIPT_NAME</span></tt> portion of the URI and
 defaults to <tt class="docutils literal"><span class="pre">''</span></tt>.</p>
 <p class="last">An important detail is that <tt class="docutils literal"><span class="pre">SCRIPT_NAME</span></tt> + <tt class="docutils literal"><span class="pre">PATH_INFO</span></tt> should
 result in the original URI (encoding issues aside). Since
@@ -484,12 +498,12 @@ value.</p>
         <li class="right" >
           <a href="directives.html" title="Apache Configuration Directives"
              >previous</a> |</li>
-        <li><a href="contents.html">Mod_python v3.4.0-a5240d4 documentation</a> &raquo;</li> 
+        <li><a href="contents.html">Mod_python v3.4.1-35f35dc documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; <a href="copyright.html">Copyright</a> 1990-2013, Apache Software Foundation, Gregory Trubetskoy.
-      Last updated on Sep 25, 2013.
+      Last updated on Oct 09, 2013.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
     </div>
   </body>
