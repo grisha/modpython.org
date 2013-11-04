@@ -1,0 +1,358 @@
+--- connobject.c	Sun Nov 03 17:52:22 2013
++++ connobject.c	Sun Nov 03 17:53:46 2013
+@@ -40,7 +40,7 @@
+ PyObject * MpConn_FromConn(conn_rec *c)
+ {
+     connobject *result;
+-
++	MpConn_Type.ob_type = &PyType_Type;
+     result = PyObject_New(connobject, &MpConn_Type);
+     if (! result)
+         return PyErr_NoMemory();
+@@ -325,7 +325,7 @@
+ {
+ 
+     PyObject *res;
+-
++	PyMemberDef *md;
+     PyMethodDef *ml = connobjectmethods;
+     for (; ml->ml_name != NULL; ml++) {
+         if (name[0] == ml->ml_name[0] &&
+@@ -404,7 +404,7 @@
+                           "use req.useragent_ip or conn.client_ip");
+         }
+ #endif
+-        PyMemberDef *md = find_memberdef(conn_memberlist, name);
++        md = find_memberdef(conn_memberlist, name);
+         if (!md) {
+             PyErr_SetString(PyExc_AttributeError, name);
+             return NULL;
+@@ -445,8 +445,9 @@
+     }
+ }
+ 
++
+ PyTypeObject MpConn_Type = {
+-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
++    PyVarObject_HEAD_INIT(NULL, 0)
+     "mp_conn",                       /* tp_name */
+     sizeof(connobject),              /* tp_basicsize */
+     0,                               /* tp_itemsize */
+--- filterobject.c	Sun Nov 03 17:52:22 2013
++++ filterobject.c	Sun Nov 03 17:53:57 2013
+@@ -78,7 +78,7 @@
+                               char * handler, char *dir)
+ {
+     filterobject *result;
+-
++	MpFilter_Type.ob_type = &PyType_Type;
+     result = PyObject_New(filterobject, &MpFilter_Type);
+     if (! result)
+         return PyErr_NoMemory();
+@@ -540,12 +540,13 @@
+ 
+ static int filter_setattr(filterobject *self, char *name, PyObject *v)
+ {
++	PyMemberDef *md;
+     if (v == NULL) {
+         PyErr_SetString(PyExc_AttributeError,
+                         "can't delete filter attributes");
+         return -1;
+     }
+-    PyMemberDef *md = find_memberdef(filter_memberlist, name);
++    md = find_memberdef(filter_memberlist, name);
+     if (!md) {
+         PyErr_SetString(PyExc_AttributeError, name);
+         return -1;
+@@ -554,7 +555,7 @@
+ }
+ 
+ PyTypeObject MpFilter_Type = {
+-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
++    PyVarObject_HEAD_INIT(NULL, 0)
+     "mp_filter",                    /* tp_name */
+     sizeof(filterobject),           /* tp_basicsize */
+     0,                              /* tp_itemsize */
+--- finfoobject.c	Sun Nov 03 17:52:22 2013
++++ finfoobject.c	Sun Nov 03 17:48:43 2013
+@@ -35,7 +35,7 @@
+ PyObject * MpFinfo_FromFinfo(apr_finfo_t *f)
+ {
+     finfoobject *result;
+-
++	MpFinfo_Type.ob_type = &PyType_Type;
+     result = PyObject_New(finfoobject, &MpFinfo_Type);
+     if (! result)
+         return PyErr_NoMemory();
+@@ -377,7 +377,7 @@
+ }
+ 
+ PyTypeObject MpFinfo_Type = {
+-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
++    PyVarObject_HEAD_INIT(NULL, 0)
+     "mp_finfo",                         /* tp_name */
+     sizeof(finfoobject),                /* tp_basicsize */
+     0,                                  /* tp_itemsize */
+--- hlistobject.c	Sun Nov 03 17:52:22 2013
++++ hlistobject.c	Sun Nov 03 17:54:14 2013
+@@ -36,7 +36,7 @@
+ PyObject *MpHList_FromHLEntry(hl_entry *hle)
+ {
+     hlistobject *result;
+-
++	MpHList_Type.ob_type = &PyType_Type;
+     result = PyObject_New(hlistobject, &MpHList_Type);
+     if (! result)
+         PyErr_NoMemory();
+@@ -92,6 +92,7 @@
+ static PyObject *hlist_getattr(hlistobject *self, char *name)
+ {
+     PyObject *res;
++	PyMemberDef *md;
+ 
+     PyMethodDef *ml = hlistmethods;
+     for (; ml->ml_name != NULL; ml++) {
+@@ -109,7 +110,7 @@
+         return Py_None;
+     }
+ 
+-    PyMemberDef *md = find_memberdef(hlist_memberlist, name);
++    md = find_memberdef(hlist_memberlist, name);
+     if (!md) {
+         PyErr_SetString(PyExc_AttributeError, name);
+         return NULL;
+@@ -164,7 +165,7 @@
+ }
+ 
+ PyTypeObject MpHList_Type = {
+-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
++    PyVarObject_HEAD_INIT(NULL, 0)
+     "mp_hlist",                      /* tp_name */
+     sizeof(hlistobject),             /* tp_basicsize */
+     0,                               /* tp_itemsize */
+--- mod_python.c	Sun Nov 03 17:52:22 2013
++++ mod_python.c	Sun Nov 03 15:39:56 2013
+@@ -58,6 +58,7 @@
+ 
+     PyObject *m = NULL;
+     PyObject *obCallBack = NULL;
++	const char * mp_version_string;
+ 
+     /* This makes _apache appear imported, and subsequent
+      * >>> import _apache
+@@ -113,7 +114,7 @@
+                 Py_DECREF(mp);
+                 return NULL;
+             }
+-
++			mp_version_string = mp_dynamic_version;
+             if (strcmp(mp_version_string, mp_dynamic_version) != 0) {
+                 char *c_f;
+                 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, main_server,
+@@ -695,6 +696,7 @@
+     char buff[255];
+     void *data;
+     py_global_config *glb;
++	const char * mp_version_component;
+     const char *userdata_key = "python_init";
+     apr_status_t rc;
+ 
+@@ -1153,6 +1155,7 @@
+     char d_is_fnmatch = 0;
+     char d_is_location = 0;
+     ap_regex_t *regex = NULL;
++	const char *exts;
+ 
+     determine_context(cmd->pool, cmd, &directory, &d_is_fnmatch, &d_is_location, &regex);
+ 
+@@ -1169,7 +1172,7 @@
+      * PythonHandler.ext2 foo
+      */
+ 
+-    const char *exts = val;
++    exts = val;
+     val = ap_getword(cmd->pool, &exts, '|');
+ 
+     if (*exts == '\0') {
+@@ -2609,6 +2612,7 @@
+     const apr_array_header_t *ah;
+     apr_table_entry_t *elts;
+     int i;
++	interpreterdata *idata;
+ 
+     py_config *conf = ap_get_module_config(s->module_config, &python_module);
+     py_global_config *glb;
+@@ -2618,7 +2622,7 @@
+     PyEval_RestoreThread(global_tstate);
+     PyOS_AfterFork();
+ 
+-    interpreterdata *idata = save_interpreter(MAIN_INTERPRETER, PyThreadState_Get());
++    idata = save_interpreter(MAIN_INTERPRETER, PyThreadState_Get());
+     if (!idata)
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server,
+                      "PythonChildInitHandler: save_interpreter() returned NULL. No more memory?");
+--- requestobject.c	Sun Nov 03 17:52:22 2013
++++ requestobject.c	Sun Nov 03 15:23:44 2013
+@@ -47,7 +47,7 @@
+ PyObject * MpRequest_FromRequest(request_rec *req)
+ {
+     requestobject *result;
+-
++	MpRequest_Type.ob_type = &PyType_Type;
+     result = PyObject_GC_New(requestobject, &MpRequest_Type);
+     if (! result)
+         return PyErr_NoMemory();
+@@ -221,13 +221,13 @@
+     apr_table_t *e = r->subprocess_env;
+     PyObject *env, *v;
+     const char *val;
+-    int i, j;
++    int i, j, rc;
+ 
+     env = PyDict_New();
+     if (!env)
+         return NULL;
+ 
+-    int rc = set_wsgi_path_info(self);
++    rc = set_wsgi_path_info(self);
+     if (rc == 1) {
+         /* bad base_uri, the error is already set */
+         Py_DECREF(env);
+@@ -984,6 +984,10 @@
+ 
+ static PyObject * req_get_options(requestobject *self, PyObject *args)
+ {
++	const apr_array_header_t* ah;
++	apr_table_entry_t* elts;
++	int i;
++
+     py_config *conf =
+         (py_config *) ap_get_module_config(self->request_rec->per_dir_config,
+                                            &python_module);
+@@ -993,9 +997,9 @@
+     if (((tableobject*)self->options)->table != conf->options)
+         ((tableobject*)self->options)->table = conf->options;
+ 
+-    const apr_array_header_t* ah = apr_table_elts(conf->options);
+-    apr_table_entry_t* elts = (apr_table_entry_t *) ah->elts;
+-    int i;
++    ah = apr_table_elts(conf->options);
++    elts = (apr_table_entry_t *) ah->elts;
++    
+ 
+     /* Remove the empty values as a way to unset values.
+      * See https://issues.apache.org/jira/browse/MODPYTHON-6 */
+@@ -1899,6 +1903,7 @@
+ static int setreq_recmbr(requestobject *self, PyObject *val, void *name)
+ {
+     char *v;
++	PyMemberDef *md;
+     if (strcmp(name, "content_type") == 0) {
+         MP_ANYSTR_AS_STR(v, val, 1);
+         if (!v) {
+@@ -2037,7 +2042,7 @@
+         return 0;
+     }
+ 
+-    PyMemberDef *md = find_memberdef(request_rec_mbrs, name);
++    md = find_memberdef(request_rec_mbrs, name);
+     if (!md) {
+         PyErr_SetString(PyExc_AttributeError, name);
+         return -1;
+@@ -2377,7 +2382,7 @@
+ "Apache request_rec structure\n";
+ 
+ PyTypeObject MpRequest_Type = {
+-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
++    PyVarObject_HEAD_INIT(NULL, 0)
+     "mp_request",                      /* tp_name */
+     sizeof(requestobject),             /* tp_basicsize */
+     0,                                 /* tp_itemsize */
+--- serverobject.c	Sun Nov 03 17:52:22 2013
++++ serverobject.c	Sun Nov 03 15:24:01 2013
+@@ -36,7 +36,7 @@
+ PyObject * MpServer_FromServer(server_rec *s)
+ {
+     serverobject *result;
+-
++	MpServer_Type.ob_type = &PyType_Type;
+     result = PyObject_New(serverobject, &MpServer_Type);
+     if (! result)
+         return PyErr_NoMemory();
+@@ -237,6 +237,7 @@
+ 
+ static PyObject *getsrv_recmbr(serverobject *self, void *name)
+ {
++	PyMemberDef *md;
+     if (strcmp(name, "_server_rec") == 0) {
+ #if PY_MAJOR_VERSION == 2 && PY_MINOR_VERSION < 7
+         return PyCObject_FromVoidPtr(self->server, 0);
+@@ -246,7 +247,7 @@
+ 
+     }
+ 
+-    PyMemberDef *md = find_memberdef(server_rec_mbrs, name);
++    md = find_memberdef(server_rec_mbrs, name);
+     if (!md) {
+         PyErr_SetString(PyExc_AttributeError, name);
+         return NULL;
+@@ -374,7 +375,7 @@
+ "Apache server_rec structure\n";
+ 
+ PyTypeObject MpServer_Type = {
+-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
++    PyVarObject_HEAD_INIT(NULL, 0)
+     "mp_server",                     /* tp_name */
+     sizeof(serverobject),            /* tp_basicsize */
+     0,                               /* tp_itemsize */
+--- tableobject.c	Sun Nov 03 17:52:22 2013
++++ tableobject.c	Sun Nov 03 15:34:09 2013
+@@ -50,7 +50,7 @@
+     tableobject *result;
+ 
+     TABLE_DEBUG("MpTable_FromTable");
+-
++	MpTable_Type.ob_type = &PyType_Type;
+     result = PyObject_New(tableobject, &MpTable_Type);
+     if (! result)
+         return PyErr_NoMemory();
+@@ -1183,7 +1183,7 @@
+ "        d[k] = v";
+ 
+ PyTypeObject MpTable_Type = {
+-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
++    PyVarObject_HEAD_INIT(NULL, 0)
+     "mp_table",                         /* tp_name */
+     sizeof(tableobject),                /* tp_basicsize */
+     0,                                  /* tp_itemsize */
+@@ -1247,7 +1247,7 @@
+     tableiterobject *ti;
+ 
+     TABLE_DEBUG("tableiter_new");
+-
++	MpTableIter_Type.ob_type = &PyType_Type;
+     ti = PyObject_NEW(tableiterobject, &MpTableIter_Type);
+     if (ti == NULL)
+         return NULL;
+@@ -1333,7 +1333,7 @@
+ }
+ 
+ PyTypeObject MpTableIter_Type = {
+-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
++    PyVarObject_HEAD_INIT(NULL, 0)
+     "dictionary-iterator",              /* tp_name */
+     sizeof(tableiterobject),            /* tp_basicsize */
+     0,                                  /* tp_itemsize */
+--- mod_python.h	Sun Nov 03 17:52:22 2013
++++ mod_python.h	Sun Nov 03 15:39:57 2013
+@@ -160,8 +160,8 @@
+ extern const int mp_version_major;
+ extern const int mp_version_minor;
+ extern const int mp_version_patch;
+-extern const char * const mp_version_string;
+-extern const char * const mp_version_component;
++//extern const char * const mp_version_string;
++//extern const char * const mp_version_component;
+ 
+ /* structure to hold interpreter data */
+ typedef struct {
