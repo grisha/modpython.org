@@ -1,0 +1,76 @@
+From adamsna at datanethost.net  Mon Nov  4 00:56:47 2013
+From: adamsna at datanethost.net (Nathan Adams)
+Date: Sun, 3 Nov 2013 18:56:47 -0600
+Subject: [mod_python] mod_python and Windows
+Message-ID: <CABi3FZHocov=H0dnMGjZss+zjr-27DW1gWFNxE1eBxo3XPzn2A@mail.gmail.com>
+
+Hi,
+
+I saw you were looking for help to test compiling the new mod_python on
+Windows.
+
+The good news: I got it compiled on Windows under Visual Studio 2010 - I
+haven't tested it but it does spit out a so file (albeit it is not happy
+with all the warnings but I got no errors).
+
+The bad news:
+
+*) Visual Studio 2010 doesn't support C99 (seriously Microsoft?) - so
+variable declaration must be at the beginning of the scope (or before any
+other statement besides a variable declaration). It does appear that they
+did add C99 support in 2013 (
+http://blogs.msdn.com/b/vcblog/archive/2013/07/19/c99-library-support-in-visual-studio-2013.aspx
+)
+so if you want to support anything below 2013 is up to you. My patch fixes
+it for 2010.
+
+*) There appears to be an issue with PyVarObject_HEAD_INIT on Windows (gcc
+and VC++).
+
+The following causes a "error: initializer element is not constant"
+
+PyVarObject_HEAD_INIT(&PyType_Type, 0)
+
+interestingly enough it compiles just fine under Linux/gcc. I even tried
+using a newer version of gcc (on Windows) and still complains about it.
+That macro expands to (at least according to gcc -E):
+
+1, &PyType_Type, 0,
+
+on both Linux and Windows. While, I'm not a C expert I wasn't able to
+figure out what is so different that it compiles fine on Linux and not
+Windows. In any case there is some talk about it here:
+https://groups.google.com/forum/#!msg/modwsgi/4OLhmA1AbBs/CX0Y8cV0lyUJ
+
+In order to fix that I used this advice: http://bugs.python.org/issue10773 and
+replaced those lines with:
+
+PyVarObject_HEAD_INIT(NULL, 0)
+
+And initialized that field elsewhere.
+
+To compile I downloaded the Apache source (including apr, apr-iconv,
+apt-util, and httpd as well as compiled libraries from here:
+http://www.apachelounge.com/download/win32/ ).
+
+I also had to include finfooobject.c into the project file. I also may have
+hacked some unresolved external symbols in there that it was complaining
+about.
+
+However, I was NOT able to compile it using MinGW/gcc - kept getting
+unresolved externals so I'm no doubt missing a library somewhere....
+
+The diff is against the latest in your git repo.
+
+Let me know what you think.
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <http://mailman.modpython.org/pipermail/mod_python/attachments/20131103/56d02258/attachment.html>
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: windows.diff
+Type: application/octet-stream
+Size: 11451 bytes
+Desc: not available
+URL: <http://mailman.modpython.org/pipermail/mod_python/attachments/20131103/56d02258/attachment.obj>
+

@@ -1,0 +1,120 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] mod_python and Windows
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=Re%3A%20%5Bmod_python%5D%20mod_python%20and%20Windows&In-Reply-To=%3CCABi3FZHocov%3DH0dnMGjZss%2Bzjr-27DW1gWFNxE1eBxo3XPzn2A%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] mod_python and Windows</H1>
+    <B>Nathan Adams</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=Re%3A%20%5Bmod_python%5D%20mod_python%20and%20Windows&In-Reply-To=%3CCABi3FZHocov%3DH0dnMGjZss%2Bzjr-27DW1gWFNxE1eBxo3XPzn2A%40mail.gmail.com%3E"
+       TITLE="[mod_python] mod_python and Windows">adamsna at datanethost.net
+       </A><BR>
+    <I>Mon Nov  4 00:56:47 UTC 2013</I>
+    <P><UL>
+        
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26626">[ date ]</a>
+              <a href="thread.html#26626">[ thread ]</a>
+              <a href="subject.html#26626">[ subject ]</a>
+              <a href="author.html#26626">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi,
+
+I saw you were looking for help to test compiling the new mod_python on
+Windows.
+
+The good news: I got it compiled on Windows under Visual Studio 2010 - I
+haven't tested it but it does spit out a so file (albeit it is not happy
+with all the warnings but I got no errors).
+
+The bad news:
+
+*) Visual Studio 2010 doesn't support C99 (seriously Microsoft?) - so
+variable declaration must be at the beginning of the scope (or before any
+other statement besides a variable declaration). It does appear that they
+did add C99 support in 2013 (
+<A HREF="http://blogs.msdn.com/b/vcblog/archive/2013/07/19/c99-library-support-in-visual-studio-2013.aspx">http://blogs.msdn.com/b/vcblog/archive/2013/07/19/c99-library-support-in-visual-studio-2013.aspx</A>
+)
+so if you want to support anything below 2013 is up to you. My patch fixes
+it for 2010.
+
+*) There appears to be an issue with PyVarObject_HEAD_INIT on Windows (gcc
+and VC++).
+
+The following causes a &quot;error: initializer element is not constant&quot;
+
+PyVarObject_HEAD_INIT(&amp;PyType_Type, 0)
+
+interestingly enough it compiles just fine under Linux/gcc. I even tried
+using a newer version of gcc (on Windows) and still complains about it.
+That macro expands to (at least according to gcc -E):
+
+1, &amp;PyType_Type, 0,
+
+on both Linux and Windows. While, I'm not a C expert I wasn't able to
+figure out what is so different that it compiles fine on Linux and not
+Windows. In any case there is some talk about it here:
+<A HREF="https://groups.google.com/forum/#!msg/modwsgi/4OLhmA1AbBs/CX0Y8cV0lyUJ">https://groups.google.com/forum/#!msg/modwsgi/4OLhmA1AbBs/CX0Y8cV0lyUJ</A>
+
+In order to fix that I used this advice: <A HREF="http://bugs.python.org/issue10773">http://bugs.python.org/issue10773</A> and
+replaced those lines with:
+
+PyVarObject_HEAD_INIT(NULL, 0)
+
+And initialized that field elsewhere.
+
+To compile I downloaded the Apache source (including apr, apr-iconv,
+apt-util, and httpd as well as compiled libraries from here:
+<A HREF="http://www.apachelounge.com/download/win32/">http://www.apachelounge.com/download/win32/</A> ).
+
+I also had to include finfooobject.c into the project file. I also may have
+hacked some unresolved external symbols in there that it was complaining
+about.
+
+However, I was NOT able to compile it using MinGW/gcc - kept getting
+unresolved externals so I'm no doubt missing a library somewhere....
+
+The diff is against the latest in your git repo.
+
+Let me know what you think.
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20131103/56d02258/attachment.html">http://mailman.modpython.org/pipermail/mod_python/attachments/20131103/56d02258/attachment.html</A>&gt;
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: windows.diff
+Type: application/octet-stream
+Size: 11451 bytes
+Desc: not available
+URL: &lt;<A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20131103/56d02258/attachment.obj">http://mailman.modpython.org/pipermail/mod_python/attachments/20131103/56d02258/attachment.obj</A>&gt;
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26626">[ date ]</a>
+              <a href="thread.html#26626">[ thread ]</a>
+              <a href="subject.html#26626">[ subject ]</a>
+              <a href="author.html#26626">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the mod_python
+mailing list</a><br>
+</body></html>
