@@ -310,7 +310,7 @@ p156
 I0
 sS'sequence'
 p157
-I26629
+I26630
 sS'basedir'
 p158
 S'/usr/local/mailman/archives/private/mod_python'
@@ -324,11 +324,11 @@ S'0.09 (Mailman edition)'
 p162
 sS'lastdate'
 p163
-S'Fri Dec 20 22:55:25 2013'
+S'Fri Dec 20 23:02:05 2013'
 p164
 sS'archivedate'
 p165
-S'Fri Dec 20 22:58:51 2013'
+S'Fri Dec 20 23:05:33 2013'
 p166
 sS'_dirty_archives'
 p167
@@ -343,8 +343,9 @@ S'Thread'
 p172
 sS'archive'
 p173
-g18
-sS'size'
+S'2013-December'
 p174
-I1
+sS'size'
+p175
+I2
 s.
