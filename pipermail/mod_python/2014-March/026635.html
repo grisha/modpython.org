@@ -1,0 +1,93 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Change request: &quot;allow req.args = None&quot;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=Re%3A%20%5Bmod_python%5D%20Change%20request%3A%20%22allow%20req.args%20%3D%20None%22&In-Reply-To=%3Calpine.OSX.2.00.1403040924110.7347%40pure.home%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026634.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Change request: &quot;allow req.args = None&quot;</H1>
+    <B>Ron Gomes</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=Re%3A%20%5Bmod_python%5D%20Change%20request%3A%20%22allow%20req.args%20%3D%20None%22&In-Reply-To=%3Calpine.OSX.2.00.1403040924110.7347%40pure.home%3E"
+       TITLE="[mod_python] Change request: &quot;allow req.args = None&quot;">rgomes at consumer.org
+       </A><BR>
+    <I>Tue Mar  4 15:11:51 UTC 2014</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026634.html">[mod_python] Issue in configure for mod_python 3.5.0
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26635">[ date ]</a>
+              <a href="thread.html#26635">[ thread ]</a>
+              <a href="subject.html#26635">[ subject ]</a>
+              <a href="author.html#26635">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>We use mod_python to rewrite URLs internally based on request criteria. 
+As part of our processing, in our request handler we grab and then 
+remove any request query parameters by setting
+
+req.args = None
+
+so that they will be invisible to later phases.
+
+A change was necessary to src/requestobject.c in order to make this work 
+since, as delivered, that line causes an exception to be thrown because 
+the code only allows Python strings to be assigned to req.args.
+
+===========================================
+
+$ diff -c src/requestobject.c.ORIG src/requestobject.c
+*** src/requestobject.c.ORIG	2013-11-11 22:21:34.000000000 -0500
+--- src/requestobject.c	2014-02-18 15:36:14.401921415 -0500
+***************
+*** 1967,1972 ****
+--- 1967,1977 ----
+           return 0;
+       }
+       else if (strcmp(name, &quot;args&quot;) == 0) {
++         if (val == Py_None) {
++             self-&gt;request_rec-&gt;args = 0;
++             return 0;
++         }
++
+           MP_ANYSTR_AS_STR(v, val, 1);
+           if (!v) {
+               Py_DECREF(val); /* MP_ANYSTR_AS_STR */
+
+===========================================
+
+Assigning an empty string would work but the semantics of that are 
+slightly different and are indistinguishable from an explictly-empty 
+query string.
+
+Can this be incorporated into mod_python, so that we don't have to 
+retrofit this change into every new version?
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026634.html">[mod_python] Issue in configure for mod_python 3.5.0
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26635">[ date ]</a>
+              <a href="thread.html#26635">[ thread ]</a>
+              <a href="subject.html#26635">[ subject ]</a>
+              <a href="author.html#26635">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the mod_python
+mailing list</a><br>
+</body></html>

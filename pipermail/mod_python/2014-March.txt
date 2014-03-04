@@ -118,3 +118,50 @@ On Sat, Mar 1, 2014 at 12:27 AM, Eric Engle <eric.engle at mac.com> wrote:
 > http://mailman.modpython.org/mailman/listinfo/mod_python
 >
 
+From rgomes at consumer.org  Tue Mar  4 15:11:51 2014
+From: rgomes at consumer.org (Ron Gomes)
+Date: Tue, 4 Mar 2014 10:11:51 -0500 (EST)
+Subject: [mod_python] Change request: "allow req.args = None"
+Message-ID: <alpine.OSX.2.00.1403040924110.7347@pure.home>
+
+We use mod_python to rewrite URLs internally based on request criteria. 
+As part of our processing, in our request handler we grab and then 
+remove any request query parameters by setting
+
+req.args = None
+
+so that they will be invisible to later phases.
+
+A change was necessary to src/requestobject.c in order to make this work 
+since, as delivered, that line causes an exception to be thrown because 
+the code only allows Python strings to be assigned to req.args.
+
+===========================================
+
+$ diff -c src/requestobject.c.ORIG src/requestobject.c
+*** src/requestobject.c.ORIG	2013-11-11 22:21:34.000000000 -0500
+--- src/requestobject.c	2014-02-18 15:36:14.401921415 -0500
+***************
+*** 1967,1972 ****
+--- 1967,1977 ----
+           return 0;
+       }
+       else if (strcmp(name, "args") == 0) {
++         if (val == Py_None) {
++             self->request_rec->args = 0;
++             return 0;
++         }
++
+           MP_ANYSTR_AS_STR(v, val, 1);
+           if (!v) {
+               Py_DECREF(val); /* MP_ANYSTR_AS_STR */
+
+===========================================
+
+Assigning an empty string would work but the semantics of that are 
+slightly different and are indistinguishable from an explictly-empty 
+query string.
+
+Can this be incorporated into mod_python, so that we don't have to 
+retrofit this change into every new version?
+
