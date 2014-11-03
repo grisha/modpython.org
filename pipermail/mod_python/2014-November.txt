@@ -272,3 +272,126 @@ wrote:
 An HTML attachment was scrubbed...
 URL: <http://mailman.modpython.org/pipermail/mod_python/attachments/20141103/84540e7a/attachment.html>
 
+From bram at diomedia.be  Mon Nov  3 19:07:00 2014
+From: bram at diomedia.be (Bram Van Steenlandt)
+Date: Mon, 03 Nov 2014 20:07:00 +0100
+Subject: [mod_python] TimeOut and mp_conn.read (pywebsocket)
+In-Reply-To: <CAHb_syvf7YJmUATGynfmSDG9xQ_jG_vAzOSxQsRjBaOAUUTzMw@mail.gmail.com>
+References: <54579018.6090203@diomedia.be>
+	<CAHb_syv1FrBzuKn0ccoxRvqmB_G65OCRuawfhwPsnFWO0iY7=g@mail.gmail.com>
+	<5457AE21.5030405@diomedia.be>
+	<CAHb_syvf7YJmUATGynfmSDG9xQ_jG_vAzOSxQsRjBaOAUUTzMw@mail.gmail.com>
+Message-ID: <5457D254.5050900@diomedia.be>
+
+Hi,
+
+The connection remains open for many hours at a time.
+
+it's something like:
+while True:
+     msg = request.ws_stream.receive_message()
+     if msg=="SOMETHING":
+         do other stuff, the client has asked something, maybe send a 
+json string to the client, maybe send a command to another program
+
+Thx for your input
+Bram
+
+
+op 03-11-14 19:26, Grisha Trubetskoy schreef:
+> That seems weird... I'd look for other causes for this - e.g. use 
+> something like tcpdump to see whether the TCP connection is closed 
+> from either end when it returns?
+>
+> On Mon, Nov 3, 2014 at 11:32 AM, Bram Van Steenlandt <bram at diomedia.be 
+> <mailto:bram at diomedia.be>> wrote:
+>
+>     Hi Grisha,
+>
+>     ws_stream is the websocket part created by pywebsocket.
+>
+>     In the pywebsocket code it looks like this (_stream_hixie75.py):
+>
+>             while True:
+>                 # Read 1 byte.
+>                 # mp_conn.read will block if no bytes are available.
+>                 # Timeout is controlled by TimeOut directive of Apache.
+>                 frame_type_str = self.receive_bytes(1)
+>
+>     self.receive_bytes seems to use:
+>     read_bytes = self._request.connection.read(length)
+>
+>     Which seems to be:
+>
+>     connection.read([/length/])
+>
+>         Reads at most /length/ bytes from the client. The read blocks
+>         indefinitely until there is at least one byte to read. If
+>         length is -1, keep reading until the socket is closed from the
+>         other end (This is known as EXHAUSTIVE mode in the http server
+>         code).
+>
+>
+>     but Timeout is 60 in apache and the function returns after 1
+>     second if there are no bytes to receive.
+>
+>     Bram
+>     op 03-11-14 16:59, Grisha Trubetskoy schreef:
+>>
+>>     Bram
+>>
+>>     What is ws_stream?
+>>
+>>     Grisha
+>>
+>>     On Mon, Nov 3, 2014 at 9:24 AM, Bram Van Steenlandt
+>>     <bram at diomedia.be <mailto:bram at diomedia.be>> wrote:
+>>
+>>         Hi all,
+>>
+>>         I've developed a websocket application using mod_python and
+>>         pywebsocket.
+>>         It works but I have a problem (I'm using apache22 and
+>>         mod_python 3.3.1
+>>         and python 2.6.6).
+>>
+>>         I'm using request.ws_stream.receive_message() to see if there are
+>>         messages from the client,
+>>         this works but always takes one second (between 0.99 and
+>>         1.05), I need
+>>         it to return faster (esp. when there is no message most of
+>>         the time).
+>>
+>>         This is suppose to be controlled by the TimeOut config value
+>>         in apache
+>>         but this is set to 60... (req.server.timeout is also 60)
+>>         I would think that the function returns after 60 seconds and
+>>         not 1 when
+>>         there is no data, is there another timeout I'm missing ?
+>>
+>>         Can someone point me in the right direction ?
+>>         I there a way to set this from inside handler like with
+>>         regular sockets ?
+>>
+>>         The pywebsocket package does include a way to work with a
+>>         messagereceiver (here receiving is done in a thread),
+>>         this works but it's difficult to debug, I think I would
+>>         prefer a shorter
+>>         timeout.
+>>
+>>         Thx
+>>
+>>
+>>         _______________________________________________
+>>         mod_python mailing list
+>>         mod_python at modpython.org <mailto:mod_python at modpython.org>
+>>         http://mailman.modpython.org/mailman/listinfo/mod_python
+>>
+>>
+>
+>
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <http://mailman.modpython.org/pipermail/mod_python/attachments/20141103/25ce06ba/attachment-0001.html>
+
