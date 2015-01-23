@@ -82,3 +82,114 @@ Thanks! :-)
 Alex
 
 
+From grisha at modpython.org  Fri Jan 23 17:17:41 2015
+From: grisha at modpython.org (Grisha Trubetskoy)
+Date: Fri, 23 Jan 2015 12:17:41 -0500
+Subject: [mod_python] Connection handler behaviour
+In-Reply-To: <20150123122102.GJ5431@eldamar.org.uk>
+References: <20150123122102.GJ5431@eldamar.org.uk>
+Message-ID: <CAHb_sys=0H_M+9cTkieWDwex1n64G-SMpdQar4V7GJ5X0jD-pA@mail.gmail.com>
+
+Without studying Apache code, off the top of my head I'd suspect that the
+connection close is somehow related to the KeepAlive setting in Apache, you
+might want to try tinkering with that and see what happens.
+
+Regarding having to read a line... I'm also not sure. Given the
+request/response nature of a web server it seems that in every "normal"
+case (e.g. HTTP) the server starts out by reading the request, but I don't
+see why that should be required for a connection handler. You will probably
+have to study the Apache code to get a sure answer to this question.
+
+Sorry I'm not very helpful here!
+
+Grisha
+
+On Fri, Jan 23, 2015 at 7:21 AM, Alexander Frolkin <avf at eldamar.org.uk>
+wrote:
+
+> Hello,
+>
+> I'm having two issues trying to implement a connection handler.  The
+> first is that it seems to be impossible to write data to the client
+> before a line has been read from the client.  The second is that the
+> connection isn't closed when the handler returns apache.OK.
+>
+> Surely the latter isn't correct behaviour?  As for the former, is this
+> the expected behaviour?  Is there any way to change it?
+>
+> I'm running mod_python 3.3.1 and Apache 2.4.7.  Virtual host config:
+>
+> -----
+> Listen 10.1.2.3:9999
+> <VirtualHost 10.1.2.3:9999>
+>         ServerName tcp_test
+>         PythonPath "sys.path + ['/var/www']"
+>         PythonDebug On
+>         PythonConnectionHandler tcp_test
+> </VirtualHost>
+> -----
+>
+> The handler:
+>
+> -----
+> from mod_python import apache
+>
+> def connectionhandler(conn):
+>         conn.write('Hello\r\n')
+>
+>         line = conn.readline()
+>         conn.write('You said {0}\r\n'.format(line))
+>
+>         return apache.OK
+> -----
+>
+> An example session:
+>
+> ----
+> $ telnet 10.1.2.3 9999
+> Trying 10.1.2.3...
+> Connected to 10.1.2.3.
+> Escape character is '^]'.
+> test
+> Hello
+> You said test
+>
+>
+>
+>
+>
+> ^]
+> telnet> q
+> Connection closed.
+> -----
+>
+> What I would expect:
+>
+> -----
+> $ telnet 10.1.2.3 9999
+> Trying 10.1.2.3...
+> Connected to 10.1.2.3.
+> Escape character is '^]'.
+> Hello
+> test
+> You said test
+> Connection closed by foreign host.
+> -----
+>
+> Could anyone shed some light on what's going on?  Am I just missing
+> something?
+>
+> Thanks! :-)
+>
+>
+> Alex
+>
+> _______________________________________________
+> mod_python mailing list
+> mod_python at modpython.org
+> http://mailman.modpython.org/mailman/listinfo/mod_python
+>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: <http://mailman.modpython.org/pipermail/mod_python/attachments/20150123/7ca2d52b/attachment.html>
+

@@ -1,0 +1,85 @@
+<tt>
+&lt;div&nbsp;dir=&quot;ltr&quot;&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;Without&nbsp;studying&nbsp;Apache&nbsp;code,&nbsp;off&nbsp;the&nbsp;top&nbsp;of&nbsp;my&nbsp;head&nbsp;I&amp;#39;d&nbsp;suspect&nbsp;that&nbsp;the&nbsp;connection&nbsp;close&nbsp;is&nbsp;somehow&nbsp;related&nbsp;to&nbsp;the&nbsp;KeepAlive&nbsp;setting&nbsp;in&nbsp;Apache,&nbsp;you&nbsp;might&nbsp;want&nbsp;to&nbsp;try&nbsp;tinkering&nbsp;with&nbsp;that&nbsp;and&nbsp;see&nbsp;what&nbsp;happens.&lt;br&gt;&lt;br&gt;&lt;/div&gt;Regarding&nbsp;having&nbsp;to&nbsp;read&nbsp;a&nbsp;line...&nbsp;I&amp;#39;m&nbsp;also&nbsp;not&nbsp;sure.&nbsp;Given&nbsp;the&nbsp;request/response&nbsp;nature&nbsp;of&nbsp;a&nbsp;web&nbsp;server&nbsp;it&nbsp;seems&nbsp;that&nbsp;in&nbsp;every&nbsp;&amp;quot;normal&amp;quot;&nbsp;case&nbsp;(e.g.&nbsp;HTTP)&nbsp;the&nbsp;server&nbsp;starts&nbsp;out&nbsp;by&nbsp;reading&nbsp;the&nbsp;request,&nbsp;but&nbsp;I&nbsp;don&amp;#39;t&nbsp;see&nbsp;why&nbsp;that&nbsp;should&nbsp;be&nbsp;required&nbsp;for&nbsp;a&nbsp;connection&nbsp;handler.&nbsp;You&nbsp;will&nbsp;probably&nbsp;have&nbsp;to&nbsp;study&nbsp;the&nbsp;Apache&nbsp;code&nbsp;to&nbsp;get&nbsp;a&nbsp;sure&nbsp;answer&nbsp;to&nbsp;this&nbsp;question.&lt;br&gt;&lt;br&gt;&lt;/div&gt;Sorry&nbsp;I&amp;#39;m&nbsp;not&nbsp;very&nbsp;helpful&nbsp;here!&lt;br&gt;&lt;br&gt;&lt;/div&gt;Grisha&lt;br&gt;&lt;/div&gt;&lt;div&nbsp;class=&quot;gmail_extra&quot;&gt;&lt;br&gt;&lt;div&nbsp;class=&quot;gmail_quote&quot;&gt;On&nbsp;Fri,&nbsp;Jan&nbsp;23,&nbsp;2015&nbsp;at&nbsp;7:21&nbsp;AM,&nbsp;Alexander&nbsp;Frolkin&nbsp;&lt;span&nbsp;dir=&quot;ltr&quot;&gt;&amp;lt;&lt;a&nbsp;href=&quot;mailto:avf@eldamar.org.uk&quot;&nbsp;target=&quot;_blank&quot;&gt;avf@eldamar.org.uk&lt;/a&gt;&amp;gt;&lt;/span&gt;&nbsp;wrote:&lt;br&gt;&lt;blockquote&nbsp;class=&quot;gmail_quote&quot;&nbsp;style=&quot;margin:0&nbsp;0&nbsp;0&nbsp;.8ex;border-left:1px&nbsp;#ccc&nbsp;solid;padding-left:1ex&quot;&gt;Hello,&lt;br&gt;<br>
+&lt;br&gt;<br>
+I&amp;#39;m&nbsp;having&nbsp;two&nbsp;issues&nbsp;trying&nbsp;to&nbsp;implement&nbsp;a&nbsp;connection&nbsp;handler. &nbsp;The&lt;br&gt;<br>
+first&nbsp;is&nbsp;that&nbsp;it&nbsp;seems&nbsp;to&nbsp;be&nbsp;impossible&nbsp;to&nbsp;write&nbsp;data&nbsp;to&nbsp;the&nbsp;client&lt;br&gt;<br>
+before&nbsp;a&nbsp;line&nbsp;has&nbsp;been&nbsp;read&nbsp;from&nbsp;the&nbsp;client. &nbsp;The&nbsp;second&nbsp;is&nbsp;that&nbsp;the&lt;br&gt;<br>
+connection&nbsp;isn&amp;#39;t&nbsp;closed&nbsp;when&nbsp;the&nbsp;handler&nbsp;returns&nbsp;apache.OK.&lt;br&gt;<br>
+&lt;br&gt;<br>
+Surely&nbsp;the&nbsp;latter&nbsp;isn&amp;#39;t&nbsp;correct&nbsp;behaviour? &nbsp;As&nbsp;for&nbsp;the&nbsp;former,&nbsp;is&nbsp;this&lt;br&gt;<br>
+the&nbsp;expected&nbsp;behaviour? &nbsp;Is&nbsp;there&nbsp;any&nbsp;way&nbsp;to&nbsp;change&nbsp;it?&lt;br&gt;<br>
+&lt;br&gt;<br>
+I&amp;#39;m&nbsp;running&nbsp;mod_python&nbsp;3.3.1&nbsp;and&nbsp;Apache&nbsp;2.4.7. &nbsp;Virtual&nbsp;host&nbsp;config:&lt;br&gt;<br>
+&lt;br&gt;<br>
+-----&lt;br&gt;<br>
+Listen&nbsp;&lt;a&nbsp;href=&quot;http://10.1.2.3:9999&quot;&nbsp;target=&quot;_blank&quot;&gt;10.1.2.3:9999&lt;/a&gt;&lt;br&gt;<br>
+&amp;lt;VirtualHost&nbsp;&lt;a&nbsp;href=&quot;http://10.1.2.3:9999&quot;&nbsp;target=&quot;_blank&quot;&gt;10.1.2.3:9999&lt;/a&gt;&amp;gt;&lt;br&gt;<br>
+ &nbsp; &nbsp; &nbsp; &nbsp;ServerName&nbsp;tcp_test&lt;br&gt;<br>
+ &nbsp; &nbsp; &nbsp; &nbsp;PythonPath&nbsp;&amp;quot;sys.path&nbsp;+&nbsp;[&amp;#39;/var/www&amp;#39;]&amp;quot;&lt;br&gt;<br>
+ &nbsp; &nbsp; &nbsp; &nbsp;PythonDebug&nbsp;On&lt;br&gt;<br>
+ &nbsp; &nbsp; &nbsp; &nbsp;PythonConnectionHandler&nbsp;tcp_test&lt;br&gt;<br>
+&amp;lt;/VirtualHost&amp;gt;&lt;br&gt;<br>
+-----&lt;br&gt;<br>
+&lt;br&gt;<br>
+The&nbsp;handler:&lt;br&gt;<br>
+&lt;br&gt;<br>
+-----&lt;br&gt;<br>
+from&nbsp;mod_python&nbsp;import&nbsp;apache&lt;br&gt;<br>
+&lt;br&gt;<br>
+def&nbsp;connectionhandler(conn):&lt;br&gt;<br>
+ &nbsp; &nbsp; &nbsp; &nbsp;conn.write(&amp;#39;Hello\r\n&amp;#39;)&lt;br&gt;<br>
+&lt;br&gt;<br>
+ &nbsp; &nbsp; &nbsp; &nbsp;line&nbsp;=&nbsp;conn.readline()&lt;br&gt;<br>
+ &nbsp; &nbsp; &nbsp; &nbsp;conn.write(&amp;#39;You&nbsp;said&nbsp;{0}\r\n&amp;#39;.format(line))&lt;br&gt;<br>
+&lt;br&gt;<br>
+ &nbsp; &nbsp; &nbsp; &nbsp;return&nbsp;apache.OK&lt;br&gt;<br>
+-----&lt;br&gt;<br>
+&lt;br&gt;<br>
+An&nbsp;example&nbsp;session:&lt;br&gt;<br>
+&lt;br&gt;<br>
+----&lt;br&gt;<br>
+$&nbsp;telnet&nbsp;10.1.2.3&nbsp;9999&lt;br&gt;<br>
+Trying&nbsp;10.1.2.3...&lt;br&gt;<br>
+Connected&nbsp;to&nbsp;10.1.2.3.&lt;br&gt;<br>
+Escape&nbsp;character&nbsp;is&nbsp;&amp;#39;^]&amp;#39;.&lt;br&gt;<br>
+test&lt;br&gt;<br>
+Hello&lt;br&gt;<br>
+You&nbsp;said&nbsp;test&lt;br&gt;<br>
+&lt;br&gt;<br>
+&lt;br&gt;<br>
+&lt;br&gt;<br>
+&lt;br&gt;<br>
+&lt;br&gt;<br>
+^]&lt;br&gt;<br>
+telnet&amp;gt;&nbsp;q&lt;br&gt;<br>
+Connection&nbsp;closed.&lt;br&gt;<br>
+-----&lt;br&gt;<br>
+&lt;br&gt;<br>
+What&nbsp;I&nbsp;would&nbsp;expect:&lt;br&gt;<br>
+&lt;br&gt;<br>
+-----&lt;br&gt;<br>
+$&nbsp;telnet&nbsp;10.1.2.3&nbsp;9999&lt;br&gt;<br>
+Trying&nbsp;10.1.2.3...&lt;br&gt;<br>
+Connected&nbsp;to&nbsp;10.1.2.3.&lt;br&gt;<br>
+Escape&nbsp;character&nbsp;is&nbsp;&amp;#39;^]&amp;#39;.&lt;br&gt;<br>
+Hello&lt;br&gt;<br>
+test&lt;br&gt;<br>
+You&nbsp;said&nbsp;test&lt;br&gt;<br>
+Connection&nbsp;closed&nbsp;by&nbsp;foreign&nbsp;host.&lt;br&gt;<br>
+-----&lt;br&gt;<br>
+&lt;br&gt;<br>
+Could&nbsp;anyone&nbsp;shed&nbsp;some&nbsp;light&nbsp;on&nbsp;what&amp;#39;s&nbsp;going&nbsp;on? &nbsp;Am&nbsp;I&nbsp;just&nbsp;missing&lt;br&gt;<br>
+something?&lt;br&gt;<br>
+&lt;br&gt;<br>
+Thanks!&nbsp;:-)&lt;br&gt;<br>
+&lt;br&gt;<br>
+&lt;br&gt;<br>
+Alex&lt;br&gt;<br>
+&lt;br&gt;<br>
+_______________________________________________&lt;br&gt;<br>
+mod_python&nbsp;mailing&nbsp;list&lt;br&gt;<br>
+&lt;a&nbsp;href=&quot;mailto:mod_python@modpython.org&quot;&gt;mod_python@modpython.org&lt;/a&gt;&lt;br&gt;<br>
+&lt;a&nbsp;href=&quot;http://mailman.modpython.org/mailman/listinfo/mod_python&quot;&nbsp;target=&quot;_blank&quot;&gt;http://mailman.modpython.org/mailman/listinfo/mod_python&lt;/a&gt;&lt;br&gt;<br>
+&lt;/blockquote&gt;&lt;/div&gt;&lt;br&gt;&lt;/div&gt;<br>
+
+</tt>

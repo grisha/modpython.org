@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [mod_python] Connection handler behaviour
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:mod_python%40modpython.org?Subject=Re%3A%20%5Bmod_python%5D%20Connection%20handler%20behaviour&In-Reply-To=%3CCAHb_sys%3D0H_M%2B9cTkieWDwex1n64G-SMpdQar4V7GJ5X0jD-pA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026646.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[mod_python] Connection handler behaviour</H1>
+    <B>Grisha Trubetskoy</B> 
+    <A HREF="mailto:mod_python%40modpython.org?Subject=Re%3A%20%5Bmod_python%5D%20Connection%20handler%20behaviour&In-Reply-To=%3CCAHb_sys%3D0H_M%2B9cTkieWDwex1n64G-SMpdQar4V7GJ5X0jD-pA%40mail.gmail.com%3E"
+       TITLE="[mod_python] Connection handler behaviour">grisha at modpython.org
+       </A><BR>
+    <I>Fri Jan 23 17:17:41 UTC 2015</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026646.html">[mod_python] Connection handler behaviour
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26647">[ date ]</a>
+              <a href="thread.html#26647">[ thread ]</a>
+              <a href="subject.html#26647">[ subject ]</a>
+              <a href="author.html#26647">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Without studying Apache code, off the top of my head I'd suspect that the
+connection close is somehow related to the KeepAlive setting in Apache, you
+might want to try tinkering with that and see what happens.
+
+Regarding having to read a line... I'm also not sure. Given the
+request/response nature of a web server it seems that in every &quot;normal&quot;
+case (e.g. HTTP) the server starts out by reading the request, but I don't
+see why that should be required for a connection handler. You will probably
+have to study the Apache code to get a sure answer to this question.
+
+Sorry I'm not very helpful here!
+
+Grisha
+
+On Fri, Jan 23, 2015 at 7:21 AM, Alexander Frolkin &lt;<A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">avf at eldamar.org.uk</A>&gt;
+wrote:
+
+&gt;<i> Hello,
+</I>&gt;<i>
+</I>&gt;<i> I'm having two issues trying to implement a connection handler.  The
+</I>&gt;<i> first is that it seems to be impossible to write data to the client
+</I>&gt;<i> before a line has been read from the client.  The second is that the
+</I>&gt;<i> connection isn't closed when the handler returns apache.OK.
+</I>&gt;<i>
+</I>&gt;<i> Surely the latter isn't correct behaviour?  As for the former, is this
+</I>&gt;<i> the expected behaviour?  Is there any way to change it?
+</I>&gt;<i>
+</I>&gt;<i> I'm running mod_python 3.3.1 and Apache 2.4.7.  Virtual host config:
+</I>&gt;<i>
+</I>&gt;<i> -----
+</I>&gt;<i> Listen 10.1.2.3:9999
+</I>&gt;<i> &lt;VirtualHost 10.1.2.3:9999&gt;
+</I>&gt;<i>         ServerName tcp_test
+</I>&gt;<i>         PythonPath &quot;sys.path + ['/var/www']&quot;
+</I>&gt;<i>         PythonDebug On
+</I>&gt;<i>         PythonConnectionHandler tcp_test
+</I>&gt;<i> &lt;/VirtualHost&gt;
+</I>&gt;<i> -----
+</I>&gt;<i>
+</I>&gt;<i> The handler:
+</I>&gt;<i>
+</I>&gt;<i> -----
+</I>&gt;<i> from mod_python import apache
+</I>&gt;<i>
+</I>&gt;<i> def connectionhandler(conn):
+</I>&gt;<i>         conn.write('Hello\r\n')
+</I>&gt;<i>
+</I>&gt;<i>         line = conn.readline()
+</I>&gt;<i>         conn.write('You said {0}\r\n'.format(line))
+</I>&gt;<i>
+</I>&gt;<i>         return apache.OK
+</I>&gt;<i> -----
+</I>&gt;<i>
+</I>&gt;<i> An example session:
+</I>&gt;<i>
+</I>&gt;<i> ----
+</I>&gt;<i> $ telnet 10.1.2.3 9999
+</I>&gt;<i> Trying 10.1.2.3...
+</I>&gt;<i> Connected to 10.1.2.3.
+</I>&gt;<i> Escape character is '^]'.
+</I>&gt;<i> test
+</I>&gt;<i> Hello
+</I>&gt;<i> You said test
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> ^]
+</I>&gt;<i> telnet&gt; q
+</I>&gt;<i> Connection closed.
+</I>&gt;<i> -----
+</I>&gt;<i>
+</I>&gt;<i> What I would expect:
+</I>&gt;<i>
+</I>&gt;<i> -----
+</I>&gt;<i> $ telnet 10.1.2.3 9999
+</I>&gt;<i> Trying 10.1.2.3...
+</I>&gt;<i> Connected to 10.1.2.3.
+</I>&gt;<i> Escape character is '^]'.
+</I>&gt;<i> Hello
+</I>&gt;<i> test
+</I>&gt;<i> You said test
+</I>&gt;<i> Connection closed by foreign host.
+</I>&gt;<i> -----
+</I>&gt;<i>
+</I>&gt;<i> Could anyone shed some light on what's going on?  Am I just missing
+</I>&gt;<i> something?
+</I>&gt;<i>
+</I>&gt;<i> Thanks! :-)
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Alex
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> mod_python mailing list
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">mod_python at modpython.org</A>
+</I>&gt;<i> <A HREF="http://mailman.modpython.org/mailman/listinfo/mod_python">http://mailman.modpython.org/mailman/listinfo/mod_python</A>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://mailman.modpython.org/pipermail/mod_python/attachments/20150123/7ca2d52b/attachment.html">http://mailman.modpython.org/pipermail/mod_python/attachments/20150123/7ca2d52b/attachment.html</A>&gt;
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026646.html">[mod_python] Connection handler behaviour
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26647">[ date ]</a>
+              <a href="thread.html#26647">[ thread ]</a>
+              <a href="subject.html#26647">[ subject ]</a>
+              <a href="author.html#26647">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://mailman.modpython.org/mailman/listinfo/mod_python">More information about the mod_python
+mailing list</a><br>
+</body></html>
