@@ -1,0 +1,84 @@
+From avf at eldamar.org.uk  Fri Jan 23 12:21:02 2015
+From: avf at eldamar.org.uk (Alexander Frolkin)
+Date: Fri, 23 Jan 2015 13:21:02 +0100
+Subject: [mod_python] Connection handler behaviour
+Message-ID: <20150123122102.GJ5431@eldamar.org.uk>
+
+Hello,
+
+I'm having two issues trying to implement a connection handler.  The
+first is that it seems to be impossible to write data to the client
+before a line has been read from the client.  The second is that the
+connection isn't closed when the handler returns apache.OK.
+
+Surely the latter isn't correct behaviour?  As for the former, is this
+the expected behaviour?  Is there any way to change it?
+
+I'm running mod_python 3.3.1 and Apache 2.4.7.  Virtual host config:
+
+-----
+Listen 10.1.2.3:9999
+<VirtualHost 10.1.2.3:9999>
+	ServerName tcp_test
+	PythonPath "sys.path + ['/var/www']"
+	PythonDebug On
+	PythonConnectionHandler tcp_test
+</VirtualHost>
+-----
+
+The handler:
+
+-----
+from mod_python import apache
+
+def connectionhandler(conn):
+	conn.write('Hello\r\n')
+
+	line = conn.readline()
+	conn.write('You said {0}\r\n'.format(line))
+
+	return apache.OK
+-----
+
+An example session:
+
+----
+$ telnet 10.1.2.3 9999
+Trying 10.1.2.3...
+Connected to 10.1.2.3.
+Escape character is '^]'.
+test
+Hello
+You said test
+
+
+
+
+
+^]
+telnet> q
+Connection closed.
+-----
+
+What I would expect:
+
+-----
+$ telnet 10.1.2.3 9999
+Trying 10.1.2.3...
+Connected to 10.1.2.3.
+Escape character is '^]'.
+Hello
+test
+You said test
+Connection closed by foreign host.
+-----
+
+Could anyone shed some light on what's going on?  Am I just missing
+something?
+
+Thanks! :-)
+
+
+Alex
+
+
