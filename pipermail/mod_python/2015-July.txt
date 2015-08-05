@@ -1,0 +1,51 @@
+From bram at diomedia.be  Wed Jul 22 17:31:11 2015
+From: bram at diomedia.be (Bram Van Steenlandt)
+Date: Wed, 22 Jul 2015 19:31:11 +0200
+Subject: [mod_python] question about global_lock and global_unlock
+Message-ID: <55AFD35F.2030706@diomedia.be>
+
+Hi,
+
+What is the point of _apache._global_lock and _apache._global_unlock ?
+
+I've found and SQL session online for mod_python, I'm using this with 
+postgresql.
+The load function is:
+     def do_load(self):
+         _apache._global_lock(self._req.server, None, 0)
+
+         c = self._db.cursor()
+         c.execute("""SELECT %s
+                      FROM %s
+                      WHERE %s = %s
+                      """ % ( 
+self._val_colname,self._table,self._key_colname,"%s"),[self._sid,] )
+                      # txt2db keeps this safe, so that a sid
+                      # cannot be constructed to alter the
+                      # query
+
+         r = c.fetchone()
+         try:
+           if r:
+             return cPickle.loads(r[0])
+           else:
+             return None
+         finally:
+           _apache._global_unlock(self._req.server, None, 0)
+
+It's unclear to me why this global lock is needed, isn't this a serious 
+limitation on performance ?
+I would assume at least do_load can do without is as there is no real 
+problem when you would do this simultanious.
+I would think only insert and update require a lock, even update/save 
+could do without one I think (insert would be dangerous as it could 
+create two records).
+Is this indeed not needed and most likely copied from a session type 
+where you had to be carefull about opening the same file twice ?
+
+Can anyone shed some light on this ?
+
+thx
+Bram
+
+
